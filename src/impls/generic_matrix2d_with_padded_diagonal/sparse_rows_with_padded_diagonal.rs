@@ -1,5 +1,5 @@
 //! Submodule providing an iterator over the indices of the rows with values
-//! for the [`GenericMatrix2DWithPaddedDiagonal`] struct, which automatically
+//! for the [`super::GenericMatrix2DWithPaddedDiagonal`] struct, which automatically
 //! adds diagonal values when missing.
 
 use crate::traits::{IntoUsize, TryFromUsize};
@@ -8,7 +8,7 @@ use multi_ranged::SimpleRange;
 use crate::traits::SparseMatrix2D;
 
 /// Iterator over the indices of the rows with values for the
-/// [`GenericMatrix2DWithPaddedDiagonal`] struct, which automatically adds
+/// [`super::GenericMatrix2DWithPaddedDiagonal`] struct, which automatically adds
 /// diagonal values when missing.
 pub struct SparseRowsWithPaddedDiagonal<'matrix, M: SparseMatrix2D> {
     /// The underlying matrix.

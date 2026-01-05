@@ -1,4 +1,4 @@
-//! Submodule providing the [`TransposedValuedMatrix2D`] trait.
+//! Submodule providing transposed valued matrix 2D traits.
 
 use crate::traits::TotalOrd;
 

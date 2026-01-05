@@ -1,5 +1,5 @@
 //! Submodule implementing Edges-related traits for
-//! [`SquaredUpperTriangularCSR2D`].
+//! [`UpperTriangularCSR2D`].
 
 use std::fmt::Debug;
 

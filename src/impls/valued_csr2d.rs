@@ -1,5 +1,5 @@
 //! Submodule implementing Edges for
-//! [`ValuedCSR2D`](crate::traits::ValuedCSR2D).
+//! [`ValuedCSR2D`].
 
 use crate::traits::{
     BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,

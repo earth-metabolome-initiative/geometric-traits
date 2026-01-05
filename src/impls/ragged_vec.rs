@@ -1,5 +1,5 @@
 //! Implementations of traits from the graph crate for the
-//! [`RaggedVector`](crate::traits::RaggedVector) data structure.
+//! [`RaggedVector`] data structure.
 
 use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use crate::{

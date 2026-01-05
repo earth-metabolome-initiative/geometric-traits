@@ -1,4 +1,4 @@
-//! Submodule implementing Edges-related traits for [`SquaredSquareCSR2D`].
+//! Submodule implementing Edges-related traits for [`SquareCSR2D`].
 
 use std::fmt::Debug;
 
