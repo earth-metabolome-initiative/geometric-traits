@@ -29,6 +29,32 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// Returns whether the current graph labelling follows a
     /// topological order, which means that for every directed edge (u, v),
     /// u comes before v in the ordering.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.is_topologically_sorted());
+    /// ```
     fn is_topologically_sorted(&self) -> bool {
         self.sparse_coordinates().all(|(src, dst)| src < dst)
     }
@@ -38,6 +64,33 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// # Arguments
     /// 
     /// * `source` - The identifier of the source node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// let paths = graph.unique_paths_from(0);
+    /// assert_eq!(paths.len(), 2);
+    /// ```
     fn unique_paths_from(
         &self,
         source: Self::NodeId,
@@ -74,6 +127,33 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// # Arguments
     ///
     /// * `source` - The identifier of the source node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// let successors = graph.successors_set(0);
+    /// assert_eq!(successors, vec![1, 2]);
+    /// ```
     fn successors_set(&self, source: Self::NodeId) -> Vec<Self::NodeId> {
         let mut visited_nodes = vec![false; self.number_of_nodes().into_usize()];
 
@@ -102,6 +182,33 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     }
 
     /// Returns whether the provided source node can reach the destination node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.has_path(0, 2));
+    /// assert!(!graph.has_path(2, 0));
+    /// ```
     fn has_path(
         &self,
         source: Self::NodeId,
@@ -141,6 +248,31 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// * `destination` - The identifier of the destination node.
     /// * `passing_through` - The identifier of the node that must be passed through.
     /// 
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.is_reachable_through(0, 2, 1));
+    /// ```
     fn is_reachable_through(
         &self,
         source: Self::NodeId,

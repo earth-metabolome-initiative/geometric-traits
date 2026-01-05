@@ -174,13 +174,34 @@ pub trait WeightedMonoplexGraph:
 
     /// Returns the weights of the successors of a node.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `source_node_id`: The node identifier.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize, f64)> = vec![(0, 1, 1.0), (0, 2, 2.0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: GenericGraph<SortedVec<usize>, ValuedCSR2D<usize, usize, usize, f64>> = GenericGraph::from((nodes, edges));
     ///
-    /// The weights of the successors of the node.
+    /// let weights: Vec<f64> = graph.successor_weights(0).collect();
+    /// assert_eq!(weights, vec![1.0, 2.0]);
+    /// ```
     fn successor_weights(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -191,13 +212,33 @@ pub trait WeightedMonoplexGraph:
 
     /// Returns the largest weight of the successors of a node.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `source_node_id`: The node identifier.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize, f64)> = vec![(0, 1, 1.0), (0, 2, 2.0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: GenericGraph<SortedVec<usize>, ValuedCSR2D<usize, usize, usize, f64>> = GenericGraph::from((nodes, edges));
     ///
-    /// The largest weight of the successors of the node, if any.
+    /// assert_eq!(graph.max_successor_weight(0), Some(2.0));
+    /// ```
     fn max_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -211,14 +252,33 @@ pub trait WeightedMonoplexGraph:
     /// Returns the largest weight of the successors of a node and the
     /// corresponding successor node identifier.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `source_node_id`: The node identifier.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize, f64)> = vec![(0, 1, 1.0), (0, 2, 2.0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: GenericGraph<SortedVec<usize>, ValuedCSR2D<usize, usize, usize, f64>> = GenericGraph::from((nodes, edges));
     ///
-    /// The largest weight of the successors of the node and the corresponding
-    /// successor node identifier, if any.
+    /// assert_eq!(graph.max_successor_weight_and_id(0), Some((2.0, 2)));
+    /// ```
     fn max_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -234,13 +294,33 @@ pub trait WeightedMonoplexGraph:
 
     /// Returns the smallest weight of the successors of a node.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `source_node_id`: The node identifier.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize, f64)> = vec![(0, 1, 1.0), (0, 2, 2.0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: GenericGraph<SortedVec<usize>, ValuedCSR2D<usize, usize, usize, f64>> = GenericGraph::from((nodes, edges));
     ///
-    /// The smallest weight of the successors of the node, if any.
+    /// assert_eq!(graph.min_successor_weight(0), Some(1.0));
+    /// ```
     fn min_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -254,14 +334,33 @@ pub trait WeightedMonoplexGraph:
     /// Returns the smallest weight of the successors of a node and the
     /// corresponding successor node identifier.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `source_node_id`: The node identifier.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize, f64)> = vec![(0, 1, 1.0), (0, 2, 2.0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: GenericGraph<SortedVec<usize>, ValuedCSR2D<usize, usize, usize, f64>> = GenericGraph::from((nodes, edges));
     ///
-    /// The smallest weight of the successors of the node and the corresponding
-    /// successor node identifier, if any.
+    /// assert_eq!(graph.min_successor_weight_and_id(0), Some((1.0, 1)));
+    /// ```
     fn min_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,

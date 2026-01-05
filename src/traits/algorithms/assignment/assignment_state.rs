@@ -17,11 +17,29 @@ pub enum AssignmentState<T> {
 
 impl<T> AssignmentState<T> {
     /// Returns true if the assignment is unassigned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::traits::algorithms::AssignmentState;
+    ///
+    /// let state: AssignmentState<usize> = AssignmentState::Unassigned;
+    /// assert!(state.is_unassigned());
+    /// ```
     pub fn is_unassigned(&self) -> bool {
         matches!(self, AssignmentState::Unassigned)
     }
 
     /// Returns true if the assignment is assigned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::traits::algorithms::AssignmentState;
+    ///
+    /// let state: AssignmentState<usize> = AssignmentState::Assigned(1);
+    /// assert!(state.is_assigned());
+    /// ```
     pub fn is_assigned(&self) -> bool {
         matches!(self, AssignmentState::Assigned(_))
     }

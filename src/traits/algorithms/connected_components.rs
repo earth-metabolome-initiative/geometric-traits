@@ -1,9 +1,9 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
 
-use crate::traits::{IntoUsize, PositiveInteger, MonopartiteGraph, UndirectedMonopartiteMonoplexGraph};
+use crate::traits::{
+    IntoUsize, MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
+};
 use num_traits::{One, Zero};
-
-
 
 /// Connected components object.
 pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {
@@ -131,6 +131,34 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     /// * If the graph has too many connected components for the provided marker
     ///   type.
     /// * If the graph has too many nodes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SymmetricCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::traits::algorithms::connected_components::ConnectedComponentsResult;
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (2, 3)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SymmetricCSR2D<_> = UndiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: UndiGraph<usize> = UndiGraph::from((nodes, edges));
+    ///
+    /// let cc: ConnectedComponentsResult<_, usize> = graph.connected_components().unwrap();
+    /// assert_eq!(cc.number_of_components(), 2);
+    /// ```
     fn connected_components(
         &self,
     ) -> Result<ConnectedComponentsResult<'_, Self, Marker>, crate::errors::MonopartiteError<Self>>

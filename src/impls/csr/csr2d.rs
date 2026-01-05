@@ -5,7 +5,10 @@ use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
 use num_traits::Zero;
 
-use crate::impls::{CSR2DSizedRows, CSR2DEmptyRowIndices, CSR2DNonEmptyRowIndices, CSR2DSizedRowsizes, MutabilityError};
+use crate::impls::{
+    CSR2DEmptyRowIndices, CSR2DNonEmptyRowIndices, CSR2DSizedRows, CSR2DSizedRowsizes,
+    MutabilityError,
+};
 use crate::prelude::*;
 
 #[derive(Clone, Eq, PartialEq, Hash)]

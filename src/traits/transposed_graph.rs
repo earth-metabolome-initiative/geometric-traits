@@ -1,6 +1,8 @@
 //! Submodule for the transposed graph traits.
 
-use crate::traits::{SizedSparseBiMatrix2D, SparseMatrix2D, SparseBiMatrix2D, BiMatrix2D, SizedRowsSparseMatrix2D};
+use crate::traits::{
+    BiMatrix2D, SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseBiMatrix2D, SparseMatrix2D,
+};
 use num_traits::Zero;
 
 use super::Edges;

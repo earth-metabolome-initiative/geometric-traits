@@ -16,9 +16,36 @@ pub trait TransposedMonoplexGraph:
 
     /// Returns the predecessors of the node with the given identifier.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `destination_node_id` - The identifier of the destination node.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::CSR2D;
+    /// use geometric_traits::impls::GenericBiMatrix2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> = GenericBiMatrix2D::new(edges);
+    /// let graph: GenericGraph<SortedVec<usize>, GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    ///
+    /// let predecessors: Vec<usize> = graph.predecessors(1).collect();
+    /// assert_eq!(predecessors, vec![0]);
+    /// ```
 	fn predecessors(
 		&self,
 		destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -29,10 +56,36 @@ pub trait TransposedMonoplexGraph:
     /// Returns whether the given destination node has a predecessor with the
     /// given source node identifier.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `destination_node_id` - The identifier of the destination node.
-    /// * `source_node_id` - The identifier of the source node.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::CSR2D;
+    /// use geometric_traits::impls::GenericBiMatrix2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> = GenericBiMatrix2D::new(edges);
+    /// let graph: GenericGraph<SortedVec<usize>, GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.has_predecessor(1, 0));
+    /// assert!(!graph.has_predecessor(1, 2));
+    /// ```
     fn has_predecessor(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -44,9 +97,36 @@ pub trait TransposedMonoplexGraph:
 
     /// Returns whether the given destination node has any predecessor.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `destination_node_id` - The identifier of the destination node.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::CSR2D;
+    /// use geometric_traits::impls::GenericBiMatrix2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> = GenericBiMatrix2D::new(edges);
+    /// let graph: GenericGraph<SortedVec<usize>, GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.has_predecessors(1));
+    /// assert!(!graph.has_predecessors(0));
+    /// ```
     fn has_predecessors(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -56,13 +136,36 @@ pub trait TransposedMonoplexGraph:
 
     /// Returns the inbound degree of the node with the given identifier.
     ///
-    /// # Arguments
+    /// # Examples
     ///
-    /// * `destination_node_id` - The identifier of the destination node.
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::CSR2D;
+    /// use geometric_traits::impls::GenericBiMatrix2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
     ///
-    /// # Returns
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> = GenericBiMatrix2D::new(edges);
+    /// let graph: GenericGraph<SortedVec<usize>, GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
     ///
-    /// The inbound degree of the node.
+    /// assert_eq!(graph.in_degree(1), 1);
+    /// assert_eq!(graph.in_degree(0), 0);
+    /// ```
     fn in_degree(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -75,6 +178,37 @@ pub trait TransposedMonoplexGraph:
     /// # Returns
     ///
     /// An iterator over the inbound degrees of the nodes.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::CSR2D;
+    /// use geometric_traits::impls::GenericBiMatrix2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
+    /// use geometric_traits::naive_structs::GenericGraph;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape((nodes.len(), nodes.len()))
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> = GenericBiMatrix2D::new(edges);
+    /// let graph: GenericGraph<SortedVec<usize>, GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    ///
+    /// let in_degrees: Vec<usize> = graph.in_degrees().collect();
+    /// assert_eq!(in_degrees, vec![0, 1, 1]);
+    /// ```
 	fn in_degrees(
 		&self
     ) -> <<<Self::TransposedEdges as TransposedEdges>::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{

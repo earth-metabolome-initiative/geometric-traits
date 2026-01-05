@@ -51,6 +51,32 @@ impl<G: MonoplexMonopartiteGraph + ?Sized> CycleDetector<'_, G> {
 /// based on a depth-first search (DFS) approach.
 pub trait CycleDetection: MonoplexMonopartiteGraph {
     /// Returns true if the graph contains a cycle, false otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2, 3, 4, 5];
+    /// let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert!(!graph.has_cycle());
+    /// ```
     fn has_cycle(&self) -> bool {
         let mut cycle_detector = CycleDetector::from(self);
         for node in self.node_ids() {

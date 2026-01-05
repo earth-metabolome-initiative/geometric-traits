@@ -9,6 +9,34 @@ use crate::traits::MonoplexMonopartiteGraph;
 /// graph. A sink node is a node with no successors.
 pub trait SinkNodes: MonoplexMonopartiteGraph {
     /// Returns the sink nodes of the graph.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// // Node 1 is a sink node because it has incoming edges but no outgoing edges.
+    /// // Node 2 is isolated, so it is not considered a sink node.
+    /// assert_eq!(graph.sink_nodes(), vec![1]);
+    /// ```
     fn sink_nodes(&self) -> Vec<Self::NodeId> {
         let mut visited = vec![false; self.number_of_nodes().into_usize()];
 

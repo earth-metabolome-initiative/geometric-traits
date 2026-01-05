@@ -134,6 +134,33 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
 /// Tarjan's algorithm for strongly connected components.
 pub trait Tarjan: SquareMatrix + SparseMatrix2D {
     /// Returns the strongly connected components of the graph.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2), (2, 0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let sccs: Vec<Vec<usize>> = edges.tarjan().collect();
+    /// assert_eq!(sccs.len(), 1);
+    /// assert_eq!(sccs[0].len(), 3);
+    /// ```
     fn tarjan(&self) -> TarjanIterator<'_, Self> {
         TarjanIterator::from(self)
     }

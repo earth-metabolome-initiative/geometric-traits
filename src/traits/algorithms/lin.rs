@@ -34,6 +34,34 @@ pub trait Lin: Resnik {
     /// # Errors
     /// - If the graph is not a dag
     /// - If the occurrences are not equal
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder, ScalarSimilarity};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// let lin = graph.lin(&[1, 1, 1]).unwrap();
+    /// assert!(lin.similarity(&0, &0) > 0.99);
+    /// assert!(lin.similarity(&0, &1) < 0.99);
+    /// ```
     fn lin(&self, occurrences: &[usize]) -> Result<LinResult<'_, Self>, InformationContentError> {
         Ok(self.resnik(occurrences)?.into())
     }

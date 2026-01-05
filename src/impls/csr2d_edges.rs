@@ -1,7 +1,10 @@
 //! Submodule implementing Edges for CSR2D.
 
 use crate::impls::csr::CSR2D;
-use crate::traits::{Edges, Matrix, GrowableEdges, SparseMatrixMut, Graph, Matrix2D, SizedSparseMatrix, MonoplexGraph, BipartiteGraph, BidirectionalVocabulary, Matrix2DRef};
+use crate::traits::{
+    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix, Matrix2D,
+    Matrix2DRef, MonoplexGraph, SizedSparseMatrix, SparseMatrixMut,
+};
 use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
 

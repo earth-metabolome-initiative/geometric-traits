@@ -115,6 +115,21 @@ where
     /// - The matrix is not square after padding (`LAPJVError::NonSquareMatrix`)
     /// - The matrix contains values that are greater than the padding cost
     /// - The matrix contains zero, negative or non-finite values
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::ValuedCSR2D;
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let csr: ValuedCSR2D<u8, u8, u8, f64> =
+    ///     ValuedCSR2D::try_from([[1.0, 0.5, 10.0], [0.5, 10.0, 20.0], [10.0, 20.0, 0.5]])
+    ///         .expect("Failed to create CSR matrix");
+    ///
+    /// let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
+    /// assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    /// assert_eq!(assignment, vec![(0, 1), (1, 0), (2, 2)]);
+    /// ```
     fn sparse_lapjv(
         &self,
         padding_cost: Self::Value,

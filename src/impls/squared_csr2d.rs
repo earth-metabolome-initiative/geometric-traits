@@ -2,7 +2,10 @@
 
 use std::fmt::Debug;
 
-use crate::traits::{TryFromUsize, Edges, SizedRowsSparseMatrix2D, Matrix2D, Matrix, SparseMatrix, GrowableEdges, SparseMatrixMut};
+use crate::traits::{
+    Edges, GrowableEdges, Matrix, Matrix2D, SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrixMut,
+    TryFromUsize,
+};
 
 use crate::errors::builder::edges::EdgesBuilderError;
 use crate::impls::{MutabilityError, SquareCSR2D};

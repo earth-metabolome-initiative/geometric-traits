@@ -58,10 +58,14 @@ where
             match (&self.item1, &self.item2) {
                 (Some(val1), Some(val2)) => {
                     // Check for crossing with back candidates
-                    if let Some(ref back1) = self.item1_back && val1 > back1 {
+                    if let Some(ref back1) = self.item1_back
+                        && val1 > back1
+                    {
                         return None;
                     }
-                    if let Some(ref back2) = self.item2_back && val2 > back2 {
+                    if let Some(ref back2) = self.item2_back
+                        && val2 > back2
+                    {
                         return None;
                     }
 
@@ -100,10 +104,14 @@ where
             match (&self.item1_back, &self.item2_back) {
                 (Some(val1), Some(val2)) => {
                     // Check for crossing with front candidates
-                    if let Some(ref front1) = self.item1 && front1 > val1 {
+                    if let Some(ref front1) = self.item1
+                        && front1 > val1
+                    {
                         return None;
                     }
-                    if let Some(ref front2) = self.item2 && front2 > val2 {
+                    if let Some(ref front2) = self.item2
+                        && front2 > val2
+                    {
                         return None;
                     }
 

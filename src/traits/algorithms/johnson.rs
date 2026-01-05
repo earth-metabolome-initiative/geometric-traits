@@ -294,6 +294,33 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for JohnsonIterator<'_, M> {
 /// Johnson's algorithm for finding all cycles in a sparse matrix.
 pub trait Johnson: SquareMatrix + SparseMatrix2D + Sized {
     /// Finds all cycles in a sparse matrix.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2), (2, 0)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let cycles: Vec<Vec<usize>> = edges.johnson().collect();
+    /// assert_eq!(cycles.len(), 1);
+    /// assert_eq!(cycles[0], vec![0, 1, 2]);
+    /// ```
     fn johnson(&self) -> JohnsonIterator<'_, Self> {
         JohnsonIterator::from(self)
     }

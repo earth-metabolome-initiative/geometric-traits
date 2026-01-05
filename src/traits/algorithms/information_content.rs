@@ -54,6 +54,33 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
     /// - `NonFiniteOccurrence` if any occurrence is not finite
     /// - `NegativeOccurrence` if any occurrence is negative
     /// - `NoOccurrencesAboveZero` if resulting ICs are all zero
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::impls::SortedVec;
+    /// use geometric_traits::impls::SquareCSR2D;
+    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// let ic = graph.information_content(&[1, 1, 1]).unwrap();
+    /// assert!(ic[0] >= 0.0);
+    /// ```
     fn information_content(
         &self,
         occurrences: &[usize],

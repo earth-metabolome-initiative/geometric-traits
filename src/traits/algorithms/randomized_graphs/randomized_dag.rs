@@ -13,7 +13,7 @@ pub trait RandomizedDAG: MonoplexGraph {
     ///
     /// # Arguments
     /// - `seed`: the random seed the dag is generated from
-    /// - `nodes`: number of the nodes the dag will have
+    /// - `nodes`: number of the nodes the dag is generated from
     fn randomized_dag(seed: u64, nodes: usize) -> Self;
 }
 
