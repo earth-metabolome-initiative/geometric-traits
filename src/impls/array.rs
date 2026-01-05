@@ -4,8 +4,8 @@
 use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
-use algebra::prelude::Symbol;
-use numeric_common_traits::prelude::PositiveInteger;
+use crate::traits::PositiveInteger;
+use crate::traits::Symbol;
 
 impl<V: Symbol, const N: usize> crate::traits::Vocabulary for [V; N] {
     type SourceSymbol = usize;

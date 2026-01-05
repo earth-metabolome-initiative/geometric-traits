@@ -1,6 +1,6 @@
 //! Errors raised in algorithms defined for [`BipartiteGraph`]s.
 
-use algebra::prelude::LAPJVError;
+use crate::traits::LAPJVError;
 
 use crate::traits::BipartiteGraph;
 

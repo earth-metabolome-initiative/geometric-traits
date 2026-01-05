@@ -1,10 +1,9 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
 
-use algebra::prelude::*;
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger};
+use crate::traits::{IntoUsize, PositiveInteger, MonopartiteGraph, UndirectedMonopartiteMonoplexGraph};
+use num_traits::{One, Zero};
 
-use crate::traits::{MonopartiteGraph, UndirectedMonopartiteMonoplexGraph};
+
 
 /// Connected components object.
 pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {
@@ -55,9 +54,12 @@ where
         &self,
         component_identifier: Marker,
     ) -> impl Iterator<Item = G::NodeId> + '_ {
-        self.graph.node_ids().zip(self.component_identifiers.iter()).filter_map(
-            move |(node, &component)| (component == component_identifier).then_some(node),
-        )
+        self.graph
+            .node_ids()
+            .zip(self.component_identifiers.iter())
+            .filter_map(move |(node, &component)| {
+                (component == component_identifier).then_some(node)
+            })
     }
 
     /// Returns an iterator over the symbols of the nodes of a connected
@@ -66,9 +68,12 @@ where
         &self,
         component_identifier: Marker,
     ) -> impl Iterator<Item = G::NodeSymbol> + '_ {
-        self.graph.nodes().zip(self.component_identifiers.iter()).filter_map(
-            move |(symbol, &component)| (component == component_identifier).then_some(symbol),
-        )
+        self.graph
+            .nodes()
+            .zip(self.component_identifiers.iter())
+            .filter_map(move |(symbol, &component)| {
+                (component == component_identifier).then_some(symbol)
+            })
     }
 }
 
@@ -131,9 +136,9 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     ) -> Result<ConnectedComponentsResult<'_, Self, Marker>, crate::errors::MonopartiteError<Self>>
     {
         let mut component_identifiers: Vec<Marker> =
-            vec![Marker::MAX; self.number_of_nodes().into_usize()];
-        let mut number_of_components: Marker = Marker::ZERO;
-        let mut largest_component_size: Self::NodeId = Self::NodeId::ZERO;
+            vec![Marker::max_value(); self.number_of_nodes().into_usize()];
+        let mut number_of_components: Marker = Marker::zero();
+        let mut largest_component_size: Self::NodeId = Self::NodeId::zero();
         let mut smallest_component_size: Self::NodeId = self.number_of_nodes();
 
         let mut frontier: Vec<Self::NodeId> = Vec::new();
@@ -141,11 +146,11 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
 
         for node in self.node_ids() {
             // If the node is already marked as part of a component, skip it.
-            if component_identifiers[node.into_usize()] != Marker::MAX {
+            if component_identifiers[node.into_usize()] != Marker::max_value() {
                 continue;
             }
             // Otherwise, we have found a new component and need to mark all nodes in it.
-            let mut current_component_size = Self::NodeId::ZERO;
+            let mut current_component_size = Self::NodeId::zero();
 
             // Add the current node to the frontier.
             frontier.push(node);
@@ -154,7 +159,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
                 // For each node in the frontier, mark it and add its neighbors to the frontier.
                 for neighbour in frontier.drain(..) {
                     // If the neighbour is already marked as part of a component, skip it.
-                    if component_identifiers[neighbour.into_usize()] != Marker::MAX {
+                    if component_identifiers[neighbour.into_usize()] != Marker::max_value() {
                         continue;
                     }
 
@@ -162,7 +167,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
                     component_identifiers[neighbour.into_usize()] = number_of_components;
 
                     // Increment the size of the current component.
-                    current_component_size += Self::NodeId::ONE;
+                    current_component_size += Self::NodeId::one();
 
                     // Add the neighbors of this node to the temporary frontier.
                     temporary_frontier.extend(self.neighbors(neighbour));
@@ -181,11 +186,11 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
                 smallest_component_size = current_component_size;
             }
 
-            number_of_components += Marker::ONE;
+            number_of_components += Marker::one();
 
             // If the number of components exceeds the maximum value of the marker type,
             // return an error.
-            if number_of_components == Marker::MAX {
+            if number_of_components == Marker::max_value() {
                 return Err(ConnectedComponentsError::TooManyComponents.into());
             }
         }

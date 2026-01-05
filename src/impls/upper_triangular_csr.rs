@@ -3,10 +3,10 @@
 
 use std::fmt::Debug;
 
-use algebra::prelude::*;
-use numeric_common_traits::prelude::TryFromUsize;
+use crate::traits::{TryFromUsize, Edges, SizedSparseMatrix2D, Matrix2D, Matrix, SparseMatrix, GrowableEdges, SparseMatrixMut};
 
-use crate::{errors::builder::edges::EdgesBuilderError, prelude::*};
+use crate::errors::builder::edges::EdgesBuilderError;
+use crate::impls::{MutabilityError, UpperTriangularCSR2D};
 
 impl<M> Edges for UpperTriangularCSR2D<M>
 where

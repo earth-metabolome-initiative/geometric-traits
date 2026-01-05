@@ -3,7 +3,7 @@
 //! A transposed monoplex graph is a graph where the edges are of a single type
 //! and it is possible to efficiently access the predecessors of a node.
 
-use algebra::prelude::{SizedRowsSparseMatrix2D, SparseBiMatrix2D, SparseMatrix2D};
+use crate::traits::{SizedRowsSparseMatrix2D, SparseBiMatrix2D, SparseMatrix2D};
 
 use super::{Edges, MonoplexGraph, TransposedEdges};
 
@@ -38,7 +38,8 @@ pub trait TransposedMonoplexGraph:
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
         source_node_id: <Self::TransposedEdges as Edges>::SourceNodeId,
     ) -> bool {
-        self.edges().has_predecessor(destination_node_id, source_node_id)
+        self.edges()
+            .has_predecessor(destination_node_id, source_node_id)
     }
 
     /// Returns whether the given destination node has any predecessor.

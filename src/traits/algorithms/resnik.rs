@@ -1,5 +1,5 @@
 //! Submodule providing `Resnik` trait based on the algorithm implementation.
-use functional_properties::prelude::ScalarSimilarity;
+use crate::traits::ScalarSimilarity;
 
 use crate::{
     prelude::information_content::InformationContentError,

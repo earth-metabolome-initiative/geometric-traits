@@ -3,9 +3,9 @@
 
 use core::fmt::Debug;
 
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::{One, Zero};
 
 use super::{CSR2D, MutabilityError};
 use crate::traits::{
@@ -50,7 +50,9 @@ impl<
             );
         for (row, row_values) in valued_csr.row_indices().zip(value) {
             for (column, value) in valued_csr.column_indices().zip(row_values) {
-                valued_csr.add((row, column, value)).expect("Failed to add value to ValuedCSR2D");
+                valued_csr
+                    .add((row, column, value))
+                    .expect("Failed to add value to ValuedCSR2D");
             }
         }
 
@@ -62,15 +64,21 @@ impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug, Value: Debug> Debu
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.debug_struct("ValuedCSR2D").field("csr", &self.csr).field("values", &self.values).finish()
+        f.debug_struct("ValuedCSR2D")
+            .field("csr", &self.csr)
+            .field("values", &self.values)
+            .finish()
     }
 }
 
-impl<SparseIndex: ConstZero, RowIndex: ConstZero, ColumnIndex: ConstZero, Value> Default
+impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero, Value> Default
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     fn default() -> Self {
-        Self { csr: CSR2D::default(), values: Vec::default() }
+        Self {
+            csr: CSR2D::default(),
+            values: Vec::default(),
+        }
     }
 }
 
@@ -83,7 +91,10 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 
@@ -309,7 +320,7 @@ where
     }
 }
 
-impl<SparseIndex: ConstZero, RowIndex: ConstZero, ColumnIndex: ConstZero, Value> MatrixMut
+impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero, Value> MatrixMut
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
     CSR2D<SparseIndex, RowIndex, ColumnIndex>: MatrixMut<
@@ -359,7 +370,10 @@ where
     }
 
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
-        Self { csr: CSR2D::with_sparse_shape(shape), values: Vec::new() }
+        Self {
+            csr: CSR2D::with_sparse_shape(shape),
+            values: Vec::new(),
+        }
     }
 
     #[inline]
@@ -435,7 +449,7 @@ where
     #[inline]
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
         let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + Self::RowIndex::ONE).into_usize();
+        let end = self.rank_row(row + Self::RowIndex::one()).into_usize();
         self.values[start..end].iter().cloned()
     }
 }

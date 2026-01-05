@@ -4,7 +4,7 @@
 use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
-use algebra::prelude::Symbol;
+use crate::traits::Symbol;
 
 use crate::prelude::*;
 
@@ -89,7 +89,6 @@ impl<V: Symbol + Ord> GrowableVocabulary for Vec<V> {
         Ok(())
     }
 }
-
 
 use crate::traits::{Matrix, Matrix2D};
 

@@ -1,10 +1,10 @@
 //! Implementation of the `Arbitrary` trait for the `CSR2D` struct.
 
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
 
 use crate::{
-    prelude::{CSR2D, MutabilityError},
+    impls::{CSR2D, MutabilityError},
     traits::{MatrixMut, SparseMatrixMut},
 };
 
@@ -12,9 +12,29 @@ impl<'a, SparseIndex, RowIndex, ColumnIndex> Arbitrary<'a>
     for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
-    RowIndex: PositiveInteger + for<'b> Arbitrary<'b> + IntoUsize + TryFromUsize,
-    ColumnIndex:
-        PositiveInteger + for<'b> Arbitrary<'b> + TryFrom<SparseIndex> + IntoUsize + TryFromUsize,
+    RowIndex: PositiveInteger
+        + for<'b> Arbitrary<'b>
+        + IntoUsize
+        + TryFromUsize
+        + num_traits::ConstOne
+        + num_traits::ConstZero
+        + std::ops::MulAssign
+        + num_traits::CheckedMul
+        + num_traits::ToPrimitive
+        + num_traits::SaturatingSub
+        + 'static,
+    ColumnIndex: PositiveInteger
+        + for<'b> Arbitrary<'b>
+        + TryFrom<SparseIndex>
+        + IntoUsize
+        + TryFromUsize
+        + std::ops::MulAssign
+        + num_traits::CheckedMul
+        + num_traits::ToPrimitive
+        + num_traits::SaturatingSub
+        + num_traits::ConstOne
+        + num_traits::ConstZero
+        + 'static,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let number_of_rows = RowIndex::arbitrary(u)?;
@@ -36,14 +56,12 @@ where
         for (row, column) in edges {
             match csr.add((row, column)) {
                 Ok(()) => {}
-                Err(err) => {
-                    match err {
-                        MutabilityError::MaxedOutSparseIndex
-                        | MutabilityError::MaxedOutRowIndex
-                        | MutabilityError::MaxedOutColumnIndex => {}
-                        _ => return Err(arbitrary::Error::IncorrectFormat),
-                    }
-                }
+                Err(err) => match err {
+                    MutabilityError::MaxedOutSparseIndex
+                    | MutabilityError::MaxedOutRowIndex
+                    | MutabilityError::MaxedOutColumnIndex => {}
+                    _ => return Err(arbitrary::Error::IncorrectFormat),
+                },
             }
         }
 

@@ -1,9 +1,8 @@
 //! Submodule implementing Edges-related traits for [`SquaredSymmetricCSR2D`].
 
-use algebra::prelude::*;
-use numeric_common_traits::prelude::TryFromUsize;
+use crate::traits::{TryFromUsize, Edges, SizedSparseMatrix2D, Matrix2D, Matrix, SparseMatrix, FromDirectedMonopartiteEdges, MonopartiteEdges, Symmetrize};
 
-use crate::prelude::*;
+use crate::impls::SymmetricCSR2D;
 
 impl<M> Edges for SymmetricCSR2D<M>
 where

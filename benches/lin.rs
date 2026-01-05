@@ -2,10 +2,10 @@
 
 use std::hint::black_box;
 
-use algebra::impls::{CSR2D, SquareCSR2D};
 use criterion::{Criterion, criterion_group, criterion_main};
-use functional_properties::similarity::ScalarSimilarity;
-use graph::{
+use geometric_traits::impls::{CSR2D, SquareCSR2D};
+use geometric_traits::traits::ScalarSimilarity;
+use geometric_traits::{
     prelude::{GenericGraph, RandomizedDAG},
     traits::{Lin, MonopartiteGraph, randomized_graphs::XorShift64},
 };
@@ -18,23 +18,23 @@ fn bench_lin(c: &mut Criterion) {
         let mut xorshift = XorShift64::from(24537839457);
         for _ in 0..NUMBER_OF_DAGS {
             let seed = xorshift.next().unwrap();
-            let dag: GenericGraph<u64, SquareCSR2D<CSR2D<u64, u64, u64>>> =
+            let dag: GenericGraph<usize, SquareCSR2D<CSR2D<usize, usize, usize>>> =
                 RandomizedDAG::randomized_dag(seed, 10);
             dags.push(dag);
         }
         b.iter(|| {
             let mut total_similarity = 0.0;
             for dag in &dags {
-                let occurrences: Vec<usize> = vec![1; dag.number_of_nodes() as usize];
+                let occurrences: Vec<usize> = vec![1; dag.number_of_nodes()];
                 let lin = dag.lin(&occurrences).unwrap();
                 for src in black_box(dag.node_ids()) {
                     for dst in black_box(dag.node_ids()) {
-                        total_similarity += lin.similarity(black_box(&src), black_box(&dst))
+                        total_similarity += lin.similarity(black_box(&src), black_box(&dst));
                     }
                 }
             }
-            total_similarity
-        })
+            black_box(total_similarity)
+        });
     });
 }
 

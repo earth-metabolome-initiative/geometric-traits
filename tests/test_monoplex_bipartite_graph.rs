@@ -1,16 +1,21 @@
 //! Submodule to test the primary properties of a bipartite graph.
 
-use ::graph::prelude::*;
-use algebra::impls::ValuedCSR2D;
-use sorted_vec::prelude::SortedVec;
+use ::geometric_traits::prelude::*;
+use geometric_traits::impls::SortedVec;
+use geometric_traits::impls::ValuedCSR2D;
 
 #[test]
 /// Test checking that the bipartite graph is correctly built.
 pub fn test_bipartite_graph() {
     let left_nodes: Vec<u16> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
     let right_nodes: Vec<u8> = vec![0, 1, 2, 3, 4, 5];
-    let edges: Vec<(usize, usize, f64)> =
-        vec![(1, 1, 1.0), (2, 2, 1.0), (3, 3, 1.0), (4, 4, 1.0), (5, 5, 1.0)];
+    let edges: Vec<(usize, usize, f64)> = vec![
+        (1, 1, 1.0),
+        (2, 2, 1.0),
+        (3, 3, 1.0),
+        (4, 4, 1.0),
+        (5, 5, 1.0),
+    ];
     let left_nodes: SortedVec<u16> = GenericVocabularyBuilder::default()
         .expected_number_of_symbols(left_nodes.len())
         .symbols(left_nodes.into_iter().enumerate())

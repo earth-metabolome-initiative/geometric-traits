@@ -2,8 +2,8 @@
 
 use core::ops::Index;
 
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger};
+use crate::traits::{IntoUsize, PositiveInteger};
+use num_traits::Zero;
 
 /// Trait defining a vector.
 pub trait Vector: Index<<Self as Vector>::Index, Output = <Self as Vector>::Value> {
@@ -31,6 +31,6 @@ pub trait Vector: Index<<Self as Vector>::Index, Output = <Self as Vector>::Valu
 
     /// Returns whether the vector is empty.
     fn is_empty(&self) -> bool {
-        self.len() == <Self::Index as ConstZero>::ZERO
+        self.len() == <Self::Index as Zero>::zero()
     }
 }

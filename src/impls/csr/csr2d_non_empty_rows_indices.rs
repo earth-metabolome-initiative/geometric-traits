@@ -1,9 +1,9 @@
 //! Submodule providing an iterator over the indices of non-empty rows in a CSR
 //! matrix.
 
+use crate::traits::IntoUsize;
 use multi_ranged::SimpleRange;
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
+use num_traits::{One, Zero};
 
 use crate::traits::SizedRowsSparseMatrix2D;
 
@@ -24,8 +24,8 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DNonEmptyRowIndices<'_, CSR>
         while let (Some(row_index), Some(row_size)) =
             (self.row_sizes.0.next(), self.row_sizes.1.next())
         {
-            if row_size > CSR::ColumnIndex::ZERO {
-                self.returned_non_empty_rows += CSR::RowIndex::ONE;
+            if row_size > CSR::ColumnIndex::zero() {
+                self.returned_non_empty_rows += CSR::RowIndex::one();
                 return Some(row_index);
             }
         }
@@ -44,8 +44,8 @@ impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DNonEmptyRowIndic
         while let (Some(row_index), Some(row_size)) =
             (self.row_sizes.0.next_back(), self.row_sizes.1.next_back())
         {
-            if row_size > CSR::ColumnIndex::ZERO {
-                self.returned_non_empty_rows += CSR::RowIndex::ONE;
+            if row_size > CSR::ColumnIndex::zero() {
+                self.returned_non_empty_rows += CSR::RowIndex::one();
                 return Some(row_index);
             }
         }
@@ -58,7 +58,7 @@ impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DNonEmptyRowIndices
         CSR2DNonEmptyRowIndices {
             csr2d,
             row_sizes: (csr2d.row_indices(), csr2d.sparse_row_sizes()),
-            returned_non_empty_rows: CSR::RowIndex::ZERO,
+            returned_non_empty_rows: CSR::RowIndex::zero(),
         }
     }
 }

@@ -3,11 +3,11 @@
 extern crate alloc;
 
 pub mod errors;
-mod impls;
+pub mod impls;
 pub mod naive_structs;
 pub mod traits;
 
 /// Prelude module for the graph crate.
 pub mod prelude {
-    pub use crate::{naive_structs::*, traits::*};
+    pub use crate::{impls::*, naive_structs::*, traits::*};
 }

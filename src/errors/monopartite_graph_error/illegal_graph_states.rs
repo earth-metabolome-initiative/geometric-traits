@@ -1,7 +1,7 @@
 //! Submodule defining illegal graph states that, if reached, indicate a bug in
 //! some implementation of the graph traits.
 
-use numeric_common_traits::prelude::Bounded;
+use num_traits::Bounded;
 
 use crate::traits::MonopartiteGraph;
 
@@ -32,7 +32,7 @@ impl<G: MonopartiteGraph + ?Sized> core::fmt::Display for IllegalMonopartiteGrap
                         "some bug in the implementation of the graph traits. The number of nodes that was reported ",
                         "was {}."
                     ),
-                    G::NodeId::MAX,
+                    G::NodeId::max_value(),
                     number_of_nodes
                 )
             }

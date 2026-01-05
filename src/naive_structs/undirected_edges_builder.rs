@@ -3,7 +3,7 @@
 
 use std::marker::PhantomData;
 
-use algebra::prelude::{SparseMatrixMut, Symmetrize};
+use crate::traits::{SparseMatrixMut, Symmetrize};
 
 use super::GenericEdgesBuilder;
 use crate::{
@@ -27,7 +27,10 @@ impl<EdgeIterator, GE: GrowableEdges, UE> Default
     for GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE, UE>
 {
     fn default() -> Self {
-        Self { builder: GenericEdgesBuilder::default(), _undirected_edges: PhantomData }
+        Self {
+            builder: GenericEdgesBuilder::default(),
+            _undirected_edges: PhantomData,
+        }
     }
 }
 
@@ -98,6 +101,10 @@ where
         Symmetrize<<UE as UndirectedMonopartiteEdges>::SymmetricSquaredMatrix>,
 {
     /// Builds the undirected edges.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EdgesBuilderError`] if the edges cannot be built.
     pub fn build(self) -> Result<UE, EdgesBuilderError<UE>> {
         let directed_edges: GE = self.builder.build()?;
         let undirected_edges: UE = UE::from_directed_edges(directed_edges);

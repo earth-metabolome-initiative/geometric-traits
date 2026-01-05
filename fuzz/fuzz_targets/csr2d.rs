@@ -1,6 +1,6 @@
 //! Fuzzing submodule on the `CSR2D` struct.
 
-use algebra::prelude::*;
+use geometric_traits::prelude::*;
 use honggfuzz::fuzz;
 
 fn main() {
@@ -24,7 +24,7 @@ fn main() {
 
             // We collect the sparse coordinates, and check that they are sorted
             // and non-duplicated.
-            let sparse_coordinates = csr.sparse_coordinates().collect::<Vec<_>>();
+            let sparse_coordinates = geometric_traits::traits::SparseMatrix::sparse_coordinates(&csr).collect::<Vec<_>>();
             let mut clone_sparse_coordinates = sparse_coordinates.clone();
             clone_sparse_coordinates.sort_unstable();
             assert_eq!(

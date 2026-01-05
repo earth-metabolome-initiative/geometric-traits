@@ -1,9 +1,9 @@
 //! Submodule providing the implementation of the `SparseMatrix2D` trait
 //! and related traits for the `PaddedMatrix2D` struct.
 
+use crate::traits::{IntoUsize, TryFromUsize};
 use multi_ranged::{SimpleRange, Step};
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
+use num_traits::{One, Zero};
 
 use super::{PaddedMatrix2D, padded_coordinates::PaddedCoordinates};
 use crate::{
@@ -27,8 +27,8 @@ where
 
     #[inline]
     fn is_empty(&self) -> bool {
-        self.number_of_rows() == M::RowIndex::ZERO
-            && self.number_of_columns() == M::ColumnIndex::ZERO
+        self.number_of_rows() == M::RowIndex::zero()
+            && self.number_of_columns() == M::ColumnIndex::zero()
     }
 
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
@@ -36,8 +36,8 @@ where
             return None;
         }
         Some((
-            self.number_of_rows() - M::RowIndex::ONE,
-            self.number_of_columns() - M::ColumnIndex::ONE,
+            self.number_of_rows() - M::RowIndex::one(),
+            self.number_of_columns() - M::ColumnIndex::one(),
         ))
     }
 
@@ -145,7 +145,7 @@ where
 
     #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
-        Self::RowIndex::ZERO
+        Self::RowIndex::zero()
     }
 
     #[inline]

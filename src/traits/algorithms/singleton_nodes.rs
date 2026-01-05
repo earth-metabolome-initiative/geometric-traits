@@ -2,7 +2,7 @@
 //! implementation, which provides a method to retrieve the singleton nodes from
 //! a graph, which is a node with no predecessor and no successors edges.
 
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
 
 use crate::traits::MonoplexMonopartiteGraph;
 /// Trait providing the `singleton_nodes` method, which returns the singleton

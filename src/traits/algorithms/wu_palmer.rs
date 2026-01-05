@@ -3,8 +3,8 @@
 
 use core::f64;
 
-use algebra::prelude::{Kahn, KahnError};
-use functional_properties::prelude::ScalarSimilarity;
+use crate::traits::ScalarSimilarity;
+use crate::traits::{Kahn, KahnError};
 
 use crate::traits::{Edges, MonoplexMonopartiteGraph, algorithms::root_nodes::RootNodes};
 
@@ -30,7 +30,10 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
         // Check whether the graph is a DAG (characterize by having no cycles)
         let _topological_ordering = self.edges().matrix().kahn()?;
         let root_nodes = self.root_nodes();
-        Ok(WuPalmerResult { graph: self, root_nodes })
+        Ok(WuPalmerResult {
+            graph: self,
+            root_nodes,
+        })
     }
 }
 

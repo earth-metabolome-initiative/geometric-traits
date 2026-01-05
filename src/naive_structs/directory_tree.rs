@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use sorted_vec::prelude::SortedVec;
+use crate::impls::SortedVec;
 
 use crate::{
     prelude::{DiGraph, GenericEdgesBuilder},
@@ -54,11 +54,10 @@ impl From<PathBuf> for DirectoryTree {
             .build()
             .expect("Failed to build directory tree edges");
 
-        let graph = DiGraph::try_from((
+        let graph = DiGraph::from((
             SortedVec::try_from(nodes).expect("Failed to build directory tree nodes"),
             edges,
-        ))
-        .expect("Failed to build graph");
+        ));
 
         DirectoryTree { graph }
     }

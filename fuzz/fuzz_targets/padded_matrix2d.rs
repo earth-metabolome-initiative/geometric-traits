@@ -1,6 +1,6 @@
 //! Fuzzing submodule on the `PaddedMatrix2d` struct.
 
-use algebra::prelude::*;
+use geometric_traits::prelude::*;
 use honggfuzz::fuzz;
 
 fn main() {

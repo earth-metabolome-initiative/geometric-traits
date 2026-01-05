@@ -1,6 +1,6 @@
 //! Submodule implementing the `Matrix` trait for the `PaddedMatrix` struct.
 
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
+use crate::traits::{IntoUsize, TryFromUsize};
 
 use super::PaddedMatrix2D;
 use crate::traits::{Matrix, Matrix2D};
@@ -15,7 +15,10 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 

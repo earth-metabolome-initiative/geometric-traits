@@ -2,7 +2,7 @@
 use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
-use algebra::prelude::Symbol;
+use crate::traits::Symbol;
 
 use crate::prelude::*;
 

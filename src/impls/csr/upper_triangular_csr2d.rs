@@ -1,8 +1,9 @@
 //! Submodule providing a definition of a CSR matrix.
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::Zero;
 
+use crate::impls::{MutabilityError, SquareCSR2D};
 use crate::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -19,7 +20,10 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 
@@ -73,7 +77,9 @@ where
     M: Matrix2D + Default,
 {
     fn default() -> Self {
-        Self { matrix: SquareCSR2D::default() }
+        Self {
+            matrix: SquareCSR2D::default(),
+        }
     }
 }
 
@@ -88,18 +94,22 @@ where
     type MinimalShape = M::RowIndex;
 
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
-        Self { matrix: SquareCSR2D::with_sparse_capacity(number_of_values) }
+        Self {
+            matrix: SquareCSR2D::with_sparse_capacity(number_of_values),
+        }
     }
 
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
-        Self::with_sparse_shaped_capacity(shape, M::SparseIndex::ZERO)
+        Self::with_sparse_shaped_capacity(shape, M::SparseIndex::zero())
     }
 
     fn with_sparse_shaped_capacity(
         shape: Self::MinimalShape,
         number_of_values: Self::SparseIndex,
     ) -> Self {
-        Self { matrix: SquareCSR2D::with_sparse_shaped_capacity(shape, number_of_values) }
+        Self {
+            matrix: SquareCSR2D::with_sparse_shaped_capacity(shape, number_of_values),
+        }
     }
 }
 
@@ -254,7 +264,7 @@ where
         + Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
     type Entry = Self::Coordinates;
-    type Error = crate::error::MutabilityError<Self>;
+    type Error = crate::impls::MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row > column {
@@ -293,33 +303,40 @@ where
             + self.number_of_defined_diagonal_values().into_usize();
 
         let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
-            offsets: vec![SparseIndex::ZERO; self.order().into_usize() + 1],
+            offsets: vec![SparseIndex::zero(); self.order().into_usize() + 1],
             number_of_columns: self.order(),
             number_of_rows: self.order(),
-            column_indices: vec![Idx::ZERO; number_of_expected_column_indices],
-            number_of_non_empty_rows: Idx::ZERO,
+            column_indices: vec![Idx::zero(); number_of_expected_column_indices],
+            number_of_non_empty_rows: Idx::zero(),
         };
 
         // First, we proceed to compute the number of elements in each column.
-        for (row, column) in self.sparse_coordinates() {
+        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
             // TODO! IF YOU INITIALIZE OFFSETS WITH THE OUT BOUND DEGREES, THERE IS NO NEED
             // FOR ALL OF THE SPARSE ROW ACCESSES!
-            symmetric.offsets[row.into_usize() + 1] += SparseIndex::ONE;
-            symmetric.offsets[column.into_usize() + 1] += SparseIndex::from(row != column);
+            symmetric.offsets[row.into_usize() + 1] += SparseIndex::one();
+            symmetric.offsets[column.into_usize() + 1] += if row == column {
+                SparseIndex::zero()
+            } else {
+                SparseIndex::one()
+            };
         }
 
         // Then, we compute the prefix sum of the degrees to get the offsets.
-        let mut prefix_sum = SparseIndex::ZERO;
+        let mut prefix_sum = SparseIndex::zero();
         for offset in &mut symmetric.offsets {
             prefix_sum += *offset;
-            symmetric.number_of_non_empty_rows +=
-                if *offset > SparseIndex::ZERO { Idx::ONE } else { Idx::ZERO };
+            symmetric.number_of_non_empty_rows += if *offset > SparseIndex::zero() {
+                Idx::one()
+            } else {
+                Idx::zero()
+            };
             *offset = prefix_sum;
         }
 
         // Finally, we fill the column indices.
-        let mut degree = vec![SparseIndex::ZERO; self.order().into_usize()];
-        for (row, column) in self.sparse_coordinates() {
+        let mut degree = vec![SparseIndex::zero(); self.order().into_usize()];
+        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
             let edges: Vec<(Idx, Idx)> = if row == column {
                 vec![(row, column)]
             } else {
@@ -329,7 +346,7 @@ where
                 let current_degree: &mut SparseIndex = &mut degree[i.into_usize()];
                 let index = *current_degree + symmetric.offsets[i.into_usize()];
                 symmetric.column_indices[index.into_usize()] = j;
-                *current_degree += SparseIndex::ONE;
+                *current_degree += SparseIndex::one();
             }
         }
 

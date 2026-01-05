@@ -2,9 +2,9 @@
 //! sparse matrices, which provides the Johnson's algorithm for finding all
 //! cycles in a sparse matrix.
 
+use crate::traits::IntoUsize;
 use lender::prelude::{Lender, Lending};
 use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
 
 use crate::{
     impls::{LowerBoundedSquareMatrix, SubsetSquareMatrix},
@@ -123,14 +123,18 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
             self.data.block_map.len()
         );
         self.data.stack.push(row_id);
-        self.row_iterators.push(self.current_component.sparse_row(row_id));
+        self.row_iterators
+            .push(self.current_component.sparse_row(row_id));
         self.data.blocked[row_id.into_usize()] = true;
     }
 
     fn remove_last_circuit_search(&mut self) {
         let row_id = self.data.stack.pop().unwrap();
         let mut row_iterator = self.row_iterators.pop().unwrap();
-        debug_assert!(row_iterator.next().is_none(), "Row iterator should be empty after popping");
+        debug_assert!(
+            row_iterator.next().is_none(),
+            "Row iterator should be empty after popping"
+        );
         if self.data.found_circuit {
             self.unblock(row_id);
         } else {
@@ -257,7 +261,11 @@ impl<'matrix, M: SquareMatrix + SparseMatrix2D> From<&'matrix M>
     for InnerJohnsonIterator<'matrix, M>
 {
     fn from(matrix: &'matrix M) -> Self {
-        Self { matrix, data: Data::from(matrix), current_component: None }
+        Self {
+            matrix,
+            data: Data::from(matrix),
+            current_component: None,
+        }
     }
 }
 
@@ -269,7 +277,9 @@ pub struct JohnsonIterator<'matrix, M: SquareMatrix + SparseMatrix2D> {
 
 impl<'matrix, M: SquareMatrix + SparseMatrix2D> From<&'matrix M> for JohnsonIterator<'matrix, M> {
     fn from(matrix: &'matrix M) -> Self {
-        Self { inner: InnerJohnsonIterator::from(matrix).flatten() }
+        Self {
+            inner: InnerJohnsonIterator::from(matrix).flatten(),
+        }
     }
 }
 

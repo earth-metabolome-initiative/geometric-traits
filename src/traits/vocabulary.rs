@@ -4,7 +4,7 @@
 use core::fmt::Debug;
 use std::rc::Rc;
 
-use algebra::prelude::Symbol;
+use crate::traits::Symbol;
 
 use crate::errors::builder::vocabulary::VocabularyBuilderError;
 

@@ -1,7 +1,7 @@
 //! Submodule providing the `CycleDetection` trait and its blanket
 //! implementation.
 
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
 
 use crate::traits::MonoplexMonopartiteGraph;
 

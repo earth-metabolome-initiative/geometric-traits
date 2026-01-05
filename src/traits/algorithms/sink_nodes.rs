@@ -2,7 +2,7 @@
 //! implementation, which provides a method to retrieve the sink nodes of the
 //! graph, which are the set of nodes with no successors.
 
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
 
 use crate::traits::MonoplexMonopartiteGraph;
 /// Trait providing the `sink_nodes` method, which returns the sink nodes of the
@@ -24,11 +24,13 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
         // been visited. A node is considered visited if it has a predecessor.
         self.node_ids()
             .zip(visited)
-            .filter_map(
-                |(node, visited)| {
-                    if visited && !self.has_successors(node) { Some(node) } else { None }
-                },
-            )
+            .filter_map(|(node, visited)| {
+                if visited && !self.has_successors(node) {
+                    Some(node)
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 }

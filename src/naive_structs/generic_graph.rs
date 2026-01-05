@@ -1,6 +1,6 @@
 //! Submodule providing a naively implemented generic Monoparted Graph.
 
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 
 use crate::traits::{BidirectionalVocabulary, Edges, Graph, MonopartiteGraph, MonoplexGraph};
 
@@ -22,7 +22,10 @@ where
     Edges: Default,
 {
     fn default() -> Self {
-        Self { nodes: Nodes::default(), edges: Edges::default() }
+        Self {
+            nodes: Nodes::default(),
+            edges: Edges::default(),
+        }
     }
 }
 

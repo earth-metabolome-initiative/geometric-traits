@@ -1,6 +1,6 @@
 //! Submodule for the transposed directed graph traits.
 
-use algebra::prelude::*;
+use crate::traits::SparseBiMatrix2D;
 
 use super::{DirectedEdges, TransposedEdges};
 

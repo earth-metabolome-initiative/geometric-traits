@@ -3,8 +3,8 @@
 //! values by using the `Map` generic made available in the `PaddedMatrix2D`
 //! struct.
 
+use crate::traits::{IntoUsize, TryFromUsize};
 use multi_ranged::SimpleRange;
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
 
 use super::PaddedMatrix2D;
 use crate::traits::{Matrix2D, SparseValuedMatrix2D, ValuedMatrix};
@@ -39,7 +39,7 @@ where
         Self {
             matrix: self.matrix,
             row_index: self.row_index,
-            column_indices: self.column_indices.clone(),
+            column_indices: self.column_indices,
             sparse_values: self.sparse_values.clone(),
             sparse_column_indices: self.sparse_column_indices.clone(),
             next_column_index: self.next_column_index,
@@ -125,13 +125,21 @@ where
         if let Some(backup_sparse_column_index) = self.next_back_column_index {
             if dense_column_index == backup_sparse_column_index {
                 self.next_back_column_index = None;
-                return self.sparse_values.as_mut().and_then(DoubleEndedIterator::next_back);
+                return self
+                    .sparse_values
+                    .as_mut()
+                    .and_then(DoubleEndedIterator::next_back);
             }
-        } else if let Some(sparse_column_index) =
-            self.sparse_column_indices.as_mut().and_then(DoubleEndedIterator::next_back)
+        } else if let Some(sparse_column_index) = self
+            .sparse_column_indices
+            .as_mut()
+            .and_then(DoubleEndedIterator::next_back)
         {
             if dense_column_index == sparse_column_index {
-                return self.sparse_values.as_mut().and_then(DoubleEndedIterator::next_back);
+                return self
+                    .sparse_values
+                    .as_mut()
+                    .and_then(DoubleEndedIterator::next_back);
             }
             self.next_back_column_index = Some(sparse_column_index);
         }

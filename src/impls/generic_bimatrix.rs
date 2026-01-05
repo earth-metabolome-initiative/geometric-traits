@@ -1,10 +1,9 @@
 //! Submodule implementing Edges for `GenericBiMatrix2D`.
 
-use algebra::prelude::*;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::TryFromUsize;
+use crate::traits::{TryFromUsize, Edges, Matrix2D, Matrix, SparseMatrix, SizedRowsSparseMatrix2D, TransposableMatrix2D, Graph, SizedSparseMatrix, MonoplexGraph};
+use num_traits::Zero;
 
-use crate::prelude::*;
+use crate::impls::GenericBiMatrix2D;
 
 impl<M, T> Edges for GenericBiMatrix2D<M, T>
 where
@@ -62,12 +61,12 @@ where
     <M as SparseMatrix>::SparseIndex: TryFromUsize,
 {
     fn has_nodes(&self) -> bool {
-        self.number_of_rows() > <M as Matrix2D>::RowIndex::ZERO
-            && self.number_of_columns() > <M as Matrix2D>::RowIndex::ZERO
+        self.number_of_rows() > <M as Matrix2D>::RowIndex::zero()
+            && self.number_of_columns() > <M as Matrix2D>::RowIndex::zero()
     }
 
     fn has_edges(&self) -> bool {
-        self.number_of_defined_values() > <M as SparseMatrix>::SparseIndex::ZERO
+        self.number_of_defined_values() > <M as SparseMatrix>::SparseIndex::zero()
     }
 }
 

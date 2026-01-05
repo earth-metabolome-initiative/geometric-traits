@@ -3,8 +3,8 @@
 //! A bipartite graph is a graph whose vertices can be divided into two disjoint
 //! sets such that no two vertices within the same set are adjacent.
 
-use algebra::prelude::Symbol;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use crate::traits::Symbol;
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 
 use super::{BidirectionalVocabulary, Graph, Vocabulary};
 

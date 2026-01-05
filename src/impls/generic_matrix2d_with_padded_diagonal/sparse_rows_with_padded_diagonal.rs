@@ -2,8 +2,8 @@
 //! for the [`GenericMatrix2DWithPaddedDiagonal`] struct, which automatically
 //! adds diagonal values when missing.
 
+use crate::traits::{IntoUsize, TryFromUsize};
 use multi_ranged::SimpleRange;
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
 
 use crate::traits::SparseMatrix2D;
 
@@ -23,7 +23,12 @@ pub struct SparseRowsWithPaddedDiagonal<'matrix, M: SparseMatrix2D> {
 
 impl<'matrix, M: SparseMatrix2D> From<&'matrix M> for SparseRowsWithPaddedDiagonal<'matrix, M> {
     fn from(matrix: &'matrix M) -> Self {
-        Self { matrix, row_indices: matrix.row_indices(), start_row: None, end_row: None }
+        Self {
+            matrix,
+            row_indices: matrix.row_indices(),
+            start_row: None,
+            end_row: None,
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 //! Submodule providing the traits for a generic graph that has weighted edges.
 
-use algebra::prelude::{SparseValuedMatrix2D, ValuedSizedSparseBiMatrix2D};
+use crate::traits::{SparseValuedMatrix2D, ValuedSizedSparseBiMatrix2D};
 
 use super::{
     Edges, TransposedEdges, TransposedMonoplexGraph, WeightedEdges, WeightedMonoplexGraph,
@@ -47,7 +47,10 @@ pub trait TransposedWeightedEdges:
     fn max_predecessor_weight(
         &self,
         destination_node_id: Self::DestinationNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.matrix().sparse_column_max_value(destination_node_id)
     }
 
@@ -63,7 +66,10 @@ pub trait TransposedWeightedEdges:
     fn min_predecessor_weight(
         &self,
         destination_node_id: Self::DestinationNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.matrix().sparse_column_min_value(destination_node_id)
     }
 }
@@ -122,7 +128,10 @@ pub trait TransposedWeightedMonoplexGraph:
     fn max_predecessor_weight(
         &self,
         destination_node_id: <Self::TransposedWeightedEdges as Edges>::DestinationNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().max_predecessor_weight(destination_node_id)
     }
 
@@ -138,7 +147,10 @@ pub trait TransposedWeightedMonoplexGraph:
     fn min_predecessor_weight(
         &self,
         destination_node_id: <Self::TransposedWeightedEdges as Edges>::DestinationNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().min_predecessor_weight(destination_node_id)
     }
 }

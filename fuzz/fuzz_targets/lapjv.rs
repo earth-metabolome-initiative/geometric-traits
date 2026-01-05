@@ -1,6 +1,6 @@
 //! Submodule for fuzzing the execution of the `SparseLAPMOD` algorithm.
 
-use algebra::prelude::{HopcroftKarp, SparseLAPJV, Matrix2D, SparseValuedMatrix, ValuedCSR2D};
+use geometric_traits::prelude::{HopcroftKarp, SparseLAPJV, Matrix2D, SparseValuedMatrix, ValuedCSR2D};
 use honggfuzz::fuzz;
 
 fn main() {

@@ -4,7 +4,7 @@
 //! exactly one predecessor and one successor, with the last node having no
 //! successors and the first node having no predecessors.
 
-use num_traits::{ConstOne, ConstZero, SaturatingAdd};
+use num_traits::{One, SaturatingAdd, Zero};
 
 use crate::traits::RootNodes;
 
@@ -17,7 +17,7 @@ pub trait SimplePath: RootNodes {
     /// Returns whether the directed graph associated with the structure is a
     /// simple path.
     fn is_simple_path(&self) -> bool {
-        if self.number_of_nodes() == Self::NodeId::ZERO {
+        if self.number_of_nodes() == Self::NodeId::zero() {
             // An empty graph is not a simple path.
             return false;
         }
@@ -28,11 +28,11 @@ pub trait SimplePath: RootNodes {
         }
 
         let mut current_node = root_nodes[0];
-        let mut visited_nodes = Self::NodeId::ZERO;
+        let mut visited_nodes = Self::NodeId::zero();
 
         loop {
-            visited_nodes = visited_nodes.saturating_add(&Self::NodeId::ONE);
-            if self.out_degree(current_node) > Self::NodeId::ONE {
+            visited_nodes = visited_nodes.saturating_add(&Self::NodeId::one());
+            if self.out_degree(current_node) > Self::NodeId::one() {
                 return false; // More than one outgoing edge means it's not a simple path.
             }
 

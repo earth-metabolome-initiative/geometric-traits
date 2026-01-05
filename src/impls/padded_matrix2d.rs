@@ -4,7 +4,8 @@
 
 use std::fmt::Debug;
 
-use numeric_common_traits::prelude::{Bounded, IntoUsize};
+use crate::traits::IntoUsize;
+use num_traits::Bounded;
 
 use super::MutabilityError;
 use crate::traits::{Matrix2D, SparseMatrix2D, SparseValuedMatrix2D, ValuedMatrix};
@@ -55,8 +56,8 @@ where
 impl<M: SparseMatrix2D, Map> PaddedMatrix2D<M, Map>
 where
     M: SparseMatrix2D,
-    M::RowIndex: IntoUsize,
-    M::ColumnIndex: IntoUsize,
+    M::RowIndex: IntoUsize + Bounded,
+    M::ColumnIndex: IntoUsize + Bounded,
 {
     /// Creates a new padded matrix with the given underlying sparse matrix and
     /// map function.
@@ -76,10 +77,10 @@ where
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
         let number_of_columns: usize = matrix.number_of_columns().into_usize();
         let number_of_rows: usize = matrix.number_of_rows().into_usize();
-        if number_of_columns > M::RowIndex::MAX.into_usize() {
+        if number_of_columns > M::RowIndex::max_value().into_usize() {
             return Err(MutabilityError::<M>::MaxedOutColumnIndex);
         }
-        if number_of_rows > M::ColumnIndex::MAX.into_usize() {
+        if number_of_rows > M::ColumnIndex::max_value().into_usize() {
             return Err(MutabilityError::<M>::MaxedOutRowIndex);
         }
 
@@ -100,6 +101,8 @@ where
             return true;
         }
 
-        self.matrix.sparse_row(row_index).all(|column| column != column_index)
+        self.matrix
+            .sparse_row(row_index)
+            .all(|column| column != column_index)
     }
 }

@@ -1,6 +1,7 @@
 //! Test submodule to test the `LowerBoundedSquareMatrix` struct.
 
-use algebra::prelude::*;
+use geometric_traits::impls::{CSR2D, LowerBoundedSquareMatrix, SquareCSR2D};
+use geometric_traits::prelude::*;
 
 #[test]
 /// Test case identified by fuzzing.

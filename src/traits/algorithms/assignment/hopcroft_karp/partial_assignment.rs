@@ -1,6 +1,6 @@
 //! Partial assignment for Hopcroft-Karp algorithm.
 
-use numeric_common_traits::prelude::{IntoUsize, Number};
+use crate::traits::{IntoUsize, Number};
 
 use super::HopcroftKarpError;
 use crate::traits::SparseMatrix2D;
@@ -37,13 +37,13 @@ impl<'a, M: SparseMatrix2D + ?Sized, Distance: Number> From<&'a M>
     fn from(matrix: &'a M) -> Self {
         let predecessors = vec![None; matrix.number_of_columns().into_usize()];
         let successors = vec![None; matrix.number_of_rows().into_usize()];
-        let left_distances = vec![Distance::MAX; matrix.number_of_rows().into_usize()];
+        let left_distances = vec![Distance::max_value(); matrix.number_of_rows().into_usize()];
         PartialAssignment {
             predecessors,
             successors,
             left_distances,
             matrix,
-            null_distance: Distance::MAX,
+            null_distance: Distance::max_value(),
         }
     }
 }
@@ -58,28 +58,28 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
         let mut frontier = Vec::new();
         for row_index in self.matrix.row_indices() {
             if self.has_successor(row_index) {
-                self.left_distances[row_index.into_usize()] = Distance::MAX;
+                self.left_distances[row_index.into_usize()] = Distance::max_value();
             } else {
-                self.left_distances[row_index.into_usize()] = Distance::ZERO;
+                self.left_distances[row_index.into_usize()] = Distance::zero();
                 frontier.push(row_index);
             }
         }
 
-        self.null_distance = Distance::MAX;
+        self.null_distance = Distance::max_value();
 
         while !frontier.is_empty() {
             let mut tmp_frontier = Vec::new();
             for row_index in frontier {
                 let left_distance = self.left_distances[row_index.into_usize()];
                 if left_distance < self.null_distance {
-                    if left_distance == Distance::MAX - Distance::ONE {
+                    if left_distance == Distance::max_value() - Distance::one() {
                         return Err(HopcroftKarpError::InsufficientDistanceType);
                     }
                     for right_node_id in self.matrix.sparse_row(row_index) {
                         let maybe_predecessor_id = self.predecessors[right_node_id.into_usize()];
                         let predecessor_distance = self.left_distance_mut(maybe_predecessor_id);
-                        if *predecessor_distance == Distance::MAX {
-                            *predecessor_distance = left_distance + Distance::ONE;
+                        if *predecessor_distance == Distance::max_value() {
+                            *predecessor_distance = left_distance + Distance::one();
                             tmp_frontier.extend(maybe_predecessor_id);
                         }
                     }
@@ -88,7 +88,7 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
             frontier = tmp_frontier;
         }
 
-        Ok(self.null_distance != Distance::MAX)
+        Ok(self.null_distance != Distance::max_value())
     }
 
     /// Returns the distance of the provided left node id.
@@ -123,7 +123,7 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
         let left_distance = self.left_distances[row_index.into_usize()];
         for successor_id in self.matrix.sparse_row(row_index) {
             let maybe_predecessor_id = self.predecessors[successor_id.into_usize()];
-            if self.left_distance(maybe_predecessor_id) == left_distance + Distance::ONE
+            if self.left_distance(maybe_predecessor_id) == left_distance + Distance::one()
                 && self.dfs(maybe_predecessor_id)
             {
                 self.successors[row_index.into_usize()] = Some(successor_id);
@@ -132,7 +132,7 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
             }
         }
 
-        self.left_distances[row_index.into_usize()] = Distance::MAX;
+        self.left_distances[row_index.into_usize()] = Distance::max_value();
         false
     }
 }

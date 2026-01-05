@@ -5,7 +5,7 @@
 //! * They are monopartite, i.e., they have only one type of nodes.
 //! * They are monoplex, i.e., they have only one type of edges.
 
-use numeric_common_traits::into_usize::IntoUsize;
+use crate::traits::IntoUsize;
 
 use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 

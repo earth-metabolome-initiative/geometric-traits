@@ -1,11 +1,11 @@
 //! Submodule implementing Edges for
-//! [`ValuedCSR2D`](algebra::prelude::ValuedCSR2D).
+//! [`ValuedCSR2D`](crate::traits::ValuedCSR2D).
 
-use algebra::prelude::*;
+use crate::traits::{Edges, GrowableEdges, SparseMatrixMut, Graph, Matrix2D, SizedSparseMatrix, MonoplexGraph, BipartiteGraph, BidirectionalVocabulary, Matrix2DRef, IntoUsize, Number, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
-use numeric_common_traits::prelude::{IntoUsize, Number, PositiveInteger, TryFromUsize};
 
-use crate::{errors::builder::edges::EdgesBuilderError, prelude::*};
+use crate::errors::builder::edges::EdgesBuilderError;
+use crate::impls::ValuedCSR2D;
 
 impl<
     SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
@@ -26,10 +26,10 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + TryFromUsize + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize + TryFrom<SparseIndex>,
-    Value: Number,
+    SparseIndex: PositiveInteger + 'static,
+    RowIndex: Step + PositiveInteger,
+    ColumnIndex: Step + PositiveInteger + TryFrom<SparseIndex>,
+    Value: Number + 'static,
 > GrowableEdges for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     type GrowableMatrix = Self;
@@ -63,11 +63,11 @@ impl<
 > Graph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     fn has_nodes(&self) -> bool {
-        self.number_of_rows() > RowIndex::ZERO && self.number_of_columns() > ColumnIndex::ZERO
+        self.number_of_rows() > RowIndex::zero() && self.number_of_columns() > ColumnIndex::zero()
     }
 
     fn has_edges(&self) -> bool {
-        self.number_of_defined_values() > SparseIndex::ZERO
+        self.number_of_defined_values() > SparseIndex::zero()
     }
 }
 

@@ -2,8 +2,8 @@
 //! sparse matrices, which provides the Kahn's algorithm for topological
 //! sorting.
 
+use crate::traits::IntoUsize;
 use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
 
 use crate::traits::{SparseMatrix2D, SquareMatrix};
 
@@ -36,7 +36,8 @@ pub trait Kahn: SquareMatrix + SparseMatrix2D {
         }
 
         frontier.extend(
-            self.row_indices().filter(|row_id| in_degree[row_id.into_usize()] == Self::Index::ZERO),
+            self.row_indices()
+                .filter(|row_id| in_degree[row_id.into_usize()] == Self::Index::ZERO),
         );
 
         while !frontier.is_empty() {

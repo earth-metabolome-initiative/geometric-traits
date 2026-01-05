@@ -2,10 +2,10 @@
 
 use std::hint::black_box;
 
-use algebra::impls::{CSR2D, SquareCSR2D};
 use criterion::{Criterion, criterion_group, criterion_main};
-use functional_properties::similarity::ScalarSimilarity;
-use graph::{
+use geometric_traits::impls::{CSR2D, SquareCSR2D};
+use geometric_traits::traits::ScalarSimilarity;
+use geometric_traits::{
     prelude::{GenericGraph, RandomizedDAG},
     traits::{MonopartiteGraph, WuPalmer, randomized_graphs::XorShift64},
 };
@@ -18,7 +18,7 @@ fn bench_wu_palmer(c: &mut Criterion) {
         let mut xorshift = XorShift64::from(24537839457);
         for _ in 0..NUMBER_OF_DAGS {
             let seed = xorshift.next().unwrap();
-            let dag: GenericGraph<u64, SquareCSR2D<CSR2D<u64, u64, u64>>> =
+            let dag: GenericGraph<usize, SquareCSR2D<CSR2D<usize, usize, usize>>> =
                 RandomizedDAG::randomized_dag(seed, 10);
             dags.push(dag);
         }
@@ -33,8 +33,8 @@ fn bench_wu_palmer(c: &mut Criterion) {
                     }
                 }
             }
-            total_similarity
-        })
+            black_box(total_similarity)
+        });
     });
 }
 

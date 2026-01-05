@@ -4,7 +4,7 @@
 //! in the sorted position where it is expected to be in the
 //! sparse row.
 
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
+use crate::traits::{IntoUsize, TryFromUsize};
 
 use crate::{impls::MutabilityError, traits::SparseMatrix2D};
 

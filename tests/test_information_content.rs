@@ -1,10 +1,10 @@
 //! Test submodule for the `Information Content` train
-use algebra::impls::{CSR2D, SquareCSR2D};
-use graph::{
+use geometric_traits::impls::SortedVec;
+use geometric_traits::impls::{CSR2D, SquareCSR2D};
+use geometric_traits::{
     prelude::{DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, InformationContent},
     traits::{EdgesBuilder, VocabularyBuilder, information_content::InformationContentError},
 };
-use sorted_vec::prelude::SortedVec;
 #[test]
 fn test_information_content_incorrect_occurrences() -> Result<(), Box<dyn std::error::Error>> {
     let nodes: Vec<usize> = vec![0, 1, 2];
@@ -18,12 +18,15 @@ fn test_information_content_incorrect_occurrences() -> Result<(), Box<dyn std::e
         .expected_shape(nodes.len())
         .edges(edges.into_iter())
         .build()?;
-    let graph: DiGraph<usize> = DiGraph::try_from((nodes, edges))?;
+    let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     // length mismatch
     let information_content = graph.information_content(&Vec::new());
     assert_eq!(
         information_content,
-        Err(InformationContentError::UnequalOccurrenceSize { expected: 3, found: 0 })
+        Err(InformationContentError::UnequalOccurrenceSize {
+            expected: 3,
+            found: 0
+        })
     );
     // No occurrences above zero found
     let ic = graph.information_content(&[1, 1, 0]);
@@ -47,7 +50,7 @@ fn test_ic_not_dag() -> Result<(), Box<dyn std::error::Error>> {
         .expected_shape(nodes.len())
         .edges(edges.into_iter())
         .build()?;
-    let graph: DiGraph<usize> = DiGraph::try_from((nodes, edges))?;
+    let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     let ic = graph.information_content(&[1, 1, 1]);
     assert_eq!(ic, Err(InformationContentError::NotDag));
     Ok(())

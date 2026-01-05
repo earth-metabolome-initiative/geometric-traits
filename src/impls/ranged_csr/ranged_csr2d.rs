@@ -1,10 +1,11 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::{fmt::Debug, iter::repeat_n};
 
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::{MultiRanged, Step, errors::Error as RangedError};
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::{One, Zero};
 
+use crate::impls::MutabilityError;
 use crate::prelude::*;
 
 #[derive(Clone)]
@@ -36,16 +37,16 @@ impl<SparseIndex: Debug, RowIndex: Debug, R: MultiRanged> Debug
     }
 }
 
-impl<SparseIndex: ConstZero, RowIndex: ConstZero, R: MultiRanged> Default
+impl<SparseIndex: Zero, RowIndex: Zero, R: MultiRanged> Default
     for RangedCSR2D<SparseIndex, RowIndex, R>
 {
     fn default() -> Self {
         Self {
-            number_of_defined_values: SparseIndex::ZERO,
-            number_of_columns: R::Step::ZERO,
-            number_of_rows: RowIndex::ZERO,
+            number_of_defined_values: SparseIndex::zero(),
+            number_of_columns: R::Step::zero(),
+            number_of_rows: RowIndex::zero(),
             ranges: Vec::new(),
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
@@ -58,15 +59,17 @@ impl<
 where
     Self: SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = R::Step, SparseIndex = SparseIndex>,
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     type MinimalShape = Self::Coordinates;
 
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
-        Self::with_sparse_shaped_capacity((RowIndex::ZERO, R::Step::ZERO), number_of_values)
+        Self::with_sparse_shaped_capacity((RowIndex::zero(), R::Step::zero()), number_of_values)
     }
 
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
-        Self::with_sparse_shaped_capacity(shape, SparseIndex::ZERO)
+        Self::with_sparse_shaped_capacity(shape, SparseIndex::zero())
     }
 
     fn with_sparse_shaped_capacity(
@@ -74,11 +77,11 @@ where
         _number_of_values: Self::SparseIndex,
     ) -> Self {
         Self {
-            number_of_defined_values: SparseIndex::ZERO,
+            number_of_defined_values: SparseIndex::zero(),
             number_of_columns,
             number_of_rows,
             ranges: Vec::with_capacity(number_of_rows.into_usize()),
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
@@ -92,7 +95,10 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![
+            self.number_of_rows.into_usize(),
+            self.number_of_columns.into_usize(),
+        ]
     }
 }
 
@@ -139,6 +145,8 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     type SparseIndex = SparseIndex;
     type SparseCoordinates<'a>
@@ -158,14 +166,16 @@ where
         let last_row_index = RowIndex::try_from_usize(self.ranges.len() - 1)
             .expect("The matrix is in a valid state.");
         let last_row_with_values = self.ranges.last().expect("The matrix should not be empty.");
-        let last_column =
-            last_row_with_values.clone().last().expect("The last row should not be empty.");
+        let last_column = last_row_with_values
+            .clone()
+            .last()
+            .expect("The last row should not be empty.");
         Some((last_row_index, last_column))
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        self.number_of_defined_values == SparseIndex::ZERO
+        self.number_of_defined_values == SparseIndex::zero()
     }
 }
 
@@ -177,6 +187,8 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
@@ -191,6 +203,8 @@ impl<
 > SparseMatrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <R::Step as TryFrom<usize>>::Error: Debug,
 {
     type SparseRow<'a>
         = R
@@ -233,6 +247,8 @@ impl<
 > EmptyRows for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <R::Step as TryFrom<usize>>::Error: Debug,
 {
     type EmptyRowIndices<'a>
         = crate::impls::CSR2DEmptyRowIndices<'a, Self>
@@ -272,6 +288,8 @@ where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
     Self::ColumnIndex: TryFromUsize,
     R::Step: IntoUsize + PositiveInteger,
+    <R::Step as TryFrom<usize>>::Error: Debug,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
 {
     type SparseRowSizes<'a>
         = crate::impls::CSR2DSizedRowsizes<'a, Self>
@@ -297,13 +315,18 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
     R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    <R::Step as TryFrom<usize>>::Error: Debug,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
 {
     type Entry = Self::Coordinates;
     type Error = MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.into_usize() >= self.ranges.len() {
-            self.ranges.extend(repeat_n(R::default(), row.into_usize() - self.ranges.len() + 1));
+            self.ranges.extend(repeat_n(
+                R::default(),
+                row.into_usize() - self.ranges.len() + 1,
+            ));
         }
 
         let range = &mut self.ranges[row.into_usize()];
@@ -322,12 +345,12 @@ where
             }
         }
 
-        self.number_of_defined_values += SparseIndex::ONE;
-        self.number_of_columns = self.number_of_columns.max(column + R::Step::ONE);
-        self.number_of_rows = self.number_of_rows.max(row + RowIndex::ONE);
+        self.number_of_defined_values += SparseIndex::one();
+        self.number_of_columns = self.number_of_columns.max(column + R::Step::one());
+        self.number_of_rows = self.number_of_rows.max(row + RowIndex::one());
 
-        if R::Step::try_from_usize(range.len()).unwrap() == R::Step::ONE {
-            self.number_of_non_empty_rows += RowIndex::ONE;
+        if R::Step::try_from_usize(range.len()).unwrap() == R::Step::one() {
+            self.number_of_non_empty_rows += RowIndex::one();
         }
 
         Ok(())
@@ -338,7 +361,10 @@ where
             return Err(MutabilityError::IncompatibleShape);
         }
 
-        self.ranges.extend(repeat_n(R::default(), shape.0.into_usize() - self.ranges.len()));
+        self.ranges.extend(repeat_n(
+            R::default(),
+            shape.0.into_usize() - self.ranges.len(),
+        ));
 
         self.number_of_rows = shape.0;
         self.number_of_columns = shape.1;
@@ -347,7 +373,7 @@ where
     }
 }
 
-impl<SparseIndex: PositiveInteger + IntoUsize, R1: MultiRanged, R2: MultiRanged>
+impl<SparseIndex: PositiveInteger + IntoUsize + 'static, R1: MultiRanged, R2: MultiRanged>
     TransposableMatrix2D<RangedCSR2D<SparseIndex, R1::Step, R2>>
     for RangedCSR2D<SparseIndex, R2::Step, R1>
 where
@@ -355,6 +381,8 @@ where
     RangedCSR2D<SparseIndex, R1::Step, R2>: Matrix2D<RowIndex = R1::Step, ColumnIndex = R2::Step>,
     R1::Step: TryFromUsize + IntoUsize + PositiveInteger,
     R2::Step: TryFromUsize + IntoUsize + PositiveInteger,
+    <<R1 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
+    <<R2 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     fn transpose(&self) -> RangedCSR2D<SparseIndex, R1::Step, R2> {
         // We initialize the transposed matrix.
@@ -365,8 +393,9 @@ where
             );
 
         // We iterate over the rows of the matrix.
-        for (row, column) in self.sparse_coordinates() {
-            transposed.add((column, row)).expect("The addition should not fail.");
+        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
+            crate::traits::GrowableEdges::add(&mut transposed, (column, row))
+                .expect("The addition should not fail.");
         }
 
         transposed

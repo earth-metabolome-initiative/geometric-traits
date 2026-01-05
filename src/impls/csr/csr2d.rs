@@ -1,10 +1,11 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::{fmt::Debug, iter::repeat_n};
 
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::Zero;
 
+use crate::impls::{CSR2DSizedRows, CSR2DEmptyRowIndices, CSR2DNonEmptyRowIndices, CSR2DSizedRowsizes, MutabilityError};
 use crate::prelude::*;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -36,16 +37,16 @@ impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug> Debug
     }
 }
 
-impl<SparseIndex: ConstZero, RowIndex: ConstZero, ColumnIndex: ConstZero> Default
+impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero> Default
     for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     fn default() -> Self {
         Self {
-            offsets: vec![SparseIndex::ZERO],
-            number_of_columns: ColumnIndex::ZERO,
-            number_of_rows: RowIndex::ZERO,
+            offsets: vec![SparseIndex::zero()],
+            number_of_columns: ColumnIndex::zero(),
+            number_of_rows: RowIndex::zero(),
             column_indices: Vec::new(),
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
@@ -61,11 +62,11 @@ where
     type MinimalShape = Self::Coordinates;
 
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
-        Self::with_sparse_shaped_capacity((RowIndex::ZERO, ColumnIndex::ZERO), number_of_values)
+        Self::with_sparse_shaped_capacity((RowIndex::zero(), ColumnIndex::zero()), number_of_values)
     }
 
     fn with_sparse_shape((number_of_rows, number_of_columns): Self::MinimalShape) -> Self {
-        Self::with_sparse_shaped_capacity((number_of_rows, number_of_columns), SparseIndex::ZERO)
+        Self::with_sparse_shaped_capacity((number_of_rows, number_of_columns), SparseIndex::zero())
     }
 
     fn with_sparse_shaped_capacity(
@@ -73,13 +74,13 @@ where
         number_of_values: Self::SparseIndex,
     ) -> Self {
         let mut offsets = Vec::with_capacity(number_of_rows.into_usize() + 1);
-        offsets.push(SparseIndex::ZERO);
+        offsets.push(SparseIndex::zero());
         Self {
             offsets,
             number_of_columns,
             number_of_rows,
             column_indices: Vec::with_capacity(number_of_values.into_usize()),
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
@@ -93,7 +94,10 @@ impl<
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![
+            self.number_of_rows.into_usize(),
+            self.number_of_columns.into_usize(),
+        ]
     }
 }
 
@@ -169,7 +173,7 @@ where
             .and_then(|x| RowIndex::try_from_usize(x).ok())
             .expect("The offsets should always have at least one element.");
         debug_assert!(
-            self.number_of_defined_values_in_row(last_row) > ColumnIndex::ZERO,
+            self.number_of_defined_values_in_row(last_row) > ColumnIndex::zero(),
             "The last row stores in the offsets should always have at least one column, as all subsequent empty rows should be left implicit and represented by the `number_of_rows` field."
         );
         let last_column = self
@@ -181,7 +185,7 @@ where
     }
 
     fn is_empty(&self) -> bool {
-        self.number_of_defined_values() == SparseIndex::ZERO
+        self.number_of_defined_values() == SparseIndex::zero()
     }
 }
 
@@ -194,7 +198,7 @@ where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     fn number_of_defined_values(&self) -> Self::SparseIndex {
-        self.offsets.last().copied().unwrap_or(SparseIndex::ZERO)
+        self.offsets.last().copied().unwrap_or(SparseIndex::zero())
     }
 }
 
@@ -207,12 +211,15 @@ where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
-        (self.select_row(sparse_index), self.select_column(sparse_index))
+        (
+            self.select_row(sparse_index),
+            self.select_column(sparse_index),
+        )
     }
 
     fn rank(&self, &(row_index, column_index): &Self::Coordinates) -> Self::SparseIndex {
         let start = self.rank_row(row_index);
-        let end = self.rank_row(row_index + RowIndex::ONE);
+        let end = self.rank_row(row_index + RowIndex::one());
         let Ok(relative_column_index) =
             self.column_indices[start.into_usize()..end.into_usize()].binary_search(&column_index)
         else {
@@ -249,14 +256,16 @@ impl<
 
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + RowIndex::ONE).into_usize();
+        let end = self.rank_row(row + RowIndex::one()).into_usize();
         self.column_indices[start..end].iter().copied()
     }
 
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
         let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + RowIndex::ONE).into_usize();
-        self.column_indices[start..end].binary_search(&column).is_ok()
+        let end = self.rank_row(row + RowIndex::one()).into_usize();
+        self.column_indices[start..end]
+            .binary_search(&column)
+            .is_ok()
     }
 
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
@@ -354,7 +363,8 @@ where
     }
 
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
-        if let Ok(out_degree) = (self.rank_row(row + RowIndex::ONE) - self.rank_row(row)).try_into()
+        if let Ok(out_degree) =
+            (self.rank_row(row + RowIndex::one()) - self.rank_row(row)).try_into()
         {
             out_degree
         } else {
@@ -374,28 +384,36 @@ where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     type Entry = Self::Coordinates;
-    type Error = crate::error::MutabilityError<Self>;
+    type Error = crate::impls::MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if !self.is_empty() && row.into_usize() == self.offsets.len() - 2 {
             // We check that the provided column is not repeated.
-            if self.sparse_row(row).last().is_some_and(|last| last == column) {
+            if self
+                .sparse_row(row)
+                .last()
+                .is_some_and(|last| last == column)
+            {
                 return Err(MutabilityError::DuplicatedEntry((row, column)));
             }
             // We check that the provided column is provided in sorted order.
-            if self.sparse_row(row).last().is_some_and(|last| last > column) {
+            if self
+                .sparse_row(row)
+                .last()
+                .is_some_and(|last| last > column)
+            {
                 return Err(MutabilityError::UnorderedCoordinate((row, column)));
             }
 
-            if column == ColumnIndex::MAX {
+            if column == ColumnIndex::max_value() {
                 return Err(MutabilityError::MaxedOutColumnIndex);
             }
 
             if let Some(offset) = self.offsets.last_mut() {
-                if *offset == SparseIndex::MAX {
+                if *offset == SparseIndex::max_value() {
                     return Err(MutabilityError::MaxedOutSparseIndex);
                 }
-                *offset += SparseIndex::ONE;
+                *offset += SparseIndex::one();
             } else {
                 unreachable!()
             }
@@ -403,7 +421,7 @@ where
             // If the row is the last row, we can add the entry at the end of the column
             // indices.
             self.column_indices.push(column);
-            self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::ONE);
+            self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::one());
 
             debug_assert_eq!(
                 self.sparse_row(row).last(),
@@ -413,17 +431,17 @@ where
 
             Ok(())
         } else if row.into_usize() >= self.offsets.len() - 1 {
-            if self.number_of_non_empty_rows == RowIndex::MAX {
+            if self.number_of_non_empty_rows == RowIndex::max_value() {
                 return Err(MutabilityError::MaxedOutRowIndex);
             }
-            if column == ColumnIndex::MAX {
+            if column == ColumnIndex::max_value() {
                 return Err(MutabilityError::MaxedOutColumnIndex);
             }
-            if row == RowIndex::MAX {
+            if row == RowIndex::max_value() {
                 return Err(MutabilityError::MaxedOutSparseIndex);
             }
-            let last_offset = self.offsets.last().copied().unwrap_or(SparseIndex::ZERO);
-            if last_offset == SparseIndex::MAX {
+            let last_offset = self.offsets.last().copied().unwrap_or(SparseIndex::zero());
+            if last_offset == SparseIndex::max_value() {
                 return Err(MutabilityError::MaxedOutSparseIndex);
             }
             // If the row is the next row, we can add the entry at the end of the column
@@ -432,11 +450,11 @@ where
                 self.number_of_defined_values(),
                 (row.into_usize() + 1) - self.offsets.len(),
             ));
-            self.number_of_non_empty_rows += RowIndex::ONE;
+            self.number_of_non_empty_rows += RowIndex::one();
             self.column_indices.push(column);
-            self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::ONE);
-            self.number_of_rows = self.number_of_rows.max(row + RowIndex::ONE);
-            self.offsets.push(last_offset + SparseIndex::ONE);
+            self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::one());
+            self.number_of_rows = self.number_of_rows.max(row + RowIndex::one());
+            self.offsets.push(last_offset + SparseIndex::one());
 
             debug_assert_eq!(
                 self.sparse_row(row).last(),
@@ -477,34 +495,37 @@ where
     fn transpose(&self) -> CSR2D<SparseIndex, ColumnIndex, RowIndex> {
         // We initialize the transposed matrix.
         let mut transposed: CSR2D<SparseIndex, ColumnIndex, RowIndex> = CSR2D {
-            offsets: vec![SparseIndex::ZERO; self.number_of_columns().into_usize() + 1],
+            offsets: vec![SparseIndex::zero(); self.number_of_columns().into_usize() + 1],
             number_of_columns: self.number_of_rows(),
             number_of_rows: self.number_of_columns(),
-            column_indices: vec![RowIndex::ZERO; self.number_of_defined_values().into_usize()],
+            column_indices: vec![RowIndex::zero(); self.number_of_defined_values().into_usize()],
             number_of_non_empty_rows: self.number_of_columns(),
         };
 
         // First, we proceed to compute the number of elements in each column.
         for column in self.column_indices.iter().copied() {
-            transposed.offsets[column.into_usize() + 1] += SparseIndex::ONE;
+            transposed.offsets[column.into_usize() + 1] += SparseIndex::one();
         }
 
         // Then, we compute the prefix sum of the degrees to get the offsets.
-        let mut prefix_sum = SparseIndex::ZERO;
+        let mut prefix_sum = SparseIndex::zero();
         for offset in &mut transposed.offsets {
             prefix_sum += *offset;
-            transposed.number_of_non_empty_rows +=
-                if *offset > SparseIndex::ZERO { ColumnIndex::ONE } else { ColumnIndex::ZERO };
+            transposed.number_of_non_empty_rows += if *offset > SparseIndex::zero() {
+                ColumnIndex::one()
+            } else {
+                ColumnIndex::zero()
+            };
             *offset = prefix_sum;
         }
 
         // Finally, we fill the column indices.
-        let mut degree = vec![SparseIndex::ZERO; self.number_of_columns.into_usize()];
-        for (row, column) in self.sparse_coordinates() {
+        let mut degree = vec![SparseIndex::zero(); self.number_of_columns.into_usize()];
+        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
             let current_degree: &mut SparseIndex = &mut degree[column.into_usize()];
             let index = *current_degree + transposed.offsets[column.into_usize()];
             transposed.column_indices[index.into_usize()] = row;
-            *current_degree += SparseIndex::ONE;
+            *current_degree += SparseIndex::one();
         }
 
         transposed

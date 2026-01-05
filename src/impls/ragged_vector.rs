@@ -2,9 +2,9 @@
 
 use std::{fmt::Debug, iter::repeat_n};
 
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::Zero;
 
 use super::MutabilityError;
 use crate::traits::{
@@ -47,17 +47,17 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> Default
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    SparseIndex: ConstZero,
-    RowIndex: ConstZero,
-    ColumnIndex: ConstZero,
+    SparseIndex: Zero,
+    RowIndex: Zero,
+    ColumnIndex: Zero,
 {
     fn default() -> Self {
         Self {
             data: Vec::new(),
-            number_of_defined_values: SparseIndex::ZERO,
-            number_of_columns: ColumnIndex::ZERO,
-            number_of_rows: RowIndex::ZERO,
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_defined_values: SparseIndex::zero(),
+            number_of_columns: ColumnIndex::zero(),
+            number_of_rows: RowIndex::zero(),
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
@@ -70,7 +70,10 @@ where
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![
+            self.number_of_rows.into_usize(),
+            self.number_of_columns.into_usize(),
+        ]
     }
 }
 
@@ -113,6 +116,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     type SparseIndex = SparseIndex;
     type SparseCoordinates<'a>
@@ -132,13 +137,16 @@ where
             RowIndex::try_from_usize(self.data.len() - 1).expect("The matrix is in a valid state.");
         let last_row_with_values: &Vec<ColumnIndex> =
             self.data.last().expect("The matrix should not be empty.");
-        let last_column =
-            last_row_with_values.iter().last().copied().expect("The last row should not be empty.");
+        let last_column = last_row_with_values
+            .iter()
+            .last()
+            .copied()
+            .expect("The last row should not be empty.");
         Some((last_row_index, last_column))
     }
 
     fn is_empty(&self) -> bool {
-        self.number_of_defined_values == SparseIndex::ZERO
+        self.number_of_defined_values == SparseIndex::zero()
     }
 }
 
@@ -148,6 +156,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         self.number_of_defined_values
@@ -160,6 +170,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     type SparseRow<'a>
         = core::iter::Copied<core::slice::Iter<'a, ColumnIndex>>
@@ -207,6 +219,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     type EmptyRowIndices<'a>
         = crate::impls::CSR2DEmptyRowIndices<'a, Self>
@@ -239,6 +253,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
 {
     type SparseRowSizes<'a>
         = crate::impls::CSR2DSizedRowsizes<'a, Self>
@@ -268,7 +284,10 @@ where
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.into_usize() >= self.data.len() {
-            self.data.extend(repeat_n(Vec::default(), row.into_usize() - self.data.len() + 1));
+            self.data.extend(repeat_n(
+                Vec::default(),
+                row.into_usize() - self.data.len() + 1,
+            ));
         }
 
         let columns_in_row = &mut self.data[row.into_usize()];
@@ -284,12 +303,12 @@ where
 
         columns_in_row.push(column);
 
-        self.number_of_defined_values += SparseIndex::ONE;
-        self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::ONE);
-        self.number_of_rows = self.number_of_rows.max(row + RowIndex::ONE);
+        self.number_of_defined_values += SparseIndex::one();
+        self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::one());
+        self.number_of_rows = self.number_of_rows.max(row + RowIndex::one());
 
         if columns_in_row.len() == 1 {
-            self.number_of_non_empty_rows += RowIndex::ONE;
+            self.number_of_non_empty_rows += RowIndex::one();
         }
 
         Ok(())
@@ -318,6 +337,8 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: PositiveInteger + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     fn transpose(&self) -> RaggedVector<SparseIndex, ColumnIndex, RowIndex> {
         let mut transposed: RaggedVector<SparseIndex, ColumnIndex, RowIndex> =
@@ -328,7 +349,9 @@ where
 
         // We iterate over the rows of the matrix.
         for (row, column) in self.sparse_coordinates() {
-            transposed.add((column, row)).expect("The addition should not fail.");
+            transposed
+                .add((column, row))
+                .expect("The addition should not fail.");
         }
 
         transposed
@@ -346,11 +369,11 @@ where
     type MinimalShape = Self::Coordinates;
 
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
-        Self::with_sparse_shaped_capacity((RowIndex::ZERO, ColumnIndex::ZERO), number_of_values)
+        Self::with_sparse_shaped_capacity((RowIndex::zero(), ColumnIndex::zero()), number_of_values)
     }
 
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
-        Self::with_sparse_shaped_capacity(shape, SparseIndex::ZERO)
+        Self::with_sparse_shaped_capacity(shape, SparseIndex::zero())
     }
 
     fn with_sparse_shaped_capacity(
@@ -362,7 +385,7 @@ where
             number_of_defined_values: number_of_values,
             number_of_columns,
             number_of_rows,
-            number_of_non_empty_rows: RowIndex::ZERO,
+            number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }

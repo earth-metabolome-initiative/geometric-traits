@@ -3,8 +3,8 @@
 //! will add new elements where missing. If the underlying matrix is
 //! rectangular, new rows and columns will be added to make it square.
 
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{Bounded, IntoUsize, TryFromUsize};
+use crate::traits::{IntoUsize, TryFromUsize};
+use num_traits::{Bounded, One, Zero};
 
 use crate::traits::{
     EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
@@ -33,8 +33,8 @@ pub struct GenericMatrix2DWithPaddedDiagonal<M, Map> {
 
 impl<M, Map> GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
-    M::RowIndex: IntoUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: IntoUsize + Bounded,
+    M::ColumnIndex: IntoUsize + TryFromUsize + Bounded,
     M: SparseMatrix2D,
 {
     /// Creates a new `GenericMatrix2DWithPaddedDiagonal` with the given matrix
@@ -52,10 +52,10 @@ where
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
         let number_of_columns: usize = matrix.number_of_columns().into_usize();
         let number_of_rows: usize = matrix.number_of_rows().into_usize();
-        if number_of_columns > M::RowIndex::MAX.into_usize() {
+        if number_of_columns > M::RowIndex::max_value().into_usize() {
             return Err(MutabilityError::<M>::MaxedOutColumnIndex);
         }
-        if number_of_rows > M::ColumnIndex::MAX.into_usize() {
+        if number_of_rows > M::ColumnIndex::max_value().into_usize() {
             return Err(MutabilityError::<M>::MaxedOutRowIndex);
         }
 
@@ -85,7 +85,9 @@ where
             .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)
             .unwrap();
 
-        self.matrix.sparse_row(row).all(|column| column != row_as_column)
+        self.matrix
+            .sparse_row(row)
+            .all(|column| column != row_as_column)
     }
 }
 
@@ -98,7 +100,10 @@ where
     type Coordinates = M::Coordinates;
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 
@@ -155,15 +160,15 @@ where
             return None;
         }
         Some((
-            self.number_of_rows() - M::RowIndex::ONE,
-            self.number_of_columns() - M::ColumnIndex::ONE,
+            self.number_of_rows() - M::RowIndex::one(),
+            self.number_of_columns() - M::ColumnIndex::one(),
         ))
     }
 
     fn is_empty(&self) -> bool {
         // The matrix is solely empty when it has no rows and no columns.
-        self.number_of_rows() == M::RowIndex::ZERO
-            && self.number_of_columns() == M::ColumnIndex::ZERO
+        self.number_of_rows() == M::RowIndex::zero()
+            && self.number_of_columns() == M::ColumnIndex::zero()
     }
 }
 
@@ -227,13 +232,13 @@ where
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
-        SimpleRange::try_from((Self::RowIndex::ZERO, self.number_of_rows())).unwrap()
+        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap()
     }
 
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         // Since we are artificially always adding rows and columns, we
         // will never have empty rows.
-        Self::RowIndex::ZERO
+        Self::RowIndex::zero()
     }
 
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {

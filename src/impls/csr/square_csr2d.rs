@@ -1,12 +1,13 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::fmt::Debug;
 
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger};
+use crate::traits::{IntoUsize, PositiveInteger};
+use num_traits::{One, Zero};
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+use crate::impls::MutabilityError;
 use crate::prelude::*;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -36,7 +37,10 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 
@@ -89,7 +93,10 @@ impl<M: Matrix2D> AsRef<M> for SquareCSR2D<M> {
 
 impl<M: Default + Matrix2D> Default for SquareCSR2D<M> {
     fn default() -> Self {
-        Self { matrix: M::default(), number_of_diagonal_values: M::RowIndex::ZERO }
+        Self {
+            matrix: M::default(),
+            number_of_diagonal_values: M::RowIndex::zero(),
+        }
     }
 }
 
@@ -106,12 +113,12 @@ where
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self {
             matrix: M::with_sparse_capacity(number_of_values),
-            number_of_diagonal_values: M::RowIndex::ZERO,
+            number_of_diagonal_values: M::RowIndex::zero(),
         }
     }
 
     fn with_sparse_shape(order: Self::MinimalShape) -> Self {
-        Self::with_sparse_shaped_capacity(order, M::SparseIndex::ZERO)
+        Self::with_sparse_shaped_capacity(order, M::SparseIndex::zero())
     }
 
     fn with_sparse_shaped_capacity(
@@ -120,7 +127,7 @@ where
     ) -> Self {
         Self {
             matrix: M::with_sparse_shaped_capacity((order, order), number_of_values),
-            number_of_diagonal_values: M::RowIndex::ZERO,
+            number_of_diagonal_values: M::RowIndex::zero(),
         }
     }
 }
@@ -286,7 +293,7 @@ where
         + Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
     type Entry = Self::Coordinates;
-    type Error = crate::error::MutabilityError<Self>;
+    type Error = crate::impls::MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         self.matrix.add((row, column))?;
@@ -294,8 +301,11 @@ where
         // row, and if the user happens to provide a row that is greater than
         // the number of columns, we need to update the number of columns so as
         // to keep the matrix square.
-        let side =
-            self.matrix.number_of_rows().max(row + M::RowIndex::ONE).max(column + M::RowIndex::ONE);
+        let side = self
+            .matrix
+            .number_of_rows()
+            .max(row + M::RowIndex::one())
+            .max(column + M::RowIndex::one());
         self.matrix.increase_shape((side, side))?;
 
         debug_assert!(
@@ -314,7 +324,11 @@ where
             "The matrix is not square."
         );
 
-        self.number_of_diagonal_values += M::RowIndex::from(row == column);
+        self.number_of_diagonal_values += if row == column {
+            M::RowIndex::one()
+        } else {
+            M::RowIndex::zero()
+        };
 
         Ok(())
     }
@@ -326,7 +340,8 @@ where
         if number_of_rows != number_of_columns {
             return Err(MutabilityError::IncompatibleShape);
         }
-        self.matrix.increase_shape((number_of_rows, number_of_columns))?;
+        self.matrix
+            .increase_shape((number_of_rows, number_of_columns))?;
         Ok(())
     }
 }

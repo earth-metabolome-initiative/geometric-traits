@@ -1,6 +1,6 @@
 //! Fuzzing submodule on the `CSR2D` struct.
 
-use algebra::prelude::*;
+use geometric_traits::prelude::*;
 use honggfuzz::fuzz;
 
 fn main() {

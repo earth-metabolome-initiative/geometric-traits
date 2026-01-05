@@ -1,10 +1,10 @@
 //! Error enumeration for the edges builder.
 
-use algebra::{
+use crate::traits::TryFromUsize;
+use crate::{
     impls::{MutabilityError, SymmetricCSR2D, UpperTriangularCSR2D},
-    prelude::{Matrix2D, SizedSparseMatrix2D},
+    traits::{Matrix2D, SizedSparseMatrix2D},
 };
-use numeric_common_traits::prelude::TryFromUsize;
 
 use crate::traits::Edges;
 

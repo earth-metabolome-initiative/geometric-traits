@@ -1,7 +1,7 @@
 //! Simple test for vocabulary.
 
-use ::graph::prelude::*;
-use sorted_vec::prelude::SortedVec;
+use ::geometric_traits::prelude::*;
+use geometric_traits::impls::SortedVec;
 
 #[test]
 /// First simple test for vocabulary.
@@ -22,5 +22,8 @@ pub fn test_vocabulary() {
     assert_eq!(nodes.get(6), None);
     assert_eq!(nodes.get(7), None);
     assert_eq!(nodes.sources().collect::<Vec<usize>>(), vec![0, 1, 2, 3, 4]);
-    assert_eq!(nodes.destinations().collect::<Vec<usize>>(), vec![1, 2, 3, 4, 5]);
+    assert_eq!(
+        nodes.destinations().collect::<Vec<usize>>(),
+        vec![1, 2, 3, 4, 5]
+    );
 }

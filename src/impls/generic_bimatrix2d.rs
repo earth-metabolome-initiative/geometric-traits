@@ -1,7 +1,7 @@
 //! [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 //! and its transposed version.
 
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
 
 use crate::prelude::*;
 
@@ -37,7 +37,10 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 

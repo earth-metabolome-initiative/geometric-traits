@@ -3,10 +3,11 @@
 mod errors;
 mod inner;
 
+use crate::traits::{Finite, Number, TotalOrd, TryFromUsize};
+use core::fmt::Debug;
 pub use errors::LAPJVError;
 use inner::Inner;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{Finite, Number, TryFromUsize};
+use num_traits::Zero;
 
 use crate::{
     impls::PaddedMatrix2D,
@@ -17,7 +18,7 @@ use crate::{
 /// Problem.
 pub trait LAPJV: DenseValuedMatrix2D + Sized
 where
-    Self::Value: Number,
+    Self::Value: Number + Finite + TotalOrd,
     Self::ColumnIndex: TryFromUsize,
 {
     #[allow(clippy::type_complexity)]
@@ -47,12 +48,15 @@ where
     fn lapjv(
         &self,
         max_cost: Self::Value,
-    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError> {
+    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError>
+    where
+        <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
+    {
         if !max_cost.is_finite() {
             return Err(LAPJVError::MaximalCostNotFinite);
         }
 
-        if max_cost <= Self::Value::ZERO {
+        if max_cost <= Self::Value::zero() {
             return Err(LAPJVError::MaximalCostNotPositive);
         }
 
@@ -72,7 +76,7 @@ where
 
 impl<M: DenseValuedMatrix2D> LAPJV for M
 where
-    M::Value: Number,
+    M::Value: Number + Finite + TotalOrd,
     M::ColumnIndex: TryFromUsize,
 {
 }
@@ -115,11 +119,15 @@ where
         &self,
         padding_cost: Self::Value,
         max_cost: Self::Value,
-    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError> {
+    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError>
+    where
+        Self::Value: Finite + TotalOrd,
+        <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
+    {
         if !padding_cost.is_finite() {
             return Err(LAPJVError::PaddingValueNotFinite);
         }
-        if padding_cost <= Self::Value::ZERO {
+        if padding_cost <= Self::Value::zero() {
             return Err(LAPJVError::PaddingValueNotPositive);
         }
 
@@ -132,7 +140,7 @@ where
 
         debug_assert!(
             self.max_sparse_value().unwrap() < padding_cost,
-            "The maximum value in the matrix ({}) is greater than the padding cost ({}).",
+            "The maximum value in the matrix ({:?}) is greater than the padding cost ({:?}).",
             self.max_sparse_value().unwrap(),
             padding_cost
         );

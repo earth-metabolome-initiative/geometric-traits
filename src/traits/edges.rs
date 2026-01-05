@@ -1,12 +1,12 @@
 //! Trait defining a data structure to handle Edges, such as a simple edge list,
 //! or a ragged list or a compressed sparse row matrix.
 
-use algebra::prelude::{
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
+use crate::traits::{
     MatrixMut, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix, SparseMatrix2D,
     SparseMatrixMut,
 };
-use num_traits::{ConstZero, SaturatingAdd};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::{SaturatingAdd, Zero};
 
 use super::Edge;
 
@@ -73,7 +73,7 @@ pub trait Edges {
     ///
     /// * `source` - The identifier of the source node.
     fn has_successors(&self, source: Self::SourceNodeId) -> bool {
-        self.out_degree(source) > Self::DestinationNodeId::ZERO
+        self.out_degree(source) > Self::DestinationNodeId::zero()
     }
 
     /// Returns the outbound degree of the node with the given identifier.

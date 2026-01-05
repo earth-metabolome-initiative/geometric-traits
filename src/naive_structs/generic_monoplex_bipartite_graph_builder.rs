@@ -21,7 +21,12 @@ pub struct GenericMonoplexBipartiteGraphBuilder<G: MonoplexBipartiteGraph> {
 
 impl<G: MonoplexBipartiteGraph> Default for GenericMonoplexBipartiteGraphBuilder<G> {
     fn default() -> Self {
-        Self { left_nodes: None, right_nodes: None, edges: None, _graph: PhantomData }
+        Self {
+            left_nodes: None,
+            right_nodes: None,
+            edges: None,
+            _graph: PhantomData,
+        }
     }
 }
 
@@ -29,14 +34,20 @@ impl<G: MonoplexBipartiteGraph> BipartiteGraphBuilder for GenericMonoplexBiparti
     type BipartiteGraph = G;
 
     fn left_nodes(self, left_nodes: <Self::BipartiteGraph as BipartiteGraph>::LeftNodes) -> Self {
-        Self { left_nodes: Some(left_nodes), ..self }
+        Self {
+            left_nodes: Some(left_nodes),
+            ..self
+        }
     }
 
     fn right_nodes(
         self,
         right_nodes: <Self::BipartiteGraph as BipartiteGraph>::RightNodes,
     ) -> Self {
-        Self { right_nodes: Some(right_nodes), ..self }
+        Self {
+            right_nodes: Some(right_nodes),
+            ..self
+        }
     }
 }
 
@@ -44,7 +55,10 @@ impl<G: MonoplexBipartiteGraph> MonoplexGraphBuilder for GenericMonoplexBipartit
     type MonoplexGraph = G;
 
     fn edges(self, edges: <Self::MonoplexGraph as crate::prelude::MonoplexGraph>::Edges) -> Self {
-        Self { edges: Some(edges), ..self }
+        Self {
+            edges: Some(edges),
+            ..self
+        }
     }
 }
 
@@ -61,13 +75,24 @@ where
     G: TryFrom<(G::LeftNodes, G::RightNodes, G::Edges), Error = MonoplexBipartiteGraphBuilderError>,
 {
     /// Builds the graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MonoplexBipartiteGraphBuilderError`] if the graph cannot be built.
     pub fn build(self) -> Result<G, MonoplexBipartiteGraphBuilderError> {
         G::try_from((
             self.left_nodes
-                .ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute("left_nodes"))?,
+                .ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute(
+                    "left_nodes",
+                ))?,
             self.right_nodes
-                .ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute("right_nodes"))?,
-            self.edges.ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute("edges"))?,
+                .ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute(
+                    "right_nodes",
+                ))?,
+            self.edges
+                .ok_or(MonoplexBipartiteGraphBuilderError::MissingAttribute(
+                    "edges",
+                ))?,
         ))
     }
 }

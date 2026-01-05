@@ -42,7 +42,8 @@ pedantic = { level = "deny", priority = -1 }
 
 [features]
 default = ["std"]
-std = []
+std = ["alloc"]
+alloc = []
 arbitrary = ["dep:arbitrary"]
 serde = ["dep:serde", "multi_ranged/serde"]
 

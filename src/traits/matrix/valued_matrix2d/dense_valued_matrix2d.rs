@@ -2,7 +2,7 @@
 //!
 //! A dense valued matrix is a matrix where all the values are defined.
 
-use common_traits::prelude::TotalOrd;
+use crate::traits::TotalOrd;
 
 use super::ValuedMatrix2D;
 use crate::traits::{DenseMatrix2D, DenseValuedMatrix, ValuedMatrix};

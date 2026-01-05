@@ -1,10 +1,10 @@
 //! Submodule defining commonly used named types for the generic graph data
 //! structures.
 
-use algebra::impls::{
+use crate::impls::SortedVec;
+use crate::impls::{
     CSR2D, GenericBiMatrix2D, SquareCSR2D, SymmetricCSR2D, UpperTriangularCSR2D, ValuedCSR2D,
 };
-use sorted_vec::prelude::SortedVec;
 
 use super::{
     GenericBiGraph, GenericEdgesBuilder, GenericGraph, GenericUndirectedMonopartiteEdgesBuilder,

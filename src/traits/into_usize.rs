@@ -1,4 +1,3 @@
-
 /// Trait defining the conversion into `usize`.
 pub trait IntoUsize {
     /// Converts the value into `usize`.

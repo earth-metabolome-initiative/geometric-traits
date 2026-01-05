@@ -3,7 +3,7 @@
 //! A monoplex graph is a graph where all edges are of the same type,
 //! i.e., there is no distinction between different types of edges.
 
-use algebra::prelude::{SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrix2D};
+use crate::traits::{SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrix2D};
 
 use super::Edges;
 
@@ -49,7 +49,8 @@ pub trait MonoplexGraph: super::Graph {
         source_node_id: <Self::Edges as super::Edges>::SourceNodeId,
         destination_node_id: <Self::Edges as super::Edges>::DestinationNodeId,
     ) -> bool {
-        self.edges().has_successor(source_node_id, destination_node_id)
+        self.edges()
+            .has_successor(source_node_id, destination_node_id)
     }
 
     /// Returns the outbound degree of the node with the given identifier.

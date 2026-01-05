@@ -1,7 +1,7 @@
 //! Submodule defining illegal graph states that, if reached, indicate a bug in
 //! some implementation of the graph traits.
 
-use numeric_common_traits::prelude::Bounded;
+use num_traits::Bounded;
 
 use crate::traits::BipartiteGraph;
 
@@ -31,7 +31,9 @@ pub enum IllegalBipartiteGraphState<G: BipartiteGraph + ?Sized> {
 impl<G: BipartiteGraph + ?Sized> core::fmt::Display for IllegalBipartiteGraphState<G> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            IllegalBipartiteGraphState::TooManyLeftNodes { number_of_left_nodes } => {
+            IllegalBipartiteGraphState::TooManyLeftNodes {
+                number_of_left_nodes,
+            } => {
                 write!(
                     f,
                     concat!(
@@ -40,11 +42,13 @@ impl<G: BipartiteGraph + ?Sized> core::fmt::Display for IllegalBipartiteGraphSta
                         "some bug in the implementation of the graph traits. The number of left nodes that was reported ",
                         "was {}."
                     ),
-                    G::LeftNodeId::MAX,
+                    G::LeftNodeId::max_value(),
                     number_of_left_nodes
                 )
             }
-            IllegalBipartiteGraphState::TooManyRightNodes { number_of_right_nodes } => {
+            IllegalBipartiteGraphState::TooManyRightNodes {
+                number_of_right_nodes,
+            } => {
                 write!(
                     f,
                     concat!(
@@ -53,7 +57,7 @@ impl<G: BipartiteGraph + ?Sized> core::fmt::Display for IllegalBipartiteGraphSta
                         "some bug in the implementation of the graph traits. The number of right nodes that was reported ",
                         "was {}."
                     ),
-                    G::RightNodeId::MAX,
+                    G::RightNodeId::max_value(),
                     number_of_right_nodes
                 )
             }

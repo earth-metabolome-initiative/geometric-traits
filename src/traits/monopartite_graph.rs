@@ -3,9 +3,8 @@
 //! A monopartite graph is a graph where the nodes are of the same type, i.e
 //! they are not divided into different partitions.
 
-use algebra::prelude::*;
-use num_traits::{ConstZero, SaturatingAdd};
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use crate::traits::{SparseSquareMatrix, Symbol, IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::{SaturatingAdd, Zero};
 
 use super::{BidirectionalVocabulary, Edges, Vocabulary};
 
@@ -25,7 +24,7 @@ pub trait MonopartiteEdges:
 
     /// Returns whether the graph has self-loops.
     fn has_self_loops(&self) -> bool {
-        self.number_of_self_loops() > Self::NodeId::ZERO
+        self.number_of_self_loops() > Self::NodeId::zero()
     }
 
     /// Returns the number of self-loops in the graph.
@@ -69,7 +68,7 @@ pub trait MonopartiteGraph: super::Graph {
 
     /// Returns the number of nodes in the graph.
     fn number_of_nodes(&self) -> Self::NodeId {
-        if let Ok(number_of_nodes) = Self::NodeId::try_from_usize(self.nodes_vocabulary().len()) {
+        if let Ok(number_of_nodes) = Self::NodeId::try_from(self.nodes_vocabulary().len()) {
             number_of_nodes
         } else {
             panic!("The number of nodes exceeds the capacity of the node identifier.")

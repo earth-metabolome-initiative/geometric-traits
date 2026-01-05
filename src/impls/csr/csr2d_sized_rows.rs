@@ -2,8 +2,8 @@
 
 use core::iter::{RepeatN, repeat_n};
 
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
+use num_traits::{One, Zero};
 
 use crate::prelude::*;
 
@@ -26,11 +26,13 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRows<'_, CSR> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next.next().or_else(|| {
-            self.next_row += CSR::RowIndex::ONE;
+            self.next_row += CSR::RowIndex::one();
             if self.next_row < self.back_row {
                 self.next = repeat_n(
                     self.next_row,
-                    self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize(),
+                    self.csr2d
+                        .number_of_defined_values_in_row(self.next_row)
+                        .into_usize(),
                 );
                 self.next.next()
             } else {
@@ -43,13 +45,17 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRows<'_, CSR> {
 impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
     fn len(&self) -> usize {
         let next_row_rank = self.csr2d.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row =
-            self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize()
-                - self.next.len();
+        let already_observed_in_next_row = self
+            .csr2d
+            .number_of_defined_values_in_row(self.next_row)
+            .into_usize()
+            - self.next.len();
         let back_row_rank = self.csr2d.rank_row(self.back_row).into_usize();
-        let already_observed_in_back_row =
-            self.csr2d.number_of_defined_values_in_row(self.back_row).into_usize()
-                - self.back.len();
+        let already_observed_in_back_row = self
+            .csr2d
+            .number_of_defined_values_in_row(self.back_row)
+            .into_usize()
+            - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }
 }
@@ -57,11 +63,13 @@ impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
 impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRows<'_, CSR> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.back.next().or_else(|| {
-            self.back_row -= CSR::RowIndex::ONE;
+            self.back_row -= CSR::RowIndex::one();
             if self.back_row > self.next_row {
                 self.back = repeat_n(
                     self.back_row,
-                    self.csr2d.number_of_defined_values_in_row(self.back_row).into_usize(),
+                    self.csr2d
+                        .number_of_defined_values_in_row(self.back_row)
+                        .into_usize(),
                 );
                 self.back.next()
             } else {
@@ -73,10 +81,22 @@ impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRows<'_, CS
 
 impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DSizedRows<'a, CSR> {
     fn from(csr2d: &'a CSR) -> Self {
-        let next_row = CSR::RowIndex::ZERO;
-        let back_row = csr2d.number_of_rows() - CSR::RowIndex::ONE;
-        let next = repeat_n(next_row, csr2d.number_of_defined_values_in_row(next_row).into_usize());
-        let back = repeat_n(back_row, csr2d.number_of_defined_values_in_row(back_row).into_usize());
-        Self { csr2d, next_row, back_row, next, back }
+        let next_row = CSR::RowIndex::zero();
+        let back_row = csr2d.number_of_rows() - CSR::RowIndex::one();
+        let next = repeat_n(
+            next_row,
+            csr2d.number_of_defined_values_in_row(next_row).into_usize(),
+        );
+        let back = repeat_n(
+            back_row,
+            csr2d.number_of_defined_values_in_row(back_row).into_usize(),
+        );
+        Self {
+            csr2d,
+            next_row,
+            back_row,
+            next,
+            back,
+        }
     }
 }

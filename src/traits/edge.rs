@@ -2,7 +2,7 @@
 
 use core::fmt::Debug;
 
-use numeric_common_traits::prelude::PositiveInteger;
+use crate::traits::PositiveInteger;
 
 /// Trait defining the properties of an edge.
 pub trait Edge: Debug + Clone {

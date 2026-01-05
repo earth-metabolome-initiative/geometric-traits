@@ -5,7 +5,7 @@
 //! * All nodes are of the same type.
 //! * All edges are bidirectional.
 
-use algebra::prelude::{
+use crate::traits::{
     SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseMatrix2D, SparseSymmetricMatrix2D,
 };
 

@@ -1,5 +1,5 @@
 //! Submodule implementing graph-related traits for tuples.
-use numeric_common_traits::prelude::{Number, PositiveInteger};
+use crate::traits::{Number, PositiveInteger};
 
 use crate::traits::{AttributedEdge, Edge};
 

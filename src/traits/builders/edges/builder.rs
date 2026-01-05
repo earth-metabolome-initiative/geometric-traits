@@ -1,6 +1,6 @@
 //! Submodule defining the trait for Options for building a edges.
 
-use algebra::prelude::SparseMatrixMut;
+use crate::traits::SparseMatrixMut;
 
 use crate::traits::{Edges, GrowableEdges};
 

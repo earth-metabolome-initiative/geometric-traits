@@ -1,7 +1,7 @@
 //! Submodule providing the traits for a generic graph that has weighted edges.
 
-use algebra::prelude::{SparseValuedMatrix, SparseValuedMatrix2D};
-use numeric_common_traits::prelude::Number;
+use crate::traits::Number;
+use crate::traits::{SparseValuedMatrix, SparseValuedMatrix2D};
 
 use super::{AttributedEdge, Edges, MonoplexGraph};
 
@@ -74,7 +74,10 @@ pub trait WeightedEdges:
     /// # Returns
     ///
     /// The largest weight of the successors of the node, if any.
-    fn max_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight> {
+    fn max_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.matrix().sparse_row_max_value(source_node_id)
     }
 
@@ -92,8 +95,12 @@ pub trait WeightedEdges:
     fn max_successor_weight_and_id(
         &self,
         source_node_id: Self::SourceNodeId,
-    ) -> Option<(Self::Weight, Self::DestinationNodeId)> {
-        self.matrix().sparse_row_max_value_and_column(source_node_id)
+    ) -> Option<(Self::Weight, Self::DestinationNodeId)>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
+        self.matrix()
+            .sparse_row_max_value_and_column(source_node_id)
     }
 
     /// Returns the smallest weight of the successors of a node.
@@ -105,7 +112,10 @@ pub trait WeightedEdges:
     /// # Returns
     ///
     /// The smallest weight of the successors of the node, if any.
-    fn min_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight> {
+    fn min_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.matrix().sparse_row_min_value(source_node_id)
     }
 
@@ -123,8 +133,12 @@ pub trait WeightedEdges:
     fn min_successor_weight_and_id(
         &self,
         source_node_id: Self::SourceNodeId,
-    ) -> Option<(Self::Weight, Self::DestinationNodeId)> {
-        self.matrix().sparse_row_min_value_and_column(source_node_id)
+    ) -> Option<(Self::Weight, Self::DestinationNodeId)>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
+        self.matrix()
+            .sparse_row_min_value_and_column(source_node_id)
     }
 
     /// Returns the sparse weights of the edges.
@@ -187,7 +201,10 @@ pub trait WeightedMonoplexGraph:
     fn max_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().max_successor_weight(source_node_id)
     }
 
@@ -205,7 +222,13 @@ pub trait WeightedMonoplexGraph:
     fn max_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
-    ) -> Option<(Self::Weight, <Self::WeightedEdges as Edges>::DestinationNodeId)> {
+    ) -> Option<(
+        Self::Weight,
+        <Self::WeightedEdges as Edges>::DestinationNodeId,
+    )>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().max_successor_weight_and_id(source_node_id)
     }
 
@@ -221,7 +244,10 @@ pub trait WeightedMonoplexGraph:
     fn min_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
-    ) -> Option<Self::Weight> {
+    ) -> Option<Self::Weight>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().min_successor_weight(source_node_id)
     }
 
@@ -239,7 +265,13 @@ pub trait WeightedMonoplexGraph:
     fn min_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
-    ) -> Option<(Self::Weight, <Self::WeightedEdges as Edges>::DestinationNodeId)> {
+    ) -> Option<(
+        Self::Weight,
+        <Self::WeightedEdges as Edges>::DestinationNodeId,
+    )>
+    where
+        Self::Weight: crate::traits::total_ord::TotalOrd,
+    {
         self.edges().min_successor_weight_and_id(source_node_id)
     }
 

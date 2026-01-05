@@ -1,8 +1,9 @@
 //! Submodule providing the concrete implementation of the LAPJV algorithm.
 
-use common_traits::prelude::TotalOrd;
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{Bounded, Finite, IntoUsize, Number, TryFromUsize};
+use crate::traits::TotalOrd;
+use crate::traits::{Finite, IntoUsize, Number, TryFromUsize};
+use core::fmt::Debug;
+use num_traits::{Bounded, Zero};
 
 use super::LAPJVError;
 use crate::traits::{AssignmentState, DenseValuedMatrix2D};
@@ -29,6 +30,7 @@ impl<'matrix, M: DenseValuedMatrix2D + ?Sized> From<Inner<'matrix, M>>
 where
     M::Value: Number,
     M::ColumnIndex: TryFromUsize,
+    <M::ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     fn from(inner: Inner<'matrix, M>) -> Self {
         let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
@@ -39,8 +41,10 @@ where
                 unreachable!("We expected the assigned row to be in the assigned state");
             };
 
-            assignments
-                .push((row_index, M::ColumnIndex::try_from_usize(expected_column_index).unwrap()));
+            assignments.push((
+                row_index,
+                M::ColumnIndex::try_from_usize(expected_column_index).unwrap(),
+            ));
         }
         assignments
     }
@@ -48,7 +52,9 @@ where
 
 impl<'matrix, M: DenseValuedMatrix2D + ?Sized> Inner<'matrix, M>
 where
-    M::Value: Number,
+    M::Value: Number + TotalOrd,
+    M::RowIndex: Bounded,
+    M::ColumnIndex: Bounded,
 {
     pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPJVError> {
         // Check if the matrix is square
@@ -74,7 +80,7 @@ where
 
 impl<M: DenseValuedMatrix2D + ?Sized> Inner<'_, M>
 where
-    M::Value: Number,
+    M::Value: Number + Finite + TotalOrd,
 {
     #[inline]
     pub(super) fn column_reduction(&mut self) -> Result<(), LAPJVError> {
@@ -83,18 +89,24 @@ where
             "We expected the column costs to be initialized to the maximum cost",
         );
         debug_assert!(
-            self.assigned_rows.iter().all(AssignmentState::is_unassigned),
+            self.assigned_rows
+                .iter()
+                .all(AssignmentState::is_unassigned),
             "We expected all rows to be unassigned",
         );
         debug_assert!(
-            self.assigned_columns.iter().all(AssignmentState::is_unassigned),
+            self.assigned_columns
+                .iter()
+                .all(AssignmentState::is_unassigned),
             "We expected all columns to be unassigned",
         );
 
         for row_index in self.matrix.row_indices() {
             // We retrieve the minimum value and its column on the row.
-            for (column_index, value) in
-                self.matrix.column_indices().zip(self.matrix.row_values(row_index))
+            for (column_index, value) in self
+                .matrix
+                .column_indices()
+                .zip(self.matrix.row_values(row_index))
             {
                 if value >= self.max_cost {
                     return Err(LAPJVError::ValueTooLarge);
@@ -104,11 +116,11 @@ where
                     return Err(LAPJVError::NonFiniteValues);
                 }
 
-                if value == M::Value::ZERO {
+                if value == M::Value::zero() {
                     return Err(LAPJVError::ZeroValues);
                 }
 
-                if value < M::Value::ZERO {
+                if value < M::Value::zero() {
                     return Err(LAPJVError::NegativeValues);
                 }
 
@@ -203,15 +215,24 @@ where
     fn first_and_second_minimum_reduced_costs(
         &self,
         row_index: M::RowIndex,
-    ) -> ((M::ColumnIndex, M::Value), (Option<M::ColumnIndex>, M::Value)) {
-        let mut iterator = self.matrix.column_indices().zip(self.matrix.row_values(row_index)).map(
-            |(column_index, cost)| {
-                (column_index, cost - self.column_costs[column_index.into_usize()])
-            },
-        );
+    ) -> (
+        (M::ColumnIndex, M::Value),
+        (Option<M::ColumnIndex>, M::Value),
+    ) {
+        let mut iterator = self
+            .matrix
+            .column_indices()
+            .zip(self.matrix.row_values(row_index))
+            .map(|(column_index, cost)| {
+                (
+                    column_index,
+                    cost - self.column_costs[column_index.into_usize()],
+                )
+            });
 
-        let (mut first_minimum_index, mut first_minimum_reduced_cost) =
-            iterator.next().expect("We expected the iterator to have at least one element");
+        let (mut first_minimum_index, mut first_minimum_reduced_cost) = iterator
+            .next()
+            .expect("We expected the iterator to have at least one element");
 
         let mut second_minimum_column_index: Option<M::ColumnIndex> = None;
         let mut second_minimum_reduced_cost = self.max_cost;
@@ -300,11 +321,14 @@ where
                 AssignmentState::Assigned(first_minimum_column_index);
         }
 
-        self.unassigned_rows.truncate(updated_number_of_unassigned_rows);
+        self.unassigned_rows
+            .truncate(updated_number_of_unassigned_rows);
 
         debug_assert!(
             self.unassigned_rows.iter().all(|row_index| {
-                !self.assigned_rows.contains(&AssignmentState::Assigned(*row_index))
+                !self
+                    .assigned_rows
+                    .contains(&AssignmentState::Assigned(*row_index))
             }),
             "We expected all unassigned rows to be unassigned",
         );
@@ -357,7 +381,7 @@ where
             number_of_iterations += 1;
             debug_assert!(
                 number_of_iterations < self.matrix.number_of_columns().into_usize(),
-                "We expected the number of iterations to be less than the number of columns ({}), with max cost {}",
+                "We expected the number of iterations to be less than the number of columns ({}), with max cost {:?}",
                 self.matrix.number_of_columns(),
                 self.max_cost
             );
@@ -418,10 +442,12 @@ where
         let mut upper_bound = 0;
         let mut n_ready = 0;
 
-        for (column_index, (column_index_to_scan, (predecessor, distance))) in self
-            .matrix
-            .column_indices()
-            .zip(to_scan.iter_mut().zip(predecessors.iter_mut().zip(distances.iter_mut())))
+        for (column_index, (column_index_to_scan, (predecessor, distance))) in
+            self.matrix.column_indices().zip(
+                to_scan
+                    .iter_mut()
+                    .zip(predecessors.iter_mut().zip(distances.iter_mut())),
+            )
         {
             *predecessor = start_row_index;
             *column_index_to_scan = column_index;
@@ -434,7 +460,7 @@ where
             number_of_iterations += 1;
             debug_assert!(
                 number_of_iterations < self.matrix.number_of_columns().into_usize(),
-                "We expected the number of iterations to be less than the number of columns ({}): with max cost {}",
+                "We expected the number of iterations to be less than the number of columns ({}): with max cost {:?}",
                 self.matrix.number_of_columns(),
                 self.max_cost
             );
@@ -450,9 +476,13 @@ where
                 }
             }
 
-            if let Some(column_index) =
-                self.scan(&mut lower_bound, &mut upper_bound, to_scan, distances, predecessors)
-            {
+            if let Some(column_index) = self.scan(
+                &mut lower_bound,
+                &mut upper_bound,
+                to_scan,
+                distances,
+                predecessors,
+            ) {
                 break 'outer column_index;
             }
         };
@@ -472,8 +502,10 @@ where
             return;
         }
 
-        let mut to_scan = vec![M::ColumnIndex::MAX; self.matrix.number_of_columns().into_usize()];
-        let mut predecessors = vec![M::RowIndex::MAX; self.matrix.number_of_columns().into_usize()];
+        let mut to_scan =
+            vec![M::ColumnIndex::max_value(); self.matrix.number_of_columns().into_usize()];
+        let mut predecessors =
+            vec![M::RowIndex::max_value(); self.matrix.number_of_columns().into_usize()];
         let mut distances = vec![self.max_cost; self.matrix.number_of_columns().into_usize()];
 
         while let Some(unassigned_row_index) = self.unassigned_rows.pop() {

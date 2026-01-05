@@ -2,13 +2,13 @@
 
 use core::{iter::Cloned, ops::Range};
 
-use algebra::prelude::Symbol;
+use crate::traits::Symbol;
 
 use core::ops::Index;
 
-use common_traits::transmute::TransmuteFrom;
+use crate::traits::TransmuteFrom;
 
-use crate::error::Error;
+use crate::errors::SortedError;
 
 #[derive(Debug, Clone, Copy)]
 /// Struct defining a sorted vector and its primary methods.
@@ -20,7 +20,7 @@ impl<V, const N: usize> TryFrom<[V; N]> for SortedArray<V, N>
 where
     V: Ord + Clone,
 {
-    type Error = Error<V>;
+    type Error = SortedError<V>;
 
     fn try_from(array: [V; N]) -> Result<Self, Self::Error> {
         if array.is_sorted() {
@@ -28,10 +28,14 @@ where
         } else {
             // We identify the offending entry by returning the first unsorted entry.
             let unsorted_entry = array.windows(2).find_map(|window| {
-                if window[0] > window[1] { Some(window[1].clone()) } else { None }
+                if window[0] > window[1] {
+                    Some(window[1].clone())
+                } else {
+                    None
+                }
             });
             if let Some(entry) = unsorted_entry {
-                Err(Error::UnsortedEntry(entry))
+                Err(SortedError::UnsortedEntry(entry))
             } else {
                 unreachable!("The source vector is not sorted.");
             }
@@ -85,6 +89,7 @@ impl<V, const N: usize> SortedArray<V, N> {
 impl<V: Ord, const N: usize> SortedArray<V, N> {
     #[must_use]
     /// Returns whether the vector is sorted.
+    #[allow(clippy::unused_self)]
     pub fn is_sorted(&self) -> bool {
         true
     }
@@ -104,7 +109,6 @@ impl<V, const N: usize> AsRef<[V]> for SortedArray<V, N> {
         &self.array
     }
 }
-
 
 impl<V: Symbol, const N: usize> crate::traits::Vocabulary for SortedArray<V, N> {
     type SourceSymbol = usize;

@@ -3,7 +3,7 @@
 
 use core::iter::Copied;
 
-use iter_utils::prelude::*;
+use crate::impls::generic_iterators::{Intersection, SortedIterator};
 
 use super::SubsetSquareMatrix;
 use crate::{
@@ -57,7 +57,9 @@ where
 
     #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        self.matrix.sparse_row(row).sorted_intersection(self.indices.iter().copied())
+        self.matrix
+            .sparse_row(row)
+            .sorted_intersection(self.indices.iter().copied())
     }
 
     #[inline]

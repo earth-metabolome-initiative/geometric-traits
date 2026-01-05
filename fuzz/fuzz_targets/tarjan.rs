@@ -1,6 +1,6 @@
 //! Submodule for fuzzing the execution of the Hopcroft-Karp algorithm.
 
-use algebra::prelude::{CSR2D, SquareCSR2D, Tarjan};
+use geometric_traits::prelude::{CSR2D, SquareCSR2D, Tarjan};
 use honggfuzz::fuzz;
 
 fn main() {

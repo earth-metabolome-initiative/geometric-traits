@@ -2,7 +2,7 @@
 
 use core::f64;
 
-use functional_properties::prelude::ScalarSimilarity;
+use crate::traits::ScalarSimilarity;
 
 use crate::{
     prelude::{information_content::InformationContentError, resnik::ResnikResult},

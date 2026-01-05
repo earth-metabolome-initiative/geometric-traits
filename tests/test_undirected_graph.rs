@@ -1,8 +1,8 @@
 //! Simple test for undirected graph.
 
-use ::graph::prelude::*;
-use algebra::impls::{CSR2D, SymmetricCSR2D};
-use sorted_vec::prelude::SortedVec;
+use ::geometric_traits::prelude::*;
+use geometric_traits::impls::SortedVec;
+use geometric_traits::impls::{CSR2D, SymmetricCSR2D};
 
 #[test]
 /// First simple test for undirected graph.
@@ -20,7 +20,7 @@ pub fn test_undirected_graph() {
         .edges(edges.into_iter())
         .build()
         .unwrap();
-    let graph: UndiGraph<usize> = UndiGraph::try_from((nodes, edges)).unwrap();
+    let graph: UndiGraph<usize> = UndiGraph::from((nodes, edges));
     assert_eq!(graph.number_of_nodes(), 6);
     assert_eq!(graph.number_of_edges(), 10);
 }

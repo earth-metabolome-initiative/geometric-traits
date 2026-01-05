@@ -1,17 +1,14 @@
 //! Implementations of traits from the graph crate for the
-//! [`RangedCSR`](algebra::prelude::RangedCSR) data structure.
+//! [`RangedCSR`](crate::traits::RangedCSR) data structure.
 
 pub mod ranged_csr2d;
 pub use ranged_csr2d::RangedCSR2D;
 
-
-use algebra::{
-    impls::RangedCSR2D,
-    prelude::{Matrix2D, Matrix2DRef, SizedSparseMatrix, SparseMatrix, SparseMatrixMut},
-};
+use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
+use crate::traits::{Matrix2D, Matrix2DRef, SizedSparseMatrix, SparseMatrix, SparseMatrixMut};
+use core::fmt::Debug;
 use multi_ranged::{MultiRanged, Step};
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger, TryFromUsize};
+use num_traits::Zero;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,
@@ -24,8 +21,13 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
     R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
+    type Edge = (
+        <Self as Matrix2D>::RowIndex,
+        <Self as Matrix2D>::ColumnIndex,
+    );
     type SourceNodeId = <Self as Matrix2D>::RowIndex;
     type DestinationNodeId = <Self as Matrix2D>::ColumnIndex;
     type EdgeId = SparseIndex;
@@ -40,8 +42,10 @@ impl<SparseIndex, RowIndex, R> GrowableEdges for RangedCSR2D<SparseIndex, RowInd
 where
     R: MultiRanged,
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger + 'static,
     R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <R::Step as TryFrom<usize>>::Error: Debug,
 {
     type GrowableMatrix = Self;
     type Error = EdgesBuilderError<Self>;
@@ -72,14 +76,16 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
     R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     fn has_nodes(&self) -> bool {
-        self.number_of_rows() > <Self as Matrix2D>::RowIndex::ZERO
-            && self.number_of_columns() > <Self as Matrix2D>::ColumnIndex::ZERO
+        self.number_of_rows() > <Self as Matrix2D>::RowIndex::zero()
+            && self.number_of_columns() > <Self as Matrix2D>::ColumnIndex::zero()
     }
 
     fn has_edges(&self) -> bool {
-        self.number_of_defined_values() > <Self as SparseMatrix>::SparseIndex::ZERO
+        self.number_of_defined_values() > <Self as SparseMatrix>::SparseIndex::zero()
     }
 }
 
@@ -89,8 +95,13 @@ where
     RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
     SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
     R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
+    type Edge = (
+        <Self as Matrix2D>::RowIndex,
+        <Self as Matrix2D>::ColumnIndex,
+    );
     type Edges = Self;
 
     fn edges(&self) -> &Self::Edges {
@@ -116,6 +127,8 @@ where
             DestinationSymbol = <Self as Matrix2D>::ColumnIndex,
         > + IntoUsize
         + PositiveInteger,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
     type LeftNodeId = <Self as Matrix2D>::RowIndex;
     type RightNodeId = <Self as Matrix2D>::ColumnIndex;

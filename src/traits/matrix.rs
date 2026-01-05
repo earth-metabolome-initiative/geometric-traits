@@ -10,12 +10,12 @@ mod transposed_valued_matrix2d;
 mod triangular_matrix;
 mod valued_matrix2d;
 
-use common_traits::prelude::TotalOrd;
+use crate::traits::TotalOrd;
+use crate::traits::{IntoUsize, PositiveInteger};
 pub use dense_matrix::*;
 pub use dense_matrix2d::*;
 pub use matrix_mut::*;
 pub use matrix2d::*;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger};
 pub use sparse_matrix2d::*;
 pub use square_matrix::*;
 pub use transposed_valued_matrix2d::*;

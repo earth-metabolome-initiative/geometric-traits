@@ -1,7 +1,7 @@
 //! Simple test for symmetric edges.
 
-use ::graph::prelude::*;
-use algebra::impls::{CSR2D, SymmetricCSR2D};
+use ::geometric_traits::prelude::*;
+use geometric_traits::impls::{CSR2D, SymmetricCSR2D};
 
 #[test]
 /// First simple test for symmetric edges.
@@ -56,7 +56,7 @@ pub fn test_symmetric_edges() {
         "The node 5 should have neighbor 4."
     );
     assert_eq!(
-        edges.sparse_coordinates().collect::<Vec<_>>(),
+        geometric_traits::traits::SparseMatrix::sparse_coordinates(&edges).collect::<Vec<_>>(),
         vec![
             (1, 2),
             (1, 3),

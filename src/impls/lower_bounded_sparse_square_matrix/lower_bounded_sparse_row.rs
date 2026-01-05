@@ -16,7 +16,10 @@ pub struct LowerBoundedSparseRow<'matrix, M: SquareMatrix + SparseMatrix2D> {
 
 impl<M: SquareMatrix + SparseMatrix2D> Clone for LowerBoundedSparseRow<'_, M> {
     fn clone(&self) -> Self {
-        Self { matrix: self.matrix, row: self.row.clone() }
+        Self {
+            matrix: self.matrix,
+            row: self.row.clone(),
+        }
     }
 }
 
@@ -28,7 +31,10 @@ impl<'matrix, M: SquareMatrix + SparseMatrix2D> LowerBoundedSparseRow<'matrix, M
     /// * `matrix` - The matrix to be iterated.
     /// * `row` - The row index of the matrix.
     pub(super) fn new(matrix: &'matrix LowerBoundedSquareMatrix<M>, row: M::Index) -> Self {
-        Self { matrix, row: (row >= matrix.index).then(|| matrix.matrix.sparse_row(row)) }
+        Self {
+            matrix,
+            row: (row >= matrix.index).then(|| matrix.matrix.sparse_row(row)),
+        }
     }
 }
 
@@ -36,7 +42,9 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for LowerBoundedSparseRow<'_, M>
     type Item = M::Index;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.row.as_mut()?.find(|&column| column >= self.matrix.index)
+        self.row
+            .as_mut()?
+            .find(|&column| column >= self.matrix.index)
     }
 }
 

@@ -1,7 +1,7 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
+use num_traits::{One, Zero};
 
 use crate::prelude::*;
 
@@ -21,13 +21,13 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRowsizes<'_, CSR> {
     fn next(&mut self) -> Option<Self::Item> {
         (self.next_row <= self.back_row).then(|| {
             let out_degree = self.csr2d.number_of_defined_values_in_row(self.next_row);
-            self.next_row += CSR::RowIndex::ONE;
+            self.next_row += CSR::RowIndex::one();
             out_degree
         })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.back_row + CSR::RowIndex::ONE - self.next_row).into_usize();
+        let remaining = (self.back_row + CSR::RowIndex::one() - self.next_row).into_usize();
         (remaining, Some(remaining))
     }
 }
@@ -41,7 +41,7 @@ impl<CSR: SizedRowsSparseMatrix2D> ExactSizeIterator for CSR2DSizedRowsizes<'_, 
 impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRowsizes<'_, CSR> {
     fn next_back(&mut self) -> Option<Self::Item> {
         (self.next_row <= self.back_row).then(|| {
-            self.back_row -= CSR::RowIndex::ONE;
+            self.back_row -= CSR::RowIndex::one();
             self.csr2d.number_of_defined_values_in_row(self.back_row)
         })
     }
@@ -49,8 +49,12 @@ impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRowsizes<'_
 
 impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DSizedRowsizes<'a, CSR> {
     fn from(csr2d: &'a CSR) -> Self {
-        let next_row = CSR::RowIndex::ZERO;
-        let back_row = csr2d.number_of_rows() - CSR::RowIndex::ONE;
-        Self { csr2d, next_row, back_row }
+        let next_row = CSR::RowIndex::zero();
+        let back_row = csr2d.number_of_rows() - CSR::RowIndex::one();
+        Self {
+            csr2d,
+            next_row,
+            back_row,
+        }
     }
 }

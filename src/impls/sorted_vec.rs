@@ -1,13 +1,15 @@
 //! Module implementing traits for the Vec type.
 
-use core::{iter::Cloned, ops::Range};
+use core::{
+    iter::Cloned,
+    ops::{Index, Range},
+};
 
-use algebra::prelude::Symbol;
+use crate::traits::Symbol;
 
 use crate::prelude::*;
 
-
-use crate::error::Error;
+use crate::errors::SortedError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Struct defining a sorted vector and its primary methods.
@@ -25,7 +27,7 @@ impl<V> TryFrom<Vec<V>> for SortedVec<V>
 where
     V: Ord + Clone,
 {
-    type Error = Error<V>;
+    type Error = SortedError<V>;
 
     fn try_from(vec: Vec<V>) -> Result<Self, Self::Error> {
         if vec.is_sorted() {
@@ -33,10 +35,14 @@ where
         } else {
             // We identify the offending entry by returning the first unsorted entry.
             let unsorted_entry = vec.windows(2).find_map(|window| {
-                if window[0] > window[1] { Some(window[1].clone()) } else { None }
+                if window[0] > window[1] {
+                    Some(window[1].clone())
+                } else {
+                    None
+                }
             });
             if let Some(entry) = unsorted_entry {
-                Err(Error::UnsortedEntry(entry))
+                Err(SortedError::UnsortedEntry(entry))
             } else {
                 unreachable!("The source vector is not sorted.");
             }
@@ -72,7 +78,9 @@ impl<V> SortedVec<V> {
     #[must_use]
     /// Returns a new instance of the struct with the provided capacity.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self { vec: Vec::with_capacity(capacity) }
+        Self {
+            vec: Vec::with_capacity(capacity),
+        }
     }
 
     #[must_use]
@@ -159,9 +167,9 @@ impl<V: PartialOrd> SortedVec<V> {
     /// # Errors
     ///
     /// * `Error::UnsortedPush(v)` if the value is not sorted.
-    pub fn push(&mut self, value: V) -> Result<(), Error<V>> {
+    pub fn push(&mut self, value: V) -> Result<(), SortedError<V>> {
         if self.last().is_some_and(|last| last >= &value) {
-            Err(Error::UnsortedEntry(value))
+            Err(SortedError::UnsortedEntry(value))
         } else {
             self.vec.push(value);
             Ok(())
@@ -183,7 +191,6 @@ impl<V> AsRef<[V]> for SortedVec<V> {
         &self.vec
     }
 }
-
 
 impl<V: Symbol> Vocabulary for SortedVec<V> {
     type SourceSymbol = usize;
@@ -259,7 +266,7 @@ impl<V: Symbol + Ord> GrowableVocabulary for SortedVec<V> {
 
         self.push(destination).map_err(|err| {
             match err {
-                sorted_vec::error::Error::UnsortedEntry(destination) => {
+                SortedError::UnsortedEntry(destination) => {
                     crate::errors::builder::vocabulary::VocabularyBuilderError::UnorderedDestinationNode(destination)
                 }
             }

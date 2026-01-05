@@ -2,7 +2,7 @@
 //! Algorithms
 use std::fmt::Display;
 
-use algebra::prelude::KahnError;
+use crate::traits::KahnError;
 
 /// Information Content Enum for Errors that may occur during IC calculation
 /// process

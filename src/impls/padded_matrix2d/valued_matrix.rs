@@ -1,8 +1,8 @@
 //! Submodule for the `PaddedMatrix2D` struct, implementing the `ValuedMatrix`
 //! trait and its related traits.
 
+use crate::traits::{IntoUsize, TryFromUsize};
 use multi_ranged::Step;
-use numeric_common_traits::prelude::{IntoUsize, TryFromUsize};
 
 use super::{PaddedMatrix2D, imputed_row_values::ImputedRowValues};
 use crate::{

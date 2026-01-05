@@ -2,9 +2,9 @@
 //! sparse matrices, which provides the Tarjan's algorithm for strongly
 //! connected components.
 
+use crate::traits::IntoUsize;
 use multi_ranged::SimpleRange;
 use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
 
 use crate::traits::{SparseMatrix2D, SquareMatrix};
 

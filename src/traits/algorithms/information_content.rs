@@ -3,9 +3,9 @@
 mod error;
 use std::ops::Index;
 
-use algebra::prelude::Kahn;
+use crate::traits::IntoUsize;
+use crate::traits::Kahn;
 pub use error::InformationContentError;
-use numeric_common_traits::prelude::IntoUsize;
 
 use crate::traits::{MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges};
 

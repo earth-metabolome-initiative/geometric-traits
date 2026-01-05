@@ -1,7 +1,7 @@
 //! Iterator of the sparse coordinates of the M2D matrix.
 
-use num_traits::{ConstOne, ConstZero};
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
+use num_traits::{One, Zero};
 
 use crate::prelude::*;
 
@@ -24,7 +24,7 @@ impl<M: SparseValuedMatrix2D> Iterator for M2DValues<'_, M> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next.next().or_else(|| {
-            self.next_row += M::RowIndex::ONE;
+            self.next_row += M::RowIndex::one();
             if self.next_row < self.back_row {
                 self.next = self.matrix.sparse_row_values(self.next_row);
                 self.next.next()
@@ -42,13 +42,17 @@ where
 {
     fn len(&self) -> usize {
         let next_row_rank = self.matrix.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row =
-            self.matrix.number_of_defined_values_in_row(self.next_row).into_usize()
-                - self.next.len();
+        let already_observed_in_next_row = self
+            .matrix
+            .number_of_defined_values_in_row(self.next_row)
+            .into_usize()
+            - self.next.len();
         let back_row_rank = self.matrix.rank_row(self.back_row).into_usize();
-        let already_observed_in_back_row =
-            self.matrix.number_of_defined_values_in_row(self.back_row).into_usize()
-                - self.back.len();
+        let already_observed_in_back_row = self
+            .matrix
+            .number_of_defined_values_in_row(self.back_row)
+            .into_usize()
+            - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }
 }
@@ -56,7 +60,7 @@ where
 impl<M: SparseValuedMatrix2D> DoubleEndedIterator for M2DValues<'_, M> {
     fn next_back(&mut self) -> Option<Self::Item> {
         self.back.next().or_else(|| {
-            self.back_row -= M::RowIndex::ONE;
+            self.back_row -= M::RowIndex::one();
             if self.back_row > self.next_row {
                 self.back = self.matrix.sparse_row_values(self.back_row);
                 self.back.next()
@@ -69,10 +73,16 @@ impl<M: SparseValuedMatrix2D> DoubleEndedIterator for M2DValues<'_, M> {
 
 impl<'a, M: SparseValuedMatrix2D> From<&'a M> for M2DValues<'a, M> {
     fn from(matrix: &'a M) -> Self {
-        let next_row = M::RowIndex::ZERO;
-        let back_row = matrix.number_of_rows() - M::RowIndex::ONE;
+        let next_row = M::RowIndex::zero();
+        let back_row = matrix.number_of_rows() - M::RowIndex::one();
         let next = matrix.sparse_row_values(next_row);
         let back = matrix.sparse_row_values(back_row);
-        Self { matrix, next_row, back_row, next, back }
+        Self {
+            matrix,
+            next_row,
+            back_row,
+            next,
+            back,
+        }
     }
 }

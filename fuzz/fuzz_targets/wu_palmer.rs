@@ -1,8 +1,8 @@
-use algebra::prelude::{SquareCSR2D, CSR2D};
-use graph::prelude::{GenericGraph, WuPalmer};
+use geometric_traits::prelude::{SquareCSR2D, CSR2D};
+use geometric_traits::prelude::{GenericGraph, WuPalmer};
 use honggfuzz::fuzz;
-use graph::traits::MonopartiteGraph;
-use functional_properties::similarity::ScalarSimilarity;
+use geometric_traits::traits::MonopartiteGraph;
+use geometric_traits::traits::ScalarSimilarity;
 
 fn main() {
     loop {

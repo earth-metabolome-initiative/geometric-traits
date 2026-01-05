@@ -1,6 +1,7 @@
 //! Test submodule to test the Tarjan algorithm.
 
-use algebra::prelude::*;
+use geometric_traits::impls::{CSR2D, LowerBoundedSquareMatrix, SquareCSR2D};
+use geometric_traits::prelude::*;
 
 #[test]
 fn test_tarjan() {

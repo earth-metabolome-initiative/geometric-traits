@@ -1,7 +1,7 @@
 //! Submodule for the [`SquareMatrix`] trait.
 
+use crate::traits::{IntoUsize, PositiveInteger};
 use multi_ranged::Step;
-use numeric_common_traits::prelude::{IntoUsize, PositiveInteger};
 
 use super::{Matrix2D, SparseMatrix2D, SymmetricMatrix2D};
 

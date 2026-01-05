@@ -1,14 +1,14 @@
 //! Test submodule for the `CycleDetection` trait.
 
-use algebra::impls::SquareCSR2D;
-use graph::{
+use geometric_traits::impls::SortedVec;
+use geometric_traits::impls::SquareCSR2D;
+use geometric_traits::{
     prelude::{
         CycleDetection, DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, MonopartiteGraph,
         MonoplexGraph,
     },
     traits::{EdgesBuilder, VocabularyBuilder},
 };
-use sorted_vec::prelude::SortedVec;
 
 #[test]
 fn test_no_cycle_detection() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +23,7 @@ fn test_no_cycle_detection() -> Result<(), Box<dyn std::error::Error>> {
         .expected_shape(nodes.len())
         .edges(edges.into_iter())
         .build()?;
-    let graph: DiGraph<usize> = DiGraph::try_from((nodes, edges))?;
+    let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
     assert_eq!(graph.number_of_nodes(), 6);
     assert_eq!(graph.number_of_edges(), 5);
@@ -46,7 +46,7 @@ fn test_cycle_detection() -> Result<(), Box<dyn std::error::Error>> {
         .expected_shape(nodes.len())
         .edges(edges.into_iter())
         .build()?;
-    let graph: DiGraph<usize> = DiGraph::try_from((nodes, edges))?;
+    let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
     assert_eq!(graph.number_of_nodes(), 6);
     assert_eq!(graph.number_of_edges(), 6);

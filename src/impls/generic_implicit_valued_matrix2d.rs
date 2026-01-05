@@ -1,16 +1,12 @@
 //! Implementation of the [`Edges`] trait for
-//! [`GenericImplicitValuedMatrix2D`](algebra::prelude::GenericImplicitValuedMatrix2D).
+//! [`GenericImplicitValuedMatrix2D`](crate::impls::GenericImplicitValuedMatrix2D).
 
-use algebra::prelude::{
-    GenericImplicitValuedMatrix2D, Matrix2D, Matrix2DRef, SizedSparseMatrix, SizedSparseMatrix2D,
-};
-use num_traits::ConstZero;
-use numeric_common_traits::prelude::{Number, TryFromUsize};
+use crate::traits::{Number, TryFromUsize};
+use num_traits::Zero;
 
 use crate::traits::{BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph};
 
-
-use numeric_common_traits::prelude::IntoUsize;
+use crate::traits::IntoUsize;
 
 use crate::traits::{
     EmptyRows, ImplicitValuedMatrix, ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator,
@@ -50,7 +46,10 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![
+            self.number_of_rows().into_usize(),
+            self.number_of_columns().into_usize(),
+        ]
     }
 }
 
@@ -331,7 +330,6 @@ where
     }
 }
 
-
 impl<M, Map, Value> Edges for GenericImplicitValuedMatrix2D<M, Map, Value>
 where
     Value: Number,
@@ -362,11 +360,12 @@ where
     Map: Fn(M::Coordinates) -> Value,
 {
     fn has_nodes(&self) -> bool {
-        self.number_of_rows() > M::RowIndex::ZERO && self.number_of_columns() > M::ColumnIndex::ZERO
+        self.number_of_rows() > M::RowIndex::zero()
+            && self.number_of_columns() > M::ColumnIndex::zero()
     }
 
     fn has_edges(&self) -> bool {
-        self.number_of_defined_values() > M::SparseIndex::ZERO
+        self.number_of_defined_values() > M::SparseIndex::zero()
     }
 }
 
