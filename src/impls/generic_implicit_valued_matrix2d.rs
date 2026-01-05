@@ -1,5 +1,5 @@
 //! Implementation of the [`Edges`] trait for
-//! [`GenericImplicitValuedMatrix2D`](crate::impls::GenericImplicitValuedMatrix2D).
+//! [`GenericImplicitValuedMatrix2D`].
 
 use crate::traits::{Number, TryFromUsize};
 use num_traits::Zero;

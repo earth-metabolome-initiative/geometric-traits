@@ -1,5 +1,5 @@
 //! Implementations of traits from the graph crate for the
-//! [`RangedCSR`](crate::traits::RangedCSR) data structure.
+//! [`RangedCSR2D`] data structure.
 
 pub mod ranged_csr2d;
 pub use ranged_csr2d::RangedCSR2D;
