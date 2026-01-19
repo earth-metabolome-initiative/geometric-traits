@@ -268,7 +268,11 @@ where
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row > column {
-            return Err(MutabilityError::OutOfBounds((row, column)));
+            return Err(MutabilityError::OutOfBounds(
+                (row, column),
+                (self.order(), self.order()),
+                "In an upper triangular matrix, row indices must be less than or equal to column indices.",
+            ));
         }
         self.matrix.add((row, column))?;
 

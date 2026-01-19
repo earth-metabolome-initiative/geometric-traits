@@ -42,7 +42,11 @@ impl<M: SquareMatrix> LowerBoundedSquareMatrix<M> {
     ///   `OutOfBounds` error is returned.
     pub fn new(matrix: M, index: M::Index) -> Result<Self, MutabilityError<M>> {
         if index >= matrix.order() {
-            return Err(MutabilityError::OutOfBounds((index, index)));
+            return Err(MutabilityError::OutOfBounds(
+                (index, index),
+                (matrix.order(), matrix.order()),
+                "The provided index is larger than the number of rows/columns of the matrix.",
+            ));
         }
         Ok(Self { matrix, index })
     }

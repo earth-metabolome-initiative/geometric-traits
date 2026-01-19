@@ -8,7 +8,7 @@ use crate::{
 
 use crate::traits::Edges;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
 /// Enum representing the possible errors that can occur when building a graph.
 pub enum EdgesBuilderError<E: Edges> {
     #[error("Missing builder attribute: {0}")]

@@ -52,10 +52,11 @@ impl<M: SquareMatrix, I> SubsetSquareMatrix<M, I> {
         let mut sorted_indices: Vec<M::Index> = vec![M::Index::zero(); unsorted_indices.len()];
         for (unsorted_index, sorted_index) in unsorted_indices.zip(sorted_indices.iter_mut()) {
             if unsorted_index >= matrix.order() {
-                return Err(MutabilityError::OutOfBounds((
-                    unsorted_index,
-                    unsorted_index,
-                )));
+                return Err(MutabilityError::OutOfBounds(
+                    (unsorted_index, unsorted_index),
+                    (matrix.order(), matrix.order()),
+                    "The provided index is larger than the number of rows/columns of the matrix.",
+                ));
             }
             *sorted_index = unsorted_index;
         }

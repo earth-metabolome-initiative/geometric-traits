@@ -27,6 +27,7 @@ impl<M: Matrix2D> core::fmt::Display for Error<M> {
     }
 }
 
+#[derive(PartialEq, Eq)]
 /// Enumeration for the errors associated with failed mutable operations.
 pub enum MutabilityError<M: Matrix2D + ?Sized> {
     /// Unexpected coordinate.
@@ -34,7 +35,7 @@ pub enum MutabilityError<M: Matrix2D + ?Sized> {
     /// Duplicated entry.
     DuplicatedEntry(M::Coordinates),
     /// Entry out of bounds.
-    OutOfBounds(M::Coordinates),
+    OutOfBounds(M::Coordinates, M::Coordinates, &'static str),
     /// When the row index type has been maxed out and it cannot
     /// be incremented anymore.
     MaxedOutRowIndex,
@@ -71,8 +72,11 @@ impl<M: Matrix2D> core::fmt::Display for MutabilityError<M> {
             MutabilityError::DuplicatedEntry(coordinates) => {
                 write!(f, "Duplicated entry: {coordinates:?}")
             }
-            MutabilityError::OutOfBounds(coordinates) => {
-                write!(f, "Entry out of expected bounds: {coordinates:?}")
+            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
+                write!(
+                    f,
+                    "Entry out of expected bounds: {coordinates:?}, expected within: {boundaries:?} - {context}"
+                )
             }
             MutabilityError::MaxedOutRowIndex => {
                 write!(f, "Row index type has been maxed out")
@@ -102,7 +106,9 @@ where
             MutabilityError::DuplicatedEntry(coordinates) => {
                 MutabilityError::DuplicatedEntry(coordinates)
             }
-            MutabilityError::OutOfBounds(coordinates) => MutabilityError::OutOfBounds(coordinates),
+            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
+                MutabilityError::OutOfBounds(coordinates, boundaries, context)
+            }
             MutabilityError::MaxedOutRowIndex => MutabilityError::MaxedOutRowIndex,
             MutabilityError::MaxedOutColumnIndex => MutabilityError::MaxedOutColumnIndex,
             MutabilityError::MaxedOutSparseIndex => MutabilityError::MaxedOutSparseIndex,
@@ -123,7 +129,9 @@ where
             MutabilityError::DuplicatedEntry(coordinates) => {
                 MutabilityError::DuplicatedEntry(coordinates)
             }
-            MutabilityError::OutOfBounds(coordinates) => MutabilityError::OutOfBounds(coordinates),
+            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
+                MutabilityError::OutOfBounds(coordinates, boundaries, context)
+            }
             MutabilityError::MaxedOutRowIndex => MutabilityError::MaxedOutRowIndex,
             MutabilityError::MaxedOutColumnIndex => MutabilityError::MaxedOutColumnIndex,
             MutabilityError::MaxedOutSparseIndex => MutabilityError::MaxedOutSparseIndex,
@@ -144,7 +152,9 @@ where
             MutabilityError::DuplicatedEntry(coordinates) => {
                 MutabilityError::DuplicatedEntry(coordinates)
             }
-            MutabilityError::OutOfBounds(coordinates) => MutabilityError::OutOfBounds(coordinates),
+            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
+                MutabilityError::OutOfBounds(coordinates, boundaries, context)
+            }
             MutabilityError::MaxedOutRowIndex => MutabilityError::MaxedOutRowIndex,
             MutabilityError::MaxedOutColumnIndex => MutabilityError::MaxedOutColumnIndex,
             MutabilityError::MaxedOutSparseIndex => MutabilityError::MaxedOutSparseIndex,
@@ -170,7 +180,9 @@ where
             MutabilityError::DuplicatedEntry(coordinates) => {
                 MutabilityError::DuplicatedEntry(coordinates)
             }
-            MutabilityError::OutOfBounds(coordinates) => MutabilityError::OutOfBounds(coordinates),
+            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
+                MutabilityError::OutOfBounds(coordinates, boundaries, context)
+            }
             MutabilityError::MaxedOutRowIndex => MutabilityError::MaxedOutRowIndex,
             MutabilityError::MaxedOutColumnIndex => MutabilityError::MaxedOutColumnIndex,
             MutabilityError::MaxedOutSparseIndex => MutabilityError::MaxedOutSparseIndex,
