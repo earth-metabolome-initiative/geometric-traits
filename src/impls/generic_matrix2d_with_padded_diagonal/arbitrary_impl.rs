@@ -1,13 +1,12 @@
 //! Submodule providing an implementation of the `Arbitrary` trait for the
 //! `GenericMatrix2DWithPaddedDiagonal` struct.
 
-use crate::traits::{IntoUsize, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
 use num_traits::One;
 
 use crate::{
     impls::GenericMatrix2DWithPaddedDiagonal,
-    traits::{Matrix2D, SparseMatrix2D, ValuedMatrix2D},
+    traits::{IntoUsize, Matrix2D, SparseMatrix2D, TryFromUsize, ValuedMatrix2D},
 };
 
 fn one<R, V: One>(_a: R) -> V {

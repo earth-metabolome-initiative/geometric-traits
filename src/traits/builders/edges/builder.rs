@@ -1,8 +1,6 @@
 //! Submodule defining the trait for Options for building a edges.
 
-use crate::traits::SparseMatrixMut;
-
-use crate::traits::{Edges, GrowableEdges};
+use crate::traits::{Edges, GrowableEdges, SparseMatrixMut};
 
 /// Trait for Options for building edges.
 pub trait EdgesBuilder {

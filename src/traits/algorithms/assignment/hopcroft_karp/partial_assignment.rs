@@ -1,9 +1,7 @@
 //! Partial assignment for Hopcroft-Karp algorithm.
 
-use crate::traits::{IntoUsize, Number};
-
 use super::HopcroftKarpError;
-use crate::traits::SparseMatrix2D;
+use crate::traits::{IntoUsize, Number, SparseMatrix2D};
 
 /// Struct representing a partial assignment.
 pub struct PartialAssignment<'a, M: SparseMatrix2D + ?Sized, Distance = u16> {

@@ -3,9 +3,7 @@
 
 use std::collections::HashSet;
 
-use crate::traits::SparseMatrixMut;
-
-use crate::traits::{GrowableEdges, MonoplexGraph, MonoplexMonopartiteGraph};
+use crate::traits::{GrowableEdges, MonoplexGraph, MonoplexMonopartiteGraph, SparseMatrixMut};
 
 /// Trait providing randomized dag method
 pub trait RandomizedDAG: MonoplexGraph {

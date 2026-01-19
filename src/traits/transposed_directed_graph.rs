@@ -1,8 +1,7 @@
 //! Submodule for the transposed directed graph traits.
 
-use crate::traits::SparseBiMatrix2D;
-
 use super::{DirectedEdges, TransposedEdges};
+use crate::traits::SparseBiMatrix2D;
 
 /// Trait defining the properties of a transposed directed graph.
 pub trait TransposedDirectedEdges:

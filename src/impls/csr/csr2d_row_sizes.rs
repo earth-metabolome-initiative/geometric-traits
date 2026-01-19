@@ -1,9 +1,8 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use crate::traits::IntoUsize;
 use num_traits::{One, Zero};
 
-use crate::prelude::*;
+use crate::{prelude::*, traits::IntoUsize};
 
 /// Iterator of the sparse coordinates of the CSR2D matrix.
 pub struct CSR2DSizedRowsizes<'a, CSR: SizedRowsSparseMatrix2D> {
@@ -51,10 +50,6 @@ impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DSizedRowsizes<'a, 
     fn from(csr2d: &'a CSR) -> Self {
         let next_row = CSR::RowIndex::zero();
         let back_row = csr2d.number_of_rows() - CSR::RowIndex::one();
-        Self {
-            csr2d,
-            next_row,
-            back_row,
-        }
+        Self { csr2d, next_row, back_row }
     }
 }

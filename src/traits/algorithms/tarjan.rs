@@ -2,11 +2,10 @@
 //! sparse matrices, which provides the Tarjan's algorithm for strongly
 //! connected components.
 
-use crate::traits::IntoUsize;
 use multi_ranged::SimpleRange;
 use num_traits::{ConstOne, ConstZero};
 
-use crate::traits::{SparseMatrix2D, SquareMatrix};
+use crate::traits::{IntoUsize, SparseMatrix2D, SquareMatrix};
 
 /// Iterator over the strongly connected components of a sparse matrix.
 pub struct TarjanIterator<'matrix, M: SquareMatrix + SparseMatrix2D + ?Sized> {
@@ -138,10 +137,11 @@ pub trait Tarjan: SquareMatrix + SparseMatrix2D {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2), (2, 0)];

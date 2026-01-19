@@ -1,11 +1,10 @@
 //! Implementation of the `Arbitrary` trait for the `CSR2D` struct.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
 
 use crate::{
     impls::{MutabilityError, ValuedCSR2D},
-    traits::{MatrixMut, SparseMatrixMut},
+    traits::{IntoUsize, MatrixMut, PositiveInteger, SparseMatrixMut, TryFromUsize},
 };
 
 impl<'a, SparseIndex, RowIndex, ColumnIndex, Value> Arbitrary<'a>
@@ -43,13 +42,7 @@ where
         let mut edges: Vec<(RowIndex, ColumnIndex, Value)> = Vec::arbitrary(u)?;
 
         // Ensure uniqueness of edges
-        edges.sort_unstable_by(|a, b| {
-            if a.0 == b.0 {
-                a.1.cmp(&b.1)
-            } else {
-                a.0.cmp(&b.0)
-            }
-        });
+        edges.sort_unstable_by(|a, b| if a.0 == b.0 { a.1.cmp(&b.1) } else { a.0.cmp(&b.0) });
         edges.dedup_by(|a, b| if a.0 == b.0 { a.1 == b.1 } else { a.0 == b.0 });
 
         let number_of_edges: SparseIndex = SparseIndex::try_from_usize(edges.len())
@@ -63,12 +56,14 @@ where
         for edge in edges {
             match csr.add(edge) {
                 Ok(()) => {}
-                Err(err) => match err {
-                    MutabilityError::MaxedOutSparseIndex
-                    | MutabilityError::MaxedOutRowIndex
-                    | MutabilityError::MaxedOutColumnIndex => {}
-                    _ => return Err(arbitrary::Error::IncorrectFormat),
-                },
+                Err(err) => {
+                    match err {
+                        MutabilityError::MaxedOutSparseIndex
+                        | MutabilityError::MaxedOutRowIndex
+                        | MutabilityError::MaxedOutColumnIndex => {}
+                        _ => return Err(arbitrary::Error::IncorrectFormat),
+                    }
+                }
             }
         }
 

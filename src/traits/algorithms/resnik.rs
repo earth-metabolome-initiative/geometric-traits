@@ -1,10 +1,9 @@
 //! Submodule providing `Resnik` trait based on the algorithm implementation.
-use crate::traits::ScalarSimilarity;
-
 use crate::{
     prelude::information_content::InformationContentError,
     traits::{
-        InformationContent, MonoplexMonopartiteGraph, information_content::InformationContentResult,
+        InformationContent, MonoplexMonopartiteGraph, ScalarSimilarity,
+        information_content::InformationContentResult,
     },
 };
 
@@ -115,10 +114,11 @@ pub trait Resnik: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder, ScalarSimilarity};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, ScalarSimilarity, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];

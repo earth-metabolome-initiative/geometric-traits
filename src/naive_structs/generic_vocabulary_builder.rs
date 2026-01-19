@@ -34,10 +34,7 @@ impl<Symbols, V> Default for GenericVocabularyBuilder<Symbols, V> {
 impl<Symbols, V: GrowableVocabulary> VocabularyBuilder for GenericVocabularyBuilder<Symbols, V>
 where
     Symbols: IntoIterator<
-        Item = (
-            <V as Vocabulary>::SourceSymbol,
-            <V as Vocabulary>::DestinationSymbol,
-        ),
+        Item = (<V as Vocabulary>::SourceSymbol, <V as Vocabulary>::DestinationSymbol),
     >,
 {
     type Symbols = Symbols;

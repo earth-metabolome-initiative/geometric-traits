@@ -3,11 +3,10 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use geometric_traits::impls::{CSR2D, SquareCSR2D};
-use geometric_traits::traits::ScalarSimilarity;
 use geometric_traits::{
+    impls::{CSR2D, SquareCSR2D},
     prelude::{GenericGraph, RandomizedDAG},
-    traits::{MonopartiteGraph, WuPalmer, randomized_graphs::XorShift64},
+    traits::{MonopartiteGraph, ScalarSimilarity, WuPalmer, randomized_graphs::XorShift64},
 };
 
 /// Benchmark for the `wu-palmer` function

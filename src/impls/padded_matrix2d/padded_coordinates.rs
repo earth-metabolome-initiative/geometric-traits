@@ -1,11 +1,10 @@
 //! Submodule providing an iterator over all of the (row, column) coordinates
 //! of a dense rectangular matrix.
 
-use crate::traits::IntoUsize;
 use multi_ranged::SimpleRange;
 use num_traits::Zero;
 
-use crate::traits::Matrix2D;
+use crate::traits::{IntoUsize, Matrix2D};
 
 /// Iterator over all of the (row, column) coordinates of a dense rectangular
 pub struct PaddedCoordinates<M: Matrix2D> {
@@ -40,9 +39,7 @@ impl<M: Matrix2D> Iterator for PaddedCoordinates<M> {
         } else if let Some(row_index) = self.row_iter.next() {
             self.current_row = row_index;
             self.column_iter = self.matrix.column_indices();
-            self.column_iter
-                .next()
-                .map(|column_index| (self.current_row, column_index))
+            self.column_iter.next().map(|column_index| (self.current_row, column_index))
         } else {
             None
         }
@@ -57,9 +54,7 @@ impl<M: Matrix2D> DoubleEndedIterator for PaddedCoordinates<M> {
         } else if let Some(row_index) = self.row_iter.next_back() {
             self.current_row = row_index;
             self.column_iter = self.matrix.column_indices();
-            self.column_iter
-                .next_back()
-                .map(|column_index| (self.current_row, column_index))
+            self.column_iter.next_back().map(|column_index| (self.current_row, column_index))
         } else {
             None
         }

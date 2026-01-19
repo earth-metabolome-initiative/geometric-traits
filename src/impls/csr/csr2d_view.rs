@@ -2,10 +2,9 @@
 
 use std::cmp::Ordering;
 
-use crate::traits::IntoUsize;
 use num_traits::{One, SaturatingSub, Zero};
 
-use crate::prelude::*;
+use crate::{prelude::*, traits::IntoUsize};
 
 /// Iterator of the sparse coordinates of the CSR2D matrix.
 pub struct CSR2DView<'a, CSR: SparseMatrix2D> {
@@ -25,23 +24,19 @@ impl<CSR: SparseMatrix2D> Iterator for CSR2DView<'_, CSR> {
     type Item = CSR::Coordinates;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next
-            .as_mut()?
-            .next()
-            .map(|column_index| (self.next_row, column_index))
-            .or_else(|| match self.next_row.cmp(&self.back_row) {
+        self.next.as_mut()?.next().map(|column_index| (self.next_row, column_index)).or_else(|| {
+            match self.next_row.cmp(&self.back_row) {
                 Ordering::Equal => None,
                 Ordering::Less => {
                     self.next_row += CSR::RowIndex::one();
                     self.next = Some(self.csr2d.sparse_row(self.next_row));
                     self.next()
                 }
-                Ordering::Greater => self
-                    .back
-                    .as_mut()?
-                    .next()
-                    .map(|column_index| (self.back_row, column_index)),
-            })
+                Ordering::Greater => {
+                    self.back.as_mut()?.next().map(|column_index| (self.back_row, column_index))
+                }
+            }
+        })
     }
 }
 
@@ -51,11 +46,9 @@ where
 {
     fn len(&self) -> usize {
         let next_row_rank = self.csr2d.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row = self
-            .csr2d
-            .number_of_defined_values_in_row(self.next_row)
-            .into_usize()
-            - self.next.as_ref().map_or(0, ExactSizeIterator::len);
+        let already_observed_in_next_row =
+            self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize()
+                - self.next.as_ref().map_or(0, ExactSizeIterator::len);
         let back_row_rank = self.csr2d.rank_row(self.back_row).into_usize();
         let still_to_be_observed_in_back_row = self.back.as_ref().map_or(0, ExactSizeIterator::len);
         back_row_rank + still_to_be_observed_in_back_row
@@ -66,23 +59,19 @@ where
 
 impl<CSR: SparseMatrix2D> DoubleEndedIterator for CSR2DView<'_, CSR> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.back
-            .as_mut()?
-            .next()
-            .map(|column_index| (self.back_row, column_index))
-            .or_else(|| match self.next_row.cmp(&self.back_row) {
+        self.back.as_mut()?.next().map(|column_index| (self.back_row, column_index)).or_else(|| {
+            match self.next_row.cmp(&self.back_row) {
                 Ordering::Equal => None,
-                Ordering::Less => self
-                    .next
-                    .as_mut()?
-                    .next()
-                    .map(|column_index| (self.next_row, column_index)),
+                Ordering::Less => {
+                    self.next.as_mut()?.next().map(|column_index| (self.next_row, column_index))
+                }
                 Ordering::Greater => {
                     self.back_row += CSR::RowIndex::one();
                     self.back = Some(self.csr2d.sparse_row(self.back_row));
                     self.next_back()
                 }
-            })
+            }
+        })
     }
 }
 
@@ -93,12 +82,6 @@ impl<'a, CSR: SparseMatrix2D> From<&'a CSR> for CSR2DView<'a, CSR> {
         let next = (next_row < csr2d.number_of_rows()).then(|| csr2d.sparse_row(next_row));
         let back = (back_row < csr2d.number_of_rows() && next_row < back_row)
             .then(|| csr2d.sparse_row(back_row));
-        Self {
-            csr2d,
-            next_row,
-            back_row,
-            next,
-            back,
-        }
+        Self { csr2d, next_row, back_row, next, back }
     }
 }

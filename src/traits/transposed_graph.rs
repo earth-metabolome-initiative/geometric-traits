@@ -1,11 +1,11 @@
 //! Submodule for the transposed graph traits.
 
-use crate::traits::{
-    BiMatrix2D, SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseBiMatrix2D, SparseMatrix2D,
-};
 use num_traits::Zero;
 
 use super::Edges;
+use crate::traits::{
+    BiMatrix2D, SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseBiMatrix2D, SparseMatrix2D,
+};
 
 /// Trait defining the properties of a transposed graph.
 pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
@@ -36,9 +36,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
         destination_node_id: Self::DestinationNodeId,
         source_node_id: Self::SourceNodeId,
     ) -> bool {
-        self.matrix()
-            .transposed()
-            .has_entry(destination_node_id, source_node_id)
+        self.matrix().transposed().has_entry(destination_node_id, source_node_id)
     }
 
     /// Returns whether the given destination has any predecessor.
@@ -56,8 +54,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
     ///
     /// * `destination_node_id` - The identifier of the destination node.
     fn in_degree(&self, destination_node_id: Self::DestinationNodeId) -> Self::SourceNodeId {
-        self.matrix()
-            .number_of_defined_values_in_column(destination_node_id)
+        self.matrix().number_of_defined_values_in_column(destination_node_id)
     }
 
     /// Returns an iterator over the in-boynd degrees of the nodes.

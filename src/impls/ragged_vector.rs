@@ -2,14 +2,14 @@
 
 use std::{fmt::Debug, iter::repeat_n};
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
 use num_traits::Zero;
 
 use super::MutabilityError;
 use crate::traits::{
-    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, SizedRowsSparseMatrix2D,
-    SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, TransposableMatrix2D,
+    EmptyRows, IntoUsize, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
+    SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut,
+    TransposableMatrix2D, TryFromUsize,
 };
 
 #[derive(Clone)]
@@ -70,10 +70,7 @@ where
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows.into_usize(),
-            self.number_of_columns.into_usize(),
-        ]
+        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
     }
 }
 
@@ -137,11 +134,8 @@ where
             RowIndex::try_from_usize(self.data.len() - 1).expect("The matrix is in a valid state.");
         let last_row_with_values: &Vec<ColumnIndex> =
             self.data.last().expect("The matrix should not be empty.");
-        let last_column = last_row_with_values
-            .iter()
-            .last()
-            .copied()
-            .expect("The last row should not be empty.");
+        let last_column =
+            last_row_with_values.iter().last().copied().expect("The last row should not be empty.");
         Some((last_row_index, last_column))
     }
 
@@ -284,10 +278,7 @@ where
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.into_usize() >= self.data.len() {
-            self.data.extend(repeat_n(
-                Vec::default(),
-                row.into_usize() - self.data.len() + 1,
-            ));
+            self.data.extend(repeat_n(Vec::default(), row.into_usize() - self.data.len() + 1));
         }
 
         let columns_in_row = &mut self.data[row.into_usize()];
@@ -349,9 +340,7 @@ where
 
         // We iterate over the rows of the matrix.
         for (row, column) in self.sparse_coordinates() {
-            transposed
-                .add((column, row))
-                .expect("The addition should not fail.");
+            transposed.add((column, row)).expect("The addition should not fail.");
         }
 
         transposed

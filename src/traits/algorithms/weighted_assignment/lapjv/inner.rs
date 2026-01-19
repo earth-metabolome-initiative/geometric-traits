@@ -1,12 +1,13 @@
 //! Submodule providing the concrete implementation of the LAPJV algorithm.
 
-use crate::traits::TotalOrd;
-use crate::traits::{Finite, IntoUsize, Number, TryFromUsize};
 use core::fmt::Debug;
+
 use num_traits::{Bounded, Zero};
 
 use super::LAPJVError;
-use crate::traits::{AssignmentState, DenseValuedMatrix2D};
+use crate::traits::{
+    AssignmentState, DenseValuedMatrix2D, Finite, IntoUsize, Number, TotalOrd, TryFromUsize,
+};
 
 /// Support struct for computing the weighted assignment using the LAPJV
 /// algorithm.
@@ -41,10 +42,8 @@ where
                 unreachable!("We expected the assigned row to be in the assigned state");
             };
 
-            assignments.push((
-                row_index,
-                M::ColumnIndex::try_from_usize(expected_column_index).unwrap(),
-            ));
+            assignments
+                .push((row_index, M::ColumnIndex::try_from_usize(expected_column_index).unwrap()));
         }
         assignments
     }
@@ -89,24 +88,18 @@ where
             "We expected the column costs to be initialized to the maximum cost",
         );
         debug_assert!(
-            self.assigned_rows
-                .iter()
-                .all(AssignmentState::is_unassigned),
+            self.assigned_rows.iter().all(AssignmentState::is_unassigned),
             "We expected all rows to be unassigned",
         );
         debug_assert!(
-            self.assigned_columns
-                .iter()
-                .all(AssignmentState::is_unassigned),
+            self.assigned_columns.iter().all(AssignmentState::is_unassigned),
             "We expected all columns to be unassigned",
         );
 
         for row_index in self.matrix.row_indices() {
             // We retrieve the minimum value and its column on the row.
-            for (column_index, value) in self
-                .matrix
-                .column_indices()
-                .zip(self.matrix.row_values(row_index))
+            for (column_index, value) in
+                self.matrix.column_indices().zip(self.matrix.row_values(row_index))
             {
                 if value >= self.max_cost {
                     return Err(LAPJVError::ValueTooLarge);
@@ -215,24 +208,15 @@ where
     fn first_and_second_minimum_reduced_costs(
         &self,
         row_index: M::RowIndex,
-    ) -> (
-        (M::ColumnIndex, M::Value),
-        (Option<M::ColumnIndex>, M::Value),
-    ) {
-        let mut iterator = self
-            .matrix
-            .column_indices()
-            .zip(self.matrix.row_values(row_index))
-            .map(|(column_index, cost)| {
-                (
-                    column_index,
-                    cost - self.column_costs[column_index.into_usize()],
-                )
-            });
+    ) -> ((M::ColumnIndex, M::Value), (Option<M::ColumnIndex>, M::Value)) {
+        let mut iterator = self.matrix.column_indices().zip(self.matrix.row_values(row_index)).map(
+            |(column_index, cost)| {
+                (column_index, cost - self.column_costs[column_index.into_usize()])
+            },
+        );
 
-        let (mut first_minimum_index, mut first_minimum_reduced_cost) = iterator
-            .next()
-            .expect("We expected the iterator to have at least one element");
+        let (mut first_minimum_index, mut first_minimum_reduced_cost) =
+            iterator.next().expect("We expected the iterator to have at least one element");
 
         let mut second_minimum_column_index: Option<M::ColumnIndex> = None;
         let mut second_minimum_reduced_cost = self.max_cost;
@@ -321,14 +305,11 @@ where
                 AssignmentState::Assigned(first_minimum_column_index);
         }
 
-        self.unassigned_rows
-            .truncate(updated_number_of_unassigned_rows);
+        self.unassigned_rows.truncate(updated_number_of_unassigned_rows);
 
         debug_assert!(
             self.unassigned_rows.iter().all(|row_index| {
-                !self
-                    .assigned_rows
-                    .contains(&AssignmentState::Assigned(*row_index))
+                !self.assigned_rows.contains(&AssignmentState::Assigned(*row_index))
             }),
             "We expected all unassigned rows to be unassigned",
         );
@@ -442,12 +423,10 @@ where
         let mut upper_bound = 0;
         let mut n_ready = 0;
 
-        for (column_index, (column_index_to_scan, (predecessor, distance))) in
-            self.matrix.column_indices().zip(
-                to_scan
-                    .iter_mut()
-                    .zip(predecessors.iter_mut().zip(distances.iter_mut())),
-            )
+        for (column_index, (column_index_to_scan, (predecessor, distance))) in self
+            .matrix
+            .column_indices()
+            .zip(to_scan.iter_mut().zip(predecessors.iter_mut().zip(distances.iter_mut())))
         {
             *predecessor = start_row_index;
             *column_index_to_scan = column_index;
@@ -476,13 +455,9 @@ where
                 }
             }
 
-            if let Some(column_index) = self.scan(
-                &mut lower_bound,
-                &mut upper_bound,
-                to_scan,
-                distances,
-                predecessors,
-            ) {
+            if let Some(column_index) =
+                self.scan(&mut lower_bound, &mut upper_bound, to_scan, distances, predecessors)
+            {
                 break 'outer column_index;
             }
         };

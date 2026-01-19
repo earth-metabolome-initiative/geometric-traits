@@ -1,12 +1,14 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::{fmt::Debug, iter::repeat_n};
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::{MultiRanged, Step, errors::Error as RangedError};
 use num_traits::{One, Zero};
 
-use crate::impls::MutabilityError;
-use crate::prelude::*;
+use crate::{
+    impls::MutabilityError,
+    prelude::*,
+    traits::{IntoUsize, PositiveInteger, TryFromUsize},
+};
 
 #[derive(Clone)]
 /// A compressed sparse row matrix.
@@ -95,10 +97,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows.into_usize(),
-            self.number_of_columns.into_usize(),
-        ]
+        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
     }
 }
 
@@ -166,10 +165,8 @@ where
         let last_row_index = RowIndex::try_from_usize(self.ranges.len() - 1)
             .expect("The matrix is in a valid state.");
         let last_row_with_values = self.ranges.last().expect("The matrix should not be empty.");
-        let last_column = last_row_with_values
-            .clone()
-            .last()
-            .expect("The last row should not be empty.");
+        let last_column =
+            last_row_with_values.clone().last().expect("The last row should not be empty.");
         Some((last_row_index, last_column))
     }
 
@@ -323,10 +320,7 @@ where
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.into_usize() >= self.ranges.len() {
-            self.ranges.extend(repeat_n(
-                R::default(),
-                row.into_usize() - self.ranges.len() + 1,
-            ));
+            self.ranges.extend(repeat_n(R::default(), row.into_usize() - self.ranges.len() + 1));
         }
 
         let range = &mut self.ranges[row.into_usize()];
@@ -361,10 +355,7 @@ where
             return Err(MutabilityError::IncompatibleShape);
         }
 
-        self.ranges.extend(repeat_n(
-            R::default(),
-            shape.0.into_usize() - self.ranges.len(),
-        ));
+        self.ranges.extend(repeat_n(R::default(), shape.0.into_usize() - self.ranges.len()));
 
         self.number_of_rows = shape.0;
         self.number_of_columns = shape.1;

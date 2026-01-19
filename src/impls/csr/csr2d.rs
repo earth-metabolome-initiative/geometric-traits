@@ -1,15 +1,17 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::{fmt::Debug, iter::repeat_n};
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
 use num_traits::Zero;
 
-use crate::impls::{
-    CSR2DEmptyRowIndices, CSR2DNonEmptyRowIndices, CSR2DSizedRows, CSR2DSizedRowsizes,
-    MutabilityError,
+use crate::{
+    impls::{
+        CSR2DEmptyRowIndices, CSR2DNonEmptyRowIndices, CSR2DSizedRows, CSR2DSizedRowsizes,
+        MutabilityError,
+    },
+    prelude::*,
+    traits::{IntoUsize, PositiveInteger, TryFromUsize},
 };
-use crate::prelude::*;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 /// A compressed sparse row matrix.
@@ -97,10 +99,7 @@ impl<
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows.into_usize(),
-            self.number_of_columns.into_usize(),
-        ]
+        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
     }
 }
 
@@ -214,10 +213,7 @@ where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
-        (
-            self.select_row(sparse_index),
-            self.select_column(sparse_index),
-        )
+        (self.select_row(sparse_index), self.select_column(sparse_index))
     }
 
     fn rank(&self, &(row_index, column_index): &Self::Coordinates) -> Self::SparseIndex {
@@ -266,9 +262,7 @@ impl<
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
         let start = self.rank_row(row).into_usize();
         let end = self.rank_row(row + RowIndex::one()).into_usize();
-        self.column_indices[start..end]
-            .binary_search(&column)
-            .is_ok()
+        self.column_indices[start..end].binary_search(&column).is_ok()
     }
 
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
@@ -392,19 +386,11 @@ where
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if !self.is_empty() && row.into_usize() == self.offsets.len() - 2 {
             // We check that the provided column is not repeated.
-            if self
-                .sparse_row(row)
-                .last()
-                .is_some_and(|last| last == column)
-            {
+            if self.sparse_row(row).last().is_some_and(|last| last == column) {
                 return Err(MutabilityError::DuplicatedEntry((row, column)));
             }
             // We check that the provided column is provided in sorted order.
-            if self
-                .sparse_row(row)
-                .last()
-                .is_some_and(|last| last > column)
-            {
+            if self.sparse_row(row).last().is_some_and(|last| last > column) {
                 return Err(MutabilityError::UnorderedCoordinate((row, column)));
             }
 

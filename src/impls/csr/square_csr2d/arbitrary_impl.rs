@@ -1,12 +1,11 @@
 //! Implementation of the `Arbitrary` trait for the `SquareCSR2D` struct.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
 
 use crate::{
     impls::SquareCSR2D,
     prelude::{Matrix2D, MatrixMut},
-    traits::SparseMatrix2D,
+    traits::{IntoUsize, PositiveInteger, SparseMatrix2D, TryFromUsize},
 };
 
 impl<'a, M> Arbitrary<'a> for SquareCSR2D<M>
@@ -25,13 +24,8 @@ where
         .map_err(|_| arbitrary::Error::IncorrectFormat)?;
 
         let side = matrix.number_of_rows().max(matrix.number_of_columns());
-        matrix
-            .increase_shape((side, side))
-            .map_err(|_| arbitrary::Error::IncorrectFormat)?;
+        matrix.increase_shape((side, side)).map_err(|_| arbitrary::Error::IncorrectFormat)?;
 
-        Ok(Self {
-            matrix,
-            number_of_diagonal_values,
-        })
+        Ok(Self { matrix, number_of_diagonal_values })
     }
 }

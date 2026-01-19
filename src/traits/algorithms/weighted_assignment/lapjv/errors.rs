@@ -36,10 +36,7 @@ impl Display for LAPJVError {
             LAPJVError::NegativeValues => write!(f, "The matrix contains negative values."),
             LAPJVError::NonFiniteValues => write!(f, "The matrix contains non-finite values."),
             LAPJVError::ValueTooLarge => {
-                write!(
-                    f,
-                    "The matrix contains a value larger than the maximum cost."
-                )
+                write!(f, "The matrix contains a value larger than the maximum cost.")
             }
             LAPJVError::MaximalCostNotFinite => {
                 write!(f, "The provided maximal cost is not a finite number.")

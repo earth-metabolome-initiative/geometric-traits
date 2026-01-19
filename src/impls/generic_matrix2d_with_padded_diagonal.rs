@@ -3,12 +3,11 @@
 //! will add new elements where missing. If the underlying matrix is
 //! rectangular, new rows and columns will be added to make it square.
 
-use crate::traits::{IntoUsize, TryFromUsize};
 use num_traits::{Bounded, One, Zero};
 
 use crate::traits::{
-    EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
-    SparseValuedMatrix2D, ValuedMatrix, ValuedMatrix2D,
+    EmptyRows, IntoUsize, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
+    SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 mod sparse_row_with_padded_diagonal;
 use sparse_row_with_padded_diagonal::SparseRowWithPaddedDiagonal;
@@ -85,9 +84,7 @@ where
             .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)
             .unwrap();
 
-        self.matrix
-            .sparse_row(row)
-            .all(|column| column != row_as_column)
+        self.matrix.sparse_row(row).all(|column| column != row_as_column)
     }
 }
 
@@ -100,10 +97,7 @@ where
     type Coordinates = M::Coordinates;
 
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 

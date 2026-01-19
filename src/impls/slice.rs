@@ -2,9 +2,7 @@
 use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
-use crate::traits::Symbol;
-
-use crate::prelude::*;
+use crate::{prelude::*, traits::Symbol};
 
 impl<V: Symbol> Vocabulary for [V] {
     type SourceSymbol = usize;

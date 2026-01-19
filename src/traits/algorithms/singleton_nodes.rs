@@ -2,9 +2,7 @@
 //! implementation, which provides a method to retrieve the singleton nodes from
 //! a graph, which is a node with no predecessor and no successors edges.
 
-use crate::traits::IntoUsize;
-
-use crate::traits::MonoplexMonopartiteGraph;
+use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 /// Trait providing the `singleton_nodes` method, which returns the singleton
 /// nodes of the graph. A singleton node is a node with no predecessors and no
 /// successors.
@@ -14,10 +12,11 @@ pub trait SingletonNodes: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1)];

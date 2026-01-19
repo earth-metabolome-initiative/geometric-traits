@@ -5,12 +5,11 @@
 //! * All nodes are of the same type.
 //! * All edges are bidirectional.
 
+use super::{MonopartiteEdges, MonoplexMonopartiteGraph, TransposedEdges};
 use crate::traits::{
     SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseMatrix2D, SparseSymmetricMatrix2D,
+    TransposedMonoplexGraph,
 };
-
-use super::{MonopartiteEdges, MonoplexMonopartiteGraph, TransposedEdges};
-use crate::traits::TransposedMonoplexGraph;
 
 /// Trait defining the properties of a directed graph.
 pub trait UndirectedMonopartiteEdges:

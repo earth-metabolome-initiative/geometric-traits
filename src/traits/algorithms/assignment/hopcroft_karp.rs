@@ -30,10 +30,11 @@ pub trait HopcroftKarp: SparseMatrix2D {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2), (2, 0)];

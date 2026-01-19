@@ -4,11 +4,10 @@
 
 use std::fmt::Debug;
 
-use crate::traits::IntoUsize;
 use num_traits::Bounded;
 
 use super::MutabilityError;
-use crate::traits::{Matrix2D, SparseMatrix2D, SparseValuedMatrix2D, ValuedMatrix};
+use crate::traits::{IntoUsize, Matrix2D, SparseMatrix2D, SparseValuedMatrix2D, ValuedMatrix};
 
 mod imputed_row_values;
 mod matrix;
@@ -101,8 +100,6 @@ where
             return true;
         }
 
-        self.matrix
-            .sparse_row(row_index)
-            .all(|column| column != column_index)
+        self.matrix.sparse_row(row_index).all(|column| column != column_index)
     }
 }

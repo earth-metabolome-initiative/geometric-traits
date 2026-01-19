@@ -1,12 +1,9 @@
 //! Error enumeration for the edges builder.
 
-use crate::traits::TryFromUsize;
 use crate::{
     impls::{MutabilityError, SymmetricCSR2D, UpperTriangularCSR2D},
-    traits::{Matrix2D, SizedSparseMatrix2D},
+    traits::{Edges, Matrix2D, SizedSparseMatrix2D, TryFromUsize},
 };
-
-use crate::traits::Edges;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 /// Enum representing the possible errors that can occur when building a graph.

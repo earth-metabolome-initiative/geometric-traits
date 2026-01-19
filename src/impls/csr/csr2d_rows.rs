@@ -1,9 +1,8 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use crate::traits::IntoUsize;
 use num_traits::{One, Zero};
 
-use crate::prelude::*;
+use crate::{prelude::*, traits::IntoUsize};
 
 /// Iterator of the sparse coordinates of the CSR2D matrix.
 pub struct CSR2DRows<'a, CSR: SparseMatrix2D> {
@@ -44,17 +43,13 @@ where
 {
     fn len(&self) -> usize {
         let next_row_rank = self.matrix.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row = self
-            .matrix
-            .number_of_defined_values_in_row(self.next_row)
-            .into_usize()
-            - self.next.len();
+        let already_observed_in_next_row =
+            self.matrix.number_of_defined_values_in_row(self.next_row).into_usize()
+                - self.next.len();
         let back_row_rank = self.matrix.rank_row(self.back_row).into_usize();
-        let already_observed_in_back_row = self
-            .matrix
-            .number_of_defined_values_in_row(self.back_row)
-            .into_usize()
-            - self.back.len();
+        let already_observed_in_back_row =
+            self.matrix.number_of_defined_values_in_row(self.back_row).into_usize()
+                - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }
 }
@@ -82,12 +77,6 @@ impl<'a, CSR: SparseMatrix2D> From<&'a CSR> for CSR2DRows<'a, CSR> {
         let back_row = matrix.number_of_rows() - CSR::RowIndex::one();
         let next = matrix.sparse_row(next_row);
         let back = matrix.sparse_row(back_row);
-        Self {
-            matrix,
-            next_row,
-            back_row,
-            next,
-            back,
-        }
+        Self { matrix, next_row, back_row, next, back }
     }
 }

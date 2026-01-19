@@ -1,8 +1,8 @@
 //! Test for a specific InChI failure case.
 
-use geometric_traits::errors::builder::edges::EdgesBuilderError;
-use geometric_traits::prelude::UndiEdgesBuilder;
-use geometric_traits::traits::EdgesBuilder;
+use geometric_traits::{
+    errors::builder::edges::EdgesBuilderError, prelude::UndiEdgesBuilder, traits::EdgesBuilder,
+};
 
 #[test]
 /// Test function for InChI failure case.
@@ -30,12 +30,10 @@ pub fn test_inchi_failure() {
 
     assert_eq!(
         error,
-        Err(EdgesBuilderError::MatrixError(
-            geometric_traits::impls::MutabilityError::OutOfBounds(
-                (4, 2),
-                (20, 20),
-                "In an upper triangular matrix, row indices must be less than or equal to column indices."
-            )
-        ))
+        Err(EdgesBuilderError::MatrixError(geometric_traits::impls::MutabilityError::OutOfBounds(
+            (4, 2),
+            (20, 20),
+            "In an upper triangular matrix, row indices must be less than or equal to column indices."
+        )))
     );
 }

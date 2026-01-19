@@ -2,10 +2,10 @@
 //!
 //! A sparse valued matrix is a matrix where not all the values are defined.
 
-use crate::traits::TotalOrd;
-
 use super::ValuedMatrix2D;
-use crate::traits::{ImplicitValuedMatrix, SparseMatrix2D, SparseValuedMatrix, ValuedMatrix};
+use crate::traits::{
+    ImplicitValuedMatrix, SparseMatrix2D, SparseValuedMatrix, TotalOrd, ValuedMatrix,
+};
 
 /// Trait defining a bi-dimensional matrix.
 pub trait SparseValuedMatrix2D: SparseMatrix2D + ValuedMatrix2D + SparseValuedMatrix {
@@ -114,8 +114,7 @@ pub trait SparseValuedMatrix2D: SparseMatrix2D + ValuedMatrix2D + SparseValuedMa
     where
         Self::Value: TotalOrd,
     {
-        self.row_indices()
-            .map(move |row| self.sparse_row_max_value(row))
+        self.row_indices().map(move |row| self.sparse_row_max_value(row))
     }
 
     #[inline]
@@ -129,8 +128,7 @@ pub trait SparseValuedMatrix2D: SparseMatrix2D + ValuedMatrix2D + SparseValuedMa
     where
         Self::Value: TotalOrd,
     {
-        self.row_indices()
-            .map(move |row| self.sparse_row_min_value(row))
+        self.row_indices().map(move |row| self.sparse_row_min_value(row))
     }
 }
 
@@ -155,11 +153,7 @@ pub struct ImplicitValuedSparseRowIterator<'matrix, M: SparseMatrix2D> {
 
 impl<M: SparseMatrix2D> Clone for ImplicitValuedSparseRowIterator<'_, M> {
     fn clone(&self) -> Self {
-        Self {
-            iter: self.iter.clone(),
-            row: self.row,
-            matrix: self.matrix,
-        }
+        Self { iter: self.iter.clone(), row: self.row, matrix: self.matrix }
     }
 }
 
@@ -171,11 +165,7 @@ impl<'matrix, M: SparseMatrix2D> ImplicitValuedSparseRowIterator<'matrix, M> {
     /// * `matrix`: The matrix.
     /// * `row`: The row.
     pub fn new(matrix: &'matrix M, row: M::RowIndex) -> Self {
-        Self {
-            iter: matrix.sparse_row(row),
-            row,
-            matrix,
-        }
+        Self { iter: matrix.sparse_row(row), row, matrix }
     }
 }
 
@@ -187,9 +177,7 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .map(|column| self.matrix.implicit_value(&(self.row, column)))
+        self.iter.next().map(|column| self.matrix.implicit_value(&(self.row, column)))
     }
 }
 
@@ -210,9 +198,7 @@ where
 {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next_back()
-            .map(|column| self.matrix.implicit_value(&(self.row, column)))
+        self.iter.next_back().map(|column| self.matrix.implicit_value(&(self.row, column)))
     }
 }
 
@@ -243,10 +229,6 @@ where
 
     #[inline]
     fn sparse_row_implicit_values(&self, row: Self::RowIndex) -> Self::SparseRowImplicitValues<'_> {
-        ImplicitValuedSparseRowIterator {
-            iter: self.sparse_row(row),
-            row,
-            matrix: self,
-        }
+        ImplicitValuedSparseRowIterator { iter: self.sparse_row(row), row, matrix: self }
     }
 }

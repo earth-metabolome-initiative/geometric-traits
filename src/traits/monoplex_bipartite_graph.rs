@@ -22,12 +22,12 @@ pub trait MonoplexBipartiteGraph:
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -42,12 +42,13 @@ pub trait MonoplexBipartiteGraph:
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// let dot = graph.to_mb_dot();

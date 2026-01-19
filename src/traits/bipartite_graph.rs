@@ -3,10 +3,8 @@
 //! A bipartite graph is a graph whose vertices can be divided into two disjoint
 //! sets such that no two vertices within the same set are adjacent.
 
-use crate::traits::Symbol;
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
-
 use super::{BidirectionalVocabulary, Graph, Vocabulary};
+use crate::traits::{IntoUsize, PositiveInteger, Symbol, TryFromUsize};
 
 /// Trait defining the properties of a bipartite graph.
 pub trait BipartiteGraph: Graph {
@@ -34,12 +32,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -54,12 +52,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.left_nodes_vocabulary().len(), 2);
@@ -71,12 +70,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -91,12 +90,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// let left_node_ids: Vec<usize> = graph.left_node_ids().collect();
@@ -111,12 +111,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -131,12 +131,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// let left_nodes: Vec<usize> = graph.left_nodes().collect();
@@ -151,12 +152,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -171,12 +172,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.left_node(&0), Some(0));
@@ -192,12 +194,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -212,12 +214,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.left_node_id(&0), Some(0));
@@ -233,12 +236,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -253,12 +256,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.number_of_left_nodes(), 2);
@@ -272,12 +276,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -292,12 +296,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.right_nodes_vocabulary().len(), 2);
@@ -309,12 +314,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -329,12 +334,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// let right_node_ids: Vec<usize> = graph.right_node_ids().collect();
@@ -349,12 +355,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -369,12 +375,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// let right_nodes: Vec<usize> = graph.right_nodes().collect();
@@ -389,12 +396,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -409,12 +416,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.right_node(&0), Some(0));
@@ -430,12 +438,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -450,12 +458,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.right_node_id(&0), Some(0));
@@ -471,12 +480,12 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericEdgesBuilder;
-    /// use geometric_traits::naive_structs::named_types::BiGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec},
+    ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let left_nodes: Vec<usize> = vec![0, 1];
     /// let right_nodes: Vec<usize> = vec![0, 1];
@@ -491,12 +500,13 @@ pub trait BipartiteGraph: Graph {
     ///     .symbols(right_nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: CSR2D<usize, usize, usize> = GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
-    ///     .expected_number_of_edges(edges.len())
-    ///     .expected_shape((left_nodes.len(), right_nodes.len()))
-    ///     .edges(edges.into_iter())
-    ///     .build()
-    ///     .unwrap();
+    /// let edges: CSR2D<usize, usize, usize> =
+    ///     GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+    ///         .expected_number_of_edges(edges.len())
+    ///         .expected_shape((left_nodes.len(), right_nodes.len()))
+    ///         .edges(edges.into_iter())
+    ///         .build()
+    ///         .unwrap();
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.number_of_right_nodes(), 2);

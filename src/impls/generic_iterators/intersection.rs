@@ -26,14 +26,7 @@ where
     pub fn new(mut iter1: I, mut iter2: J) -> Self {
         let item1 = iter1.next();
         let item2 = iter2.next();
-        Self {
-            iter1,
-            iter2,
-            item1,
-            item2,
-            item1_back: None,
-            item2_back: None,
-        }
+        Self { iter1, iter2, item1, item2, item1_back: None, item2_back: None }
     }
 }
 

@@ -3,11 +3,11 @@
 mod error;
 use std::ops::Index;
 
-use crate::traits::IntoUsize;
-use crate::traits::Kahn;
 pub use error::InformationContentError;
 
-use crate::traits::{MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges};
+use crate::traits::{
+    IntoUsize, Kahn, MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges,
+};
 
 /// Result of information content computation.
 #[derive(Debug, PartialEq)]
@@ -58,10 +58,11 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];

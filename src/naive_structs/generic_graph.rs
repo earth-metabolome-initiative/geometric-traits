@@ -1,8 +1,9 @@
 //! Submodule providing a naively implemented generic Monoparted Graph.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
-
-use crate::traits::{BidirectionalVocabulary, Edges, Graph, MonopartiteGraph, MonoplexGraph};
+use crate::traits::{
+    BidirectionalVocabulary, Edges, Graph, IntoUsize, MonopartiteGraph, MonoplexGraph,
+    PositiveInteger, TryFromUsize,
+};
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
@@ -22,10 +23,7 @@ where
     Edges: Default,
 {
     fn default() -> Self {
-        Self {
-            nodes: Nodes::default(),
-            edges: Edges::default(),
-        }
+        Self { nodes: Nodes::default(), edges: Edges::default() }
     }
 }
 

@@ -23,9 +23,7 @@ impl<M: ImplicitValuedSparseMatrix> Iterator for ImplicitValuedSparseIterator<'_
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .map(|coordinates| self.matrix.implicit_value(&coordinates))
+        self.iter.next().map(|coordinates| self.matrix.implicit_value(&coordinates))
     }
 }
 
@@ -43,8 +41,6 @@ where
 impl<M: ImplicitValuedSparseMatrix> DoubleEndedIterator for ImplicitValuedSparseIterator<'_, M> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next_back()
-            .map(|coordinates| self.matrix.implicit_value(&coordinates))
+        self.iter.next_back().map(|coordinates| self.matrix.implicit_value(&coordinates))
     }
 }

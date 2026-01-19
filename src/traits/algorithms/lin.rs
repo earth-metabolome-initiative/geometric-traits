@@ -2,11 +2,12 @@
 
 use core::f64;
 
-use crate::traits::ScalarSimilarity;
-
 use crate::{
     prelude::{information_content::InformationContentError, resnik::ResnikResult},
-    traits::{MonoplexMonopartiteGraph, Resnik, information_content::InformationContentResult},
+    traits::{
+        MonoplexMonopartiteGraph, Resnik, ScalarSimilarity,
+        information_content::InformationContentResult,
+    },
 };
 
 /// Struct for the Lin similarity trait
@@ -38,10 +39,11 @@ pub trait Lin: Resnik {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder, ScalarSimilarity};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, ScalarSimilarity, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];

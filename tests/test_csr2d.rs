@@ -12,12 +12,7 @@ fn test_sparse_coordinates() {
 
     let edges = csr.sparse_coordinates().collect::<Vec<_>>();
     assert_eq!(edges.len(), 1, "Expected 1 edge, found {edges:?}");
-    assert_eq!(
-        edges[0],
-        (0u8, 0u8),
-        "Expected edge (0, 0), found {:?}",
-        edges[0]
-    );
+    assert_eq!(edges[0], (0u8, 0u8), "Expected edge (0, 0), found {:?}", edges[0]);
 }
 
 #[test]

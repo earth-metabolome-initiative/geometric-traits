@@ -1,7 +1,9 @@
 //! Test submodule to test the `SquareCSR2D` struct.
 
-use geometric_traits::impls::{CSR2D, SquareCSR2D};
-use geometric_traits::prelude::*;
+use geometric_traits::{
+    impls::{CSR2D, SquareCSR2D},
+    prelude::*,
+};
 
 #[test]
 /// Test case identified by fuzzing.

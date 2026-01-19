@@ -1,20 +1,14 @@
 //! Trait defining a bidimensional matrix.
 
-use crate::traits::{IntoUsize, PositiveInteger};
 use multi_ranged::{SimpleRange, Step};
 use num_traits::Zero;
 
 use super::SquareMatrix;
-use crate::traits::Matrix;
+use crate::traits::{IntoUsize, Matrix, PositiveInteger};
 
 /// Trait defining a bidimensional matrix.
 pub trait Matrix2D:
-    Matrix<
-    Coordinates = (
-        <Self as Matrix2D>::RowIndex,
-        <Self as Matrix2D>::ColumnIndex,
-    ),
->
+    Matrix<Coordinates = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex)>
 {
     /// Type of the row index.
     type RowIndex: Step + PositiveInteger + IntoUsize;

@@ -1,10 +1,7 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::fmt::Debug;
 
-use crate::traits::IntoUsize;
-
-use crate::impls::SquareCSR2D;
-use crate::prelude::*;
+use crate::{impls::SquareCSR2D, prelude::*, traits::IntoUsize};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A symmetric compressed sparse row matrix.
@@ -15,9 +12,7 @@ pub struct SymmetricCSR2D<M: Matrix2D> {
 
 impl<M: Matrix2D + Debug> Debug for SymmetricCSR2D<M> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("SymmetricCSR2D")
-            .field("matrix", &self.matrix)
-            .finish()
+        f.debug_struct("SymmetricCSR2D").field("matrix", &self.matrix).finish()
     }
 }
 
@@ -28,10 +23,7 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 
@@ -85,9 +77,7 @@ where
     M: Matrix2D + Default,
 {
     fn default() -> Self {
-        Self {
-            matrix: SquareCSR2D::default(),
-        }
+        Self { matrix: SquareCSR2D::default() }
     }
 }
 

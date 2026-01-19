@@ -110,8 +110,7 @@ fn test_lapjv_infinite_loop4() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((3, 3), 2);
     csr.add((0, 0, 2e-5)).expect("Failed to add value");
     csr.add((0, 2, 3e-5)).expect("Failed to add value");
-    csr.add((2, 0, 4.778_309_726_7e-5))
-        .expect("Failed to add value");
+    csr.add((2, 0, 4.778_309_726_7e-5)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
     assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));

@@ -1,18 +1,14 @@
 //! Implementation of the [`Edges`] trait for
 //! [`GenericImplicitValuedMatrix2D`].
 
-use crate::traits::{Number, TryFromUsize};
 use num_traits::Zero;
 
-use crate::traits::{BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph};
-
-use crate::traits::IntoUsize;
-
 use crate::traits::{
-    EmptyRows, ImplicitValuedMatrix, ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator,
-    Matrix, Matrix2D, Matrix2DRef, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
+    BidirectionalVocabulary, BipartiteGraph, Edges, EmptyRows, Graph, ImplicitValuedMatrix,
+    ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator, IntoUsize, Matrix, Matrix2D,
+    Matrix2DRef, MonoplexGraph, Number, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
     SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D,
-    SparseValuedMatrix, SparseValuedMatrix2D, ValuedMatrix, ValuedMatrix2D,
+    SparseValuedMatrix, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
 #[derive(Clone, Debug)]
@@ -46,10 +42,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 

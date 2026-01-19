@@ -1,9 +1,7 @@
 //! Submodule implementing the `Matrix` trait for the `PaddedMatrix` struct.
 
-use crate::traits::{IntoUsize, TryFromUsize};
-
 use super::PaddedMatrix2D;
-use crate::traits::{Matrix, Matrix2D};
+use crate::traits::{IntoUsize, Matrix, Matrix2D, TryFromUsize};
 
 impl<M, Map> Matrix for PaddedMatrix2D<M, Map>
 where
@@ -15,10 +13,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 

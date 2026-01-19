@@ -1,9 +1,7 @@
 //! Submodule providing the `CycleDetection` trait and its blanket
 //! implementation.
 
-use crate::traits::IntoUsize;
-
-use crate::traits::MonoplexMonopartiteGraph;
+use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 
 /// Struct to support cycle detection in a graph.
 struct CycleDetector<'graph, G: MonoplexMonopartiteGraph + ?Sized> {
@@ -55,10 +53,11 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3, 4, 5];
     /// let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)];

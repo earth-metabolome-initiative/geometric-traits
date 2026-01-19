@@ -1,9 +1,8 @@
 //! Iterator of the sparse coordinates of the M2D matrix.
 
-use crate::traits::IntoUsize;
 use num_traits::{One, Zero};
 
-use crate::prelude::*;
+use crate::{prelude::*, traits::IntoUsize};
 
 /// Iterator of the sparse coordinates of the M2D matrix.
 pub struct M2DValues<'a, M: SparseValuedMatrix2D> {
@@ -42,17 +41,13 @@ where
 {
     fn len(&self) -> usize {
         let next_row_rank = self.matrix.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row = self
-            .matrix
-            .number_of_defined_values_in_row(self.next_row)
-            .into_usize()
-            - self.next.len();
+        let already_observed_in_next_row =
+            self.matrix.number_of_defined_values_in_row(self.next_row).into_usize()
+                - self.next.len();
         let back_row_rank = self.matrix.rank_row(self.back_row).into_usize();
-        let already_observed_in_back_row = self
-            .matrix
-            .number_of_defined_values_in_row(self.back_row)
-            .into_usize()
-            - self.back.len();
+        let already_observed_in_back_row =
+            self.matrix.number_of_defined_values_in_row(self.back_row).into_usize()
+                - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }
 }
@@ -77,12 +72,6 @@ impl<'a, M: SparseValuedMatrix2D> From<&'a M> for M2DValues<'a, M> {
         let back_row = matrix.number_of_rows() - M::RowIndex::one();
         let next = matrix.sparse_row_values(next_row);
         let back = matrix.sparse_row_values(back_row);
-        Self {
-            matrix,
-            next_row,
-            back_row,
-            next,
-            back,
-        }
+        Self { matrix, next_row, back_row, next, back }
     }
 }

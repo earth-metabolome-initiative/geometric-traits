@@ -2,17 +2,19 @@
 //! [`RangedCSR2D`] data structure.
 
 pub mod ranged_csr2d;
-pub use ranged_csr2d::RangedCSR2D;
-
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
-use crate::traits::{Matrix2D, Matrix2DRef, SizedSparseMatrix, SparseMatrix, SparseMatrixMut};
 use core::fmt::Debug;
+
 use multi_ranged::{MultiRanged, Step};
 use num_traits::Zero;
+pub use ranged_csr2d::RangedCSR2D;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,
-    traits::{BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, MonoplexGraph},
+    traits::{
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrix,
+        SparseMatrixMut, TryFromUsize,
+    },
 };
 
 impl<SparseIndex, RowIndex, R> Edges for RangedCSR2D<SparseIndex, RowIndex, R>
@@ -24,10 +26,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (
-        <Self as Matrix2D>::RowIndex,
-        <Self as Matrix2D>::ColumnIndex,
-    );
+    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
     type SourceNodeId = <Self as Matrix2D>::RowIndex;
     type DestinationNodeId = <Self as Matrix2D>::ColumnIndex;
     type EdgeId = SparseIndex;
@@ -98,10 +97,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (
-        <Self as Matrix2D>::RowIndex,
-        <Self as Matrix2D>::ColumnIndex,
-    );
+    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
     type Edges = Self;
 
     fn edges(&self) -> &Self::Edges {

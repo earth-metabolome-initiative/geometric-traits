@@ -1,8 +1,7 @@
 //! Simple test for undirected graph.
 
 use ::geometric_traits::prelude::*;
-use geometric_traits::impls::SortedVec;
-use geometric_traits::impls::{CSR2D, SymmetricCSR2D};
+use geometric_traits::impls::{CSR2D, SortedVec, SymmetricCSR2D};
 
 #[test]
 /// First simple test for undirected graph.

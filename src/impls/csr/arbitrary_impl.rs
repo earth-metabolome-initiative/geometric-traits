@@ -1,11 +1,10 @@
 //! Implementation of the `Arbitrary` trait for the `CSR2D` struct.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
 
 use crate::{
     impls::{CSR2D, MutabilityError},
-    traits::{MatrixMut, SparseMatrixMut},
+    traits::{IntoUsize, MatrixMut, PositiveInteger, SparseMatrixMut, TryFromUsize},
 };
 
 impl<'a, SparseIndex, RowIndex, ColumnIndex> Arbitrary<'a>
@@ -56,12 +55,14 @@ where
         for (row, column) in edges {
             match csr.add((row, column)) {
                 Ok(()) => {}
-                Err(err) => match err {
-                    MutabilityError::MaxedOutSparseIndex
-                    | MutabilityError::MaxedOutRowIndex
-                    | MutabilityError::MaxedOutColumnIndex => {}
-                    _ => return Err(arbitrary::Error::IncorrectFormat),
-                },
+                Err(err) => {
+                    match err {
+                        MutabilityError::MaxedOutSparseIndex
+                        | MutabilityError::MaxedOutRowIndex
+                        | MutabilityError::MaxedOutColumnIndex => {}
+                        _ => return Err(arbitrary::Error::IncorrectFormat),
+                    }
+                }
             }
         }
 

@@ -4,9 +4,7 @@
 use core::fmt::Debug;
 use std::rc::Rc;
 
-use crate::traits::Symbol;
-
-use crate::errors::builder::vocabulary::VocabularyBuilderError;
+use crate::{errors::builder::vocabulary::VocabularyBuilderError, traits::Symbol};
 
 /// Trait defining a conversion between a source symbol and a destination
 /// symbol.

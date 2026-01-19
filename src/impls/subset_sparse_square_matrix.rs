@@ -23,10 +23,7 @@ where
     I: Default,
 {
     fn default() -> Self {
-        Self {
-            matrix: M::default(),
-            indices: I::default(),
-        }
+        Self { matrix: M::default(), indices: I::default() }
     }
 }
 
@@ -61,10 +58,7 @@ impl<M: SquareMatrix, I> SubsetSquareMatrix<M, I> {
             *sorted_index = unsorted_index;
         }
         sorted_indices.sort_unstable();
-        Ok(SubsetSquareMatrix {
-            matrix,
-            indices: sorted_indices,
-        })
+        Ok(SubsetSquareMatrix { matrix, indices: sorted_indices })
     }
 
     /// Creates a new subset sparse square matrix from sorted indices.
@@ -89,15 +83,9 @@ impl<M: SquareMatrix, I> SubsetSquareMatrix<M, I> {
             "The indices are not sorted. This is a bug in the code."
         );
         debug_assert!(
-            sorted_indices
-                .as_ref()
-                .iter()
-                .all(|&index| index < matrix.order()),
+            sorted_indices.as_ref().iter().all(|&index| index < matrix.order()),
             "The indices are out of bounds. This is a bug in the code."
         );
-        SubsetSquareMatrix {
-            matrix,
-            indices: sorted_indices,
-        }
+        SubsetSquareMatrix { matrix, indices: sorted_indices }
     }
 }

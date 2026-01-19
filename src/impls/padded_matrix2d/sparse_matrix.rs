@@ -1,7 +1,6 @@
 //! Submodule providing the implementation of the `SparseMatrix2D` trait
 //! and related traits for the `PaddedMatrix2D` struct.
 
-use crate::traits::{IntoUsize, TryFromUsize};
 use multi_ranged::{SimpleRange, Step};
 use num_traits::{One, Zero};
 
@@ -9,8 +8,8 @@ use super::{PaddedMatrix2D, padded_coordinates::PaddedCoordinates};
 use crate::{
     impls::CSR2DColumns,
     traits::{
-        EmptyRows, Matrix2D, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix,
-        SparseMatrix2D,
+        EmptyRows, IntoUsize, Matrix2D, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix,
+        SparseMatrix2D, TryFromUsize,
     },
 };
 

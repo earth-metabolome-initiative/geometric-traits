@@ -5,11 +5,7 @@ use core::{
     ops::{Index, Range},
 };
 
-use crate::traits::Symbol;
-
-use crate::prelude::*;
-
-use crate::errors::SortedError;
+use crate::{errors::SortedError, prelude::*, traits::Symbol};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Struct defining a sorted vector and its primary methods.
@@ -35,11 +31,7 @@ where
         } else {
             // We identify the offending entry by returning the first unsorted entry.
             let unsorted_entry = vec.windows(2).find_map(|window| {
-                if window[0] > window[1] {
-                    Some(window[1].clone())
-                } else {
-                    None
-                }
+                if window[0] > window[1] { Some(window[1].clone()) } else { None }
             });
             if let Some(entry) = unsorted_entry {
                 Err(SortedError::UnsortedEntry(entry))
@@ -78,9 +70,7 @@ impl<V> SortedVec<V> {
     #[must_use]
     /// Returns a new instance of the struct with the provided capacity.
     pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            vec: Vec::with_capacity(capacity),
-        }
+        Self { vec: Vec::with_capacity(capacity) }
     }
 
     #[must_use]

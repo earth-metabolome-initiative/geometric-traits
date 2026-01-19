@@ -1,11 +1,10 @@
 //! A generic edges builder that can be used to build a edges for any type of
 //! graph.
 
-use crate::{impls::MutabilityError, traits::SparseMatrixMut};
-
 use crate::{
     errors::builder::edges::EdgesBuilderError,
-    traits::{Edges, EdgesBuilder, GrowableEdges},
+    impls::MutabilityError,
+    traits::{Edges, EdgesBuilder, GrowableEdges, SparseMatrixMut},
 };
 
 /// A generic edges builder that can be used to build a edges for any type of
@@ -107,10 +106,8 @@ where
             (None, None) => Default::default(),
         };
         let should_ignore_duplicates = self.should_ignore_duplicates();
-        self.edges
-            .ok_or(EdgesBuilderError::MissingAttribute("edges"))?
-            .into_iter()
-            .try_for_each(|edge| {
+        self.edges.ok_or(EdgesBuilderError::MissingAttribute("edges"))?.into_iter().try_for_each(
+            |edge| {
                 if let Err(err) = edges.add(edge) {
                     match err {
                         crate::errors::builder::edges::EdgesBuilderError::MatrixError(
@@ -127,17 +124,16 @@ where
                 } else {
                     Ok(())
                 }
-            })?;
+            },
+        )?;
 
         if let Some(expected_number_of_edges) = expected_number_of_edges
             && edges.number_of_edges() != expected_number_of_edges
         {
-            return Err(
-                crate::errors::builder::edges::EdgesBuilderError::NumberOfEdges {
-                    expected: expected_number_of_edges,
-                    actual: edges.number_of_edges(),
-                },
-            );
+            return Err(crate::errors::builder::edges::EdgesBuilderError::NumberOfEdges {
+                expected: expected_number_of_edges,
+                actual: edges.number_of_edges(),
+            });
         }
 
         Ok(edges)

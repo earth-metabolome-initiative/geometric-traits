@@ -2,8 +2,9 @@
 
 use core::ops::Index;
 
-use crate::traits::{IntoUsize, PositiveInteger};
 use num_traits::Zero;
+
+use crate::traits::{IntoUsize, PositiveInteger};
 
 /// Trait defining a vector.
 pub trait Vector: Index<<Self as Vector>::Index, Output = <Self as Vector>::Value> {

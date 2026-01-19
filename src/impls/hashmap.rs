@@ -3,9 +3,7 @@
 use core::iter::Cloned;
 use std::{collections::HashMap, hash::BuildHasher};
 
-use crate::traits::Symbol;
-
-use crate::prelude::*;
+use crate::{prelude::*, traits::Symbol};
 
 impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> Vocabulary for HashMap<K, V, S> {
     type SourceSymbol = K;
@@ -53,9 +51,7 @@ impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> VocabularyRef for HashMap<K, 
 
 impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabulary for HashMap<K, V, S> {
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
-        self.iter()
-            .find(|(_, v)| v == &destination)
-            .map(|(k, _)| k.clone())
+        self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k.clone())
     }
 }
 

@@ -5,9 +5,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::impls::SortedVec;
-
 use crate::{
+    impls::SortedVec,
     prelude::{DiGraph, GenericEdgesBuilder},
     traits::{EdgesBuilder, MonopartiteGraph, MonoplexGraph},
 };

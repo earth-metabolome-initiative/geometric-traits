@@ -1,8 +1,7 @@
 //! Test submodule for the `CycleDetection` trait.
 
-use geometric_traits::impls::SortedVec;
-use geometric_traits::impls::SquareCSR2D;
 use geometric_traits::{
+    impls::{SortedVec, SquareCSR2D},
     prelude::{
         CycleDetection, DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, MonopartiteGraph,
         MonoplexGraph,

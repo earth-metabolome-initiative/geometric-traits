@@ -5,9 +5,8 @@
 //! * They are monopartite, i.e., they have only one type of nodes.
 //! * They are monoplex, i.e., they have only one type of edges.
 
-use crate::traits::IntoUsize;
-
 use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
+use crate::traits::IntoUsize;
 
 /// Trait defining the properties of monoplex monopartite graphs.
 pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonopartiteGraph>::MonoplexMonopartiteEdges>

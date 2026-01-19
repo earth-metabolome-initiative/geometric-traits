@@ -1,15 +1,17 @@
 //! Submodule implementing Edges for
 //! [`ValuedCSR2D`].
 
-use crate::traits::{
-    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
-    Matrix2DRef, MonoplexGraph, Number, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
-    TryFromUsize,
-};
 use multi_ranged::Step;
 
-use crate::errors::builder::edges::EdgesBuilderError;
-use crate::impls::ValuedCSR2D;
+use crate::{
+    errors::builder::edges::EdgesBuilderError,
+    impls::ValuedCSR2D,
+    traits::{
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        Matrix2DRef, MonoplexGraph, Number, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
+        TryFromUsize,
+    },
+};
 
 impl<
     SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,

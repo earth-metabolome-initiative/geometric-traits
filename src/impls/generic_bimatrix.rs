@@ -1,12 +1,14 @@
 //! Submodule implementing Edges for `GenericBiMatrix2D`.
 
-use crate::traits::{
-    Edges, Graph, Matrix, Matrix2D, MonoplexGraph, SizedRowsSparseMatrix2D, SizedSparseMatrix,
-    SparseMatrix, TransposableMatrix2D, TryFromUsize,
-};
 use num_traits::Zero;
 
-use crate::impls::GenericBiMatrix2D;
+use crate::{
+    impls::GenericBiMatrix2D,
+    traits::{
+        Edges, Graph, Matrix, Matrix2D, MonoplexGraph, SizedRowsSparseMatrix2D, SizedSparseMatrix,
+        SparseMatrix, TransposableMatrix2D, TryFromUsize,
+    },
+};
 
 impl<M, T> Edges for GenericBiMatrix2D<M, T>
 where

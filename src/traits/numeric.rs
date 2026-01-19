@@ -1,10 +1,14 @@
 //! Numeric traits.
 
-use super::into_usize::IntoUsize as IntoUsizeMethod;
-use core::fmt::{Debug, Display};
-use core::hash::Hash;
-use core::ops::{AddAssign, SubAssign};
+use core::{
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::{AddAssign, SubAssign},
+};
+
 use num_traits::{Bounded, ConstOne, ConstZero, Num, SaturatingAdd, Unsigned};
+
+use super::into_usize::IntoUsize as IntoUsizeMethod;
 
 /// Trait for types that can be converted into `usize`.
 pub trait IntoUsize: Into<usize> + Copy {}
@@ -98,6 +102,4 @@ macro_rules! impl_finite_int {
     };
 }
 
-impl_finite_int!(
-    u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize
-);
+impl_finite_int!(u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize);

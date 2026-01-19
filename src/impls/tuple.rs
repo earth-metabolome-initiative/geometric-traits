@@ -1,7 +1,5 @@
 //! Submodule implementing graph-related traits for tuples.
-use crate::traits::{Number, PositiveInteger};
-
-use crate::traits::{AttributedEdge, Edge};
+use crate::traits::{AttributedEdge, Edge, Number, PositiveInteger};
 
 impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger> Edge
     for (SourceNodeId, DestinationNodeId)

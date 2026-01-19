@@ -1,8 +1,7 @@
 //! Test submodule for the `SimplePath` trait.
 
-use geometric_traits::impls::SortedVec;
-use geometric_traits::impls::{CSR2D, SquareCSR2D};
 use geometric_traits::{
+    impls::{CSR2D, SortedVec, SquareCSR2D},
     prelude::{DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, SimplePath},
     traits::{EdgesBuilder, VocabularyBuilder},
 };
@@ -22,10 +21,7 @@ fn test_simple_path_on_empty_graph() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
-    assert!(
-        !graph.is_simple_path(),
-        "An empty graph is not a simple path"
-    );
+    assert!(!graph.is_simple_path(), "An empty graph is not a simple path");
 
     Ok(())
 }
@@ -65,10 +61,7 @@ fn test_simple_path_on_selflooping_singleton_node() -> Result<(), Box<dyn std::e
         .build()?;
     let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
-    assert!(
-        !graph.is_simple_path(),
-        "A self-looping singleton node is not a simple path"
-    );
+    assert!(!graph.is_simple_path(), "A self-looping singleton node is not a simple path");
 
     Ok(())
 }
@@ -88,10 +81,7 @@ fn test_simple_path_on_edge() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
-    assert!(
-        graph.is_simple_path(),
-        "A simple path with an edge is a simple path"
-    );
+    assert!(graph.is_simple_path(), "A simple path with an edge is a simple path");
 
     Ok(())
 }
@@ -111,10 +101,7 @@ fn test_simple_path_on_circle() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
-    assert!(
-        !graph.is_simple_path(),
-        "A simple path with a cycle is not a simple path"
-    );
+    assert!(!graph.is_simple_path(), "A simple path with a cycle is not a simple path");
 
     Ok(())
 }
@@ -134,10 +121,7 @@ fn test_simple_path_on_tree() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
     let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
 
-    assert!(
-        !graph.is_simple_path(),
-        "A simple path with a tree is not a simple path"
-    );
+    assert!(!graph.is_simple_path(), "A simple path with a tree is not a simple path");
 
     Ok(())
 }

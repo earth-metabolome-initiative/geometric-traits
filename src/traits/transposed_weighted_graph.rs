@@ -1,10 +1,9 @@
 //! Submodule providing the traits for a generic graph that has weighted edges.
 
-use crate::traits::{SparseValuedMatrix2D, ValuedSizedSparseBiMatrix2D};
-
 use super::{
     Edges, TransposedEdges, TransposedMonoplexGraph, WeightedEdges, WeightedMonoplexGraph,
 };
+use crate::traits::{SparseValuedMatrix2D, ValuedSizedSparseBiMatrix2D};
 
 /// Trait defining an edge data structure that has weighted edges.
 pub trait TransposedWeightedEdges:

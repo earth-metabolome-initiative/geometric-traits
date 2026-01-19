@@ -2,9 +2,7 @@
 //! implementation, which provides a method to retrieve the sink nodes of the
 //! graph, which are the set of nodes with no successors.
 
-use crate::traits::IntoUsize;
-
-use crate::traits::MonoplexMonopartiteGraph;
+use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 /// Trait providing the `sink_nodes` method, which returns the sink nodes of the
 /// graph. A sink node is a node with no successors.
 pub trait SinkNodes: MonoplexMonopartiteGraph {
@@ -13,10 +11,11 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1)];
@@ -52,13 +51,11 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
         // been visited. A node is considered visited if it has a predecessor.
         self.node_ids()
             .zip(visited)
-            .filter_map(|(node, visited)| {
-                if visited && !self.has_successors(node) {
-                    Some(node)
-                } else {
-                    None
-                }
-            })
+            .filter_map(
+                |(node, visited)| {
+                    if visited && !self.has_successors(node) { Some(node) } else { None }
+                },
+            )
             .collect()
     }
 }

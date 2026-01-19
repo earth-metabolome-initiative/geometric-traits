@@ -3,10 +3,10 @@
 
 use core::f64;
 
-use crate::traits::ScalarSimilarity;
-use crate::traits::{Kahn, KahnError};
-
-use crate::traits::{Edges, MonoplexMonopartiteGraph, algorithms::root_nodes::RootNodes};
+use crate::traits::{
+    Edges, Kahn, KahnError, MonoplexMonopartiteGraph, ScalarSimilarity,
+    algorithms::root_nodes::RootNodes,
+};
 
 /// Struct for the Wu-Palmer similarity trait
 #[derive(Debug)]
@@ -30,10 +30,11 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder, ScalarSimilarity};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, ScalarSimilarity, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -58,10 +59,7 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
         // Check whether the graph is a DAG (characterize by having no cycles)
         let _topological_ordering = self.edges().matrix().kahn()?;
         let root_nodes = self.root_nodes();
-        Ok(WuPalmerResult {
-            graph: self,
-            root_nodes,
-        })
+        Ok(WuPalmerResult { graph: self, root_nodes })
     }
 }
 

@@ -3,16 +3,15 @@
 
 use core::fmt::Debug;
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use multi_ranged::Step;
 use num_traits::{One, Zero};
 
 use super::{CSR2D, MutabilityError};
 use crate::traits::{
-    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, RankSelectSparseMatrix,
-    SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix,
-    SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
-    ValuedMatrix, ValuedMatrix2D,
+    EmptyRows, IntoUsize, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
+    RankSelectSparseMatrix, SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D,
+    SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix,
+    SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
 #[cfg(feature = "arbitrary")]
@@ -50,9 +49,7 @@ impl<
             );
         for (row, row_values) in valued_csr.row_indices().zip(value) {
             for (column, value) in valued_csr.column_indices().zip(row_values) {
-                valued_csr
-                    .add((row, column, value))
-                    .expect("Failed to add value to ValuedCSR2D");
+                valued_csr.add((row, column, value)).expect("Failed to add value to ValuedCSR2D");
             }
         }
 
@@ -64,10 +61,7 @@ impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug, Value: Debug> Debu
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.debug_struct("ValuedCSR2D")
-            .field("csr", &self.csr)
-            .field("values", &self.values)
-            .finish()
+        f.debug_struct("ValuedCSR2D").field("csr", &self.csr).field("values", &self.values).finish()
     }
 }
 
@@ -75,10 +69,7 @@ impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero, Value> Default
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     fn default() -> Self {
-        Self {
-            csr: CSR2D::default(),
-            values: Vec::default(),
-        }
+        Self { csr: CSR2D::default(), values: Vec::default() }
     }
 }
 
@@ -91,10 +82,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 
@@ -370,10 +358,7 @@ where
     }
 
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
-        Self {
-            csr: CSR2D::with_sparse_shape(shape),
-            values: Vec::new(),
-        }
+        Self { csr: CSR2D::with_sparse_shape(shape), values: Vec::new() }
     }
 
     #[inline]

@@ -10,8 +10,6 @@ mod transposed_valued_matrix2d;
 mod triangular_matrix;
 mod valued_matrix2d;
 
-use crate::traits::TotalOrd;
-use crate::traits::{IntoUsize, PositiveInteger};
 pub use dense_matrix::*;
 pub use dense_matrix2d::*;
 pub use matrix_mut::*;
@@ -23,7 +21,10 @@ pub use triangular_matrix::*;
 pub use valued_matrix2d::*;
 
 use super::Coordinates;
-use crate::impls::ImplicitValuedSparseIterator;
+use crate::{
+    impls::ImplicitValuedSparseIterator,
+    traits::{IntoUsize, PositiveInteger, TotalOrd},
+};
 
 /// Trait defining a matrix.
 pub trait Matrix {

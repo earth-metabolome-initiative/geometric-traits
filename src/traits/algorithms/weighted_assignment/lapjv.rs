@@ -3,15 +3,15 @@
 mod errors;
 mod inner;
 
-use crate::traits::{Finite, Number, TotalOrd, TryFromUsize};
 use core::fmt::Debug;
+
 pub use errors::LAPJVError;
 use inner::Inner;
 use num_traits::Zero;
 
 use crate::{
     impls::PaddedMatrix2D,
-    traits::{DenseValuedMatrix2D, SparseValuedMatrix2D},
+    traits::{DenseValuedMatrix2D, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
 };
 
 /// Trait defining the LAPJV algorithm for solving the Weighted Assignment
@@ -119,8 +119,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::ValuedCSR2D;
-    /// use geometric_traits::prelude::*;
+    /// use geometric_traits::{impls::ValuedCSR2D, prelude::*};
     ///
     /// let csr: ValuedCSR2D<u8, u8, u8, f64> =
     ///     ValuedCSR2D::try_from([[1.0, 0.5, 10.0], [0.5, 10.0, 20.0], [10.0, 20.0, 0.5]])

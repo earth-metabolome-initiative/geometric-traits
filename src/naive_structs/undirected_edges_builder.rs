@@ -3,14 +3,12 @@
 
 use std::marker::PhantomData;
 
-use crate::traits::{SparseMatrixMut, Symmetrize};
-
 use super::GenericEdgesBuilder;
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     traits::{
         DirectedEdges, Edges, EdgesBuilder, FromDirectedMonopartiteEdges, GrowableEdges,
-        MonopartiteEdges, UndirectedMonopartiteEdges,
+        MonopartiteEdges, SparseMatrixMut, Symmetrize, UndirectedMonopartiteEdges,
     },
 };
 
@@ -27,10 +25,7 @@ impl<EdgeIterator, GE: GrowableEdges, UE> Default
     for GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE, UE>
 {
     fn default() -> Self {
-        Self {
-            builder: GenericEdgesBuilder::default(),
-            _undirected_edges: PhantomData,
-        }
+        Self { builder: GenericEdgesBuilder::default(), _undirected_edges: PhantomData }
     }
 }
 

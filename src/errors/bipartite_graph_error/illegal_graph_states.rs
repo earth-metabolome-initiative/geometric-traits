@@ -31,9 +31,7 @@ pub enum IllegalBipartiteGraphState<G: BipartiteGraph + ?Sized> {
 impl<G: BipartiteGraph + ?Sized> core::fmt::Display for IllegalBipartiteGraphState<G> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
-            IllegalBipartiteGraphState::TooManyLeftNodes {
-                number_of_left_nodes,
-            } => {
+            IllegalBipartiteGraphState::TooManyLeftNodes { number_of_left_nodes } => {
                 write!(
                     f,
                     concat!(
@@ -46,9 +44,7 @@ impl<G: BipartiteGraph + ?Sized> core::fmt::Display for IllegalBipartiteGraphSta
                     number_of_left_nodes
                 )
             }
-            IllegalBipartiteGraphState::TooManyRightNodes {
-                number_of_right_nodes,
-            } => {
+            IllegalBipartiteGraphState::TooManyRightNodes { number_of_right_nodes } => {
                 write!(
                     f,
                     concat!(

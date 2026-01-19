@@ -1,11 +1,12 @@
 //! Implementation of the `Arbitrary` trait for the `GenericGraph` struct.
 
-use crate::impls::{CSR2D, SquareCSR2D};
-use crate::traits::Matrix2D;
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
 use arbitrary::{Arbitrary, Unstructured};
 
 use super::GenericGraph;
+use crate::{
+    impls::{CSR2D, SquareCSR2D},
+    traits::{IntoUsize, Matrix2D, PositiveInteger, TryFromUsize},
+};
 
 impl<'a, SparseIndex, Idx> Arbitrary<'a>
     for GenericGraph<Idx, SquareCSR2D<CSR2D<SparseIndex, Idx, Idx>>>

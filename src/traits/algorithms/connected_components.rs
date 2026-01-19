@@ -1,9 +1,10 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
 
+use num_traits::{One, Zero};
+
 use crate::traits::{
     IntoUsize, MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
 };
-use num_traits::{One, Zero};
 
 /// Connected components object.
 pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {
@@ -54,12 +55,9 @@ where
         &self,
         component_identifier: Marker,
     ) -> impl Iterator<Item = G::NodeId> + '_ {
-        self.graph
-            .node_ids()
-            .zip(self.component_identifiers.iter())
-            .filter_map(move |(node, &component)| {
-                (component == component_identifier).then_some(node)
-            })
+        self.graph.node_ids().zip(self.component_identifiers.iter()).filter_map(
+            move |(node, &component)| (component == component_identifier).then_some(node),
+        )
     }
 
     /// Returns an iterator over the symbols of the nodes of a connected
@@ -68,12 +66,9 @@ where
         &self,
         component_identifier: Marker,
     ) -> impl Iterator<Item = G::NodeSymbol> + '_ {
-        self.graph
-            .nodes()
-            .zip(self.component_identifiers.iter())
-            .filter_map(move |(symbol, &component)| {
-                (component == component_identifier).then_some(symbol)
-            })
+        self.graph.nodes().zip(self.component_identifiers.iter()).filter_map(
+            move |(symbol, &component)| (component == component_identifier).then_some(symbol),
+        )
     }
 }
 
@@ -135,11 +130,14 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SymmetricCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
-    /// use geometric_traits::traits::algorithms::connected_components::ConnectedComponentsResult;
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SymmetricCSR2D},
+    ///     prelude::*,
+    ///     traits::{
+    ///         EdgesBuilder, VocabularyBuilder,
+    ///         algorithms::connected_components::ConnectedComponentsResult,
+    ///     },
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (2, 3)];

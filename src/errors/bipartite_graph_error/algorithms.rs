@@ -1,8 +1,6 @@
 //! Errors raised in algorithms defined for [`BipartiteGraph`]s.
 
-use crate::traits::LAPJVError;
-
-use crate::traits::BipartiteGraph;
+use crate::traits::{BipartiteGraph, LAPJVError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Errors that may occur when executing algorithms on a [`BipartiteGraph`].

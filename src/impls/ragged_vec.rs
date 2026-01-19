@@ -1,17 +1,18 @@
 //! Implementations of traits from the graph crate for the
 //! [`RaggedVector`] data structure.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
-use crate::{
-    impls::RaggedVector,
-    traits::{Matrix2D, Matrix2DRef, SizedSparseMatrix, SparseMatrix, SparseMatrixMut},
-};
 use core::fmt::Debug;
+
 use multi_ranged::Step;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,
-    traits::{BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, MonoplexGraph},
+    impls::RaggedVector,
+    traits::{
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrix,
+        SparseMatrixMut, TryFromUsize,
+    },
 };
 
 impl<SparseIndex, RowIndex, ColumnIndex> Edges for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
@@ -22,10 +23,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (
-        <Self as Matrix2D>::RowIndex,
-        <Self as Matrix2D>::ColumnIndex,
-    );
+    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
     type SourceNodeId = <Self as Matrix2D>::RowIndex;
     type DestinationNodeId = <Self as Matrix2D>::ColumnIndex;
     type EdgeId = SparseIndex;
@@ -95,10 +93,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
-    type Edge = (
-        <Self as Matrix2D>::RowIndex,
-        <Self as Matrix2D>::ColumnIndex,
-    );
+    type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
     type Edges = Self;
 
     fn edges(&self) -> &Self::Edges {

@@ -3,9 +3,8 @@
 //! A monoplex graph is a graph where all edges are of the same type,
 //! i.e., there is no distinction between different types of edges.
 
-use crate::traits::{SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrix2D};
-
 use super::Edges;
+use crate::traits::{SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrix2D};
 
 /// Trait for monoplex graphs.
 pub trait MonoplexGraph: super::Graph {
@@ -26,10 +25,11 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -64,10 +64,11 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -103,10 +104,11 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -132,8 +134,7 @@ pub trait MonoplexGraph: super::Graph {
         source_node_id: <Self::Edges as super::Edges>::SourceNodeId,
         destination_node_id: <Self::Edges as super::Edges>::DestinationNodeId,
     ) -> bool {
-        self.edges()
-            .has_successor(source_node_id, destination_node_id)
+        self.edges().has_successor(source_node_id, destination_node_id)
     }
 
     /// Returns the outbound degree of the node with the given identifier.

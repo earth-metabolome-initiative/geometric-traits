@@ -1,10 +1,9 @@
 //! Submodule providing a naively implemented `GenericBiGraph`.
 
-use crate::traits::{IntoUsize, PositiveInteger, TryFromUsize};
-
 use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
 use crate::traits::{
-    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph, Vocabulary,
+    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, IntoUsize, MonoplexGraph,
+    PositiveInteger, TryFromUsize, Vocabulary,
 };
 
 #[derive(Clone)]
@@ -41,11 +40,7 @@ impl<LeftNodes, RightNodes, Edges> TryFrom<(LeftNodes, RightNodes, Edges)>
     fn try_from(
         (left_nodes, right_nodes, edges): (LeftNodes, RightNodes, Edges),
     ) -> Result<Self, Self::Error> {
-        Ok(Self {
-            left_nodes,
-            right_nodes,
-            edges,
-        })
+        Ok(Self { left_nodes, right_nodes, edges })
     }
 }
 

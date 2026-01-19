@@ -1,14 +1,14 @@
 //! Module implementing traits for the Vec type.
 
-use core::{iter::Cloned, ops::Range};
+use core::{
+    iter::Cloned,
+    ops::{Index, Range},
+};
 
-use crate::traits::Symbol;
-
-use core::ops::Index;
-
-use crate::traits::TransmuteFrom;
-
-use crate::errors::SortedError;
+use crate::{
+    errors::SortedError,
+    traits::{Symbol, TransmuteFrom},
+};
 
 #[derive(Debug, Clone, Copy)]
 /// Struct defining a sorted vector and its primary methods.
@@ -28,11 +28,7 @@ where
         } else {
             // We identify the offending entry by returning the first unsorted entry.
             let unsorted_entry = array.windows(2).find_map(|window| {
-                if window[0] > window[1] {
-                    Some(window[1].clone())
-                } else {
-                    None
-                }
+                if window[0] > window[1] { Some(window[1].clone()) } else { None }
             });
             if let Some(entry) = unsorted_entry {
                 Err(SortedError::UnsortedEntry(entry))

@@ -1,14 +1,14 @@
 //! Submodule providing a definition of a CSR matrix.
 use core::fmt::Debug;
 
-use crate::traits::{IntoUsize, PositiveInteger};
 use num_traits::{One, Zero};
+
+use crate::traits::{IntoUsize, PositiveInteger};
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
-use crate::impls::MutabilityError;
-use crate::prelude::*;
+use crate::{impls::MutabilityError, prelude::*};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A compressed sparse row matrix.
@@ -37,10 +37,7 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![
-            self.number_of_rows().into_usize(),
-            self.number_of_columns().into_usize(),
-        ]
+        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
     }
 }
 
@@ -93,10 +90,7 @@ impl<M: Matrix2D> AsRef<M> for SquareCSR2D<M> {
 
 impl<M: Default + Matrix2D> Default for SquareCSR2D<M> {
     fn default() -> Self {
-        Self {
-            matrix: M::default(),
-            number_of_diagonal_values: M::RowIndex::zero(),
-        }
+        Self { matrix: M::default(), number_of_diagonal_values: M::RowIndex::zero() }
     }
 }
 
@@ -324,11 +318,8 @@ where
             "The matrix is not square."
         );
 
-        self.number_of_diagonal_values += if row == column {
-            M::RowIndex::one()
-        } else {
-            M::RowIndex::zero()
-        };
+        self.number_of_diagonal_values +=
+            if row == column { M::RowIndex::one() } else { M::RowIndex::zero() };
 
         Ok(())
     }
@@ -340,8 +331,7 @@ where
         if number_of_rows != number_of_columns {
             return Err(MutabilityError::IncompatibleShape);
         }
-        self.matrix
-            .increase_shape((number_of_rows, number_of_columns))?;
+        self.matrix.increase_shape((number_of_rows, number_of_columns))?;
         Ok(())
     }
 }
