@@ -1,6 +1,8 @@
 //! Submodule providing the `Kahn` trait and its blanket implementation for
 //! sparse matrices, which provides the Kahn's algorithm for topological
 //! sorting.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use num_traits::{ConstOne, ConstZero};
 

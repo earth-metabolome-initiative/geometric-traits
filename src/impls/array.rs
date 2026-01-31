@@ -1,7 +1,5 @@
 //! Module implementing traits for the Vec type.
 
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
-use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
 use crate::traits::{PositiveInteger, Symbol};

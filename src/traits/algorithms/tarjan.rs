@@ -1,6 +1,8 @@
 //! Submodule providing the `Tarjan` trait and its blanket implementation for
 //! sparse matrices, which provides the Tarjan's algorithm for strongly
 //! connected components.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use multi_ranged::SimpleRange;
 use num_traits::{ConstOne, ConstZero};

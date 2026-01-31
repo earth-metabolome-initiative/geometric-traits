@@ -2,7 +2,8 @@
 //! symbol.
 
 use core::fmt::Debug;
-use std::rc::Rc;
+#[cfg(feature = "alloc")]
+use alloc::{boxed::Box, rc::Rc};
 
 use crate::{errors::builder::vocabulary::VocabularyBuilderError, traits::Symbol};
 
@@ -69,6 +70,7 @@ impl<V: Vocabulary + ?Sized> Vocabulary for &V {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<V: Vocabulary + ?Sized> Vocabulary for Box<V> {
     type SourceSymbol = V::SourceSymbol;
     type DestinationSymbol = V::DestinationSymbol;
@@ -98,6 +100,7 @@ impl<V: Vocabulary + ?Sized> Vocabulary for Box<V> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<V: Vocabulary + ?Sized> Vocabulary for Rc<V> {
     type SourceSymbol = V::SourceSymbol;
     type DestinationSymbol = V::DestinationSymbol;
@@ -170,12 +173,14 @@ impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for &V {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for Box<V> {
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         (**self).invert(destination)
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for Rc<V> {
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         (**self).invert(destination)

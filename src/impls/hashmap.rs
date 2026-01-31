@@ -1,102 +1,119 @@
 //! Module implementing traits for the [`HashMap`] type.
 
 use core::iter::Cloned;
-use std::{collections::HashMap, hash::BuildHasher};
+use core::hash::BuildHasher;
 
 use crate::{prelude::*, traits::Symbol};
 
-impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> Vocabulary for HashMap<K, V, S> {
-    type SourceSymbol = K;
-    type DestinationSymbol = V;
-    type Sources<'a>
-        = Cloned<std::collections::hash_map::Keys<'a, K, V>>
-    where
-        Self: 'a;
-    type Destinations<'a>
-        = Cloned<std::collections::hash_map::Values<'a, K, V>>
-    where
-        Self: 'a;
+macro_rules! impl_hashmap {
+    ($Map:ident, $mod:ident) => {
+        impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> Vocabulary for $Map<K, V, S> {
+            type SourceSymbol = K;
+            type DestinationSymbol = V;
+            type Sources<'a>
+                = Cloned<$mod::Keys<'a, K, V>>
+            where
+                Self: 'a;
+            type Destinations<'a>
+                = Cloned<$mod::Values<'a, K, V>>
+            where
+                Self: 'a;
 
-    fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
-        self.get(source).cloned()
-    }
+            fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
+                self.get(source).cloned()
+            }
 
-    fn len(&self) -> usize {
-        self.len()
-    }
+            fn len(&self) -> usize {
+                self.len()
+            }
 
-    fn sources(&self) -> Self::Sources<'_> {
-        self.keys().cloned()
-    }
+            fn sources(&self) -> Self::Sources<'_> {
+                self.keys().cloned()
+            }
 
-    fn destinations(&self) -> Self::Destinations<'_> {
-        self.values().cloned()
-    }
-}
-
-impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> VocabularyRef for HashMap<K, V, S> {
-    type DestinationRefs<'a>
-        = std::collections::hash_map::Values<'a, K, V>
-    where
-        Self: 'a;
-
-    fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
-        self.get(source)
-    }
-
-    fn destination_refs(&self) -> Self::DestinationRefs<'_> {
-        self.values()
-    }
-}
-
-impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabulary for HashMap<K, V, S> {
-    fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
-        self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k.clone())
-    }
-}
-
-impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabularyRef for HashMap<K, V, S> {
-    type SourceRefs<'a>
-        = std::collections::hash_map::Keys<'a, K, V>
-    where
-        Self: 'a;
-
-    fn invert_ref(&self, destination: &Self::DestinationSymbol) -> Option<&Self::SourceSymbol> {
-        self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k)
-    }
-
-    fn source_refs(&self) -> Self::SourceRefs<'_> {
-        self.keys()
-    }
-}
-
-impl<K: Symbol, V: Symbol, S: BuildHasher + Default + Clone> GrowableVocabulary
-    for HashMap<K, V, S>
-{
-    fn new() -> Self {
-        HashMap::with_hasher(Default::default())
-    }
-
-    fn with_capacity(capacity: usize) -> Self {
-        HashMap::with_capacity_and_hasher(capacity, Default::default())
-    }
-
-    fn add(
-        &mut self,
-        source: K,
-        destination: V,
-    ) -> Result<(), crate::errors::builder::vocabulary::VocabularyBuilderError<Self>> {
-        if self.contains_key(&source) {
-            return Err(
-                crate::errors::builder::vocabulary::VocabularyBuilderError::RepeatedSourceSymbol(
-                    source,
-                ),
-            );
+            fn destinations(&self) -> Self::Destinations<'_> {
+                self.values().cloned()
+            }
         }
-        if self.invert_ref(&destination).is_some() {
-            return Err(crate::errors::builder::vocabulary::VocabularyBuilderError::RepeatedDestinationSymbol(destination));
+
+        impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> VocabularyRef for $Map<K, V, S> {
+            type DestinationRefs<'a>
+                = $mod::Values<'a, K, V>
+            where
+                Self: 'a;
+
+            fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
+                self.get(source)
+            }
+
+            fn destination_refs(&self) -> Self::DestinationRefs<'_> {
+                self.values()
+            }
         }
-        self.insert(source, destination);
-        Ok(())
+
+        impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabulary for $Map<K, V, S> {
+            fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
+                self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k.clone())
+            }
+        }
+
+        impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabularyRef for $Map<K, V, S> {
+            type SourceRefs<'a>
+                = $mod::Keys<'a, K, V>
+            where
+                Self: 'a;
+
+            fn invert_ref(&self, destination: &Self::DestinationSymbol) -> Option<&Self::SourceSymbol> {
+                self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k)
+            }
+
+            fn source_refs(&self) -> Self::SourceRefs<'_> {
+                self.keys()
+            }
+        }
+
+        impl<K: Symbol, V: Symbol, S: BuildHasher + Default + Clone> GrowableVocabulary
+            for $Map<K, V, S>
+        {
+            fn new() -> Self {
+                // In hashbrown and std, with_hasher is consistent
+                $Map::with_hasher(Default::default())
+            }
+
+            fn with_capacity(capacity: usize) -> Self {
+                $Map::with_capacity_and_hasher(capacity, Default::default())
+            }
+
+            fn add(
+                &mut self,
+                source: K,
+                destination: V,
+            ) -> Result<(), crate::errors::builder::vocabulary::VocabularyBuilderError<Self>> {
+                if self.contains_key(&source) {
+                    return Err(
+                        crate::errors::builder::vocabulary::VocabularyBuilderError::RepeatedSourceSymbol(
+                            source,
+                        ),
+                    );
+                }
+                if <Self as BidirectionalVocabularyRef>::invert_ref(self, &destination).is_some() {
+                    return Err(crate::errors::builder::vocabulary::VocabularyBuilderError::RepeatedDestinationSymbol(destination));
+                }
+                self.insert(source, destination);
+                Ok(())
+            }
+        }
     }
 }
+
+#[cfg(feature = "std")]
+use std::collections::{HashMap as StdHashMap, hash_map as std_hash_map};
+
+#[cfg(feature = "std")]
+impl_hashmap!(StdHashMap, std_hash_map);
+
+#[cfg(feature = "hashbrown")]
+use hashbrown::{HashMap as HashBrownHashMap, hash_map as hashbrown_hash_map};
+
+#[cfg(feature = "hashbrown")]
+impl_hashmap!(HashBrownHashMap, hashbrown_hash_map);

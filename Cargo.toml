@@ -4,12 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-serde = { version = "1.0.225", features = ["derive", "rc"], optional = true }
-arbitrary = { version = "1", features = ["derive"], optional = true }
-num-traits = "0.2"
+serde = { version = "1.0.225", features = ["derive"], default-features = false, optional = true }
+arbitrary = { version = "1", features = ["derive"], default-features = false, optional = true }
+num-traits = { version = "0.2", default-features = false }
 multi_ranged = "0.1.1"
-thiserror = "2.0"
-lender = "0.4.2"
+thiserror = { version = "2.0", default-features = false }
+lender = { version = "0.4.2", default-features = false }
+hashbrown = { version = "0.16.1", optional = true }
 
 [lints.rust]
 missing_docs = "forbid"
@@ -42,10 +43,19 @@ pedantic = { level = "deny", priority = -1 }
 
 [features]
 default = ["std"]
-std = ["alloc"]
-alloc = []
-arbitrary = ["dep:arbitrary"]
+std = [
+    "alloc",
+    "serde?/std",
+    "num-traits/std",
+]
+alloc = [
+    "serde?/alloc",
+    "serde?/rc",
+    "hashbrown?/alloc",
+]
+arbitrary = ["dep:arbitrary", "std"]
 serde = ["dep:serde", "multi_ranged/serde"]
+hashbrown = ["dep:hashbrown"]
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

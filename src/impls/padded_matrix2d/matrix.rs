@@ -1,4 +1,6 @@
 //! Submodule implementing the `Matrix` trait for the `PaddedMatrix` struct.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use super::PaddedMatrix2D;
 use crate::traits::{IntoUsize, Matrix, Matrix2D, TryFromUsize};

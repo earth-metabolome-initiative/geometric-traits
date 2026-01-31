@@ -2,6 +2,7 @@
 
 use core::fmt::Debug;
 
+#[cfg(feature = "alloc")]
 use super::{CSR2D, SquareCSR2D, SymmetricCSR2D, UpperTriangularCSR2D, ValuedCSR2D};
 use crate::traits::Matrix2D;
 
@@ -94,6 +95,7 @@ impl<M: Matrix2D> core::fmt::Display for MutabilityError<M> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<M> From<MutabilityError<SquareCSR2D<M>>> for MutabilityError<UpperTriangularCSR2D<M>>
 where
     M: Matrix2D,
@@ -117,6 +119,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<M> From<MutabilityError<UpperTriangularCSR2D<M>>> for MutabilityError<SymmetricCSR2D<M>>
 where
     M: Matrix2D,
@@ -140,6 +143,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<M> From<MutabilityError<M>> for MutabilityError<SquareCSR2D<M>>
 where
     M: Matrix2D,
@@ -163,6 +167,7 @@ where
     }
 }
 
+#[cfg(feature = "alloc")]
 impl<SparseIndex, RowIndex, ColumnIndex, Value>
     From<MutabilityError<CSR2D<SparseIndex, RowIndex, ColumnIndex>>>
     for MutabilityError<ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>>

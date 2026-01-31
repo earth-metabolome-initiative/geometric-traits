@@ -1,4 +1,6 @@
 //! Submodule providing the Hopcroft-Karp algorithm for the assignment problem.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 mod partial_assignment;
 

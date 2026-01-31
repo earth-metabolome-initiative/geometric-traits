@@ -1,6 +1,12 @@
+#![no_std]
 #![doc = include_str!("../README.md")]
-#![cfg(feature = "alloc")]
+
+#[cfg(feature = "alloc")]
+#[macro_use]
 extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
 
 pub mod errors;
 pub mod impls;

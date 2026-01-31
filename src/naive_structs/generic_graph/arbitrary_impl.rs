@@ -19,7 +19,7 @@ where
         + TryFromUsize
         + num_traits::ConstOne
         + num_traits::ConstZero
-        + std::ops::MulAssign
+        + core::ops::MulAssign
         + num_traits::CheckedMul
         + num_traits::ToPrimitive
         + num_traits::SaturatingSub

@@ -1,6 +1,8 @@
 //! Submodule providing an implementation of the `RaggedVector` struct.
 
-use std::{fmt::Debug, iter::repeat_n};
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::{fmt::Debug, iter::repeat_n};
 
 use multi_ranged::Step;
 use num_traits::Zero;

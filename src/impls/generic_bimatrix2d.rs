@@ -1,5 +1,7 @@
 //! [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 //! and its transposed version.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::{prelude::*, traits::IntoUsize};
 

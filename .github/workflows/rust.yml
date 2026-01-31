@@ -11,7 +11,7 @@ env:
 
 jobs:
   test:
-    name: Build
+    name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -23,6 +23,26 @@ jobs:
       uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  features:
+    name: Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Check with no default features
+      run: cargo check --no-default-features
+    - name: Test no_std + alloc
+      run: cargo test --no-default-features --features alloc
+    - name: Test no_std + alloc + hashbrown
+      run: cargo test --no-default-features --features "alloc hashbrown"
+    - name: Test all features
+      run: cargo test --all-features
 
   fmt:
     name: Rustfmt

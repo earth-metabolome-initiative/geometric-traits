@@ -3,6 +3,7 @@
 use std::{
     fmt::Display,
     path::{Path, PathBuf},
+    vec::Vec,
 };
 
 use crate::{
@@ -63,11 +64,11 @@ impl From<PathBuf> for DirectoryTree {
 }
 
 fn display_node(
-    f: &mut std::fmt::Formatter<'_>,
+    f: &mut core::fmt::Formatter<'_>,
     graph: &DiGraph<PathBuf>,
     node: usize,
     indent_level: usize,
-) -> std::fmt::Result {
+) -> core::fmt::Result {
     for successor in graph.successors(node) {
         for _ in 0..indent_level {
             write!(f, "    ")?; // 4 spaces per indent level
@@ -81,7 +82,7 @@ fn display_node(
 }
 
 impl Display for DirectoryTree {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // We display the directory tree in a simple text format, with indentation
         // representing depth.
         let base_path = &self.graph.nodes_vocabulary()[0];

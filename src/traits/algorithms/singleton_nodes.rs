@@ -1,6 +1,8 @@
 //! Submodule providing the `SingletonNodes` trait and its blanket
 //! implementation, which provides a method to retrieve the singleton nodes from
 //! a graph, which is a node with no predecessor and no successors edges.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 /// Trait providing the `singleton_nodes` method, which returns the singleton

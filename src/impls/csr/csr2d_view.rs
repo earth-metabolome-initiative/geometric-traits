@@ -1,6 +1,6 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 
 use num_traits::{One, SaturatingSub, Zero};
 

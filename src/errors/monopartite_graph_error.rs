@@ -3,35 +3,24 @@
 use super::nodes::NodeError;
 use crate::traits::MonopartiteGraph;
 
+#[cfg(feature = "alloc")]
 pub mod algorithms;
+#[cfg(feature = "alloc")]
 pub use algorithms::MonopartiteAlgorithmError;
 pub mod illegal_graph_states;
 pub use illegal_graph_states::IllegalMonopartiteGraphState;
 
 /// Errors that may occur when working with graphs.
+#[derive(Debug, thiserror::Error)]
 pub enum MonopartiteError<G: MonopartiteGraph + ?Sized> {
     /// Error relative to graphs.
-    IllegalGraphState(IllegalMonopartiteGraphState<G>),
+    #[error(transparent)]
+    IllegalGraphState(#[from] IllegalMonopartiteGraphState<G>),
     /// Error relative to nodes.
+    #[error(transparent)]
     NodeError(NodeError<G::Nodes>),
     /// Error relative to algorithms.
-    AlgorithmError(MonopartiteAlgorithmError),
-}
-
-impl<G: MonopartiteGraph + ?Sized> core::error::Error for MonopartiteError<G> {}
-
-impl<G: MonopartiteGraph + ?Sized> core::fmt::Debug for MonopartiteError<G> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        <Self as core::fmt::Display>::fmt(self, f)
-    }
-}
-
-impl<G: MonopartiteGraph + ?Sized> core::fmt::Display for MonopartiteError<G> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        match self {
-            Self::IllegalGraphState(e) => write!(f, "{e}"),
-            Self::NodeError(e) => write!(f, "{e}"),
-            Self::AlgorithmError(e) => write!(f, "{e}"),
-        }
-    }
+    #[cfg(feature = "alloc")]
+    #[error(transparent)]
+    AlgorithmError(#[from] MonopartiteAlgorithmError),
 }

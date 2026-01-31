@@ -1,5 +1,7 @@
 //! Submodule implementing the `Matrix` trait and related traits for the
 //! `LowerBoundedSquareMatrix` struct.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use super::LowerBoundedSquareMatrix;
 use crate::traits::{Matrix, Matrix2D, SquareMatrix};

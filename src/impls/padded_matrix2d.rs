@@ -1,8 +1,12 @@
 //! Submodule providing a padded matrix, which fills all of the values not
 //! defined in the underlying sparse matrix with the value provided by the Map
 //! function.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
-use std::fmt::Debug;
+use alloc::string::String;
+
+use core::fmt::Debug;
 
 use num_traits::Bounded;
 
@@ -31,7 +35,7 @@ where
     Self: SparseValuedMatrix2D + Matrix2D<RowIndex = M::RowIndex, ColumnIndex = M::ColumnIndex>,
     <Self as ValuedMatrix>::Value: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let rows: Vec<Vec<String>> = self
             .row_indices()
             .map(|row_index| {

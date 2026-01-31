@@ -27,6 +27,10 @@ impl<V> Vector for [V] {
     }
 }
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
+#[cfg(feature = "alloc")]
 impl<V> Vector for Vec<V> {
     type Value = V;
     type Iter<'a>

@@ -1,6 +1,8 @@
 //! Submodule providing the `SinkNodes` trait and its blanket
 //! implementation, which provides a method to retrieve the sink nodes of the
 //! graph, which are the set of nodes with no successors.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 /// Trait providing the `sink_nodes` method, which returns the sink nodes of the

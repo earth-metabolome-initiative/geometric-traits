@@ -1,6 +1,6 @@
 //! Submodule providing the errors enumeration for the LAPJV algorithm.
 
-use std::fmt::Display;
+use core::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 /// Errors that can occur during the execution of the LAPJV algorithm.
@@ -54,4 +54,4 @@ impl Display for LAPJVError {
     }
 }
 
-impl std::error::Error for LAPJVError {}
+impl core::error::Error for LAPJVError {}

@@ -1,9 +1,13 @@
 //! Error enumeration for the edges builder.
 
+#[cfg(feature = "alloc")]
+use crate::impls::{SymmetricCSR2D, UpperTriangularCSR2D};
 use crate::{
-    impls::{MutabilityError, SymmetricCSR2D, UpperTriangularCSR2D},
-    traits::{Edges, Matrix2D, SizedSparseMatrix2D, TryFromUsize},
+    impls::MutabilityError,
+    traits::Edges,
 };
+#[cfg(feature = "alloc")]
+use crate::traits::{Matrix2D, SizedSparseMatrix2D, TryFromUsize};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 /// Enum representing the possible errors that can occur when building a graph.
@@ -25,6 +29,7 @@ pub enum EdgesBuilderError<E: Edges> {
     MatrixError(#[from] MutabilityError<E::Matrix>),
 }
 
+#[cfg(feature = "alloc")]
 impl<M> From<EdgesBuilderError<UpperTriangularCSR2D<M>>> for EdgesBuilderError<SymmetricCSR2D<M>>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,

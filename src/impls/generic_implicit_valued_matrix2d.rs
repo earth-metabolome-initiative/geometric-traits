@@ -1,5 +1,7 @@
 //! Implementation of the [`Edges`] trait for
 //! [`GenericImplicitValuedMatrix2D`].
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use num_traits::Zero;
 

@@ -1,5 +1,7 @@
 //! Submodule implementing the `Matrix` trait and related traits for the
 //! `SubsetSquareMatrix` struct.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use super::SubsetSquareMatrix;
 use crate::traits::{Matrix, Matrix2D, SparseMatrix2D, SquareMatrix};

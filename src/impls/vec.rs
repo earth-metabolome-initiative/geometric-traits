@@ -1,6 +1,6 @@
 //! Module implementing traits for the Vec type.
 
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
+#[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 

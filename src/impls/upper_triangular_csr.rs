@@ -1,7 +1,7 @@
 //! Submodule implementing Edges-related traits for
 //! [`UpperTriangularCSR2D`].
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,

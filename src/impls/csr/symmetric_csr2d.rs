@@ -1,4 +1,7 @@
 //! Submodule providing a definition of a CSR matrix.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use core::fmt::Debug;
 
 use crate::{impls::SquareCSR2D, prelude::*, traits::IntoUsize};

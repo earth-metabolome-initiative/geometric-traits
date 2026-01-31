@@ -1,5 +1,7 @@
 //! Submodule providing the `CycleDetection` trait and its blanket
 //! implementation.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
 

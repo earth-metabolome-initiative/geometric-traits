@@ -1,6 +1,8 @@
 //! Submodule providing the `Johnson` trait and its blanket implementation for
 //! sparse matrices, which provides the Johnson's algorithm for finding all
 //! cycles in a sparse matrix.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use lender::prelude::{Lender, Lending};
 use num_traits::{ConstOne, ConstZero};

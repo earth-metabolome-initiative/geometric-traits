@@ -1,4 +1,7 @@
 //! Submodule providing a definition of a CSR matrix.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use core::{fmt::Debug, iter::repeat_n};
 
 use multi_ranged::{MultiRanged, Step, errors::Error as RangedError};

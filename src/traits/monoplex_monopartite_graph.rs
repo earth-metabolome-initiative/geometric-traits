@@ -6,7 +6,10 @@
 //! * They are monoplex, i.e., they have only one type of edges.
 
 use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
+#[cfg(feature = "alloc")]
 use crate::traits::IntoUsize;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 /// Trait defining the properties of monoplex monopartite graphs.
 pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonopartiteGraph>::MonoplexMonopartiteEdges>
@@ -66,7 +69,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// use geometric_traits::impls::SortedVec;
     /// use geometric_traits::impls::SquareCSR2D;
     /// use geometric_traits::prelude::*;
@@ -90,6 +93,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// let paths = graph.unique_paths_from(0);
     /// assert_eq!(paths.len(), 2);
     /// ```
+    #[cfg(feature = "alloc")]
     fn unique_paths_from(
         &self,
         source: Self::NodeId,
@@ -114,7 +118,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
                     paths.push(growing_path.clone());
                 }
             }
-            std::mem::swap(&mut growing_paths, &mut growing_paths_tmp);
+            core::mem::swap(&mut growing_paths, &mut growing_paths_tmp);
             growing_paths_tmp.clear();
         }
 
@@ -153,6 +157,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// let successors = graph.successors_set(0);
     /// assert_eq!(successors, vec![1, 2]);
     /// ```
+    #[cfg(feature = "alloc")]
     fn successors_set(&self, source: Self::NodeId) -> Vec<Self::NodeId> {
         let mut visited_nodes = vec![false; self.number_of_nodes().into_usize()];
 
@@ -171,7 +176,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
                 }
             }
             reachable_nodes.extend(temporary_frontier.iter().copied());
-            std::mem::swap(&mut frontier, &mut temporary_frontier);
+            core::mem::swap(&mut frontier, &mut temporary_frontier);
             temporary_frontier.clear();
         }
 
@@ -208,6 +213,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// assert!(graph.has_path(0, 2));
     /// assert!(!graph.has_path(2, 0));
     /// ```
+    #[cfg(feature = "alloc")]
     fn has_path(
         &self,
         source: Self::NodeId,
@@ -231,7 +237,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
                     }
                 }
             }
-            std::mem::swap(&mut frontier, &mut temporary_frontier);
+            core::mem::swap(&mut frontier, &mut temporary_frontier);
             temporary_frontier.clear();
         }
 
@@ -272,6 +278,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     ///
     /// assert!(graph.is_reachable_through(0, 2, 1));
     /// ```
+    #[cfg(feature = "alloc")]
     fn is_reachable_through(
         &self,
         source: Self::NodeId,

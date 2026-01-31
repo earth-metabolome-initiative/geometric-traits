@@ -1,4 +1,6 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use num_traits::{One, Zero};
 
@@ -80,8 +82,8 @@ pub enum ConnectedComponentsError {
     TooManyComponents,
 }
 
-impl std::fmt::Display for ConnectedComponentsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for ConnectedComponentsError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             ConnectedComponentsError::TooManyComponents => {
                 write!(
@@ -201,7 +203,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
 
                 // We swap the temporary frontier with the frontier to avoid allocating a new
                 // vector.
-                std::mem::swap(&mut frontier, &mut temporary_frontier);
+                core::mem::swap(&mut frontier, &mut temporary_frontier);
             }
 
             // Update the size of the largest and smallest components.

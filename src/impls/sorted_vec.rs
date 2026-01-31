@@ -1,5 +1,7 @@
 //! Module implementing traits for the Vec type.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::{
     iter::Cloned,
     ops::{Index, Range},

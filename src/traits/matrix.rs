@@ -1,5 +1,8 @@
 //! Trait defining a matrix.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 mod dense_matrix;
 mod dense_matrix2d;
 mod matrix2d;
@@ -38,10 +41,12 @@ pub trait Matrix {
     }
 
     #[must_use]
+    #[cfg(feature = "alloc")]
     /// Returns the shape of the matrix.
-    fn shape(&self) -> Vec<usize>;
+    fn shape(&self) -> alloc::vec::Vec<usize>;
 
     #[must_use]
+    #[cfg(feature = "alloc")]
     /// Returns the total number of values in the matrix.
     fn total_values(&self) -> usize {
         self.shape().iter().product()
@@ -55,10 +60,12 @@ impl<M: Matrix> Matrix for &M {
         M::dimensions()
     }
 
+    #[cfg(feature = "alloc")]
     fn shape(&self) -> Vec<usize> {
         (*self).shape()
     }
 
+    #[cfg(feature = "alloc")]
     fn total_values(&self) -> usize {
         (*self).total_values()
     }
@@ -132,6 +139,7 @@ impl<M: SparseMatrix> SparseMatrix for &M {
 /// Trait defining a sized sparse matrix.
 pub trait SizedSparseMatrix: SparseMatrix {
     #[allow(clippy::cast_precision_loss)]
+    #[cfg(feature = "alloc")]
     /// Returns the density of the matrix.
     fn density(&self) -> f64 {
         let defined_values = self.number_of_defined_values().into_usize();

@@ -30,7 +30,7 @@ fn test_lapjv() {
             .expect("Failed to create CSR matrix");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 1), (1, 0), (2, 2)]);
 }
 
@@ -45,7 +45,7 @@ fn test_lapjv_wide_rectangular() {
     .expect("Failed to create CSR matrix");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 1), (1, 0), (2, 2)]);
 }
 
@@ -61,7 +61,7 @@ fn test_lapjv_tall_rectangular() {
     .expect("Failed to create CSR matrix");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 1), (1, 0), (3, 2)]);
 }
 
@@ -74,7 +74,7 @@ fn test_lapjv_infinite_loop1() {
     csr.add((2, 2, 800.0)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 0), (2, 2)]);
 }
 
@@ -87,7 +87,7 @@ fn test_lapjv_infinite_loop2() {
     csr.add((1, 1, 2.0)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(1, 0)]);
 }
 
@@ -99,7 +99,7 @@ fn test_lapjv_infinite_loop3() {
     csr.add((0, 0, 1.0)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 0)]);
 }
 
@@ -113,7 +113,7 @@ fn test_lapjv_infinite_loop4() {
     csr.add((2, 0, 4.778_309_726_7e-5)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 2), (2, 0)]);
 }
 
@@ -125,7 +125,7 @@ fn test_raising_inconsistent_unassigned_rows() {
     csr.add((1, 1, 1e-2)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(0, 0), (1, 1)]);
 }
 
@@ -139,6 +139,6 @@ fn test_lapjv_inconsistent_with_hopcroft_karp2() {
     csr.add((4, 3, 2.0)).expect("Failed to add value");
 
     let mut assignment = csr.sparse_lapjv(900.0, 1_000_000.0).expect("LAPjv failed");
-    assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(3, 4), (4, 3)]);
 }

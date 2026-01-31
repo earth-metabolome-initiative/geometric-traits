@@ -1,6 +1,6 @@
 //! Submodule implementing Edges-related traits for [`SquareCSR2D`].
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,

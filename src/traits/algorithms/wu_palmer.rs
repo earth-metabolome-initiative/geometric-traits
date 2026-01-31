@@ -1,5 +1,7 @@
 //! Implementation for the 'Wu Palmer' trait based on the algorithm
 //! implementation
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use core::f64;
 

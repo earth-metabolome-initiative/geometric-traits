@@ -1,4 +1,6 @@
 //! Partial assignment for Hopcroft-Karp algorithm.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use super::HopcroftKarpError;
 use crate::traits::{IntoUsize, Number, SparseMatrix2D};

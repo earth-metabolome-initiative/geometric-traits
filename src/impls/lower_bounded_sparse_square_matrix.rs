@@ -2,7 +2,7 @@
 //! to the provided index are available. All other defined values with
 //! coordinates less than the provided index are considered undefined.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use super::MutabilityError;
 use crate::traits::SquareMatrix;
@@ -20,7 +20,7 @@ pub struct LowerBoundedSquareMatrix<M: SquareMatrix> {
 }
 
 impl<M: SquareMatrix + Debug> Debug for LowerBoundedSquareMatrix<M> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("LowerBoundedSquareMatrix")
             .field("matrix", &self.matrix)
             .field("index", &self.index)

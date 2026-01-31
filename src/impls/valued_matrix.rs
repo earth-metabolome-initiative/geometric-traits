@@ -1,5 +1,7 @@
 //! Submodule providing the `ValuedCsr2D` type, a 2D CSR matrix which stores
 //! values in addition to the row and column indices.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use core::fmt::Debug;
 

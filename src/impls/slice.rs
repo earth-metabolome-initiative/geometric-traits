@@ -1,5 +1,3 @@
-#[cfg(all(not(feature = "std"), feature = "alloc"))]
-use alloc::vec::Vec;
 use core::{iter::Cloned, ops::Range};
 
 use crate::{prelude::*, traits::Symbol};

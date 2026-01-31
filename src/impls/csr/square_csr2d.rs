@@ -1,4 +1,7 @@
 //! Submodule providing a definition of a CSR matrix.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use core::fmt::Debug;
 
 use num_traits::{One, Zero};

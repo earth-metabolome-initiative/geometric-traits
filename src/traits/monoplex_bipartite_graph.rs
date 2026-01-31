@@ -55,9 +55,10 @@ pub trait MonoplexBipartiteGraph:
     /// assert!(dot.contains("L0 -> R1;"));
     /// assert!(dot.contains("L1 -> R0;"));
     /// ```
-    fn to_mb_dot(&self) -> String {
-        use std::fmt::Write;
-        let mut dot = String::new();
+    #[cfg(feature = "alloc")]
+    fn to_mb_dot(&self) -> alloc::string::String {
+        use core::fmt::Write;
+        let mut dot = alloc::string::String::new();
         writeln!(dot, "  graph {{").unwrap();
 
         for left_node_id in self.left_node_ids() {

@@ -1,5 +1,7 @@
 //! A subset sparse square matrix, where only the existing coordinates that have
 //! both row and column ids are within a provided subset.
+#![cfg(feature = "alloc")]
+use alloc::vec::Vec;
 
 use num_traits::Zero;
 
