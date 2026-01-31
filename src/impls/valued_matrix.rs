@@ -2,7 +2,6 @@
 //! values in addition to the row and column indices.
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
-
 use core::fmt::Debug;
 
 use multi_ranged::Step;

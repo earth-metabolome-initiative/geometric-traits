@@ -5,11 +5,12 @@
 //! * They are monopartite, i.e., they have only one type of nodes.
 //! * They are monoplex, i.e., they have only one type of edges.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
 use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 #[cfg(feature = "alloc")]
 use crate::traits::IntoUsize;
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
 
 /// Trait defining the properties of monoplex monopartite graphs.
 pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonopartiteGraph>::MonoplexMonopartiteEdges>

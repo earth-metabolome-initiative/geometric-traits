@@ -10,7 +10,9 @@ pub enum IllegalMonopartiteGraphState<G: MonopartiteGraph + ?Sized> {
     /// nodes that can be represented by the graph's node ID type. This
     /// should be impossible to reach, and indicates some bug in the
     /// implementation of the graph traits.
-    #[error("The maximal number of nodes of the graph {number_of_nodes} is larger than the number of nodes that can be represented by the graph's node ID type.")]
+    #[error(
+        "The maximal number of nodes of the graph {number_of_nodes} is larger than the number of nodes that can be represented by the graph's node ID type."
+    )]
     TooManyNodes {
         /// The number of nodes that was reported.
         number_of_nodes: usize,

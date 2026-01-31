@@ -1,8 +1,9 @@
 //! Implementation of the `Arbitrary` trait for the `CSR2D` struct.
 
-use arbitrary::{Arbitrary, Unstructured};
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
+
+use arbitrary::{Arbitrary, Unstructured};
 
 use crate::{
     impls::{MutabilityError, ValuedCSR2D},

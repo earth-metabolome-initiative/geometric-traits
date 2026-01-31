@@ -2,7 +2,6 @@
 //! implementation
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
-
 use core::f64;
 
 use crate::traits::{

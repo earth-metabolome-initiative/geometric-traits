@@ -2,9 +2,9 @@
 //! provided parameters.
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
-
 #[cfg(feature = "std")]
 use std::collections::HashSet;
+
 #[cfg(all(feature = "hashbrown", not(feature = "std")))]
 use hashbrown::HashSet;
 

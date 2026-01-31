@@ -2,12 +2,9 @@
 
 #[cfg(feature = "alloc")]
 use crate::impls::{SymmetricCSR2D, UpperTriangularCSR2D};
-use crate::{
-    impls::MutabilityError,
-    traits::Edges,
-};
 #[cfg(feature = "alloc")]
 use crate::traits::{Matrix2D, SizedSparseMatrix2D, TryFromUsize};
+use crate::{impls::MutabilityError, traits::Edges};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 /// Enum representing the possible errors that can occur when building a graph.

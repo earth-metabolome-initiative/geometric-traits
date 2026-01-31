@@ -10,7 +10,9 @@ pub enum IllegalBipartiteGraphState<G: BipartiteGraph + ?Sized> {
     /// of nodes that can be represented by the graph's left node ID type.
     /// This should be impossible to reach, and indicates some bug in the
     /// implementation of the graph traits.
-    #[error("The maximal number of left nodes of the graph {number_of_left_nodes} is larger than the number of nodes that can be represented by the graph's left node ID type.")]
+    #[error(
+        "The maximal number of left nodes of the graph {number_of_left_nodes} is larger than the number of nodes that can be represented by the graph's left node ID type."
+    )]
     TooManyLeftNodes {
         /// The number of left nodes that was reported.
         number_of_left_nodes: usize,
@@ -19,7 +21,9 @@ pub enum IllegalBipartiteGraphState<G: BipartiteGraph + ?Sized> {
     /// of nodes that can be represented by the graph's right node ID type.
     /// This should be impossible to reach, and indicates some bug in the
     /// implementation of the graph traits.
-    #[error("The maximal number of right nodes of the graph {number_of_right_nodes} is larger than the number of nodes that can be represented by the graph's right node ID type.")]
+    #[error(
+        "The maximal number of right nodes of the graph {number_of_right_nodes} is larger than the number of nodes that can be represented by the graph's right node ID type."
+    )]
     TooManyRightNodes {
         /// The number of right nodes that was reported.
         number_of_right_nodes: usize,

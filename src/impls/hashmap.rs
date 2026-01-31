@@ -1,7 +1,6 @@
 //! Module implementing traits for the [`HashMap`] type.
 
-use core::iter::Cloned;
-use core::hash::BuildHasher;
+use core::{hash::BuildHasher, iter::Cloned};
 
 use crate::{prelude::*, traits::Symbol};
 

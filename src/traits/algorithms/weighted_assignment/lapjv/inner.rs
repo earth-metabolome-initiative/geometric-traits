@@ -1,7 +1,6 @@
 //! Submodule providing the concrete implementation of the LAPJV algorithm.
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
-
 use core::fmt::Debug;
 
 use num_traits::{Bounded, Zero};

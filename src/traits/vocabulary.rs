@@ -1,9 +1,9 @@
 //! A trait defining a conversion between a source symbol and a destination
 //! symbol.
 
-use core::fmt::Debug;
 #[cfg(feature = "alloc")]
 use alloc::{boxed::Box, rc::Rc};
+use core::fmt::Debug;
 
 use crate::{errors::builder::vocabulary::VocabularyBuilderError, traits::Symbol};
 
