@@ -1,7 +1,6 @@
 //! Submodule providing the `RootNodes` trait and its blanket
 //! implementation, which provides a method to retrieve the root nodes of the
 //! graph, which are the set of nodes with no predecessors.
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};

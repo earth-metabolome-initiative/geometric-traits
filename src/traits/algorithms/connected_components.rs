@@ -1,5 +1,4 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use num_traits::{One, Zero};

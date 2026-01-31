@@ -1,6 +1,5 @@
 //! Submodule providing `Information Content` structs
 //! and methods for use with algorithms such as `Resnik`
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 mod error;

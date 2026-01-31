@@ -1,7 +1,6 @@
 //! Submodule providing a padded matrix, which fills all of the values not
 //! defined in the underlying sparse matrix with the value provided by the Map
 //! function.
-#![cfg(feature = "alloc")]
 use alloc::{string::String, vec::Vec};
 use core::fmt::Debug;
 

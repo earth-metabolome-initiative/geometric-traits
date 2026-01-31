@@ -2,7 +2,6 @@
 //! diagonal, meaning it will not change the values of existing elements but
 //! will add new elements where missing. If the underlying matrix is
 //! rectangular, new rows and columns will be added to make it square.
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use num_traits::{Bounded, One, Zero};

@@ -1,5 +1,4 @@
 //! Submodule providing a definition of a CSR matrix.
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 use multi_ranged::Step;

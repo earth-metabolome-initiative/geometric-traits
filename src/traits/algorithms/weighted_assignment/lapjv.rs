@@ -1,5 +1,4 @@
 //! Submodule providing an implementation of the LAPJV algorithm.
-#![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
 mod errors;
