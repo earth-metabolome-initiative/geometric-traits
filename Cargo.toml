@@ -38,6 +38,7 @@ new_ret_no_self = "allow"
 struct_excessive_bools = "allow"
 should_panic_without_expect = "allow"
 doc_markdown = "allow"
+duplicated_attributes = "forbid"
 clone_on_copy = "forbid"
 pedantic = { level = "deny", priority = -1 }
 

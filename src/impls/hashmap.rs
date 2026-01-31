@@ -1,4 +1,4 @@
-//! Module implementing traits for the [`HashMap`] type.
+//! Module implementing traits for the `HashMap` type.
 
 use core::{hash::BuildHasher, iter::Cloned};
 
