@@ -57,7 +57,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
         self.matrix().number_of_defined_values_in_column(destination_node_id)
     }
 
-    /// Returns an iterator over the in-boynd degrees of the nodes.
+    /// Returns an iterator over the in-bound degrees of the nodes.
     fn in_degrees(&self) -> <<Self::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{
         self.matrix().sparse_column_sizes()
     }

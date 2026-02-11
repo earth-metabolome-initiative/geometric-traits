@@ -7,6 +7,25 @@ use num_traits::Zero;
 use crate::traits::{IntoUsize, PositiveInteger};
 
 /// Trait defining a vector.
+///
+/// # Examples
+///
+/// ```
+/// use geometric_traits::traits::Vector;
+///
+/// let vec = vec![10, 20, 30];
+/// assert_eq!(vec.len(), 3);
+/// assert!(!vec.is_empty());
+///
+/// let items: Vec<_> = vec.iter().cloned().collect();
+/// assert_eq!(items, vec![10, 20, 30]);
+///
+/// let indices: Vec<_> = vec.indices().collect();
+/// assert_eq!(indices, vec![0, 1, 2]);
+///
+/// let empty: Vec<i32> = Vec::new();
+/// assert!(empty.is_empty());
+/// ```
 pub trait Vector: Index<<Self as Vector>::Index, Output = <Self as Vector>::Value> {
     /// The value of the vector.
     type Value;

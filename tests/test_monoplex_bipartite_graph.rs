@@ -1,42 +1,139 @@
-//! Submodule to test the primary properties of a bipartite graph.
+//! Tests for MonoplexBipartiteGraph trait methods.
 
-use ::geometric_traits::prelude::*;
-use geometric_traits::impls::{SortedVec, ValuedCSR2D};
+use geometric_traits::{
+    impls::{CSR2D, SortedVec},
+    naive_structs::named_types::BiGraph,
+    prelude::*,
+    traits::{EdgesBuilder, MonoplexBipartiteGraph, VocabularyBuilder},
+};
+
+/// Helper to create a simple bipartite graph for testing.
+fn create_bipartite_graph() -> BiGraph<u16, u8> {
+    let edge_data: Vec<(usize, usize)> = vec![(0, 0), (0, 1), (1, 1), (1, 2), (2, 2)];
+
+    let left_nodes: SortedVec<u16> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(3)
+        .symbols(vec![10_u16, 20, 30].into_iter().enumerate())
+        .build()
+        .unwrap();
+
+    let right_nodes: SortedVec<u8> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(3)
+        .symbols(vec![1_u8, 2, 3].into_iter().enumerate())
+        .build()
+        .unwrap();
+
+    let edges: CSR2D<usize, usize, usize> =
+        GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+            .expected_number_of_edges(5)
+            .expected_shape((3, 3))
+            .edges(edge_data.into_iter())
+            .build()
+            .unwrap();
+
+    BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap()
+}
+
+// ============================================================================
+// DOT output tests
+// ============================================================================
 
 #[test]
-/// Test checking that the bipartite graph is correctly built.
-pub fn test_bipartite_graph() {
-    let left_nodes: Vec<u16> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
-    let right_nodes: Vec<u8> = vec![0, 1, 2, 3, 4, 5];
-    let edges: Vec<(usize, usize, f64)> =
-        vec![(1, 1, 1.0), (2, 2, 1.0), (3, 3, 1.0), (4, 4, 1.0), (5, 5, 1.0)];
+fn test_to_mb_dot_contains_graph_keyword() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    assert!(dot.contains("graph {"));
+}
+
+#[test]
+fn test_to_mb_dot_contains_left_nodes() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Left nodes should be labeled L0, L1, L2
+    assert!(dot.contains("L0"));
+    assert!(dot.contains("L1"));
+    assert!(dot.contains("L2"));
+}
+
+#[test]
+fn test_to_mb_dot_left_nodes_red() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Left nodes should be colored red
+    assert!(dot.contains("[color=red]"));
+}
+
+#[test]
+fn test_to_mb_dot_contains_right_nodes() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Right nodes should be labeled R0, R1, R2
+    assert!(dot.contains("R0"));
+    assert!(dot.contains("R1"));
+    assert!(dot.contains("R2"));
+}
+
+#[test]
+fn test_to_mb_dot_right_nodes_blue() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Right nodes should be colored blue
+    assert!(dot.contains("[color=blue]"));
+}
+
+#[test]
+fn test_to_mb_dot_contains_edges() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Should contain edge declarations
+    // Edges: (0,0), (0,1), (1,1), (1,2), (2,2)
+    assert!(dot.contains("L0 -> R0;"));
+    assert!(dot.contains("L0 -> R1;"));
+    assert!(dot.contains("L1 -> R1;"));
+    assert!(dot.contains("L1 -> R2;"));
+    assert!(dot.contains("L2 -> R2;"));
+}
+
+#[test]
+fn test_to_mb_dot_ends_properly() {
+    let graph = create_bipartite_graph();
+    let dot = graph.to_mb_dot();
+
+    // Should end with closing brace
+    assert!(dot.trim().ends_with('}'));
+}
+
+#[test]
+fn test_to_mb_dot_empty_graph() {
     let left_nodes: SortedVec<u16> = GenericVocabularyBuilder::default()
-        .expected_number_of_symbols(left_nodes.len())
-        .symbols(left_nodes.into_iter().enumerate())
+        .expected_number_of_symbols(0)
+        .symbols(core::iter::empty::<(usize, u16)>())
         .build()
         .unwrap();
+
     let right_nodes: SortedVec<u8> = GenericVocabularyBuilder::default()
-        .expected_number_of_symbols(right_nodes.len())
-        .symbols(right_nodes.into_iter().enumerate())
+        .expected_number_of_symbols(0)
+        .symbols(core::iter::empty::<(usize, u8)>())
         .build()
         .unwrap();
-    let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape((left_nodes.len(), right_nodes.len()))
-        .edges(edges.into_iter())
-        .build()
-        .unwrap();
-    let graph: GenericBiGraph<
-        SortedVec<u16>,
-        SortedVec<u8>,
-        ValuedCSR2D<usize, usize, usize, f64>,
-    > = GenericMonoplexBipartiteGraphBuilder::default()
-        .left_nodes(left_nodes)
-        .right_nodes(right_nodes)
-        .edges(edges)
-        .build()
-        .unwrap();
-    assert_eq!(graph.number_of_left_nodes(), 9);
-    assert_eq!(graph.number_of_right_nodes(), 6);
-    assert_eq!(graph.number_of_edges(), 5);
+
+    let edges: CSR2D<usize, usize, usize> =
+        GenericEdgesBuilder::<_, CSR2D<usize, usize, usize>>::default()
+            .expected_number_of_edges(0)
+            .expected_shape((0, 0))
+            .edges(core::iter::empty())
+            .build()
+            .unwrap();
+
+    let graph: BiGraph<u16, u8> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
+
+    let dot = graph.to_mb_dot();
+    assert!(dot.contains("graph {"));
+    assert!(dot.contains("}"));
 }

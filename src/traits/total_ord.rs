@@ -3,6 +3,23 @@
 use core::cmp::Ordering;
 
 /// Trait for total ordering.
+///
+/// # Examples
+///
+/// ```
+/// use core::cmp::Ordering;
+///
+/// use geometric_traits::traits::TotalOrd;
+///
+/// // Float comparison handles NaN correctly
+/// assert_eq!(1.0_f64.total_cmp(&2.0), Ordering::Less);
+/// assert_eq!(2.0_f64.total_cmp(&1.0), Ordering::Greater);
+/// assert_eq!(1.0_f64.total_cmp(&1.0), Ordering::Equal);
+///
+/// // Integer comparison
+/// assert_eq!(1_u32.total_cmp(&2), Ordering::Less);
+/// assert_eq!((-1_i32).total_cmp(&1), Ordering::Less);
+/// ```
 pub trait TotalOrd {
     /// Compare two values.
     fn total_cmp(&self, other: &Self) -> Ordering;

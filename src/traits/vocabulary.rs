@@ -9,6 +9,31 @@ use crate::{errors::builder::vocabulary::VocabularyBuilderError, traits::Symbol}
 
 /// Trait defining a conversion between a source symbol and a destination
 /// symbol.
+///
+/// # Examples
+///
+/// ```
+/// use geometric_traits::prelude::*;
+///
+/// // Vec<T> implements Vocabulary where indices are source symbols
+/// let vocab: Vec<&str> = vec!["apple", "banana", "cherry"];
+///
+/// assert_eq!(vocab.len(), 3);
+/// assert!(!vocab.is_empty());
+///
+/// // Convert index to value
+/// assert_eq!(vocab.convert(&0), Some("apple"));
+/// assert_eq!(vocab.convert(&1), Some("banana"));
+/// assert_eq!(vocab.convert(&3), None); // Out of bounds
+///
+/// // Iterate over sources (indices)
+/// let sources: Vec<_> = vocab.sources().collect();
+/// assert_eq!(sources, vec![0, 1, 2]);
+///
+/// // Iterate over destinations (values)
+/// let destinations: Vec<_> = vocab.destinations().collect();
+/// assert_eq!(destinations, vec!["apple", "banana", "cherry"]);
+/// ```
 pub trait Vocabulary: Debug {
     /// The source symbol.
     type SourceSymbol: Symbol;

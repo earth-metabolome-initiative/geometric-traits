@@ -3,6 +3,19 @@
 use core::fmt::Debug;
 
 /// Trait defining coordinates.
+///
+/// # Examples
+///
+/// ```
+/// use geometric_traits::traits::Coordinates;
+///
+/// assert_eq!(<()>::dimensions(), 0);
+/// assert_eq!(<(i32,)>::dimensions(), 1);
+/// assert_eq!(<(i32, i32)>::dimensions(), 2);
+/// assert_eq!(<(i32, i32, i32)>::dimensions(), 3);
+/// assert_eq!(<[f64; 2]>::dimensions(), 2);
+/// assert_eq!(<[f64; 3]>::dimensions(), 3);
+/// ```
 pub trait Coordinates: core::fmt::Debug {
     /// Returns the number of dimensions of the coordinate.
     fn dimensions() -> usize;
