@@ -359,3 +359,110 @@ where
         }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::{impls::CSR2D, traits::MatrixMut};
+
+    type TestCSR2D = CSR2D<usize, usize, usize>;
+    type TestUpperTriangular = UpperTriangularCSR2D<TestCSR2D>;
+
+    #[test]
+    fn test_upper_triangular_default() {
+        let ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        assert_eq!(ut.number_of_rows(), 0);
+        assert_eq!(ut.number_of_columns(), 0);
+        assert!(ut.is_empty());
+    }
+
+    #[test]
+    fn test_upper_triangular_with_sparse_shape() {
+        let ut: TestUpperTriangular = SparseMatrixMut::with_sparse_shape(3);
+        assert_eq!(ut.order(), 3);
+    }
+
+    #[test]
+    fn test_upper_triangular_add_valid_entries() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        // Diagonal entry
+        assert!(MatrixMut::add(&mut ut, (0, 0)).is_ok());
+        // Upper triangular entry (row < column)
+        assert!(MatrixMut::add(&mut ut, (0, 1)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (0, 2)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (1, 1)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (1, 2)).is_ok());
+        assert_eq!(ut.number_of_defined_values(), 5);
+    }
+
+    #[test]
+    fn test_upper_triangular_add_lower_triangular_error() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        // Lower triangular entry (row > column) should fail
+        assert!(MatrixMut::add(&mut ut, (1, 0)).is_err());
+        assert!(MatrixMut::add(&mut ut, (2, 0)).is_err());
+        assert!(MatrixMut::add(&mut ut, (2, 1)).is_err());
+    }
+
+    #[test]
+    fn test_upper_triangular_diagonal_values() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 1)).unwrap();
+        assert_eq!(ut.number_of_defined_diagonal_values(), 2);
+    }
+
+    #[test]
+    fn test_upper_triangular_sparse_row() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (0, 2)).unwrap();
+
+        let row0: Vec<usize> = ut.sparse_row(0).collect();
+        assert_eq!(row0, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_upper_triangular_has_entry() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 2)).unwrap();
+
+        assert!(!ut.has_entry(0, 0));
+        assert!(ut.has_entry(0, 1));
+        assert!(!ut.has_entry(1, 0));
+        assert!(ut.has_entry(1, 2));
+    }
+
+    #[test]
+    fn test_upper_triangular_shape() {
+        let ut: TestUpperTriangular = SparseMatrixMut::with_sparse_shape(4);
+        assert_eq!(ut.shape(), vec![4, 4]);
+    }
+
+    #[test]
+    fn test_upper_triangular_symmetrize() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 1)).unwrap();
+
+        let sym = ut.symmetrize();
+        // After symmetrization, (1, 0) should exist
+        assert!(sym.has_entry(0, 0));
+        assert!(sym.has_entry(0, 1));
+        assert!(sym.has_entry(1, 0)); // Added by symmetrization
+        assert!(sym.has_entry(1, 1));
+    }
+
+    #[test]
+    fn test_upper_triangular_debug() {
+        let ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        let debug = alloc::format!("{ut:?}");
+        assert!(debug.contains("UpperTriangularCSR2D"));
+    }
+}

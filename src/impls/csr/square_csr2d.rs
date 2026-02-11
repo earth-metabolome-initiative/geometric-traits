@@ -348,3 +348,120 @@ where
         }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::{impls::CSR2D, traits::MatrixMut};
+
+    type TestCSR2D = CSR2D<usize, usize, usize>;
+    type TestSquareCSR2D = SquareCSR2D<TestCSR2D>;
+
+    #[test]
+    fn test_square_csr2d_default() {
+        let sq: TestSquareCSR2D = SquareCSR2D::default();
+        assert_eq!(sq.number_of_rows(), 0);
+        assert_eq!(sq.number_of_columns(), 0);
+        assert!(sq.is_empty());
+    }
+
+    #[test]
+    fn test_square_csr2d_with_sparse_shape() {
+        let sq: TestSquareCSR2D = SparseMatrixMut::with_sparse_shape(3);
+        assert_eq!(sq.number_of_rows(), 3);
+        assert_eq!(sq.number_of_columns(), 3);
+        assert_eq!(sq.order(), 3);
+    }
+
+    #[test]
+    fn test_square_csr2d_add_entries() {
+        let mut sq: TestSquareCSR2D = SquareCSR2D::default();
+        assert!(MatrixMut::add(&mut sq, (0, 1)).is_ok());
+        assert!(MatrixMut::add(&mut sq, (1, 0)).is_ok());
+        assert!(MatrixMut::add(&mut sq, (1, 1)).is_ok());
+        assert_eq!(sq.number_of_defined_values(), 3);
+        assert_eq!(sq.order(), 2);
+    }
+
+    #[test]
+    fn test_square_csr2d_diagonal_values() {
+        let mut sq: TestSquareCSR2D = SquareCSR2D::default();
+        MatrixMut::add(&mut sq, (0, 0)).unwrap();
+        MatrixMut::add(&mut sq, (0, 1)).unwrap();
+        MatrixMut::add(&mut sq, (1, 1)).unwrap();
+        assert_eq!(sq.number_of_defined_diagonal_values(), 2);
+    }
+
+    #[test]
+    fn test_square_csr2d_sparse_row() {
+        let mut sq: TestSquareCSR2D = SquareCSR2D::default();
+        MatrixMut::add(&mut sq, (0, 0)).unwrap();
+        MatrixMut::add(&mut sq, (0, 2)).unwrap();
+        MatrixMut::add(&mut sq, (1, 1)).unwrap();
+
+        let row0: Vec<usize> = sq.sparse_row(0).collect();
+        assert_eq!(row0, vec![0, 2]);
+
+        let row1: Vec<usize> = sq.sparse_row(1).collect();
+        assert_eq!(row1, vec![1]);
+    }
+
+    #[test]
+    fn test_square_csr2d_has_entry() {
+        let mut sq: TestSquareCSR2D = SquareCSR2D::default();
+        MatrixMut::add(&mut sq, (0, 1)).unwrap();
+        MatrixMut::add(&mut sq, (1, 0)).unwrap();
+
+        assert!(!sq.has_entry(0, 0));
+        assert!(sq.has_entry(0, 1));
+        assert!(sq.has_entry(1, 0));
+        assert!(!sq.has_entry(1, 1));
+    }
+
+    #[test]
+    fn test_square_csr2d_shape() {
+        let mut sq: TestSquareCSR2D = SparseMatrixMut::with_sparse_shape(4);
+        MatrixMut::add(&mut sq, (0, 0)).unwrap();
+        assert_eq!(sq.shape(), vec![4, 4]);
+    }
+
+    #[test]
+    fn test_square_csr2d_transpose() {
+        let mut sq: TestSquareCSR2D = SquareCSR2D::default();
+        MatrixMut::add(&mut sq, (0, 1)).unwrap();
+        MatrixMut::add(&mut sq, (0, 2)).unwrap();
+
+        let transposed = sq.transpose();
+        assert!(transposed.has_entry(1, 0));
+        assert!(transposed.has_entry(2, 0));
+        assert!(!transposed.has_entry(0, 1));
+    }
+
+    #[test]
+    fn test_square_csr2d_increase_shape() {
+        let mut sq: TestSquareCSR2D = SparseMatrixMut::with_sparse_shape(2);
+        assert!(sq.increase_shape((4, 4)).is_ok());
+        assert_eq!(sq.order(), 4);
+    }
+
+    #[test]
+    fn test_square_csr2d_increase_shape_non_square_error() {
+        let mut sq: TestSquareCSR2D = SparseMatrixMut::with_sparse_shape(2);
+        assert!(sq.increase_shape((4, 3)).is_err());
+    }
+
+    #[test]
+    fn test_square_csr2d_debug() {
+        let sq: TestSquareCSR2D = SquareCSR2D::default();
+        let debug = alloc::format!("{sq:?}");
+        assert!(debug.contains("SquareCSR2D"));
+    }
+
+    #[test]
+    fn test_square_csr2d_as_ref() {
+        let sq: TestSquareCSR2D = SquareCSR2D::default();
+        let _inner: &TestCSR2D = sq.as_ref();
+    }
+}
