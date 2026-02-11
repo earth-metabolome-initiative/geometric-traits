@@ -1,4 +1,5 @@
 //! Submodule testing the `PaddedMatrix2D` struct.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{PaddedMatrix2D, ValuedCSR2D},

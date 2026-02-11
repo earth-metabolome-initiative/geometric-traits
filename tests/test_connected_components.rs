@@ -1,4 +1,5 @@
 //! Tests for ConnectedComponents trait.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SymmetricCSR2D},
@@ -157,7 +158,7 @@ fn test_node_ids_of_component() {
 
     // Get all node IDs in that component
     let mut node_ids: Vec<usize> = cc.node_ids_of_component(comp_0).collect();
-    node_ids.sort();
+    node_ids.sort_unstable();
 
     // Should contain nodes 0, 1, 2
     assert_eq!(node_ids, vec![0, 1, 2]);
@@ -173,7 +174,7 @@ fn test_nodes_of_component() {
 
     // Get all nodes in that component
     let mut nodes: Vec<usize> = cc.nodes_of_component(comp_3).collect();
-    nodes.sort();
+    nodes.sort_unstable();
 
     // Should contain nodes 3, 4
     assert_eq!(nodes, vec![3, 4]);

@@ -1,4 +1,5 @@
 //! Simple test for directed edges.
+#![cfg(feature = "std")]
 
 use ::geometric_traits::prelude::*;
 use geometric_traits::impls::{CSR2D, SquareCSR2D, UpperTriangularCSR2D};

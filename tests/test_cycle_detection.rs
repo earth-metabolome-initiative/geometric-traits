@@ -1,4 +1,5 @@
 //! Test submodule for the `CycleDetection` trait.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{SortedVec, SquareCSR2D},

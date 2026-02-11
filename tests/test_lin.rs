@@ -1,4 +1,5 @@
 //! Test submodule for the `Lin` trait.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SquareCSR2D},

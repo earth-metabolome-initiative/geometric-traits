@@ -1,4 +1,5 @@
 //! Tests for weighted graph traits: WeightedEdges, WeightedMonoplexGraph.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{SortedVec, ValuedCSR2D},

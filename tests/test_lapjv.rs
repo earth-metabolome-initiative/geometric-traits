@@ -1,5 +1,6 @@
 //! Unit tests to verify the correctness of the `LAPjv` algorithm
 //! implementation.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::ValuedCSR2D,

@@ -1,5 +1,6 @@
 //! Test submodule for the Johnson algorithm for finding all cycles in a
 //! directed graph.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D},

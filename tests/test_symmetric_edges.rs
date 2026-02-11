@@ -1,4 +1,5 @@
 //! Simple test for symmetric edges.
+#![cfg(feature = "std")]
 
 use ::geometric_traits::prelude::*;
 use geometric_traits::impls::{CSR2D, SymmetricCSR2D};

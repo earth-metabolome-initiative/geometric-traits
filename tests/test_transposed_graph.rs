@@ -1,4 +1,5 @@
 //! Tests for transposed graph traits: TransposedEdges, TransposedMonoplexGraph.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, GenericBiMatrix2D, SortedVec},
@@ -7,11 +8,14 @@ use geometric_traits::{
     traits::{EdgesBuilder, TransposedEdges, VocabularyBuilder},
 };
 
+/// Type alias for the bimatrix used in tests.
+type TestBiMatrix = GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>;
+
+/// Type alias for the test graph.
+type TestGraph = GenericGraph<SortedVec<usize>, TestBiMatrix>;
+
 /// Helper to create a simple graph for testing.
-fn create_test_graph() -> GenericGraph<
-    SortedVec<usize>,
-    GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>,
-> {
+fn create_test_graph() -> TestGraph {
     let nodes: Vec<usize> = vec![0, 1, 2, 3, 4];
     let edge_data: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 4)];
 
@@ -29,8 +33,7 @@ fn create_test_graph() -> GenericGraph<
             .build()
             .unwrap();
 
-    let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> =
-        GenericBiMatrix2D::new(edges);
+    let edges: TestBiMatrix = GenericBiMatrix2D::new(edges);
 
     GenericGraph::from((nodes, edges))
 }
@@ -185,13 +188,9 @@ fn test_single_node_no_edges() {
             .build()
             .unwrap();
 
-    let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> =
-        GenericBiMatrix2D::new(edges);
+    let edges: TestBiMatrix = GenericBiMatrix2D::new(edges);
 
-    let graph: GenericGraph<
-        SortedVec<usize>,
-        GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>,
-    > = GenericGraph::from((nodes, edges));
+    let graph: TestGraph = GenericGraph::from((nodes, edges));
 
     assert!(!graph.has_predecessors(0));
     assert_eq!(graph.in_degree(0), 0);
@@ -218,13 +217,9 @@ fn test_self_loop_predecessor() {
             .build()
             .unwrap();
 
-    let edges: GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>> =
-        GenericBiMatrix2D::new(edges);
+    let edges: TestBiMatrix = GenericBiMatrix2D::new(edges);
 
-    let graph: GenericGraph<
-        SortedVec<usize>,
-        GenericBiMatrix2D<CSR2D<usize, usize, usize>, CSR2D<usize, usize, usize>>,
-    > = GenericGraph::from((nodes, edges));
+    let graph: TestGraph = GenericGraph::from((nodes, edges));
 
     // Node 0 has itself as predecessor due to self-loop
     assert!(graph.has_predecessor(0, 0));

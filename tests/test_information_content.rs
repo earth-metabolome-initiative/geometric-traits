@@ -1,4 +1,6 @@
 //! Test submodule for the `Information Content` train
+#![cfg(feature = "std")]
+
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SquareCSR2D},
     prelude::{DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, InformationContent},

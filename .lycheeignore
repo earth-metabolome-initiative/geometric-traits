@@ -1,0 +1,13 @@
+# Academic publisher sites that block automated link checkers
+# These links are valid but return 403 Forbidden to bots
+
+# ACM Digital Library
+https://dl.acm.org/.*
+
+# DOI redirects to various publishers
+https://doi.org/10.1137/.*
+https://doi.org/10.1145/.*
+https://doi.org/10.1007/.*
+
+# SIAM Journal
+https://epubs.siam.org/.*

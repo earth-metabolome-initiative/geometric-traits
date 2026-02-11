@@ -1,4 +1,5 @@
 //! Test for a specific InChI failure case.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     errors::builder::edges::EdgesBuilderError, prelude::UndiEdgesBuilder, traits::EdgesBuilder,

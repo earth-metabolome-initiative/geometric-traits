@@ -267,3 +267,122 @@ impl<V: Symbol + Ord> GrowableVocabulary for SortedVec<V> {
         Ok(())
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec;
+
+    use super::*;
+
+    #[test]
+    fn test_sorted_vec_new() {
+        let sv: SortedVec<i32> = SortedVec::new();
+        assert!(sv.is_empty());
+        assert_eq!(sv.len(), 0);
+    }
+
+    #[test]
+    fn test_sorted_vec_with_capacity() {
+        let sv: SortedVec<i32> = SortedVec::with_capacity(10);
+        assert!(sv.is_empty());
+    }
+
+    #[test]
+    fn test_sorted_vec_try_from_sorted() {
+        let vec = vec![1, 2, 3, 4, 5];
+        let sv: SortedVec<i32> = SortedVec::try_from(vec).unwrap();
+        assert_eq!(sv.len(), 5);
+    }
+
+    #[test]
+    fn test_sorted_vec_try_from_unsorted() {
+        let vec = vec![1, 3, 2, 4];
+        let result: Result<SortedVec<i32>, _> = SortedVec::try_from(vec);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sorted_vec_get() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv.get(0), Some(&10));
+        assert_eq!(sv.get(1), Some(&20));
+        assert_eq!(sv.get(2), Some(&30));
+        assert_eq!(sv.get(3), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_first_last() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        assert_eq!(sv.first(), Some(&1));
+        assert_eq!(sv.last(), Some(&3));
+    }
+
+    #[test]
+    fn test_sorted_vec_push() {
+        let mut sv: SortedVec<i32> = SortedVec::new();
+        assert!(sv.push(1).is_ok());
+        assert!(sv.push(2).is_ok());
+        assert!(sv.push(3).is_ok());
+        assert_eq!(sv.len(), 3);
+    }
+
+    #[test]
+    fn test_sorted_vec_push_unsorted() {
+        let mut sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        assert!(sv.push(2).is_err());
+    }
+
+    #[test]
+    fn test_sorted_vec_binary_search() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 3, 5, 7, 9]).unwrap();
+        assert_eq!(sv.binary_search(&5), Ok(2));
+        assert_eq!(sv.binary_search(&4), Err(2));
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_convert() {
+        let sv: SortedVec<&str> = SortedVec::try_from(vec!["a", "b", "c"]).unwrap();
+        assert_eq!(Vocabulary::convert(&sv, &0), Some("a"));
+        assert_eq!(Vocabulary::convert(&sv, &1), Some("b"));
+        assert_eq!(Vocabulary::convert(&sv, &2), Some("c"));
+        assert_eq!(Vocabulary::convert(&sv, &3), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_sources() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        let sources: Vec<usize> = sv.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_destinations() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        let destinations: Vec<i32> = sv.destinations().collect();
+        assert_eq!(destinations, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_sorted_vec_bidirectional_vocabulary_invert() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv.invert(&10), Some(0));
+        assert_eq!(sv.invert(&20), Some(1));
+        assert_eq!(sv.invert(&30), Some(2));
+        assert_eq!(sv.invert(&25), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_iter() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        let items: Vec<&i32> = sv.iter().collect();
+        assert_eq!(items, vec![&1, &2, &3]);
+    }
+
+    #[test]
+    fn test_sorted_vec_index() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv[0], 10);
+        assert_eq!(sv[1], 20);
+        assert_eq!(sv[2], 30);
+    }
+}

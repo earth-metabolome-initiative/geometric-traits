@@ -1,4 +1,5 @@
 //! Tests for MonoplexMonopartiteGraph trait methods.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{SortedVec, SquareCSR2D},

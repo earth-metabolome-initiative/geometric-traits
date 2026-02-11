@@ -1,4 +1,5 @@
 //! Tests for Edge and AttributedEdge implementations on tuples.
+#![cfg(feature = "std")]
 
 use geometric_traits::traits::{AttributedEdge, Edge};
 

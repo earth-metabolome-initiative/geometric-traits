@@ -1,4 +1,5 @@
 //! Tests for Coordinates trait implementations.
+#![cfg(feature = "std")]
 
 use geometric_traits::traits::Coordinates;
 

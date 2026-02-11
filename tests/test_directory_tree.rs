@@ -1,4 +1,8 @@
 //! Tests for DirectoryTree struct.
+//!
+//! This module requires the `std` feature.
+
+#![cfg(feature = "std")]
 
 use std::path::PathBuf;
 

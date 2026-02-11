@@ -1,4 +1,5 @@
 //! Tests for LAPJVError enum.
+#![cfg(feature = "std")]
 
 use std::error::Error;
 

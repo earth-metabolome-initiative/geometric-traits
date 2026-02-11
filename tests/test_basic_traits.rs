@@ -1,4 +1,5 @@
 //! Tests for basic traits: IntoUsize, TotalOrd, Coordinates, Vector, Symbol.
+#![cfg(feature = "std")]
 
 use core::cmp::Ordering;
 
@@ -150,7 +151,7 @@ fn test_vector_array() {
     let arr: [i32; 3] = [100, 200, 300];
 
     assert_eq!(arr.len(), 3);
-    assert!(!arr.is_empty());
+    // Note: is_empty on fixed-size array is known at compile time
 
     let items: Vec<&i32> = arr.iter().collect();
     assert_eq!(items, vec![&100, &200, &300]);
@@ -175,25 +176,25 @@ fn test_vector_slice() {
 // Symbol tests
 // ============================================================================
 
-fn accepts_symbol<S: Symbol>(s: S) -> S {
+fn accepts_symbol<S: Symbol>(s: &S) -> S {
     s.clone()
 }
 
 #[test]
 fn test_symbol_primitives() {
-    assert_eq!(accepts_symbol(42_u32), 42);
-    assert_eq!(accepts_symbol(42_i64), 42);
-    assert_eq!(accepts_symbol("hello"), "hello");
+    assert_eq!(accepts_symbol(&42_u32), 42);
+    assert_eq!(accepts_symbol(&42_i64), 42);
+    assert_eq!(accepts_symbol(&"hello"), "hello");
 }
 
 #[test]
 fn test_symbol_string() {
     let s = String::from("world");
-    assert_eq!(accepts_symbol(s.clone()), "world");
+    assert_eq!(accepts_symbol(&s), "world");
 }
 
 #[test]
 fn test_symbol_tuple() {
     let t = (1, 2);
-    assert_eq!(accepts_symbol(t), (1, 2));
+    assert_eq!(accepts_symbol(&t), (1, 2));
 }

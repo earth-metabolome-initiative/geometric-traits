@@ -1,4 +1,5 @@
 //! Tests for MonoplexBipartiteGraph trait methods.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, SortedVec},
@@ -135,5 +136,5 @@ fn test_to_mb_dot_empty_graph() {
 
     let dot = graph.to_mb_dot();
     assert!(dot.contains("graph {"));
-    assert!(dot.contains("}"));
+    assert!(dot.contains('}'));
 }

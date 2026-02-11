@@ -1,4 +1,5 @@
 //! Tests for the Hopcroft-Karp algorithm.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::CSR2D,

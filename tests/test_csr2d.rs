@@ -1,4 +1,5 @@
 //! Submodule to test the CSR2D struct
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::CSR2D,

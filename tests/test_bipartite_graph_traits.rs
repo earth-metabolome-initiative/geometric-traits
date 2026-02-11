@@ -1,4 +1,5 @@
 //! Tests for BipartiteGraph trait methods.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, SortedVec},

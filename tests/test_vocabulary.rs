@@ -1,4 +1,8 @@
 //! Simple test for vocabulary.
+//!
+//! This module requires the `std` feature.
+
+#![cfg(feature = "std")]
 
 use ::geometric_traits::prelude::*;
 use geometric_traits::impls::SortedVec;

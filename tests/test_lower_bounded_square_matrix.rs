@@ -1,4 +1,5 @@
 //! Test submodule to test the `LowerBoundedSquareMatrix` struct.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, LowerBoundedSquareMatrix, SquareCSR2D},
