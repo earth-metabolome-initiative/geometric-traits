@@ -8,10 +8,14 @@
 use super::{BipartiteGraph, Edges, MonoplexGraph};
 
 /// Trait defining the properties of a monoplex bipartite graph.
+///
+/// This trait combines `MonoplexGraph` and `BipartiteGraph`, ensuring the
+/// edges have source/destination node types matching the left/right node types.
 pub trait MonoplexBipartiteGraph:
-    MonoplexGraph<Edges = <Self as MonoplexBipartiteGraph>::MonoplexBipartiteEdges> + BipartiteGraph
+    MonoplexGraph<Edges = Self::MonoplexBipartiteEdges> + BipartiteGraph
 {
-    /// The edges of the graph.
+    /// The edges of the graph, with source matching left nodes and destination
+    /// matching right nodes.
     type MonoplexBipartiteEdges: Edges<
             SourceNodeId = <Self as BipartiteGraph>::LeftNodeId,
             DestinationNodeId = <Self as BipartiteGraph>::RightNodeId,

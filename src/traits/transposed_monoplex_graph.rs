@@ -7,10 +7,12 @@ use super::{Edges, MonoplexGraph, TransposedEdges};
 use crate::traits::{SizedRowsSparseMatrix2D, SparseBiMatrix2D, SparseMatrix2D};
 
 /// Trait defining a transposed monoplex graph.
-pub trait TransposedMonoplexGraph:
-    MonoplexGraph<Edges = <Self as TransposedMonoplexGraph>::TransposedEdges>
-{
-    /// The types of the edges.
+///
+/// This trait extends `MonoplexGraph` with support for efficiently accessing
+/// predecessors of nodes.
+pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> {
+    /// The type of edges in the graph, which must support transposed (column)
+    /// access.
     type TransposedEdges: TransposedEdges;
 
     /// Returns the predecessors of the node with the given identifier.

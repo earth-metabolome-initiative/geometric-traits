@@ -13,18 +13,77 @@ use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 use crate::traits::IntoUsize;
 
 /// Trait defining the properties of monoplex monopartite graphs.
-pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonopartiteGraph>::MonoplexMonopartiteEdges>
-    + MonopartiteGraph<NodeId = <<Self as MonoplexMonopartiteGraph>::MonoplexMonopartiteEdges as MonopartiteEdges>::NodeId>
+///
+/// This trait binds `MonoplexGraph::Edges` to implement `MonopartiteEdges`
+/// with matching `NodeId`.
+pub trait MonoplexMonopartiteGraph:
+    MonoplexGraph<Edges = Self::MonoplexMonopartiteEdges> + MonopartiteGraph
 {
-    /// The type of edges in the graph.
-    type MonoplexMonopartiteEdges: MonopartiteEdges;
+    /// The type of edges in the graph, constrained to be monopartite with
+    /// matching node identifiers.
+    type MonoplexMonopartiteEdges: MonopartiteEdges<NodeId = <Self as MonopartiteGraph>::NodeId>;
 
     /// Returns whether the graph has self-loops.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
+    ///
+    /// // Graph with a self-loop (1, 1)
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges_with_loop: Vec<(usize, usize)> = vec![(0, 1), (1, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges_with_loop.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges_with_loop.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert!(graph.has_self_loops());
+    /// ```
     fn has_self_loops(&self) -> bool {
         self.edges().has_self_loops()
     }
 
     /// Returns the number of self-loops in the graph.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges_with_loops: Vec<(usize, usize)> = vec![(0, 0), (0, 1), (1, 1), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges_with_loops.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges_with_loops.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// assert_eq!(graph.number_of_self_loops(), 2);
+    /// ```
     fn number_of_self_loops(&self) -> Self::NodeId {
         self.edges().number_of_self_loops()
     }
@@ -36,10 +95,11 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
@@ -63,18 +123,19 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     }
 
     /// Returns the set of unique paths from the provided source node.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `source` - The identifier of the source node.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -95,10 +156,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// assert_eq!(paths.len(), 2);
     /// ```
     #[cfg(feature = "alloc")]
-    fn unique_paths_from(
-        &self,
-        source: Self::NodeId,
-    ) -> Vec<Vec<Self::NodeId>> {
+    fn unique_paths_from(&self, source: Self::NodeId) -> Vec<Vec<Self::NodeId>> {
         let mut growing_paths = vec![vec![source]];
         let mut growing_paths_tmp = Vec::new();
         let mut paths = Vec::new();
@@ -135,10 +193,11 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -191,10 +250,11 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -215,11 +275,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
     /// assert!(!graph.has_path(2, 0));
     /// ```
     #[cfg(feature = "alloc")]
-    fn has_path(
-        &self,
-        source: Self::NodeId,
-        destination: Self::NodeId,
-    ) -> bool {
+    fn has_path(&self, source: Self::NodeId, destination: Self::NodeId) -> bool {
         let mut visited_nodes = vec![false; self.number_of_nodes().into_usize()];
 
         let mut frontier = vec![source];
@@ -245,22 +301,24 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
         false
     }
 
-    /// Returns whether there exist a path from a provided source node to a target node,
-    /// possing through the provided node.
-    /// 
+    /// Returns whether there exist a path from a provided source node to a
+    /// target node, possing through the provided node.
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `source` - The identifier of the source node.
     /// * `destination` - The identifier of the destination node.
-    /// * `passing_through` - The identifier of the node that must be passed through.
-    /// 
+    /// * `passing_through` - The identifier of the node that must be passed
+    ///   through.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::SquareCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2, 3];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
@@ -286,8 +344,7 @@ pub trait MonoplexMonopartiteGraph: MonoplexGraph<Edges = <Self as MonoplexMonop
         destination: Self::NodeId,
         passing_through: Self::NodeId,
     ) -> bool {
-        self.has_path(source, passing_through)
-            && self.has_path(passing_through, destination)
+        self.has_path(source, passing_through) && self.has_path(passing_through, destination)
     }
 }
 

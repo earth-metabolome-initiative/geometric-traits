@@ -155,11 +155,10 @@ where
 }
 
 /// Trait defining a graph that has weighted edges.
+///
+/// This trait extends `MonoplexGraph` with support for weighted edges.
 pub trait WeightedMonoplexGraph:
-    MonoplexGraph<
-        Edges = <Self as WeightedMonoplexGraph>::WeightedEdges,
-        Edge = <Self as WeightedMonoplexGraph>::WeightedEdge,
-    >
+    MonoplexGraph<Edges = Self::WeightedEdges, Edge = Self::WeightedEdge>
 {
     /// The type of the weight.
     type Weight: Number;

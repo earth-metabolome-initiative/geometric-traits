@@ -86,15 +86,15 @@ where
     type WeightedBiMatrix = E::WeightedMatrix;
 }
 
-/// Trait defining a graph that has weighted edges.
+/// Trait defining a graph that has weighted edges with transposed access.
+///
+/// This trait combines `TransposedMonoplexGraph` and `WeightedMonoplexGraph`,
+/// requiring that the edges support both transposed access and weighted values.
 pub trait TransposedWeightedMonoplexGraph:
-    TransposedMonoplexGraph<
-        TransposedEdges = <Self as TransposedWeightedMonoplexGraph>::TransposedWeightedEdges,
-    > + WeightedMonoplexGraph<
-        WeightedEdges = <Self as TransposedWeightedMonoplexGraph>::TransposedWeightedEdges,
-    >
+    TransposedMonoplexGraph<TransposedEdges = Self::TransposedWeightedEdges>
+    + WeightedMonoplexGraph<WeightedEdges = Self::TransposedWeightedEdges>
 {
-    /// The type of the weighted edges.
+    /// The type of the weighted edges with transposed access.
     type TransposedWeightedEdges: TransposedWeightedEdges<
         Weight = <Self as WeightedMonoplexGraph>::Weight,
     >;

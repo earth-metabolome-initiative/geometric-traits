@@ -5,7 +5,7 @@
 //! * All nodes are of the same type.
 //! * All edges are bidirectional.
 
-use super::{MonopartiteEdges, MonoplexMonopartiteGraph, TransposedEdges};
+use super::{MonopartiteEdges, MonopartiteGraph, MonoplexMonopartiteGraph, TransposedEdges};
 use crate::traits::{
     SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseMatrix2D, SparseSymmetricMatrix2D,
     TransposedMonoplexGraph,
@@ -59,27 +59,31 @@ where
 }
 
 /// Trait defining the properties of monopartite undirected graphs.
-pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
-    MonoplexMonopartiteEdges = <Self as UndirectedMonopartiteMonoplexGraph>::UndirectedMonopartiteEdges,
-> + TransposedMonoplexGraph<
-    TransposedEdges = <Self as UndirectedMonopartiteMonoplexGraph>::UndirectedMonopartiteEdges,
-> {
-    /// The undirected edges of the graph.
-    type UndirectedMonopartiteEdges: UndirectedMonopartiteEdges;
+///
+/// This trait combines `MonoplexMonopartiteGraph` and
+/// `TransposedMonoplexGraph`, requiring that the edges are undirected
+/// (symmetric).
+pub trait UndirectedMonopartiteMonoplexGraph:
+    MonoplexMonopartiteGraph<MonoplexMonopartiteEdges = Self::UndirectedMonopartiteEdges>
+    + TransposedMonoplexGraph<TransposedEdges = Self::UndirectedMonopartiteEdges>
+{
+    /// The undirected edges of the graph, constrained to have matching node
+    /// identifiers.
+    type UndirectedMonopartiteEdges: UndirectedMonopartiteEdges<
+        NodeId = <Self as MonopartiteGraph>::NodeId,
+    >;
 
     /// Returns the neighbors of the node with the given identifier.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::impls::SymmetricCSR2D;
-    /// use geometric_traits::impls::UpperTriangularCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericUndirectedMonopartiteEdgesBuilder;
-    /// use geometric_traits::naive_structs::GenericGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
+    ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
@@ -88,13 +92,19 @@ pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
     ///     .symbols(nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> = GenericUndirectedMonopartiteEdgesBuilder::<_, UpperTriangularCSR2D<CSR2D<usize, usize, usize>>, SymmetricCSR2D<CSR2D<usize, usize, usize>>>::default()
+    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+    ///     GenericUndirectedMonopartiteEdgesBuilder::<
+    ///         _,
+    ///         UpperTriangularCSR2D<CSR2D<usize, usize, usize>>,
+    ///         SymmetricCSR2D<CSR2D<usize, usize, usize>>,
+    ///     >::default()
     ///     .expected_number_of_edges(edges.len())
     ///     .expected_shape(nodes.len())
     ///     .edges(edges.into_iter())
     ///     .build()
     ///     .unwrap();
-    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> =
+    ///     GenericGraph::from((nodes, edges));
     ///
     /// let neighbors: Vec<usize> = graph.neighbors(1).collect();
     /// assert_eq!(neighbors, vec![0, 2]);
@@ -111,14 +121,12 @@ pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::impls::SymmetricCSR2D;
-    /// use geometric_traits::impls::UpperTriangularCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericUndirectedMonopartiteEdgesBuilder;
-    /// use geometric_traits::naive_structs::GenericGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
+    ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
@@ -127,13 +135,19 @@ pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
     ///     .symbols(nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> = GenericUndirectedMonopartiteEdgesBuilder::<_, UpperTriangularCSR2D<CSR2D<usize, usize, usize>>, SymmetricCSR2D<CSR2D<usize, usize, usize>>>::default()
+    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+    ///     GenericUndirectedMonopartiteEdgesBuilder::<
+    ///         _,
+    ///         UpperTriangularCSR2D<CSR2D<usize, usize, usize>>,
+    ///         SymmetricCSR2D<CSR2D<usize, usize, usize>>,
+    ///     >::default()
     ///     .expected_number_of_edges(edges.len())
     ///     .expected_shape(nodes.len())
     ///     .edges(edges.into_iter())
     ///     .build()
     ///     .unwrap();
-    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> =
+    ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.degree(1), 2);
     /// ```
@@ -146,14 +160,12 @@ pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
     /// # Examples
     ///
     /// ```
-    /// use geometric_traits::impls::SortedVec;
-    /// use geometric_traits::impls::CSR2D;
-    /// use geometric_traits::impls::SymmetricCSR2D;
-    /// use geometric_traits::impls::UpperTriangularCSR2D;
-    /// use geometric_traits::prelude::*;
-    /// use geometric_traits::naive_structs::GenericUndirectedMonopartiteEdgesBuilder;
-    /// use geometric_traits::naive_structs::GenericGraph;
-    /// use geometric_traits::traits::{EdgesBuilder, VocabularyBuilder};
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
+    ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, VocabularyBuilder},
+    /// };
     ///
     /// let nodes: Vec<usize> = vec![0, 1, 2];
     /// let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2)];
@@ -162,13 +174,19 @@ pub trait UndirectedMonopartiteMonoplexGraph: MonoplexMonopartiteGraph<
     ///     .symbols(nodes.into_iter().enumerate())
     ///     .build()
     ///     .unwrap();
-    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> = GenericUndirectedMonopartiteEdgesBuilder::<_, UpperTriangularCSR2D<CSR2D<usize, usize, usize>>, SymmetricCSR2D<CSR2D<usize, usize, usize>>>::default()
+    /// let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+    ///     GenericUndirectedMonopartiteEdgesBuilder::<
+    ///         _,
+    ///         UpperTriangularCSR2D<CSR2D<usize, usize, usize>>,
+    ///         SymmetricCSR2D<CSR2D<usize, usize, usize>>,
+    ///     >::default()
     ///     .expected_number_of_edges(edges.len())
     ///     .expected_shape(nodes.len())
     ///     .edges(edges.into_iter())
     ///     .build()
     ///     .unwrap();
-    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> = GenericGraph::from((nodes, edges));
+    /// let graph: GenericGraph<SortedVec<usize>, SymmetricCSR2D<CSR2D<usize, usize, usize>>> =
+    ///     GenericGraph::from((nodes, edges));
     ///
     /// let degrees: Vec<usize> = graph.degrees().collect();
     /// assert_eq!(degrees, vec![1, 2, 1]);
