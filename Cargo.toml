@@ -2,6 +2,15 @@
 name = "geometric-traits"
 version = "0.1.0"
 edition = "2024"
+authors = ["The Earth Metabolome Initiative"]
+description = "Trait-based algebraic and graph algorithms for Rust, supporting no_std environments"
+license = "MIT"
+repository = "https://github.com/earth-metabolome-initiative/geometric-traits"
+documentation = "https://docs.rs/geometric-traits"
+readme = "README.md"
+keywords = ["graph", "algorithms", "traits", "no_std", "bipartite"]
+categories = ["algorithms", "data-structures", "no-std"]
+rust-version = "1.85"
 
 [dependencies]
 serde = { version = "1.0.225", features = ["derive"], default-features = false, optional = true }
