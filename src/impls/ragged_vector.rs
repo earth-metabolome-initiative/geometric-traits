@@ -380,3 +380,151 @@ where
         }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    type TestRaggedVector = RaggedVector<usize, usize, usize>;
+
+    #[test]
+    fn test_ragged_vector_default() {
+        let rv: TestRaggedVector = RaggedVector::default();
+        assert_eq!(rv.number_of_rows(), 0);
+        assert_eq!(rv.number_of_columns(), 0);
+        assert_eq!(rv.number_of_defined_values(), 0);
+        assert!(rv.is_empty());
+    }
+
+    #[test]
+    fn test_ragged_vector_with_sparse_shape() {
+        let rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 4));
+        assert_eq!(rv.number_of_rows(), 3);
+        assert_eq!(rv.number_of_columns(), 4);
+        assert!(rv.is_empty());
+    }
+
+    #[test]
+    fn test_ragged_vector_add_entries() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 0)).is_ok());
+        assert!(rv.add((0, 1)).is_ok());
+        assert!(rv.add((1, 2)).is_ok());
+        assert_eq!(rv.number_of_defined_values(), 3);
+        assert_eq!(rv.number_of_rows(), 2);
+        assert_eq!(rv.number_of_columns(), 3);
+    }
+
+    #[test]
+    fn test_ragged_vector_add_duplicate_error() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 1)).is_ok());
+        assert!(rv.add((0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_add_unordered_error() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 2)).is_ok());
+        assert!(rv.add((0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_sparse_row() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 3)).unwrap();
+        rv.add((1, 2)).unwrap();
+
+        let row0: Vec<usize> = rv.sparse_row(0).collect();
+        assert_eq!(row0, vec![1, 3]);
+
+        let row1: Vec<usize> = rv.sparse_row(1).collect();
+        assert_eq!(row1, vec![2]);
+
+        // Empty row
+        let row2: Vec<usize> = rv.sparse_row(2).collect();
+        assert!(row2.is_empty());
+    }
+
+    #[test]
+    fn test_ragged_vector_has_entry() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 3)).unwrap();
+
+        assert!(!rv.has_entry(0, 0));
+        assert!(rv.has_entry(0, 1));
+        assert!(!rv.has_entry(0, 2));
+        assert!(rv.has_entry(0, 3));
+        assert!(!rv.has_entry(1, 0));
+    }
+
+    #[test]
+    fn test_ragged_vector_shape() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((2, 5)).unwrap();
+        assert_eq!(rv.shape(), vec![3, 6]);
+    }
+
+    #[test]
+    fn test_ragged_vector_empty_rows() {
+        let mut rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 3));
+        rv.add((0, 1)).unwrap();
+        rv.add((2, 0)).unwrap();
+
+        assert_eq!(rv.number_of_non_empty_rows(), 2);
+        assert_eq!(rv.number_of_empty_rows(), 1);
+    }
+
+    #[test]
+    fn test_ragged_vector_increase_shape() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 0)).unwrap();
+        assert!(rv.increase_shape((5, 5)).is_ok());
+        assert_eq!(rv.number_of_rows(), 5);
+        assert_eq!(rv.number_of_columns(), 5);
+    }
+
+    #[test]
+    fn test_ragged_vector_increase_shape_error() {
+        let mut rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert!(rv.increase_shape((2, 3)).is_err());
+        assert!(rv.increase_shape((3, 2)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_transpose() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 2)).unwrap();
+        rv.add((1, 0)).unwrap();
+
+        let transposed: TestRaggedVector = rv.transpose();
+        assert!(transposed.has_entry(1, 0));
+        assert!(transposed.has_entry(2, 0));
+        assert!(transposed.has_entry(0, 1));
+    }
+
+    #[test]
+    fn test_ragged_vector_last_sparse_coordinates() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert_eq!(rv.last_sparse_coordinates(), None);
+
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 2)).unwrap();
+        assert_eq!(rv.last_sparse_coordinates(), Some((0, 2)));
+
+        rv.add((1, 3)).unwrap();
+        assert_eq!(rv.last_sparse_coordinates(), Some((1, 3)));
+    }
+
+    #[test]
+    fn test_ragged_vector_debug() {
+        let rv: TestRaggedVector = RaggedVector::default();
+        let debug = alloc::format!("{rv:?}");
+        assert!(debug.contains("RaggedVector"));
+    }
+}

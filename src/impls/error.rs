@@ -195,3 +195,131 @@ where
         }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::string::ToString;
+
+    use super::*;
+
+    // Simple test matrix type for testing error display
+    #[derive(PartialEq, Eq)]
+    struct TestMatrix;
+
+    impl Matrix2D for TestMatrix {
+        type RowIndex = usize;
+        type ColumnIndex = usize;
+
+        fn number_of_rows(&self) -> Self::RowIndex {
+            0
+        }
+
+        fn number_of_columns(&self) -> Self::ColumnIndex {
+            0
+        }
+    }
+
+    impl crate::traits::Matrix for TestMatrix {
+        type Coordinates = (usize, usize);
+
+        fn shape(&self) -> alloc::vec::Vec<usize> {
+            alloc::vec![0, 0]
+        }
+    }
+
+    #[test]
+    fn test_mutability_error_unordered_coordinate_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::UnorderedCoordinate((1, 2));
+        let display = error.to_string();
+        assert!(display.contains("Unordered coordinate"));
+        assert!(display.contains("(1, 2)"));
+    }
+
+    #[test]
+    fn test_mutability_error_duplicated_entry_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::DuplicatedEntry((3, 4));
+        let display = error.to_string();
+        assert!(display.contains("Duplicated entry"));
+        assert!(display.contains("(3, 4)"));
+    }
+
+    #[test]
+    fn test_mutability_error_out_of_bounds_display() {
+        let error: MutabilityError<TestMatrix> =
+            MutabilityError::OutOfBounds((5, 6), (10, 10), "test context");
+        let display = error.to_string();
+        assert!(display.contains("out of"));
+        assert!(display.contains("bounds"));
+        assert!(display.contains("test context"));
+    }
+
+    #[test]
+    fn test_mutability_error_maxed_out_row_index_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::MaxedOutRowIndex;
+        let display = error.to_string();
+        assert!(display.contains("Row index"));
+        assert!(display.contains("maxed out"));
+    }
+
+    #[test]
+    fn test_mutability_error_maxed_out_column_index_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::MaxedOutColumnIndex;
+        let display = error.to_string();
+        assert!(display.contains("Column index"));
+        assert!(display.contains("maxed out"));
+    }
+
+    #[test]
+    fn test_mutability_error_maxed_out_sparse_index_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::MaxedOutSparseIndex;
+        let display = error.to_string();
+        assert!(display.contains("Sparse index"));
+        assert!(display.contains("maxed out"));
+    }
+
+    #[test]
+    fn test_mutability_error_incompatible_shape_display() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::IncompatibleShape;
+        let display = error.to_string();
+        assert!(display.contains("shape"));
+        assert!(display.contains("smaller"));
+    }
+
+    #[test]
+    fn test_error_display() {
+        let mutability_error: MutabilityError<TestMatrix> =
+            MutabilityError::UnorderedCoordinate((1, 2));
+        let error: Error<TestMatrix> = Error::Mutability(mutability_error);
+        let display = error.to_string();
+        assert!(display.contains("Mutability error"));
+    }
+
+    #[test]
+    fn test_error_from_mutability_error() {
+        let mutability_error: MutabilityError<TestMatrix> =
+            MutabilityError::DuplicatedEntry((1, 2));
+        let error: Error<TestMatrix> = mutability_error.into();
+        match error {
+            Error::Mutability(inner) => {
+                assert_eq!(inner, MutabilityError::DuplicatedEntry((1, 2)));
+            }
+        }
+    }
+
+    #[test]
+    fn test_mutability_error_equality() {
+        let error1: MutabilityError<TestMatrix> = MutabilityError::UnorderedCoordinate((1, 2));
+        let error2: MutabilityError<TestMatrix> = MutabilityError::UnorderedCoordinate((1, 2));
+        let error3: MutabilityError<TestMatrix> = MutabilityError::UnorderedCoordinate((3, 4));
+
+        assert_eq!(error1, error2);
+        assert_ne!(error1, error3);
+    }
+
+    #[test]
+    fn test_mutability_error_debug() {
+        let error: MutabilityError<TestMatrix> = MutabilityError::MaxedOutRowIndex;
+        let debug = alloc::format!("{error:?}");
+        assert!(debug.contains("Row index"));
+    }
+}

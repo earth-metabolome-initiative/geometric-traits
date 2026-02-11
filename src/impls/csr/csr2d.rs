@@ -521,3 +521,188 @@ where
         transposed
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::traits::MatrixMut;
+
+    type TestCSR2D = CSR2D<usize, usize, usize>;
+
+    #[test]
+    fn test_csr2d_default() {
+        let csr: TestCSR2D = CSR2D::default();
+        assert_eq!(csr.number_of_rows(), 0);
+        assert_eq!(csr.number_of_columns(), 0);
+        assert_eq!(csr.number_of_defined_values(), 0);
+        assert!(csr.is_empty());
+    }
+
+    #[test]
+    fn test_csr2d_with_sparse_shape() {
+        let csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((3, 4));
+        assert_eq!(csr.number_of_rows(), 3);
+        assert_eq!(csr.number_of_columns(), 4);
+        assert!(csr.is_empty());
+    }
+
+    #[test]
+    fn test_csr2d_with_sparse_capacity() {
+        let csr: TestCSR2D = SparseMatrixMut::with_sparse_capacity(10);
+        assert!(csr.is_empty());
+    }
+
+    #[test]
+    fn test_csr2d_add_entries() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        assert!(MatrixMut::add(&mut csr, (0, 0)).is_ok());
+        assert!(MatrixMut::add(&mut csr, (0, 1)).is_ok());
+        assert!(MatrixMut::add(&mut csr, (1, 2)).is_ok());
+        assert_eq!(csr.number_of_defined_values(), 3);
+        assert_eq!(csr.number_of_rows(), 2);
+        assert_eq!(csr.number_of_columns(), 3);
+    }
+
+    #[test]
+    fn test_csr2d_add_duplicate_error() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        assert!(MatrixMut::add(&mut csr, (0, 1)).is_ok());
+        assert!(MatrixMut::add(&mut csr, (0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_csr2d_add_unordered_error() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        assert!(MatrixMut::add(&mut csr, (0, 2)).is_ok());
+        assert!(MatrixMut::add(&mut csr, (0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_csr2d_sparse_row() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (0, 3)).unwrap();
+        MatrixMut::add(&mut csr, (1, 2)).unwrap();
+
+        let row0: Vec<usize> = csr.sparse_row(0).collect();
+        assert_eq!(row0, vec![1, 3]);
+
+        let row1: Vec<usize> = csr.sparse_row(1).collect();
+        assert_eq!(row1, vec![2]);
+    }
+
+    #[test]
+    fn test_csr2d_has_entry() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (0, 3)).unwrap();
+
+        assert!(!csr.has_entry(0, 0));
+        assert!(csr.has_entry(0, 1));
+        assert!(!csr.has_entry(0, 2));
+        assert!(csr.has_entry(0, 3));
+    }
+
+    #[test]
+    fn test_csr2d_shape() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((3, 4));
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        assert_eq!(csr.shape(), vec![3, 4]);
+    }
+
+    #[test]
+    fn test_csr2d_sparse_coordinates() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (1, 0)).unwrap();
+
+        let coords: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(&csr).collect();
+        assert_eq!(coords, vec![(0, 0), (0, 1), (1, 0)]);
+    }
+
+    #[test]
+    fn test_csr2d_last_sparse_coordinates() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        assert_eq!(csr.last_sparse_coordinates(), None);
+
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        assert_eq!(csr.last_sparse_coordinates(), Some((0, 1)));
+
+        MatrixMut::add(&mut csr, (1, 2)).unwrap();
+        assert_eq!(csr.last_sparse_coordinates(), Some((1, 2)));
+    }
+
+    #[test]
+    fn test_csr2d_transpose() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (0, 2)).unwrap();
+        MatrixMut::add(&mut csr, (1, 0)).unwrap();
+
+        let transposed: TestCSR2D = csr.transpose();
+        assert!(transposed.has_entry(1, 0));
+        assert!(transposed.has_entry(2, 0));
+        assert!(transposed.has_entry(0, 1));
+    }
+
+    #[test]
+    fn test_csr2d_empty_rows() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (2, 0)).unwrap();
+
+        assert_eq!(csr.number_of_non_empty_rows(), 2);
+        assert_eq!(csr.number_of_empty_rows(), 1);
+    }
+
+    #[test]
+    fn test_csr2d_increase_shape() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        assert!(csr.increase_shape((4, 4)).is_ok());
+        assert_eq!(csr.number_of_rows(), 4);
+        assert_eq!(csr.number_of_columns(), 4);
+    }
+
+    #[test]
+    fn test_csr2d_increase_shape_error() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert!(csr.increase_shape((2, 3)).is_err());
+        assert!(csr.increase_shape((3, 2)).is_err());
+    }
+
+    #[test]
+    fn test_csr2d_rank_and_select() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (1, 0)).unwrap();
+
+        // rank returns the sparse index for a given (row, column)
+        assert_eq!(csr.rank(&(0, 0)), 0);
+        assert_eq!(csr.rank(&(0, 1)), 1);
+        assert_eq!(csr.rank(&(1, 0)), 2);
+
+        // select returns the (row, column) for a given sparse index
+        assert_eq!(csr.select(0), (0, 0));
+        assert_eq!(csr.select(2), (1, 0));
+    }
+
+    #[test]
+    fn test_csr2d_debug() {
+        let csr: TestCSR2D = CSR2D::default();
+        let debug = alloc::format!("{csr:?}");
+        assert!(debug.contains("CSR2D"));
+    }
+
+    #[test]
+    fn test_csr2d_clone() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        let cloned = csr.clone();
+        assert_eq!(csr, cloned);
+    }
+}

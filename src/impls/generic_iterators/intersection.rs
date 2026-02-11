@@ -138,3 +138,107 @@ pub trait SortedIterator: Iterator {
 }
 
 impl<I: Iterator> SortedIterator for I {}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    #[test]
+    fn test_intersection_empty_iterators() {
+        let iter1 = core::iter::empty::<i32>();
+        let iter2 = core::iter::empty::<i32>();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersection_first_empty() {
+        let iter1 = core::iter::empty::<i32>();
+        let iter2 = [1, 2, 3].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersection_second_empty() {
+        let iter1 = [1, 2, 3].into_iter();
+        let iter2 = core::iter::empty::<i32>();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersection_no_common_elements() {
+        let iter1 = [1, 3, 5].into_iter();
+        let iter2 = [2, 4, 6].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersection_all_common() {
+        let iter1 = [1, 2, 3].into_iter();
+        let iter2 = [1, 2, 3].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert_eq!(result, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_intersection_some_common() {
+        let iter1 = [1, 2, 3, 4, 5].into_iter();
+        let iter2 = [2, 4, 6].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert_eq!(result, vec![2, 4]);
+    }
+
+    #[test]
+    fn test_intersection_single_element_match() {
+        let iter1 = [1, 2, 3].into_iter();
+        let iter2 = [2].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert_eq!(result, vec![2]);
+    }
+
+    #[test]
+    fn test_intersection_different_lengths() {
+        let iter1 = [1, 2].into_iter();
+        let iter2 = [1, 2, 3, 4, 5].into_iter();
+        let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
+        assert_eq!(result, vec![1, 2]);
+    }
+
+    #[test]
+    fn test_sorted_iterator_trait() {
+        let iter1 = [1, 2, 3, 4, 5].into_iter();
+        let iter2 = [2, 4].into_iter();
+        let result: Vec<i32> = iter1.sorted_intersection(iter2).collect();
+        assert_eq!(result, vec![2, 4]);
+    }
+
+    #[test]
+    fn test_intersection_double_ended_next_back() {
+        let iter1 = [1, 2, 3, 4, 5].into_iter();
+        let iter2 = [2, 3, 4].into_iter();
+        let mut intersection = Intersection::new(iter1, iter2);
+        assert_eq!(intersection.next_back(), Some(4));
+        assert_eq!(intersection.next_back(), Some(3));
+        assert_eq!(intersection.next_back(), Some(2));
+        assert_eq!(intersection.next_back(), None);
+    }
+
+    #[test]
+    fn test_intersection_double_ended_mixed() {
+        let iter1 = [1, 2, 3, 4, 5].into_iter();
+        let iter2 = [1, 2, 3, 4, 5].into_iter();
+        let mut intersection = Intersection::new(iter1, iter2);
+        assert_eq!(intersection.next(), Some(1));
+        assert_eq!(intersection.next_back(), Some(5));
+        assert_eq!(intersection.next(), Some(2));
+        assert_eq!(intersection.next_back(), Some(4));
+        assert_eq!(intersection.next(), Some(3));
+        assert_eq!(intersection.next(), None);
+        assert_eq!(intersection.next_back(), None);
+    }
+}

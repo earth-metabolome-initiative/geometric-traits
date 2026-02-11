@@ -438,3 +438,133 @@ where
         self.values[start..end].iter().cloned()
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    type TestValuedCSR2D = ValuedCSR2D<usize, usize, usize, i32>;
+
+    #[test]
+    fn test_valued_csr2d_default() {
+        let matrix: TestValuedCSR2D = ValuedCSR2D::default();
+        assert_eq!(matrix.number_of_rows(), 0);
+        assert_eq!(matrix.number_of_columns(), 0);
+        assert_eq!(matrix.number_of_defined_values(), 0);
+        assert!(matrix.is_empty());
+    }
+
+    #[test]
+    fn test_valued_csr2d_with_sparse_capacity() {
+        let matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_capacity(10);
+        assert!(matrix.is_empty());
+    }
+
+    #[test]
+    fn test_valued_csr2d_with_sparse_shape() {
+        let matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 4));
+        assert_eq!(matrix.number_of_rows(), 3);
+        assert_eq!(matrix.number_of_columns(), 4);
+        assert!(matrix.is_empty());
+    }
+
+    #[test]
+    fn test_valued_csr2d_add_entries() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert!(matrix.add((0, 1, 10)).is_ok());
+        assert!(matrix.add((1, 0, 20)).is_ok());
+        assert!(matrix.add((1, 2, 30)).is_ok());
+        assert_eq!(matrix.number_of_defined_values(), 3);
+    }
+
+    #[test]
+    fn test_valued_csr2d_sparse_values() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.add((0, 1, 2)).unwrap();
+        matrix.add((1, 0, 3)).unwrap();
+
+        let values: Vec<i32> = matrix.sparse_values().collect();
+        assert_eq!(values, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_sparse_row_values() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 1, 20)).unwrap();
+        matrix.add((1, 2, 30)).unwrap();
+
+        let row0_values: Vec<i32> = matrix.sparse_row_values(0).collect();
+        assert_eq!(row0_values, vec![10, 20]);
+
+        let row1_values: Vec<i32> = matrix.sparse_row_values(1).collect();
+        assert_eq!(row1_values, vec![30]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_sparse_row() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 2, 20)).unwrap();
+
+        let row0_cols: Vec<usize> = matrix.sparse_row(0).collect();
+        assert_eq!(row0_cols, vec![0, 2]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_has_entry() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 1, 10)).unwrap();
+
+        assert!(!matrix.has_entry(0, 0));
+        assert!(matrix.has_entry(0, 1));
+        assert!(!matrix.has_entry(1, 0));
+    }
+
+    #[test]
+    fn test_valued_csr2d_select_value() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 100)).unwrap();
+        matrix.add((0, 1, 200)).unwrap();
+        matrix.add((1, 1, 300)).unwrap();
+
+        assert_eq!(matrix.select_value(0), 100);
+        assert_eq!(matrix.select_value(1), 200);
+        assert_eq!(matrix.select_value(2), 300);
+    }
+
+    #[test]
+    fn test_valued_csr2d_shape() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 4));
+        matrix.add((0, 0, 1)).unwrap();
+        assert_eq!(matrix.shape(), vec![3, 4]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_increase_shape() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        assert!(matrix.increase_shape((4, 4)).is_ok());
+        assert_eq!(matrix.number_of_rows(), 4);
+        assert_eq!(matrix.number_of_columns(), 4);
+    }
+
+    #[test]
+    fn test_valued_csr2d_debug() {
+        let matrix: TestValuedCSR2D = ValuedCSR2D::default();
+        let debug = alloc::format!("{matrix:?}");
+        assert!(debug.contains("ValuedCSR2D"));
+    }
+
+    #[test]
+    fn test_valued_csr2d_try_from_array() {
+        let arr = [[1, 2], [3, 4]];
+        let matrix: TestValuedCSR2D = ValuedCSR2D::try_from(arr).unwrap();
+        assert_eq!(matrix.number_of_rows(), 2);
+        assert_eq!(matrix.number_of_columns(), 2);
+        let values: Vec<i32> = matrix.sparse_values().collect();
+        assert_eq!(values, vec![1, 2, 3, 4]);
+    }
+}

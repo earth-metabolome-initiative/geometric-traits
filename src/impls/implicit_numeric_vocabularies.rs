@@ -147,3 +147,147 @@ impl BidirectionalVocabulary for u64 {
         Some(*destination)
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    #[test]
+    fn test_u8_vocabulary_len() {
+        let v: u8 = 5;
+        assert_eq!(Vocabulary::len(&v), 5);
+    }
+
+    #[test]
+    fn test_u8_vocabulary_convert() {
+        let v: u8 = 10;
+        assert_eq!(v.convert(&3), Some(3));
+        assert_eq!(v.convert(&0), Some(0));
+        assert_eq!(v.convert(&9), Some(9));
+    }
+
+    #[test]
+    fn test_u8_vocabulary_sources() {
+        let v: u8 = 3;
+        let sources: Vec<u8> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_u8_vocabulary_destinations() {
+        let v: u8 = 3;
+        let destinations: Vec<u8> = v.destinations().collect();
+        assert_eq!(destinations, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_u8_bidirectional_vocabulary_invert() {
+        let v: u8 = 10;
+        assert_eq!(v.invert(&5), Some(5));
+    }
+
+    #[test]
+    fn test_u16_vocabulary_len() {
+        let v: u16 = 100;
+        assert_eq!(Vocabulary::len(&v), 100);
+    }
+
+    #[test]
+    fn test_u16_vocabulary_sources() {
+        let v: u16 = 3;
+        let sources: Vec<u16> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_u16_bidirectional_vocabulary_invert() {
+        let v: u16 = 1000;
+        assert_eq!(v.invert(&500), Some(500));
+    }
+
+    #[test]
+    fn test_u32_vocabulary_len() {
+        let v: u32 = 1000;
+        assert_eq!(Vocabulary::len(&v), 1000);
+    }
+
+    #[test]
+    fn test_u32_vocabulary_convert() {
+        let v: u32 = 100;
+        assert_eq!(v.convert(&50), Some(50));
+    }
+
+    #[test]
+    fn test_u32_vocabulary_sources() {
+        let v: u32 = 3;
+        let sources: Vec<u32> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_u32_bidirectional_vocabulary_invert() {
+        let v: u32 = 100;
+        assert_eq!(v.invert(&50), Some(50));
+    }
+
+    #[test]
+    fn test_usize_vocabulary_len() {
+        let v: usize = 50;
+        assert_eq!(Vocabulary::len(&v), 50);
+    }
+
+    #[test]
+    fn test_usize_vocabulary_convert() {
+        let v: usize = 100;
+        assert_eq!(v.convert(&25), Some(25));
+    }
+
+    #[test]
+    fn test_usize_vocabulary_sources() {
+        let v: usize = 4;
+        let sources: Vec<usize> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_usize_vocabulary_destinations() {
+        let v: usize = 4;
+        let destinations: Vec<usize> = v.destinations().collect();
+        assert_eq!(destinations, vec![0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn test_usize_bidirectional_vocabulary_invert() {
+        let v: usize = 100;
+        assert_eq!(v.invert(&75), Some(75));
+    }
+
+    #[test]
+    fn test_u64_vocabulary_len() {
+        let v: u64 = 1000;
+        assert_eq!(Vocabulary::len(&v), 1000);
+    }
+
+    #[test]
+    fn test_u64_vocabulary_sources() {
+        let v: u64 = 3;
+        let sources: Vec<u64> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_u64_bidirectional_vocabulary_invert() {
+        let v: u64 = 1000;
+        assert_eq!(v.invert(&999), Some(999));
+    }
+
+    #[test]
+    fn test_zero_vocabulary() {
+        let v: usize = 0;
+        assert_eq!(Vocabulary::len(&v), 0);
+        let sources: Vec<usize> = v.sources().collect();
+        assert!(sources.is_empty());
+    }
+}

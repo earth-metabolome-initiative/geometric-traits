@@ -121,3 +121,108 @@ impl<V> Matrix2D for VecMatrix2D<V> {
         self.data.len() / self.number_of_rows
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::{vec, vec::Vec};
+
+    use super::*;
+    use crate::traits::{BidirectionalVocabulary, GrowableVocabulary, Vocabulary, VocabularyRef};
+
+    #[test]
+    fn test_vec_vocabulary_len() {
+        let v: Vec<i32> = vec![10, 20, 30];
+        assert_eq!(Vocabulary::len(&v), 3);
+    }
+
+    #[test]
+    fn test_vec_vocabulary_convert() {
+        let v: Vec<&str> = vec!["a", "b", "c"];
+        assert_eq!(v.convert(&0), Some("a"));
+        assert_eq!(v.convert(&1), Some("b"));
+        assert_eq!(v.convert(&2), Some("c"));
+        assert_eq!(v.convert(&3), None);
+    }
+
+    #[test]
+    fn test_vec_vocabulary_sources() {
+        let v: Vec<i32> = vec![1, 2, 3];
+        let sources: Vec<usize> = v.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_vec_vocabulary_destinations() {
+        let v: Vec<i32> = vec![10, 20, 30];
+        let destinations: Vec<i32> = v.destinations().collect();
+        assert_eq!(destinations, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_vec_vocabulary_ref_convert_ref() {
+        let v: Vec<i32> = vec![100, 200];
+        assert_eq!(v.convert_ref(&0), Some(&100));
+        assert_eq!(v.convert_ref(&1), Some(&200));
+        assert_eq!(v.convert_ref(&2), None);
+    }
+
+    #[test]
+    fn test_vec_vocabulary_ref_destination_refs() {
+        let v: Vec<i32> = vec![1, 2];
+        let refs: Vec<&i32> = v.destination_refs().collect();
+        assert_eq!(refs, vec![&1, &2]);
+    }
+
+    #[test]
+    fn test_vec_bidirectional_vocabulary_invert() {
+        let v: Vec<&str> = vec!["x", "y", "z"];
+        assert_eq!(v.invert(&"x"), Some(0));
+        assert_eq!(v.invert(&"y"), Some(1));
+        assert_eq!(v.invert(&"z"), Some(2));
+        assert_eq!(v.invert(&"w"), None);
+    }
+
+    #[test]
+    fn test_vec_growable_vocabulary_new() {
+        let v: Vec<i32> = GrowableVocabulary::new();
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn test_vec_growable_vocabulary_with_capacity() {
+        let v: Vec<i32> = GrowableVocabulary::with_capacity(10);
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn test_vec_growable_vocabulary_add() {
+        let mut v: Vec<i32> = GrowableVocabulary::new();
+        assert!(v.add(0, 10).is_ok());
+        assert!(v.add(1, 20).is_ok());
+        assert!(v.add(2, 30).is_ok());
+        assert_eq!(v.len(), 3);
+    }
+
+    #[test]
+    fn test_vec_growable_vocabulary_add_sparse_error() {
+        let mut v: Vec<i32> = GrowableVocabulary::new();
+        // Try to add at index 1 when vec is empty
+        assert!(v.add(1, 10).is_err());
+    }
+
+    #[test]
+    fn test_vec_growable_vocabulary_add_duplicate_error() {
+        let mut v: Vec<i32> = GrowableVocabulary::new();
+        assert!(v.add(0, 10).is_ok());
+        // Try to add duplicate destination
+        assert!(v.add(1, 10).is_err());
+    }
+
+    #[test]
+    fn test_vec_matrix2d_shape() {
+        let matrix = VecMatrix2D { data: vec![1, 2, 3, 4, 5, 6], number_of_rows: 2 };
+        assert_eq!(matrix.number_of_rows(), 2);
+        assert_eq!(matrix.number_of_columns(), 3);
+        assert_eq!(matrix.shape(), vec![2, 3]);
+    }
+}

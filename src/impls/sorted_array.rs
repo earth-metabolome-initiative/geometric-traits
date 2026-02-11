@@ -155,3 +155,130 @@ impl<V: Symbol + Ord, const N: usize> crate::traits::BidirectionalVocabulary for
         self.as_ref().binary_search(destination).ok()
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::traits::{BidirectionalVocabulary, Vocabulary, VocabularyRef};
+
+    #[test]
+    fn test_sorted_array_try_from_sorted() {
+        let arr = [1, 2, 3, 4, 5];
+        let sa: SortedArray<i32, 5> = SortedArray::try_from(arr).unwrap();
+        assert_eq!(sa.len(), 5);
+    }
+
+    #[test]
+    fn test_sorted_array_try_from_unsorted() {
+        let arr = [1, 3, 2, 4];
+        let result: Result<SortedArray<i32, 4>, _> = SortedArray::try_from(arr);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sorted_array_get() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        assert_eq!(sa.get(0), Some(&10));
+        assert_eq!(sa.get(1), Some(&20));
+        assert_eq!(sa.get(2), Some(&30));
+        assert_eq!(sa.get(3), None);
+    }
+
+    #[test]
+    fn test_sorted_array_len() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([1, 2, 3]).unwrap();
+        assert_eq!(sa.len(), 3);
+    }
+
+    #[test]
+    fn test_sorted_array_is_empty() {
+        let sa: SortedArray<i32, 0> = SortedArray::try_from([]).unwrap();
+        assert!(sa.is_empty());
+
+        let sa2: SortedArray<i32, 1> = SortedArray::try_from([1]).unwrap();
+        assert!(!sa2.is_empty());
+    }
+
+    #[test]
+    fn test_sorted_array_is_sorted() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([1, 2, 3]).unwrap();
+        assert!(sa.is_sorted());
+    }
+
+    #[test]
+    fn test_sorted_array_iter() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([1, 2, 3]).unwrap();
+        let items: Vec<&i32> = sa.iter().collect();
+        assert_eq!(items, vec![&1, &2, &3]);
+    }
+
+    #[test]
+    fn test_sorted_array_index() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        assert_eq!(sa[0], 10);
+        assert_eq!(sa[1], 20);
+        assert_eq!(sa[2], 30);
+    }
+
+    #[test]
+    fn test_sorted_array_as_ref() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([1, 2, 3]).unwrap();
+        let slice: &[i32] = sa.as_ref();
+        assert_eq!(slice, &[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_convert() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        assert_eq!(Vocabulary::convert(&sa, &0), Some(10));
+        assert_eq!(Vocabulary::convert(&sa, &1), Some(20));
+        assert_eq!(Vocabulary::convert(&sa, &2), Some(30));
+        assert_eq!(Vocabulary::convert(&sa, &3), None);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_len() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([1, 2, 3]).unwrap();
+        assert_eq!(Vocabulary::len(&sa), 3);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_sources() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        let sources: Vec<usize> = sa.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_destinations() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        let destinations: Vec<i32> = sa.destinations().collect();
+        assert_eq!(destinations, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_ref_convert_ref() {
+        let sa: SortedArray<i32, 2> = SortedArray::try_from([100, 200]).unwrap();
+        assert_eq!(sa.convert_ref(&0), Some(&100));
+        assert_eq!(sa.convert_ref(&1), Some(&200));
+        assert_eq!(sa.convert_ref(&2), None);
+    }
+
+    #[test]
+    fn test_sorted_array_vocabulary_ref_destination_refs() {
+        let sa: SortedArray<i32, 2> = SortedArray::try_from([1, 2]).unwrap();
+        let refs: Vec<&i32> = sa.destination_refs().collect();
+        assert_eq!(refs, vec![&1, &2]);
+    }
+
+    #[test]
+    fn test_sorted_array_bidirectional_vocabulary_invert() {
+        let sa: SortedArray<i32, 3> = SortedArray::try_from([10, 20, 30]).unwrap();
+        assert_eq!(sa.invert(&10), Some(0));
+        assert_eq!(sa.invert(&20), Some(1));
+        assert_eq!(sa.invert(&30), Some(2));
+        assert_eq!(sa.invert(&25), None);
+    }
+}
