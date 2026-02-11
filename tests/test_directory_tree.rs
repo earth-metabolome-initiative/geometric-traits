@@ -1,7 +1,8 @@
 //! Tests for DirectoryTree struct.
 
-use geometric_traits::naive_structs::DirectoryTree;
 use std::path::PathBuf;
+
+use geometric_traits::naive_structs::DirectoryTree;
 
 #[test]
 fn test_directory_tree_from_path() {
