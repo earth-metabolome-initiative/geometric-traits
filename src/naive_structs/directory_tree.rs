@@ -75,7 +75,7 @@ fn display_node(
         }
         let path = &graph.nodes_vocabulary()[successor];
         let last_segment = path.file_name().unwrap_or_default();
-        writeln!(f, "/{}", last_segment.display())?;
+        writeln!(f, "/{}", last_segment.to_string_lossy())?;
         display_node(f, graph, successor, indent_level + 1)?;
     }
     Ok(())

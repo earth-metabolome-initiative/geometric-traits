@@ -76,3 +76,16 @@ fn test_array_4_dimensions() {
     assert_eq!(<[i32; 4]>::dimensions(), 4);
     assert_eq!(<[f64; 4]>::dimensions(), 4);
 }
+
+// ============================================================================
+// Consistency checks
+// ============================================================================
+
+#[test]
+fn test_tuple_array_consistency() {
+    assert_eq!(<()>::dimensions(), <[i32; 0]>::dimensions());
+    assert_eq!(<(i32,)>::dimensions(), <[i32; 1]>::dimensions());
+    assert_eq!(<(i32, i32)>::dimensions(), <[i32; 2]>::dimensions());
+    assert_eq!(<(i32, i32, i32)>::dimensions(), <[i32; 3]>::dimensions());
+    assert_eq!(<(i32, i32, i32, i32)>::dimensions(), <[i32; 4]>::dimensions());
+}

@@ -1,0 +1,149 @@
+//! Extended tests for Johnson's algorithm for finding all cycles.
+#![cfg(feature = "std")]
+
+use geometric_traits::{
+    impls::{CSR2D, SquareCSR2D},
+    prelude::*,
+    traits::{EdgesBuilder, Johnson},
+};
+
+/// Helper to build a SquareCSR2D from directed edges.
+fn build_square_csr(
+    node_count: usize,
+    edges: Vec<(usize, usize)>,
+) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
+    DiEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .expected_shape(node_count)
+        .edges(edges.into_iter())
+        .build()
+        .unwrap()
+}
+
+// ============================================================================
+// No cycles
+// ============================================================================
+
+#[test]
+fn test_johnson_dag_no_cycles() {
+    // 0 -> 1 -> 2 -> 3 (pure DAG)
+    let m = build_square_csr(4, vec![(0, 1), (1, 2), (2, 3)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert!(cycles.is_empty(), "A DAG should have no cycles");
+}
+
+#[test]
+fn test_johnson_disconnected_dag() {
+    let m = build_square_csr(3, vec![(0, 1)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert!(cycles.is_empty());
+}
+
+// ============================================================================
+// Single cycle
+// ============================================================================
+
+#[test]
+fn test_johnson_single_triangle_cycle() {
+    // 0 -> 1 -> 2 -> 0
+    let m = build_square_csr(3, vec![(0, 1), (1, 2), (2, 0)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert_eq!(cycles.len(), 1);
+    assert_eq!(cycles[0].len(), 3);
+}
+
+#[test]
+fn test_johnson_two_node_cycle() {
+    // 0 -> 1 -> 0
+    let m = build_square_csr(2, vec![(0, 1), (1, 0)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert_eq!(cycles.len(), 1);
+    assert_eq!(cycles[0].len(), 2);
+}
+
+// ============================================================================
+// Multiple cycles
+// ============================================================================
+
+#[test]
+fn test_johnson_two_separate_cycles() {
+    // Cycle 1: 0 -> 1 -> 0
+    // Cycle 2: 2 -> 3 -> 2
+    // Bridge: 1 -> 2
+    let m = build_square_csr(4, vec![(0, 1), (1, 0), (1, 2), (2, 3), (3, 2)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert_eq!(cycles.len(), 2);
+}
+
+#[test]
+fn test_johnson_overlapping_cycles() {
+    // 0 -> 1 -> 2 -> 0 (triangle)
+    // 0 -> 2 -> 0 (shortcut)
+    // This creates 2 distinct cycles
+    let m = build_square_csr(3, vec![(0, 1), (0, 2), (1, 2), (2, 0)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    // Should find: [0,1,2] and [0,2]
+    assert_eq!(cycles.len(), 2);
+}
+
+// ============================================================================
+// Self-loops
+// ============================================================================
+
+#[test]
+fn test_johnson_self_loop_not_detected() {
+    // Johnson's algorithm skips singleton SCCs (including self-loops),
+    // as it only searches for cycles in SCCs with 2+ nodes.
+    let m = build_square_csr(2, vec![(0, 0), (0, 1)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert!(cycles.is_empty(), "Self-loop alone does not form a multi-node SCC");
+}
+
+// ============================================================================
+// Complete graph
+// ============================================================================
+
+#[test]
+fn test_johnson_complete_3_node() {
+    // K3: all 6 directed edges
+    let m = build_square_csr(3, vec![(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    // K3 has 5 cycles: three 2-cycles (0,1), (0,2), (1,2), two 3-cycles
+    assert_eq!(cycles.len(), 5);
+}
+
+// ============================================================================
+// Cycle with tail
+// ============================================================================
+
+#[test]
+fn test_johnson_cycle_with_tail() {
+    // 0 -> 1 -> 2 -> 3 -> 1 (cycle is 1->2->3->1, tail is 0->1)
+    let m = build_square_csr(4, vec![(0, 1), (1, 2), (2, 3), (3, 1)]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert_eq!(cycles.len(), 1);
+    // The cycle should be 1 -> 2 -> 3 (not including node 0)
+    assert_eq!(cycles[0].len(), 3);
+    assert!(!cycles[0].contains(&0));
+}
+
+// ============================================================================
+// No edges
+// ============================================================================
+
+#[test]
+fn test_johnson_no_edges() {
+    let m = build_square_csr(3, vec![]);
+
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+    assert!(cycles.is_empty());
+}
