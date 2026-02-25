@@ -1,4 +1,5 @@
-//! Test submodule for SortedError (integration-visible error type from sorted data structures).
+//! Test submodule for SortedError (integration-visible error type from sorted
+//! data structures).
 #![cfg(feature = "std")]
 
 use geometric_traits::errors::SortedError;

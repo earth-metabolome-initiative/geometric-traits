@@ -11,7 +11,8 @@ type SimpleDiGraph = GenericGraph<usize, SquareCSR2D<CSR2D<usize, usize, usize>>
 
 #[test]
 fn test_xorshift64_sequence() {
-    // XorShift64 with a non-zero seed must never produce zero (a mathematical property).
+    // XorShift64 with a non-zero seed must never produce zero (a mathematical
+    // property).
     let mut rng = XorShift64::from(1u64);
     let values: Vec<u64> = rng.by_ref().take(10).collect();
     assert!(
@@ -118,14 +119,12 @@ fn test_randomized_dag_small_graph() {
 
 #[test]
 fn test_randomized_dag_edges_are_forward() {
-    // In the implementation, edges always go from lower to higher index (src < dst).
+    // In the implementation, edges always go from lower to higher index (src <
+    // dst).
     let graph: SimpleDiGraph = SimpleDiGraph::randomized_dag(7, 8);
     for node_id in graph.node_ids() {
         for successor in graph.successors(node_id) {
-            assert!(
-                node_id < successor,
-                "Edge ({node_id}, {successor}) violates forward ordering"
-            );
+            assert!(node_id < successor, "Edge ({node_id}, {successor}) violates forward ordering");
         }
     }
 }

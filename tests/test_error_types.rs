@@ -79,10 +79,7 @@ fn test_ic_error_display_not_dag() {
 
 #[test]
 fn test_ic_error_display_unequal() {
-    let err = InformationContentError::UnequalOccurrenceSize {
-        expected: 10,
-        found: 5,
-    };
+    let err = InformationContentError::UnequalOccurrenceSize { expected: 10, found: 5 };
     let display = format!("{err}");
     assert!(display.contains("10"));
     assert!(display.contains('5'));
@@ -140,10 +137,7 @@ fn test_sorted_error_clone_and_eq() {
 #[test]
 fn test_sorted_error_ne() {
     use geometric_traits::errors::SortedError;
-    assert_ne!(
-        SortedError::UnsortedEntry(1usize),
-        SortedError::UnsortedEntry(2usize)
-    );
+    assert_ne!(SortedError::UnsortedEntry(1usize), SortedError::UnsortedEntry(2usize));
 }
 
 // ============================================================================
@@ -175,13 +169,7 @@ fn test_vocabulary_builder_error_number_of_symbols() {
     assert!(result.is_err(), "Mismatched symbol count should fail");
     let err = result.unwrap_err();
     assert!(
-        matches!(
-            err,
-            VocabularyBuilderError::NumberOfSymbols {
-                expected: 5,
-                actual: 3
-            }
-        ),
+        matches!(err, VocabularyBuilderError::NumberOfSymbols { expected: 5, actual: 3 }),
         "Expected NumberOfSymbols error, got: {err:?}"
     );
 }
@@ -201,18 +189,12 @@ fn test_vocabulary_builder_error_missing_attribute_display() {
 fn test_node_error_unknown_node_id_display() {
     let err: NodeError<SortedVec<usize>> = NodeError::UnknownNodeId(42usize);
     let msg = format!("{err}");
-    assert!(
-        msg.contains("42"),
-        "Display message should contain the node id, got: {msg}"
-    );
+    assert!(msg.contains("42"), "Display message should contain the node id, got: {msg}");
 }
 
 #[test]
 fn test_node_error_unknown_node_symbol_display() {
     let err: NodeError<SortedVec<usize>> = NodeError::UnknownNodeSymbol(99usize);
     let msg = format!("{err}");
-    assert!(
-        msg.contains("99"),
-        "Display message should contain the node symbol, got: {msg}"
-    );
+    assert!(msg.contains("99"), "Display message should contain the node symbol, got: {msg}");
 }
