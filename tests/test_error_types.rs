@@ -1,10 +1,14 @@
-//! Tests for error types: SortedError, KahnError, ConnectedComponentsError,
-//! InformationContentError, MonopartiteAlgorithmError.
+//! Tests for error types exposed by traits and builders.
 #![cfg(feature = "std")]
 
-use geometric_traits::traits::{
-    KahnError, connected_components::ConnectedComponentsError,
-    information_content::InformationContentError,
+use geometric_traits::{
+    errors::{builder::vocabulary::VocabularyBuilderError, nodes::NodeError},
+    impls::SortedVec,
+    prelude::GenericVocabularyBuilder,
+    traits::{
+        KahnError, VocabularyBuilder, connected_components::ConnectedComponentsError,
+        information_content::InformationContentError,
+    },
 };
 
 // ============================================================================
@@ -75,7 +79,10 @@ fn test_ic_error_display_not_dag() {
 
 #[test]
 fn test_ic_error_display_unequal() {
-    let err = InformationContentError::UnequalOccurrenceSize { expected: 10, found: 5 };
+    let err = InformationContentError::UnequalOccurrenceSize {
+        expected: 10,
+        found: 5,
+    };
     let display = format!("{err}");
     assert!(display.contains("10"));
     assert!(display.contains('5'));
@@ -133,5 +140,79 @@ fn test_sorted_error_clone_and_eq() {
 #[test]
 fn test_sorted_error_ne() {
     use geometric_traits::errors::SortedError;
-    assert_ne!(SortedError::UnsortedEntry(1usize), SortedError::UnsortedEntry(2usize));
+    assert_ne!(
+        SortedError::UnsortedEntry(1usize),
+        SortedError::UnsortedEntry(2usize)
+    );
+}
+
+// ============================================================================
+// VocabularyBuilderError / NodeError
+// ============================================================================
+
+#[test]
+fn test_vocabulary_builder_error_missing_attribute() {
+    // Calling build() without .symbols() triggers MissingAttribute.
+    let result: Result<SortedVec<usize>, _> =
+        GenericVocabularyBuilder::<std::iter::Empty<(usize, usize)>, SortedVec<usize>>::default()
+            .expected_number_of_symbols(3)
+            .build();
+    assert!(result.is_err(), "build() without symbols should fail");
+    let err = result.unwrap_err();
+    assert!(
+        matches!(err, VocabularyBuilderError::MissingAttribute(_)),
+        "Expected MissingAttribute error, got: {err:?}"
+    );
+}
+
+#[test]
+fn test_vocabulary_builder_error_number_of_symbols() {
+    // Setting expected_number_of_symbols(5) but providing 3 symbols.
+    let result: Result<SortedVec<usize>, _> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(5)
+        .symbols(vec![(0usize, 0usize), (1, 1), (2, 2)].into_iter())
+        .build();
+    assert!(result.is_err(), "Mismatched symbol count should fail");
+    let err = result.unwrap_err();
+    assert!(
+        matches!(
+            err,
+            VocabularyBuilderError::NumberOfSymbols {
+                expected: 5,
+                actual: 3
+            }
+        ),
+        "Expected NumberOfSymbols error, got: {err:?}"
+    );
+}
+
+#[test]
+fn test_vocabulary_builder_error_missing_attribute_display() {
+    let err: VocabularyBuilderError<SortedVec<usize>> =
+        VocabularyBuilderError::MissingAttribute("symbols");
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("symbols"),
+        "Display message should contain the attribute name, got: {msg}"
+    );
+}
+
+#[test]
+fn test_node_error_unknown_node_id_display() {
+    let err: NodeError<SortedVec<usize>> = NodeError::UnknownNodeId(42usize);
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("42"),
+        "Display message should contain the node id, got: {msg}"
+    );
+}
+
+#[test]
+fn test_node_error_unknown_node_symbol_display() {
+    let err: NodeError<SortedVec<usize>> = NodeError::UnknownNodeSymbol(99usize);
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("99"),
+        "Display message should contain the node symbol, got: {msg}"
+    );
 }
