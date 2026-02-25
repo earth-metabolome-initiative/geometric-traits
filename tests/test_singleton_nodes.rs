@@ -3,7 +3,7 @@
 
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SquareCSR2D},
-    prelude::{DiEdgesBuilder, DiGraph, GenericVocabularyBuilder},
+    prelude::{DiEdgesBuilder, DiGraph, GenericVocabularyBuilder, MonopartiteGraph, MonoplexGraph},
     traits::{EdgesBuilder, SingletonNodes, VocabularyBuilder},
 };
 
@@ -79,4 +79,40 @@ fn test_singleton_nodes_mixed() {
     // Edges connect 0->1 and 2->3; node 4 is a singleton.
     let graph = build_digraph(vec![0, 1, 2, 3, 4], vec![(0, 1), (2, 3)]);
     assert_eq!(graph.singleton_nodes(), vec![4]);
+}
+
+#[test]
+fn test_no_singleton_nodes() {
+    // Fully connected cycle graph: 0->1->2->3->0, all nodes have both incoming and outgoing edges.
+    let graph = build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (1, 2), (2, 3), (3, 0)]);
+    assert_eq!(graph.number_of_nodes(), 4);
+    assert_eq!(graph.number_of_edges(), 4);
+    assert_eq!(graph.singleton_nodes(), Vec::new());
+}
+
+#[test]
+fn test_all_singleton_nodes() {
+    // Graph with nodes but no edges: every node is a singleton.
+    let graph = build_digraph(vec![0, 1, 2, 3], vec![]);
+    assert_eq!(graph.number_of_nodes(), 4);
+    assert_eq!(graph.number_of_edges(), 0);
+    assert_eq!(graph.singleton_nodes(), vec![0, 1, 2, 3]);
+}
+
+#[test]
+fn test_some_singleton_nodes() {
+    // Mixed graph: nodes 0 and 1 are connected, nodes 2 and 3 are isolated.
+    let graph = build_digraph(vec![0, 1, 2, 3], vec![(0, 1)]);
+    assert_eq!(graph.number_of_nodes(), 4);
+    assert_eq!(graph.number_of_edges(), 1);
+    assert_eq!(graph.singleton_nodes(), vec![2, 3]);
+}
+
+#[test]
+fn test_single_node_no_edges() {
+    // Edge case: a single-node graph with no edges. The lone node is a singleton.
+    let graph = build_digraph(vec![0], vec![]);
+    assert_eq!(graph.number_of_nodes(), 1);
+    assert_eq!(graph.number_of_edges(), 0);
+    assert_eq!(graph.singleton_nodes(), vec![0]);
 }
