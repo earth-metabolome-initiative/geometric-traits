@@ -1,7 +1,6 @@
 //! Submodule for fuzzing the execution of the RootNodes algorithm.
 
-use geometric_traits::prelude::{SquareCSR2D, CSR2D};
-use geometric_traits::prelude::{GenericGraph, RootNodes};
+use geometric_traits::prelude::{GenericGraph, RootNodes, SquareCSR2D, CSR2D};
 use honggfuzz::fuzz;
 
 fn main() {

@@ -1,5 +1,4 @@
-use geometric_traits::prelude::{SquareCSR2D, CSR2D};
-use geometric_traits::prelude::{GenericGraph, SimplePath};
+use geometric_traits::prelude::{GenericGraph, SimplePath, SquareCSR2D, CSR2D};
 use honggfuzz::fuzz;
 
 fn main() {

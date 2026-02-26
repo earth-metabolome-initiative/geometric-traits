@@ -1,17 +1,17 @@
-use geometric_traits::prelude::{SquareCSR2D, CSR2D};
-use geometric_traits::prelude::{GenericGraph, WuPalmer};
+use geometric_traits::{
+    prelude::{GenericGraph, SquareCSR2D, WuPalmer, CSR2D},
+    traits::{MonopartiteGraph, ScalarSimilarity},
+};
 use honggfuzz::fuzz;
-use geometric_traits::traits::MonopartiteGraph;
-use geometric_traits::traits::ScalarSimilarity;
 
 fn main() {
     loop {
         fuzz!(|csr: GenericGraph<u8, SquareCSR2D<CSR2D<u16, u8, u8>>>| {
             let Ok(wu_palmer) = csr.wu_palmer() else {
-                return ;
+                return;
             };
             for src in csr.node_ids().take(10) {
-                for dst in csr.node_ids(){
+                for dst in csr.node_ids() {
                     let similarity = wu_palmer.similarity(&src, &dst);
                     if src == dst {
                         assert!(similarity > 0.99);

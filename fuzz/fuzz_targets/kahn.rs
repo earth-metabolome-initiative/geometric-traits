@@ -1,8 +1,8 @@
 //! Submodule for fuzzing the execution of the Kahn's algorithm.
 
 use geometric_traits::prelude::{
-    CSR2D, IntoUsize, Kahn, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SquareCSR2D,
-    UpperTriangularCSR2D,
+    IntoUsize, Kahn, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SquareCSR2D,
+    UpperTriangularCSR2D, CSR2D,
 };
 use honggfuzz::fuzz;
 

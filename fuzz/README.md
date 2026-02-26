@@ -131,20 +131,18 @@ It is implemented for all structs implementing `SparseMatrix2D`.
 cargo hfuzz run hopcroft_karp
 ```
 
-### LAPJV
+### LAP
 
-The LAPJV algorithm is a combinatorial algorithm for finding a weighted maximum cardinality matchings in bipartite graphs.
-It is implemented for all structs implementing `SparseValuedMatrix2D` and `DenseValuedMatrix2D`, respectively in the
-sparse and dense cases.
+Unified LAP harness validating sparse wrappers and core LAPMOD invariants.
 
 ```bash
-cargo hfuzz run lapjv
+cargo hfuzz run lap
 ```
 
 and to run the crash cases:
 
 ```bash
-cargo hfuzz run-debug lapjv hfuzz_workspace/*/*.fuzz
+cargo hfuzz run-debug lap hfuzz_workspace/*/*.fuzz
 ```
 
 ### Kahn's Algorithm

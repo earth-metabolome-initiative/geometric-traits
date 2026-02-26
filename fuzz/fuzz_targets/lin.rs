@@ -1,18 +1,20 @@
-use geometric_traits::prelude::{SquareCSR2D, CSR2D};
-use geometric_traits::prelude::{GenericGraph, Lin};
+use geometric_traits::{
+    prelude::{GenericGraph, Lin, SquareCSR2D, CSR2D},
+    traits::{MonopartiteGraph, ScalarSimilarity},
+};
 use honggfuzz::fuzz;
-use geometric_traits::traits::MonopartiteGraph;
-use geometric_traits::traits::ScalarSimilarity;
+
+type LinInput = (Vec<usize>, GenericGraph<u8, SquareCSR2D<CSR2D<u16, u8, u8>>>);
 
 fn main() {
     loop {
-        fuzz!(|occurrences_csr: (Vec<usize>,GenericGraph<u8, SquareCSR2D<CSR2D<u16, u8, u8>>>)| {
+        fuzz!(|occurrences_csr: LinInput| {
             let (occurrences, csr) = occurrences_csr;
             let Ok(lin) = csr.lin(occurrences.as_ref()) else {
-                return ;
+                return;
             };
             for src in csr.node_ids().take(10) {
-                for dst in csr.node_ids(){
+                for dst in csr.node_ids() {
                     let similarity = lin.similarity(&src, &dst);
                     if src == dst {
                         assert!(similarity > 0.99);

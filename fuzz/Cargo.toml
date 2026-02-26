@@ -8,7 +8,7 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-honggfuzz = "0.5"
+honggfuzz = "0.5.58"
 geometric-traits = { path = "../", features = ["arbitrary"] }
 arbitrary = { version = "1", features = ["derive"] }
 
@@ -50,12 +50,6 @@ path = "fuzz_targets/wu_palmer.rs"
 test = false
 doc = false
 
-
-[[bin]]
-name = "lapjv"
-path = "fuzz_targets/lapjv.rs"
-test = false
-doc = false
 
 [[bin]]
 name = "csr2d"
@@ -102,5 +96,11 @@ doc = false
 [[bin]]
 name = "generic_matrix2d_with_padded_diagonal"
 path = "fuzz_targets/generic_matrix2d_with_padded_diagonal.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "lap"
+path = "fuzz_targets/lap.rs"
 test = false
 doc = false

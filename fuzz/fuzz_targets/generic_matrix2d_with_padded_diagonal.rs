@@ -3,12 +3,11 @@
 use geometric_traits::prelude::*;
 use honggfuzz::fuzz;
 
+type PaddedCsr = GenericMatrix2DWithPaddedDiagonal<ValuedCSR2D<u16, u8, u8, f64>, fn(u8) -> f64>;
+
 fn main() {
     loop {
-        fuzz!(|padded_csr: GenericMatrix2DWithPaddedDiagonal<
-            ValuedCSR2D<u16, u8, u8, f64>,
-            fn(u8) -> f64,
-        >| {
+        fuzz!(|padded_csr: PaddedCsr| {
             assert_eq!(
                 padded_csr.number_of_rows(),
                 padded_csr.number_of_columns(),
