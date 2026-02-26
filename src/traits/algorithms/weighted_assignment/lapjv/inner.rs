@@ -5,7 +5,10 @@ use core::fmt::Debug;
 
 use num_traits::{Bounded, Zero};
 
-use super::LAPJVError;
+use super::{
+    LAPJVError,
+    common::{augmentation_backtrack, augmenting_row_reduction_impl, find_minimum_distance},
+};
 use crate::traits::{
     AssignmentState, DenseValuedMatrix2D, Finite, IntoUsize, Number, TotalOrd, TryFromUsize,
 };
@@ -200,151 +203,48 @@ where
     }
 
     #[inline]
-    #[allow(clippy::type_complexity)]
-    /// Returns the first and second minimum reduced costs of the row.
-    ///
-    /// # Arguments
-    ///
-    /// * `row_index`: The row index.
-    fn first_and_second_minimum_reduced_costs(
-        &self,
-        row_index: M::RowIndex,
-    ) -> ((M::ColumnIndex, M::Value), (Option<M::ColumnIndex>, M::Value)) {
-        let mut iterator = self.matrix.column_indices().zip(self.matrix.row_values(row_index)).map(
-            |(column_index, cost)| {
-                (column_index, cost - self.column_costs[column_index.into_usize()])
-            },
-        );
-
-        let (mut first_minimum_index, mut first_minimum_reduced_cost) =
-            iterator.next().expect("We expected the iterator to have at least one element");
-
-        let mut second_minimum_column_index: Option<M::ColumnIndex> = None;
-        let mut second_minimum_reduced_cost = self.max_cost;
-        for (column_index, reduced_cost) in iterator {
-            if reduced_cost < second_minimum_reduced_cost {
-                if reduced_cost >= first_minimum_reduced_cost {
-                    second_minimum_column_index = Some(column_index);
-                    second_minimum_reduced_cost = reduced_cost;
-                } else {
-                    second_minimum_column_index = Some(first_minimum_index);
-                    second_minimum_reduced_cost = first_minimum_reduced_cost;
-                    first_minimum_index = column_index;
-                    first_minimum_reduced_cost = reduced_cost;
-                }
-            }
-        }
-
-        debug_assert!(
-            first_minimum_reduced_cost <= second_minimum_reduced_cost,
-            "We expected the first minimum reduced cost to be less than or equal to the second minimum reduced cost"
-        );
-
-        (
-            (first_minimum_index, first_minimum_reduced_cost),
-            (second_minimum_column_index, second_minimum_reduced_cost),
-        )
-    }
-
-    #[inline]
     pub(super) fn augmenting_row_reduction(&mut self) {
-        if self.unassigned_rows.is_empty() {
-            return;
-        }
+        let matrix = self.matrix;
+        let max_cost = self.max_cost;
+        let number_of_rows = matrix.number_of_rows().into_usize();
+        augmenting_row_reduction_impl(
+            &mut self.unassigned_rows,
+            &mut self.assigned_rows,
+            &mut self.assigned_columns,
+            &mut self.column_costs,
+            number_of_rows,
+            |row, col_costs| {
+                let mut iterator = matrix.column_indices().zip(matrix.row_values(row)).map(
+                    |(column_index, cost)| {
+                        (column_index, cost - col_costs[column_index.into_usize()])
+                    },
+                );
 
-        let mut current_unassigned_row_index = 0;
-        let mut updated_number_of_unassigned_rows = 0;
-        let mut number_of_iterations = 0;
-        let number_of_rows = self.matrix.number_of_rows().into_usize();
-        let original_number_of_unassigned_rows = self.unassigned_rows.len();
+                let (mut first_minimum_index, mut first_minimum_reduced_cost) =
+                    iterator.next().expect("We expected the iterator to have at least one element");
 
-        while current_unassigned_row_index < original_number_of_unassigned_rows {
-            let unassigned_row_index = self.unassigned_rows[current_unassigned_row_index];
-            current_unassigned_row_index += 1;
-            number_of_iterations += 1;
-
-            // We determine the first and second minimum reduced costs of the
-            // row.
-            let (
-                (mut first_minimum_column_index, first_minimum_value),
-                (second_minimum_column_index, second_minimum_value),
-            ) = self.first_and_second_minimum_reduced_costs(unassigned_row_index);
-
-            // We retrieve the row associated with the column of the first
-            // minimum reduced cost.
-            let mut row_index = self.assigned_rows[first_minimum_column_index.into_usize()];
-
-            if number_of_iterations < current_unassigned_row_index * number_of_rows {
-                if first_minimum_value < second_minimum_value {
-                    self.column_costs[first_minimum_column_index.into_usize()] -=
-                        second_minimum_value - first_minimum_value;
-                } else if let (AssignmentState::Assigned(_), Some(second_minimum_column_index)) =
-                    (row_index, second_minimum_column_index)
-                {
-                    first_minimum_column_index = second_minimum_column_index;
-                    row_index = self.assigned_rows[first_minimum_column_index.into_usize()];
-                }
-                if let AssignmentState::Assigned(assigned_row) = row_index {
-                    if first_minimum_value < second_minimum_value {
-                        current_unassigned_row_index -= 1;
-                        self.unassigned_rows[current_unassigned_row_index] = assigned_row;
-                    } else {
-                        self.unassigned_rows[updated_number_of_unassigned_rows] = assigned_row;
-                        updated_number_of_unassigned_rows += 1;
+                let mut second_minimum_column_index: Option<M::ColumnIndex> = None;
+                let mut second_minimum_reduced_cost = max_cost;
+                for (column_index, reduced_cost) in iterator {
+                    if reduced_cost < second_minimum_reduced_cost {
+                        if reduced_cost >= first_minimum_reduced_cost {
+                            second_minimum_column_index = Some(column_index);
+                            second_minimum_reduced_cost = reduced_cost;
+                        } else {
+                            second_minimum_column_index = Some(first_minimum_index);
+                            second_minimum_reduced_cost = first_minimum_reduced_cost;
+                            first_minimum_index = column_index;
+                            first_minimum_reduced_cost = reduced_cost;
+                        }
                     }
                 }
-            } else if let AssignmentState::Assigned(assigned_row) = row_index {
-                self.unassigned_rows[updated_number_of_unassigned_rows] = assigned_row;
-                updated_number_of_unassigned_rows += 1;
-            }
 
-            // We update the assigned row with the new column index.
-            self.assigned_rows[first_minimum_column_index.into_usize()] =
-                AssignmentState::Assigned(unassigned_row_index);
-            // We update the assigned column with the new row index.
-            self.assigned_columns[unassigned_row_index.into_usize()] =
-                AssignmentState::Assigned(first_minimum_column_index);
-        }
-
-        self.unassigned_rows.truncate(updated_number_of_unassigned_rows);
-
-        debug_assert!(
-            self.unassigned_rows.iter().all(|row_index| {
-                !self.assigned_rows.contains(&AssignmentState::Assigned(*row_index))
-            }),
-            "We expected all unassigned rows to be unassigned",
+                (
+                    (first_minimum_index, first_minimum_reduced_cost),
+                    (second_minimum_column_index, second_minimum_reduced_cost),
+                )
+            },
         );
-    }
-
-    #[inline]
-    fn find_minimum_distance(
-        lower_bound: usize,
-        distances: &[M::Value],
-        to_scan: &mut [M::ColumnIndex],
-    ) -> usize {
-        debug_assert!(
-            lower_bound < to_scan.len(),
-            "We expected the lower bound to be less than the length of the to scan vector"
-        );
-        let mut upper_bound = lower_bound + 1;
-        let column_index = to_scan[lower_bound];
-        let mut minimum_distance = distances[column_index.into_usize()];
-
-        for k in lower_bound + 1..to_scan.len() {
-            let column_index = to_scan[k];
-            let distance = distances[column_index.into_usize()];
-            if distance <= minimum_distance {
-                if distance < minimum_distance {
-                    upper_bound = lower_bound;
-                    minimum_distance = distance;
-                }
-                to_scan[k] = to_scan[upper_bound];
-                to_scan[upper_bound] = column_index;
-                upper_bound += 1;
-            }
-        }
-
-        upper_bound
     }
 
     #[inline]
@@ -447,7 +347,7 @@ where
 
             if lower_bound == upper_bound {
                 n_ready = lower_bound;
-                upper_bound = Self::find_minimum_distance(lower_bound, distances, to_scan);
+                upper_bound = find_minimum_distance(lower_bound, distances, to_scan);
 
                 for column_index in to_scan[lower_bound..upper_bound].iter().copied() {
                     if self.assigned_rows[column_index.into_usize()].is_unassigned() {
@@ -478,48 +378,26 @@ where
             return;
         }
 
-        let mut to_scan =
-            vec![M::ColumnIndex::max_value(); self.matrix.number_of_columns().into_usize()];
-        let mut predecessors =
-            vec![M::RowIndex::max_value(); self.matrix.number_of_columns().into_usize()];
-        let mut distances = vec![self.max_cost; self.matrix.number_of_columns().into_usize()];
+        let n = self.matrix.number_of_columns().into_usize();
+        let mut to_scan = vec![M::ColumnIndex::max_value(); n];
+        let mut predecessors = vec![M::RowIndex::max_value(); n];
+        let mut distances = vec![self.max_cost; n];
 
         while let Some(unassigned_row_index) = self.unassigned_rows.pop() {
-            let mut column_index = self.find_path(
+            let column_index = self.find_path(
                 unassigned_row_index,
                 &mut to_scan,
                 &mut predecessors,
                 &mut distances,
             );
 
-            let mut number_of_iterations = 0;
-            loop {
-                debug_assert!(
-                    number_of_iterations
-                        < self.matrix.number_of_columns().into_usize()
-                            * self.matrix.number_of_columns().into_usize(),
-                    "We expected the number of iterations to be less than the number of columns",
-                );
-
-                let row_index = predecessors[column_index.into_usize()];
-
-                self.assigned_rows[column_index.into_usize()] =
-                    AssignmentState::Assigned(row_index);
-
-                let AssignmentState::Assigned(old_column_index) =
-                    self.assigned_columns[row_index.into_usize()]
-                else {
-                    unreachable!("We expected the assigned column to be in the assigned state");
-                };
-                self.assigned_columns[row_index.into_usize()] =
-                    AssignmentState::Assigned(column_index);
-                column_index = old_column_index;
-                number_of_iterations += 1;
-
-                if row_index == unassigned_row_index {
-                    break;
-                }
-            }
+            augmentation_backtrack(
+                column_index,
+                &predecessors,
+                &mut self.assigned_rows,
+                &mut self.assigned_columns,
+                unassigned_row_index,
+            );
         }
     }
 }

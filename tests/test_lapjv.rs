@@ -143,3 +143,15 @@ fn test_lapjv_inconsistent_with_hopcroft_karp2() {
     assignment.sort_unstable_by_key(|a| (a.0, a.1));
     assert_eq!(assignment, vec![(3, 4), (4, 3)]);
 }
+
+#[test]
+/// Regression for augmenting-path backtracking when the sink column is
+/// reached directly from the start row.
+fn test_lapjv_direct_sink_from_start_row_regression() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0], [1.0, 3.0]]).expect("Failed to create CSR matrix");
+
+    let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
+    assignment.sort_unstable_by_key(|a| (a.0, a.1));
+    assert_eq!(assignment, vec![(0, 1), (1, 0)]);
+}

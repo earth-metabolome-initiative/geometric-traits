@@ -8,7 +8,7 @@ use geometric_traits::{
         bipartite_graph_error::algorithms::BipartiteAlgorithmError,
         monopartite_graph_error::algorithms::MonopartiteAlgorithmError, sorted_error::SortedError,
     },
-    traits::{LAPJVError, connected_components::ConnectedComponentsError},
+    traits::{LAPError, LAPJVError, connected_components::ConnectedComponentsError},
 };
 
 // ============================================================================
@@ -139,7 +139,7 @@ fn test_sorted_error_clone_eq() {
 
 #[test]
 fn test_bipartite_algorithm_error_display() {
-    let inner = LAPJVError::NonSquareMatrix;
+    let inner = LAPError::NonSquareMatrix;
     let e = BipartiteAlgorithmError::LAPMOD(inner);
     let msg = format!("{e}");
     assert!(msg.contains("not square"));
@@ -147,7 +147,7 @@ fn test_bipartite_algorithm_error_display() {
 
 #[test]
 fn test_bipartite_algorithm_error_debug() {
-    let inner = LAPJVError::EmptyMatrix;
+    let inner = LAPError::EmptyMatrix;
     let e = BipartiteAlgorithmError::LAPMOD(inner);
     let debug = format!("{e:?}");
     assert!(debug.contains("LAPMOD"));
@@ -155,7 +155,7 @@ fn test_bipartite_algorithm_error_debug() {
 
 #[test]
 fn test_bipartite_algorithm_error_clone_eq() {
-    let e = BipartiteAlgorithmError::LAPMOD(LAPJVError::ZeroValues);
+    let e = BipartiteAlgorithmError::LAPMOD(LAPError::ZeroValues);
     let e2 = e.clone();
     assert_eq!(e, e2);
 }

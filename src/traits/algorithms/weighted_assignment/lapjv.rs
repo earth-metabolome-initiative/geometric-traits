@@ -1,6 +1,7 @@
 //! Submodule providing an implementation of the LAPJV algorithm.
 use alloc::vec::Vec;
 
+pub(crate) mod common;
 mod errors;
 mod inner;
 
@@ -10,6 +11,7 @@ pub use errors::LAPJVError;
 use inner::Inner;
 use num_traits::Zero;
 
+use super::LAPError;
 use crate::{
     impls::PaddedMatrix2D,
     traits::{DenseValuedMatrix2D, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
@@ -107,13 +109,13 @@ where
     ///
     /// Returns an error if:
     /// - `padding_cost` is not a finite number
-    ///   (`LAPJVError::PaddingValueNotFinite`)
-    /// - `padding_cost` is not positive (`LAPJVError::PaddingValueNotPositive`)
+    ///   (`LAPError::PaddingValueNotFinite`)
+    /// - `padding_cost` is not positive (`LAPError::PaddingValueNotPositive`)
     /// - `padding_cost` is greater than or equal to `max_cost`
-    ///   (`LAPJVError::ValueTooLarge`)
-    /// - `max_cost` is not a finite number (`LAPJVError::MaximalCostNotFinite`)
-    /// - `max_cost` is not positive (`LAPJVError::MaximalCostNotPositive`)
-    /// - The matrix is not square after padding (`LAPJVError::NonSquareMatrix`)
+    ///   (`LAPError::ValueTooLarge`)
+    /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
+    /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
+    /// - The matrix is not square after padding (`LAPError::NonSquareMatrix`)
     /// - The matrix contains values that are greater than the padding cost
     /// - The matrix contains zero, negative or non-finite values
     ///
@@ -134,20 +136,20 @@ where
         &self,
         padding_cost: Self::Value,
         max_cost: Self::Value,
-    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError>
+    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPError>
     where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
         if !padding_cost.is_finite() {
-            return Err(LAPJVError::PaddingValueNotFinite);
+            return Err(LAPError::PaddingValueNotFinite);
         }
         if padding_cost <= Self::Value::zero() {
-            return Err(LAPJVError::PaddingValueNotPositive);
+            return Err(LAPError::PaddingValueNotPositive);
         }
 
         if padding_cost >= max_cost {
-            return Err(LAPJVError::ValueTooLarge);
+            return Err(LAPError::ValueTooLarge);
         }
         if self.is_empty() {
             return Ok(vec![]);
@@ -161,8 +163,8 @@ where
         );
 
         let padding: PaddedMatrix2D<&'_ Self, _> =
-            PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPJVError::NonSquareMatrix)?;
-        let assignment = padding.lapjv(max_cost)?;
+            PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
+        let assignment = padding.lapjv(max_cost).map_err(LAPError::from)?;
 
         Ok(assignment
             .into_iter()
@@ -177,4 +179,21 @@ where
     M::RowIndex: TryFromUsize,
     M::ColumnIndex: TryFromUsize,
 {
+}
+
+impl From<LAPJVError> for LAPError {
+    fn from(error: LAPJVError) -> Self {
+        match error {
+            LAPJVError::NonSquareMatrix => LAPError::NonSquareMatrix,
+            LAPJVError::EmptyMatrix => LAPError::EmptyMatrix,
+            LAPJVError::ZeroValues => LAPError::ZeroValues,
+            LAPJVError::NegativeValues => LAPError::NegativeValues,
+            LAPJVError::NonFiniteValues => LAPError::NonFiniteValues,
+            LAPJVError::ValueTooLarge => LAPError::ValueTooLarge,
+            LAPJVError::MaximalCostNotFinite => LAPError::MaximalCostNotFinite,
+            LAPJVError::MaximalCostNotPositive => LAPError::MaximalCostNotPositive,
+            LAPJVError::PaddingValueNotFinite => LAPError::PaddingValueNotFinite,
+            LAPJVError::PaddingValueNotPositive => LAPError::PaddingValueNotPositive,
+        }
+    }
 }
