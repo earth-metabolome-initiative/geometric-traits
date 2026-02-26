@@ -20,6 +20,7 @@ multi_ranged = "0.1.1"
 thiserror = { version = "2.0", default-features = false }
 lender = { version = "0.4.2", default-features = false }
 hashbrown = { version = "0.16.1", optional = true }
+bitvec = { version = "1", default-features = false, features = ["alloc"] }
 
 [lints.rust]
 missing_docs = "forbid"

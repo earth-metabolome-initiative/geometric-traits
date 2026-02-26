@@ -1,55 +1,21 @@
 //! Submodule providing the `CycleDetection` trait and its blanket
 //! implementation.
 use alloc::vec::Vec;
+use bitvec::vec::BitVec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
-
-/// Struct to support cycle detection in a graph.
-struct CycleDetector<'graph, G: MonoplexMonopartiteGraph + ?Sized> {
-    /// The graph to be analyzed.
-    graph: &'graph G,
-    /// A vector to keep track of visited nodes.
-    visited: Vec<bool>,
-    /// A vector to keep track of the recursion stack.
-    stack: Vec<G::NodeId>,
-}
-
-impl<'graph, G: MonoplexMonopartiteGraph + ?Sized> From<&'graph G> for CycleDetector<'graph, G> {
-    fn from(graph: &'graph G) -> Self {
-        CycleDetector {
-            graph,
-            visited: vec![false; graph.number_of_nodes().into_usize()],
-            stack: Vec::new(),
-        }
-    }
-}
-
-impl<G: MonoplexMonopartiteGraph + ?Sized> CycleDetector<'_, G> {
-    /// Recursive function to detect cycles in the graph.
-    fn dfs(&mut self, node: G::NodeId) -> bool {
-        if !self.visited[node.into_usize()] {
-            self.visited[node.into_usize()] = true;
-            self.stack.push(node);
-
-            for successor_node_id in self.graph.successors(node) {
-                if !self.visited[successor_node_id.into_usize()] && self.dfs(successor_node_id)
-                    || self.stack.contains(&successor_node_id)
-                {
-                    return true;
-                }
-            }
-        }
-
-        self.stack.pop();
-        false
-    }
-}
 
 /// Trait providing the `has_cycle` method, which returns true if the graph
 /// contains a cycle, and false otherwise. The cycle detection algorithm is
 /// based on a depth-first search (DFS) approach.
 pub trait CycleDetection: MonoplexMonopartiteGraph {
     /// Returns true if the graph contains a cycle, false otherwise.
+    ///
+    /// # Complexity
+    ///
+    /// O(V + E) time and O(V) space. Node membership in the current DFS path
+    /// is tracked with a `Vec<bool>` for O(1) per lookup instead of the
+    /// O(n) `Vec::contains` that the naive stack approach would require.
     ///
     /// # Examples
     ///
@@ -78,12 +44,47 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
     /// assert!(!graph.has_cycle());
     /// ```
     fn has_cycle(&self) -> bool {
-        let mut cycle_detector = CycleDetector::from(self);
-        for node in self.node_ids() {
-            if cycle_detector.dfs(node) {
-                return true;
+        let n = self.number_of_nodes().into_usize();
+        let mut visited: BitVec = BitVec::repeat(false, n);
+        let mut on_stack: BitVec = BitVec::repeat(false, n);
+
+        // DFS stack entries: (node, collected successors, next-successor index)
+        let mut dfs_stack: Vec<(Self::NodeId, Vec<Self::NodeId>, usize)> = Vec::new();
+
+        for start in self.node_ids() {
+            if visited[start.into_usize()] {
+                continue;
+            }
+            visited.set(start.into_usize(), true);
+            on_stack.set(start.into_usize(), true);
+            dfs_stack.push((start, self.successors(start).collect(), 0));
+
+            loop {
+                if dfs_stack.is_empty() {
+                    break;
+                }
+                let top_idx = dfs_stack.last().unwrap().2;
+                let top_len = dfs_stack.last().unwrap().1.len();
+
+                if top_idx < top_len {
+                    let successor = dfs_stack.last().unwrap().1[top_idx];
+                    dfs_stack.last_mut().unwrap().2 += 1;
+
+                    if on_stack[successor.into_usize()] {
+                        return true;
+                    }
+                    if !visited[successor.into_usize()] {
+                        visited.set(successor.into_usize(), true);
+                        on_stack.set(successor.into_usize(), true);
+                        dfs_stack.push((successor, self.successors(successor).collect(), 0));
+                    }
+                } else {
+                    let (node, _, _) = dfs_stack.pop().unwrap();
+                    on_stack.set(node.into_usize(), false);
+                }
             }
         }
+
         false
     }
 }
