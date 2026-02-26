@@ -1,8 +1,10 @@
 //! Submodule providing `Resnik` trait based on the algorithm implementation.
+use alloc::vec::Vec;
+
 use crate::{
     prelude::information_content::InformationContentError,
     traits::{
-        InformationContent, MonoplexMonopartiteGraph, ScalarSimilarity,
+        InformationContent, IntoUsize, MonoplexMonopartiteGraph, ScalarSimilarity,
         information_content::InformationContentResult,
     },
 };
@@ -48,44 +50,124 @@ where
     }
 }
 
+/// Combine two `InformationContentSearch` states at a given parent node.
+///
+/// Returns the updated state for the parent after observing `child_result`
+/// in one of its subtrees. `parent_node_ic` is the IC of the parent node,
+/// used when the parent becomes the lowest common ancestor.
+fn combine_ic_states(
+    parent_state: InformationContentSearch,
+    child_result: InformationContentSearch,
+    parent_node_ic: f64,
+) -> InformationContentSearch {
+    match (parent_state, child_result) {
+        (InformationContentSearch::Left, InformationContentSearch::Right)
+        | (InformationContentSearch::Right, InformationContentSearch::Left) => {
+            InformationContentSearch::Both(parent_node_ic)
+        }
+        (InformationContentSearch::NotFound, other) => other,
+        (InformationContentSearch::Both(a), InformationContentSearch::Both(b)) => {
+            InformationContentSearch::Both(if a > b { a } else { b })
+        }
+        (_, InformationContentSearch::Both(other)) => InformationContentSearch::Both(other),
+        // All remaining cases are no-ops: Left+Left, Right+Right,
+        // Both+Left, Both+Right, Left/Right/Both + NotFound.
+        (state, _) => state,
+    }
+}
+
+/// DFS stack frame used by [`information_content_search`].
+struct IcSearchFrame<NodeId: Copy> {
+    node: NodeId,
+    successors: Vec<NodeId>,
+    idx: usize,
+    state: InformationContentSearch,
+}
+
+/// Iterative post-order DFS with memoisation to compute the
+/// `InformationContentSearch` result for the subtree rooted at `root_node`.
+///
+/// # Complexity
+///
+/// O(V + E) time and O(V) space per query pair after the iterative rewrite
+/// with a per-call memo table indexed by node id.
 fn information_content_search<G>(
     information_content_result: &InformationContentResult<'_, G>,
     left: &G::NodeId,
     right: &G::NodeId,
-    current_node: &G::NodeId,
+    root_node: &G::NodeId,
 ) -> InformationContentSearch
 where
     G: MonoplexMonopartiteGraph + ?Sized,
 {
-    // Base cases
-    let mut state = if left == current_node {
+    let n = information_content_result.graph().number_of_nodes().into_usize();
+    // Memo table: once a subtree result is known, store it here to avoid
+    // reprocessing diamond-shaped subgraphs.
+    let mut memo: Vec<Option<InformationContentSearch>> = vec![None; n];
+
+    let graph = information_content_result.graph();
+    let root = *root_node;
+    let root_state = if root == *left {
         InformationContentSearch::Left
-    } else if right == current_node {
+    } else if root == *right {
         InformationContentSearch::Right
     } else {
         InformationContentSearch::NotFound
     };
-    for successor in information_content_result.graph().successors(*current_node) {
-        state = match (
-            state,
-            information_content_search(information_content_result, left, right, &successor),
-        ) {
-            (InformationContentSearch::Left, InformationContentSearch::Right)
-            | (InformationContentSearch::Right, InformationContentSearch::Left) => {
-                InformationContentSearch::Both(information_content_result[*current_node])
+    let root_successors: Vec<G::NodeId> = graph.successors(root).collect();
+    let mut stack =
+        vec![IcSearchFrame { node: root, successors: root_successors, idx: 0, state: root_state }];
+
+    loop {
+        // Determine what to do next without holding a long-lived mutable
+        // borrow on `stack`.
+        let (should_push, should_pop) = {
+            let frame = stack.last_mut().expect("stack is non-empty inside loop");
+            if frame.idx < frame.successors.len() {
+                let successor = frame.successors[frame.idx];
+                frame.idx += 1;
+                if let Some(child_result) = memo[successor.into_usize()] {
+                    // Already memoised: fold directly into parent state.
+                    let parent_ic = information_content_result[frame.node];
+                    frame.state = combine_ic_states(frame.state, child_result, parent_ic);
+                    (None, false)
+                } else {
+                    (Some(successor), false)
+                }
+            } else {
+                (None, true)
             }
-            (InformationContentSearch::NotFound, other) => other,
-            (InformationContentSearch::Both(current), InformationContentSearch::Both(other)) => {
-                InformationContentSearch::Both(if current > other { current } else { other })
-            }
-            (_, InformationContentSearch::Both(other)) => InformationContentSearch::Both(other),
-            (_, InformationContentSearch::NotFound)
-            | (InformationContentSearch::Left, InformationContentSearch::Left)
-            | (InformationContentSearch::Right, InformationContentSearch::Right)
-            | (InformationContentSearch::Both(_), _) => continue,
         };
+
+        if let Some(successor) = should_push {
+            let child_state = if successor == *left {
+                InformationContentSearch::Left
+            } else if successor == *right {
+                InformationContentSearch::Right
+            } else {
+                InformationContentSearch::NotFound
+            };
+            let child_successors: Vec<G::NodeId> = graph.successors(successor).collect();
+            stack.push(IcSearchFrame {
+                node: successor,
+                successors: child_successors,
+                idx: 0,
+                state: child_state,
+            });
+        } else if should_pop {
+            let frame = stack.pop().expect("stack is non-empty when popping");
+            let node_state = frame.state;
+            memo[frame.node.into_usize()] = Some(node_state);
+            if let Some(parent) = stack.last_mut() {
+                let parent_ic = information_content_result[parent.node];
+                parent.state = combine_ic_states(parent.state, node_state, parent_ic);
+            } else {
+                // Root frame popped: this is the final result.
+                return node_state;
+            }
+        }
+        // else: memo hit was applied in-place; no push/pop needed.
     }
-    state
 }
 
 /// Enum for tracking IC Search possibilities

@@ -47,8 +47,12 @@ impl<G: ?Sized + MonoplexMonopartiteGraph> Index<G::NodeId> for InformationConte
 /// Notes:
 /// - This module assumes byte/float-safe sums. It does not perform DAG
 ///   validation
+///
+/// # Complexity
+///
+/// `information_content` runs in O(V + E) time and O(V) space, where V is the
+/// number of nodes and E the number of edges.
 pub trait InformationContent: MonoplexMonopartiteGraph {
-    #[allow(clippy::cast_precision_loss)]
     /// Computes per-node information content
     /// # Errors
     /// - `UnequalOccurrenceSize` when occurrence lengths do not match the
@@ -89,7 +93,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         occurrences: &[usize],
     ) -> Result<InformationContentResult<'_, Self>, InformationContentError> {
         // Check whether the graph is a DAG (characterize by having no cycles)
-        let _topological_ordering = self.edges().matrix().kahn()?;
+        let topological_ordering = self.edges().matrix().kahn()?;
         // Validate occurrences length.
         let expected = self.number_of_nodes().into_usize();
         if occurrences.len() != expected {
@@ -106,11 +110,23 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
             }
         }
 
-        // Propagate occurrences from all root nodes.
-        let mut propagated_occurrences = vec![None::<usize>; expected];
-        let root_nodes = self.root_nodes();
-        for root_node in &root_nodes {
-            propagate_occurrences(self, *root_node, occurrences, &mut propagated_occurrences);
+        // Propagate occurrences iteratively in reverse topological order
+        // (sinks first, roots last) so that each node's successors are always
+        // processed before the node itself.
+        let mut sorted_nodes: Vec<Self::NodeId> = self.node_ids().collect();
+        sorted_nodes.sort_unstable_by(|&a, &b| {
+            topological_ordering[b.into_usize()]
+                .into_usize()
+                .cmp(&topological_ordering[a.into_usize()].into_usize())
+        });
+
+        let mut propagated_occurrences = vec![0usize; expected];
+        for &node_id in &sorted_nodes {
+            let mut acc = occurrences[node_id.into_usize()];
+            for successor in self.successors(node_id) {
+                acc = acc.saturating_add(propagated_occurrences[successor.into_usize()]);
+            }
+            propagated_occurrences[node_id.into_usize()] = acc;
         }
 
         // total information content, initialized to 0
@@ -123,14 +139,17 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         let information_contents = propagated_occurrences
             .into_iter()
             .map(|propagated_occurrence| {
+                #[allow(clippy::cast_precision_loss)]
                 let information_content =
-                    -(propagated_occurrence.unwrap() as f64 / total_occurrences as f64).ln();
+                    -(propagated_occurrence as f64 / total_occurrences as f64).ln();
                 if information_content > max_information_content {
                     max_information_content = information_content;
                 }
                 information_content
             })
             .collect::<Vec<f64>>();
+
+        let root_nodes = self.root_nodes();
 
         Ok(InformationContentResult {
             information_contents,
@@ -139,31 +158,6 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
             graph: self,
         })
     }
-}
-
-/// Helper: recursively propagates occurrences over successors
-fn propagate_occurrences<G>(
-    graph: &G,
-    node: G::NodeId,
-    occurrences: &[usize],
-    propagated_occurrences: &mut [Option<usize>],
-) -> usize
-where
-    G: MonoplexMonopartiteGraph + ?Sized,
-{
-    // Check whether node has been visited by propagation
-    if let Some(propagated_occurrence) = propagated_occurrences[node.into_usize()] {
-        return propagated_occurrence;
-    }
-    let mut propagated_occurrence = occurrences[node.into_usize()];
-    // Recursively call propagate_occurrences()
-    for successor in graph.successors(node) {
-        propagated_occurrence =
-            propagate_occurrences(graph, successor, occurrences, propagated_occurrences)
-                .saturating_add(propagated_occurrence);
-    }
-    propagated_occurrences[node.into_usize()] = Some(propagated_occurrence);
-    propagated_occurrence
 }
 
 impl<T> InformationContent for T where T: MonoplexMonopartiteGraph + ?Sized {}

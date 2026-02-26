@@ -27,6 +27,11 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
     /// # Errors
     /// - If the graph is not a dag
     ///
+    /// # Complexity
+    ///
+    /// `wu_palmer` preparation is O(V + E). Each call to `similarity` is
+    /// O(V + E) per root node.
+    ///
     /// # Examples
     ///
     /// ```
@@ -93,44 +98,103 @@ where
     }
 }
 
+/// Stack frame for the iterative post-order DFS used in `wu_palmer_depth`.
+struct WuPalmerFrame<NodeId: Copy> {
+    depth: usize,
+    successors: Vec<NodeId>,
+    idx: usize,
+    n1: Option<usize>,
+    n2: Option<usize>,
+    /// Depth of the deepest common ancestor found in this subtree.
+    n3: usize,
+}
+
+/// Iterative post-order DFS that computes the Wu-Palmer depth triple for the
+/// subtree rooted at `initial_node`.
+///
+/// Returns `(n1, n2, n3)` where:
+/// - `n1` = minimum depth of `left` in this subtree (`None` if not found)
+/// - `n2` = minimum depth of `right` in this subtree (`None` if not found)
+/// - `n3` = depth of the deepest common ancestor node that has both `left`
+///   and `right` in its subtree (equals `initial_depth` when neither or only
+///   one target is reachable)
 fn wu_palmer_depth<G>(
     graph: &G,
-    depth: usize,
-    current_node: G::NodeId,
+    initial_depth: usize,
+    initial_node: G::NodeId,
     left: G::NodeId,
     right: G::NodeId,
 ) -> (Option<usize>, Option<usize>, usize)
 where
     G: MonoplexMonopartiteGraph + ?Sized,
 {
-    let (mut n1, mut n2, mut n3) = (None, None, depth);
-    if current_node == left {
-        n1 = Some(depth);
-    } else if current_node == right {
-        n2 = Some(depth);
-    }
+    let init_n1 = if initial_node == left { Some(initial_depth) } else { None };
+    let init_n2 = if initial_node == right { Some(initial_depth) } else { None };
+    let init_successors: Vec<G::NodeId> = graph.successors(initial_node).collect();
+    let mut stack = vec![WuPalmerFrame {
+        depth: initial_depth,
+        successors: init_successors,
+        idx: 0,
+        n1: init_n1,
+        n2: init_n2,
+        n3: initial_depth,
+    }];
 
-    for successor in graph.successors(current_node) {
-        match wu_palmer_depth(graph, depth + 1, successor, left, right) {
-            (Some(rec_n1), None, _) => {
-                n1 = Some(n1.map_or(rec_n1, |n1| if n1 < rec_n1 { n1 } else { rec_n1 }));
+    loop {
+        let (should_push, should_pop) = {
+            let frame = stack.last_mut().expect("stack is non-empty inside loop");
+            if frame.idx < frame.successors.len() {
+                let successor = frame.successors[frame.idx];
+                let new_depth = frame.depth + 1;
+                frame.idx += 1;
+                (Some((successor, new_depth)), false)
+            } else {
+                (None, true)
             }
-            (None, Some(rec_n2), _) => {
-                n2 = Some(n2.map_or(rec_n2, |n2| if n2 < rec_n2 { n2 } else { rec_n2 }));
-            }
-            (None, None, _) => {}
-            (rec_n1, rec_n2, rec_n3) => {
-                n3 = if n3 < rec_n3 {
-                    n1 = rec_n1;
-                    n2 = rec_n2;
-                    rec_n3
-                } else {
-                    n3
-                };
+        };
+
+        if let Some((successor, new_depth)) = should_push {
+            let sn1 = if successor == left { Some(new_depth) } else { None };
+            let sn2 = if successor == right { Some(new_depth) } else { None };
+            let child_successors: Vec<G::NodeId> = graph.successors(successor).collect();
+            stack.push(WuPalmerFrame {
+                depth: new_depth,
+                successors: child_successors,
+                idx: 0,
+                n1: sn1,
+                n2: sn2,
+                n3: new_depth,
+            });
+        } else if should_pop {
+            let child = stack.pop().expect("stack is non-empty when popping");
+            let (child_n1, child_n2, child_n3) = (child.n1, child.n2, child.n3);
+
+            if let Some(parent) = stack.last_mut() {
+                match (child_n1, child_n2) {
+                    (Some(rec_n1), None) => {
+                        parent.n1 =
+                            Some(parent.n1.map_or(rec_n1, |n1| if n1 < rec_n1 { n1 } else { rec_n1 }));
+                    }
+                    (None, Some(rec_n2)) => {
+                        parent.n2 =
+                            Some(parent.n2.map_or(rec_n2, |n2| if n2 < rec_n2 { n2 } else { rec_n2 }));
+                    }
+                    (None, None) => {}
+                    // Both Some: the child subtree contains a common ancestor.
+                    (rec_n1, rec_n2) => {
+                        if parent.n3 < child_n3 {
+                            parent.n3 = child_n3;
+                            parent.n1 = rec_n1;
+                            parent.n2 = rec_n2;
+                        }
+                    }
+                }
+            } else {
+                // Stack exhausted: root frame result is the final answer.
+                return (child_n1, child_n2, child_n3);
             }
         }
     }
-    (n1, n2, n3)
 }
 
 impl<G> WuPalmer for G where G: MonoplexMonopartiteGraph {}
