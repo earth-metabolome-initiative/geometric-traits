@@ -95,25 +95,28 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
     type Item = Vec<M::Index>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.sparse_row_stack.is_empty() {
-            let root_id = self.row_indices.next()?;
-            if self.indices[root_id.into_usize()].is_none() {
-                self.register_new_scc_search(root_id);
-            } else {
-                return self.next();
+        loop {
+            if self.sparse_row_stack.is_empty() {
+                let root_id = self.row_indices.next()?;
+                if self.indices[root_id.into_usize()].is_none() {
+                    self.register_new_scc_search(root_id);
+                    // Fall through to column processing below.
+                } else {
+                    // Already-visited root: try the next one.
+                    continue;
+                }
             }
-        }
-        if let Some(column_id) = self.last_scc_next_column_id() {
-            if self.indices[column_id.into_usize()].is_none() {
-                self.register_new_scc_search(column_id);
-            } else if self.on_stack[column_id.into_usize()] {
-                let root_id = self.last_scc_row_id();
-                self.lowlink[root_id.into_usize()] = self.lowlink[root_id.into_usize()]
-                    .zip(self.indices[column_id.into_usize()])
-                    .map(|(left_scc_id, right_scc_id)| left_scc_id.min(right_scc_id));
+            if let Some(column_id) = self.last_scc_next_column_id() {
+                if self.indices[column_id.into_usize()].is_none() {
+                    self.register_new_scc_search(column_id);
+                } else if self.on_stack[column_id.into_usize()] {
+                    let root_id = self.last_scc_row_id();
+                    self.lowlink[root_id.into_usize()] = self.lowlink[root_id.into_usize()]
+                        .zip(self.indices[column_id.into_usize()])
+                        .map(|(left_scc_id, right_scc_id)| left_scc_id.min(right_scc_id));
+                }
+                continue;
             }
-            self.next()
-        } else {
             // If the last sparse coordinates are exhausted, we need to determine whether it
             // completes the last strongly connected component or not.
             let column_id = self.last_scc_row_id();
@@ -125,8 +128,10 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
                     .zip(self.lowlink[column_id.into_usize()])
                     .map(|(left_scc_id, right_scc_id)| left_scc_id.min(right_scc_id));
             }
-
-            maybe_scc.or_else(|| self.next())
+            if let Some(scc) = maybe_scc {
+                return Some(scc);
+            }
+            // No SCC emitted: continue searching.
         }
     }
 }
@@ -134,6 +139,10 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
 /// Tarjan's algorithm for strongly connected components.
 pub trait Tarjan: SquareMatrix + SparseMatrix2D {
     /// Returns the strongly connected components of the graph.
+    ///
+    /// # Complexity
+    ///
+    /// O(V + E) time and O(V) space.
     ///
     /// # Examples
     ///

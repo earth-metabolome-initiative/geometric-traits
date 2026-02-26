@@ -116,23 +116,69 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
         &mut self.left_distances[row_index.into_usize()]
     }
 
-    pub(super) fn dfs(&mut self, row_index: Option<M::RowIndex>) -> bool {
-        let Some(row_index) = row_index else {
+    /// Iterative augmenting-path search (replaces the previous recursive DFS).
+    ///
+    /// Finds an augmenting path starting from `initial_row` and, if one
+    /// exists, commits the new assignment along that path and returns `true`.
+    /// Returns `false` and marks unreachable rows with `Distance::max_value()`
+    /// when no augmenting path is reachable.
+    pub(super) fn dfs(&mut self, initial_row: Option<M::RowIndex>) -> bool {
+        let Some(start) = initial_row else {
             return true;
         };
-        let left_distance = self.left_distances[row_index.into_usize()];
-        for successor_id in self.matrix.sparse_row(row_index) {
-            let maybe_predecessor_id = self.predecessors[successor_id.into_usize()];
-            if self.left_distance(maybe_predecessor_id) == left_distance + Distance::one()
-                && self.dfs(maybe_predecessor_id)
-            {
-                self.successors[row_index.into_usize()] = Some(successor_id);
-                self.predecessors[successor_id.into_usize()] = Some(row_index);
-                return true;
+
+        // Stack: (row_index, collected column successors, next-column index)
+        let mut stack: Vec<(M::RowIndex, Vec<M::ColumnIndex>, usize)> = Vec::new();
+        // `chosen` records the (row, column) pairs along the current path,
+        // one entry per stack frame above the bottom.
+        // Invariant: len(chosen) == len(stack) - 1.
+        let mut chosen: Vec<(M::RowIndex, M::ColumnIndex)> = Vec::new();
+
+        let init_succ: Vec<M::ColumnIndex> = self.matrix.sparse_row(start).collect();
+        stack.push((start, init_succ, 0));
+
+        loop {
+            if stack.is_empty() {
+                return false;
+            }
+
+            let top_row = stack.last().unwrap().0;
+            let top_idx = stack.last().unwrap().2;
+            let top_len = stack.last().unwrap().1.len();
+
+            if top_idx < top_len {
+                let successor_id = stack.last().unwrap().1[top_idx];
+                stack.last_mut().unwrap().2 += 1;
+
+                let left_distance = self.left_distances[top_row.into_usize()];
+                let maybe_pred = self.predecessors[successor_id.into_usize()];
+
+                if self.left_distance(maybe_pred) == left_distance + Distance::one() {
+                    if let Some(pred) = maybe_pred {
+                        // Extend the path to pred.
+                        chosen.push((top_row, successor_id));
+                        let pred_succ: Vec<M::ColumnIndex> =
+                            self.matrix.sparse_row(pred).collect();
+                        stack.push((pred, pred_succ, 0));
+                    } else {
+                        // Base case: reached the unmatched end of the path.
+                        // Commit all edges in `chosen` plus this final edge.
+                        chosen.push((top_row, successor_id));
+                        for (r, c) in chosen {
+                            self.successors[r.into_usize()] = Some(c);
+                            self.predecessors[c.into_usize()] = Some(r);
+                        }
+                        return true;
+                    }
+                }
+            } else {
+                // This row is exhausted; backtrack.
+                stack.pop();
+                if !chosen.is_empty() {
+                    chosen.pop();
+                }
+                self.left_distances[top_row.into_usize()] = Distance::max_value();
             }
         }
-
-        self.left_distances[row_index.into_usize()] = Distance::max_value();
-        false
     }
 }
