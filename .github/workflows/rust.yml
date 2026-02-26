@@ -90,8 +90,23 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     - name: Install tarpaulin
       run: cargo install cargo-tarpaulin
+    - name: Install nightly toolchain for doctest coverage
+      run: |
+        set -euo pipefail
+        rustup set profile minimal
+        for attempt in 1 2 3; do
+          if rustup toolchain install nightly --component cargo; then
+            exit 0
+          fi
+          if [ "$attempt" -eq 3 ]; then
+            echo "Failed to install nightly toolchain after 3 attempts" >&2
+            exit 1
+          fi
+          echo "Retrying nightly toolchain install (${attempt}/3)"
+          sleep 5
+        done
     - name: Generate coverage
-      run: cargo tarpaulin --engine=llvm --out xml --workspace --run-types AllTargets --run-types Doctests
+      run: cargo +nightly tarpaulin --engine=llvm --out xml --workspace --run-types AllTargets --run-types Doctests
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
