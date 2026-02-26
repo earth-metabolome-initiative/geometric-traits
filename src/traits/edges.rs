@@ -31,11 +31,13 @@ pub trait Edges {
     fn matrix(&self) -> &Self::Matrix;
 
     /// Returns the number of edges.
+    #[inline]
     fn number_of_edges(&self) -> Self::EdgeId {
         self.matrix().number_of_defined_values()
     }
 
     /// Returns whether the graph has any edges.
+    #[inline]
     fn has_edges(&self) -> bool {
         !self.matrix().is_empty()
     }
@@ -45,6 +47,7 @@ pub trait Edges {
     /// # Arguments
     ///
     /// * `source` - The identifier of the source node.
+    #[inline]
     fn successors(
         &self,
         source: Self::SourceNodeId,
@@ -58,6 +61,7 @@ pub trait Edges {
     ///
     /// * `source` - The identifier of the source node.
     /// * `destination` - The identifier of the destination node.
+    #[inline]
     fn has_successor(
         &self,
         source: Self::SourceNodeId,
@@ -71,6 +75,7 @@ pub trait Edges {
     /// # Arguments
     ///
     /// * `source` - The identifier of the source node.
+    #[inline]
     fn has_successors(&self, source: Self::SourceNodeId) -> bool {
         self.out_degree(source) > Self::DestinationNodeId::zero()
     }
@@ -80,16 +85,19 @@ pub trait Edges {
     /// # Arguments
     ///
     /// * `source` - The identifier of the source node.
+    #[inline]
     fn out_degree(&self, source: Self::SourceNodeId) -> Self::DestinationNodeId {
         self.matrix().number_of_defined_values_in_row(source)
     }
 
     /// Returns an iterator over the out degrees of the nodes.
+    #[inline]
     fn out_degrees(&self) -> <Self::Matrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_> {
         self.matrix().sparse_row_sizes()
     }
 
     /// Returns the iterator of the edges.
+    #[inline]
     fn sparse_coordinates(&self) -> <Self::Matrix as SparseMatrix>::SparseCoordinates<'_> {
         self.matrix().sparse_coordinates()
     }

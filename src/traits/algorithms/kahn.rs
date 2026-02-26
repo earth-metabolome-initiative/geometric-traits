@@ -23,6 +23,10 @@ pub trait Kahn: SquareMatrix + SparseMatrix2D {
     ///
     /// * If the graph contains a cycle, an error is returned.
     ///
+    /// # Complexity
+    ///
+    /// O(V + E) time and O(V) space.
+    ///
     /// # Examples
     ///
     /// ```

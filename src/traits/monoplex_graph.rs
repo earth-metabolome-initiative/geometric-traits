@@ -49,6 +49,7 @@ pub trait MonoplexGraph: super::Graph {
     /// let successors: Vec<usize> = graph.successors(0).collect();
     /// assert_eq!(successors, vec![1, 2]);
     /// ```
+    #[inline]
     fn successors(
         &self,
         source_node_id: <Self::Edges as super::Edges>::SourceNodeId,
@@ -89,6 +90,7 @@ pub trait MonoplexGraph: super::Graph {
     /// assert!(graph.has_successors(1));
     /// assert!(!graph.has_successors(2));
     /// ```
+    #[inline]
     fn has_successors(&self, source_node_id: <Self::Edges as super::Edges>::SourceNodeId) -> bool {
         self.edges().has_successors(source_node_id)
     }
@@ -129,6 +131,7 @@ pub trait MonoplexGraph: super::Graph {
     /// assert!(graph.has_successor(0, 2));
     /// assert!(!graph.has_successor(0, 3));
     /// ```
+    #[inline]
     fn has_successor(
         &self,
         source_node_id: <Self::Edges as super::Edges>::SourceNodeId,
@@ -142,6 +145,7 @@ pub trait MonoplexGraph: super::Graph {
     /// # Arguments
     ///
     /// * `source_node_id` - The identifier of the source node.
+    #[inline]
     fn out_degree(
         &self,
         source_node_id: <Self::Edges as super::Edges>::SourceNodeId,
@@ -150,6 +154,7 @@ pub trait MonoplexGraph: super::Graph {
     }
 
     /// Iterates across all out degrees of the graph.
+    #[inline]
     fn out_degrees(
         &self,
     ) -> <<Self::Edges as Edges>::Matrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_> {
@@ -157,6 +162,7 @@ pub trait MonoplexGraph: super::Graph {
     }
 
     /// Returns the iterator over all sparse coordinates of the matrix.
+    #[inline]
     fn sparse_coordinates(
         &self,
     ) -> <<Self::Edges as Edges>::Matrix as SparseMatrix>::SparseCoordinates<'_> {
@@ -164,6 +170,7 @@ pub trait MonoplexGraph: super::Graph {
     }
 
     /// Returns the number of edges in the graph.
+    #[inline]
     fn number_of_edges(&self) -> <Self::Edges as super::Edges>::EdgeId {
         self.edges().number_of_edges()
     }

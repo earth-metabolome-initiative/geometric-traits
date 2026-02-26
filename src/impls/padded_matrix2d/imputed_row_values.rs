@@ -87,7 +87,7 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let dense_column_index = self.column_indices.next()?;
         if let Some(backup_sparse_column_index) = self.next_column_index {
-            debug_assert!(
+            assert!(
                 backup_sparse_column_index >= dense_column_index,
                 "The column indices are not sorted in ascending order: {dense_column_index} < {backup_sparse_column_index}"
             );
@@ -98,7 +98,7 @@ where
         } else if let Some(sparse_column_index) =
             self.sparse_column_indices.as_mut().and_then(Iterator::next)
         {
-            debug_assert!(
+            assert!(
                 sparse_column_index >= dense_column_index,
                 "The column indices are not sorted in ascending order."
             );

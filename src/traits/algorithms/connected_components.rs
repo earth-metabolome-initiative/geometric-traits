@@ -128,6 +128,10 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     ///   type.
     /// * If the graph has too many nodes.
     ///
+    /// # Complexity
+    ///
+    /// O(V + E) time and O(V) space.
+    ///
     /// # Examples
     ///
     /// ```
