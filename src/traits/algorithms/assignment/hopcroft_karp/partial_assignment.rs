@@ -157,8 +157,7 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
                     if let Some(pred) = maybe_pred {
                         // Extend the path to pred.
                         chosen.push((top_row, successor_id));
-                        let pred_succ: Vec<M::ColumnIndex> =
-                            self.matrix.sparse_row(pred).collect();
+                        let pred_succ: Vec<M::ColumnIndex> = self.matrix.sparse_row(pred).collect();
                         stack.push((pred, pred_succ, 0));
                     } else {
                         // Base case: reached the unmatched end of the path.

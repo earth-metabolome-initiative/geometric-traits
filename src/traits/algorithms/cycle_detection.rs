@@ -1,6 +1,7 @@
 //! Submodule providing the `CycleDetection` trait and its blanket
 //! implementation.
 use alloc::vec::Vec;
+
 use bitvec::vec::BitVec;
 
 use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
