@@ -78,3 +78,7 @@ harness = false
 [[bench]]
 name = "lin"
 harness = false
+
+[[bench]]
+name = "lapmod"
+harness = false
