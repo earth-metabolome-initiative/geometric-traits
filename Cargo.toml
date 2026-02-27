@@ -21,7 +21,7 @@ thiserror = { version = "2.0", default-features = false }
 lender = { version = "0.4.2", default-features = false }
 hashbrown = { version = "0.16.1", optional = true }
 bitvec = { version = "1", default-features = false, features = ["alloc"] }
-rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"] }
+rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"], optional = true }
 
 [lints.rust]
 missing_docs = "forbid"
@@ -64,6 +64,7 @@ alloc = [
     "serde?/alloc",
     "serde?/rc",
     "hashbrown?/alloc",
+    "dep:rand",
 ]
 arbitrary = ["dep:arbitrary", "std"]
 serde = ["dep:serde", "multi_ranged/serde"]

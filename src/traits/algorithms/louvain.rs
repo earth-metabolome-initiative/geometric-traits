@@ -164,16 +164,19 @@ pub struct LouvainLevel<Marker> {
 
 impl<Marker> LouvainLevel<Marker> {
     /// Returns the partition of the original nodes at this level.
+    #[must_use]
     pub fn partition(&self) -> &[Marker] {
         &self.partition
     }
 
     /// Returns the modularity value at this level.
+    #[must_use]
     pub fn modularity(&self) -> f64 {
         self.modularity
     }
 
     /// Returns the number of node moves performed at this level.
+    #[must_use]
     pub fn moved_nodes(&self) -> usize {
         self.moved_nodes
     }
@@ -182,23 +185,24 @@ impl<Marker> LouvainLevel<Marker> {
 #[derive(Debug, Clone, PartialEq)]
 /// Result of the Louvain community detection algorithm.
 pub struct LouvainResult<Marker> {
-    final_partition: Vec<Marker>,
-    final_modularity: f64,
     levels: Vec<LouvainLevel<Marker>>,
 }
 
 impl<Marker> LouvainResult<Marker> {
     /// Returns the final partition of original nodes.
+    #[must_use]
     pub fn final_partition(&self) -> &[Marker] {
-        &self.final_partition
+        self.levels.last().map_or(&[], LouvainLevel::partition)
     }
 
     /// Returns the final modularity value.
+    #[must_use]
     pub fn final_modularity(&self) -> f64 {
-        self.final_modularity
+        self.levels.last().map_or(0.0, |l| l.modularity)
     }
 
     /// Returns all hierarchy levels computed by Louvain.
+    #[must_use]
     pub fn levels(&self) -> &[LouvainLevel<Marker>] {
         &self.levels
     }
@@ -225,6 +229,12 @@ where
     /// - at least one weight is non-finite or non-positive;
     /// - the resulting number of communities cannot fit into `Marker`.
     ///
+    /// # Complexity
+    ///
+    /// O(L * P * (V + E)) time and O(V + E) space, where L is the number of
+    /// coarsening levels, P the number of local-moving passes per level, V
+    /// the number of nodes and E the number of edges.
+    ///
     /// # Examples
     ///
     /// ```
@@ -250,12 +260,12 @@ where
     ///         .build()
     ///         .unwrap();
     ///
-    /// let result = Louvain::<usize>::louvain(&edges, LouvainConfig::default()).unwrap();
+    /// let result = Louvain::<usize>::louvain(&edges, &LouvainConfig::default()).unwrap();
     /// assert_eq!(result.final_partition().len(), 4);
     /// assert!(!result.levels().is_empty());
     /// ```
-    fn louvain(&self, config: LouvainConfig) -> Result<LouvainResult<Marker>, LouvainError> {
-        validate_config(&config)?;
+    fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, LouvainError> {
+        validate_config(config)?;
 
         let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
 
@@ -267,7 +277,7 @@ where
         let mut previous_modularity: Option<f64> = None;
 
         for level_index in 0..config.max_levels {
-            let (mut partition, moved_nodes) = local_moving(&graph, &config, level_index);
+            let (mut partition, moved_nodes) = local_moving(&graph, config, level_index);
             let number_of_communities = renumber_partition(&mut partition);
             let modularity = modularity(&graph, &partition, config.resolution);
 
@@ -292,17 +302,7 @@ where
             current_members = regroup_members(current_members, &partition, number_of_communities);
         }
 
-        let final_level = levels.last().cloned().unwrap_or(LouvainLevel {
-            partition: Vec::new(),
-            modularity: 0.0,
-            moved_nodes: 0,
-        });
-
-        Ok(LouvainResult {
-            final_partition: final_level.partition,
-            final_modularity: final_level.modularity,
-            levels,
-        })
+        Ok(LouvainResult { levels })
     }
 }
 
@@ -430,7 +430,7 @@ fn local_moving(
     let number_of_nodes = graph.number_of_nodes();
     let mut partition: Vec<usize> = (0..number_of_nodes).collect();
 
-    if number_of_nodes == 0 || graph.total_weight <= f64::EPSILON {
+    if number_of_nodes == 0 || graph.total_weight <= 0.0 || !graph.total_weight.is_normal() {
         return (partition, 0);
     }
 
@@ -449,7 +449,7 @@ fn local_moving(
         for node in &order {
             let node = *node;
             let node_degree = graph.degree[node];
-            if node_degree <= f64::EPSILON {
+            if node_degree <= 0.0 {
                 continue;
             }
 
@@ -458,7 +458,7 @@ fn local_moving(
 
             for (neighbor, weight) in &graph.adjacency[node] {
                 let neighbor_community = partition[*neighbor];
-                if weights_to_communities[neighbor_community] <= f64::EPSILON {
+                if weights_to_communities[neighbor_community] == 0.0 {
                     touched_communities.push(neighbor_community);
                 }
                 weights_to_communities[neighbor_community] += *weight;
@@ -507,7 +507,7 @@ fn local_moving(
 }
 
 fn modularity(graph: &WeightedUndirectedGraph, partition: &[usize], resolution: f64) -> f64 {
-    if graph.total_weight <= f64::EPSILON {
+    if graph.total_weight <= 0.0 || !graph.total_weight.is_normal() {
         return 0.0;
     }
 
@@ -528,7 +528,7 @@ fn modularity(graph: &WeightedUndirectedGraph, partition: &[usize], resolution: 
     total_weight_per_community.iter().zip(internal_weight_per_community.iter()).fold(
         0.0,
         |modularity, (total_weight, internal_weight)| {
-            if *total_weight <= f64::EPSILON {
+            if *total_weight <= 0.0 {
                 return modularity;
             }
             let total_fraction = *total_weight * inverse_total_weight;
@@ -595,13 +595,13 @@ fn marker_partition<Marker: PositiveInteger>(
 fn mix_seed(seed: u64, level_index: usize, pass_index: usize) -> u64 {
     let level = level_index as u64;
     let pass = pass_index as u64;
-    seed ^ level.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ pass.wrapping_mul(0xD1B5_4A32_D192_ED03)
+    seed ^ level.wrapping_add(1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+         ^ pass.wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)
 }
 
 fn has_matching_edge(row: &[(usize, f64)], destination: usize, weight: f64) -> bool {
-    row.iter().any(|(column, candidate_weight)| {
-        *column == destination && approx_eq(weight, *candidate_weight)
-    })
+    row.binary_search_by_key(&destination, |(col, _)| *col)
+        .is_ok_and(|idx| approx_eq(weight, row[idx].1))
 }
 
 fn approx_eq(left: f64, right: f64) -> bool {
