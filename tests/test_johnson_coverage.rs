@@ -9,7 +9,7 @@ use geometric_traits::{
 };
 
 fn build_square_csr(n: usize, mut edges: Vec<(usize, usize)>) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    edges.sort();
+    edges.sort_unstable();
     DiEdgesBuilder::default()
         .expected_number_of_edges(edges.len())
         .expected_shape(n)

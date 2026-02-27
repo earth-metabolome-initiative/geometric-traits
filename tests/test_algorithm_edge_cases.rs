@@ -247,7 +247,7 @@ fn test_tarjan_complex_graph() {
     // Node 3: 2 -> 3 (no back edge)
     // SCC2: 4 -> 5 -> 4
     let mut edges = vec![(0, 1), (1, 2), (2, 0), (2, 3), (4, 5), (5, 4)];
-    edges.sort();
+    edges.sort_unstable();
     let m: SquareCSR2D<CSR2D<usize, usize, usize>> = DiEdgesBuilder::default()
         .expected_number_of_edges(edges.len())
         .expected_shape(6)

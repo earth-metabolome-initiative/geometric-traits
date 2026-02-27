@@ -45,8 +45,8 @@ fn test_louvain_error_non_square_matrix() {
     let e = LouvainError::NonSquareMatrix { rows: 3, columns: 5 };
     let s = format!("{e}");
     assert!(s.contains("square"));
-    assert!(s.contains("3"));
-    assert!(s.contains("5"));
+    assert!(s.contains('3'));
+    assert!(s.contains('5'));
 }
 
 #[test]

@@ -170,8 +170,8 @@ fn test_louvain_error_display_non_square() {
     let err = LouvainError::NonSquareMatrix { rows: 3, columns: 5 };
     let display = format!("{err}");
     assert!(display.contains("square"));
-    assert!(display.contains("3"));
-    assert!(display.contains("5"));
+    assert!(display.contains('3'));
+    assert!(display.contains('5'));
 }
 
 #[test]
@@ -372,7 +372,7 @@ fn build_square_csr(
     n: usize,
     mut edges: Vec<(usize, usize)>,
 ) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    edges.sort();
+    edges.sort_unstable();
     DiEdgesBuilder::default()
         .expected_number_of_edges(edges.len())
         .expected_shape(n)

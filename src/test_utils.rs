@@ -27,6 +27,7 @@ use crate::{
 ///
 /// Returns `None` if the bytes are insufficient or do not produce a valid
 /// instance.
+#[must_use]
 pub fn from_bytes<T: for<'a> Arbitrary<'a>>(bytes: &[u8]) -> Option<T> {
     let mut u = Unstructured::new(bytes);
     T::arbitrary(&mut u).ok()
@@ -37,6 +38,7 @@ pub fn from_bytes<T: for<'a> Arbitrary<'a>>(bytes: &[u8]) -> Option<T> {
 ///
 /// Files that fail to produce valid instances are silently skipped.
 /// Returns an empty vector if the directory does not exist or is unreadable.
+#[must_use]
 pub fn replay_dir<T: for<'a> Arbitrary<'a>>(dir: &std::path::Path) -> Vec<T> {
     let mut results = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -417,6 +419,7 @@ pub fn validate_lap_assignment(
 
 /// Returns `true` when edge weights span a numerically stable range,
 /// avoiding extreme floating-point regimes.
+#[must_use]
 pub fn lap_values_are_numerically_stable(
     csr: &ValuedCSR2D<u16, u8, u8, f64>,
 ) -> bool {
@@ -442,6 +445,7 @@ pub fn lap_values_are_numerically_stable(
 }
 
 /// Compute the total cost of an assignment.
+#[must_use]
 pub fn lap_assignment_cost(
     csr: &ValuedCSR2D<u16, u8, u8, f64>,
     assignment: &[(u8, u8)],
@@ -524,23 +528,21 @@ pub fn check_lap_sparse_wrapper_invariants(
         }
         (Ok(lapmod_assignment), Err(lapjv_error)) => {
             validate_lap_assignment(csr, lapmod_assignment, "SparseLAPMOD");
-            if numerically_stable {
-                panic!(
-                    "Sparse wrapper mismatch: SparseLAPMOD returned assignment of len {} \
-                     but SparseLAPJV failed with {lapjv_error:?}: {csr:?}",
-                    lapmod_assignment.len(),
-                );
-            }
+            assert!(
+                !numerically_stable,
+                "Sparse wrapper mismatch: SparseLAPMOD returned assignment of len {} \
+                 but SparseLAPJV failed with {lapjv_error:?}: {csr:?}",
+                lapmod_assignment.len(),
+            );
         }
         (Err(lapmod_error), Ok(lapjv_assignment)) => {
             validate_lap_assignment(csr, lapjv_assignment, "SparseLAPJV");
-            if numerically_stable {
-                panic!(
-                    "Sparse wrapper mismatch: SparseLAPMOD failed with {lapmod_error:?} \
-                     but SparseLAPJV returned assignment of len {}: {csr:?}",
-                    lapjv_assignment.len(),
-                );
-            }
+            assert!(
+                !numerically_stable,
+                "Sparse wrapper mismatch: SparseLAPMOD failed with {lapmod_error:?} \
+                 but SparseLAPJV returned assignment of len {}: {csr:?}",
+                lapjv_assignment.len(),
+            );
         }
     }
 }
@@ -651,6 +653,7 @@ pub fn check_lap_square_invariants(
 
 /// Returns `true` when edge weights are in a numerically stable range for
 /// Louvain modularity comparisons.
+#[must_use]
 pub fn louvain_weights_are_numerically_stable(
     csr: &ValuedCSR2D<u16, u8, u8, f64>,
 ) -> bool {
@@ -696,7 +699,9 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     }
 
-    let n = rows as u8;
+    let Ok(n) = u8::try_from(rows) else {
+        return;
+    };
 
     // Extract upper-triangle edges with finite positive weights, then mirror.
     let mut edges: Vec<(u8, u8, f64)> = Vec::new();
@@ -708,8 +713,12 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         for (col, val) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
             let c = col.into_usize();
             if r <= c && val.is_finite() && val.is_normal() && val > 0.0 {
-                let r8 = r as u8;
-                let c8 = c as u8;
+                let Ok(r8) = u8::try_from(r) else {
+                    continue;
+                };
+                let Ok(c8) = u8::try_from(c) else {
+                    continue;
+                };
                 edges.push((r8, c8, val));
                 if r8 != c8 {
                     edges.push((c8, r8, val));
@@ -752,7 +761,7 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
     let modularity = result.final_modularity();
     assert!(
-        modularity >= -0.5 - 1e-9 && modularity <= 1.0 + 1e-9,
+        (-0.5 - 1e-9..=1.0 + 1e-9).contains(&modularity),
         "modularity {modularity} out of [-0.5, 1.0] (with FP tolerance)"
     );
 
