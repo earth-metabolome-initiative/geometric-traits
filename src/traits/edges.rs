@@ -3,7 +3,7 @@
 
 use num_traits::{SaturatingAdd, Zero};
 
-use super::Edge;
+use super::{AttributedEdge, Edge, EdgeType, TypedEdge};
 use crate::traits::{
     IntoUsize, MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D, SizedSparseMatrix,
     SparseMatrix, SparseMatrix2D, SparseMatrixMut, TryFromUsize,
@@ -101,6 +101,22 @@ pub trait Edges {
     fn sparse_coordinates(&self) -> <Self::Matrix as SparseMatrix>::SparseCoordinates<'_> {
         self.matrix().sparse_coordinates()
     }
+}
+
+/// Trait defining a data structure that handles typed edges.
+pub trait TypedEdges: Edges
+where
+    Self::Edge: TypedEdge + AttributedEdge,
+    <Self::Edge as AttributedEdge>::Attribute: EdgeType,
+{
+}
+
+impl<E> TypedEdges for E
+where
+    E: Edges,
+    E::Edge: TypedEdge + AttributedEdge,
+    <E::Edge as AttributedEdge>::Attribute: EdgeType,
+{
 }
 
 /// Trait defining a data structure to handle edges that can grow dynamically.

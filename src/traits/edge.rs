@@ -2,7 +2,7 @@
 
 use core::fmt::Debug;
 
-use crate::traits::PositiveInteger;
+use crate::traits::{PositiveInteger, Symbol};
 
 /// Trait defining the properties of an edge.
 pub trait Edge: Debug + Clone {
@@ -33,4 +33,27 @@ pub trait AttributedEdge: Edge {
 
     /// Returns the attribute of the edge.
     fn attribute(&self) -> Self::Attribute;
+}
+
+/// Marker trait defining an edge type.
+pub trait EdgeType: Symbol {}
+
+impl<T> EdgeType for T where T: Symbol {}
+
+/// Trait defining an attributed edge whose attribute is an edge type.
+pub trait TypedEdge: AttributedEdge {
+    /// Returns the edge type.
+    fn edge_type(&self) -> Self::Attribute
+    where
+        Self::Attribute: EdgeType,
+    {
+        self.attribute()
+    }
+}
+
+impl<E> TypedEdge for E
+where
+    E: AttributedEdge,
+    E::Attribute: EdgeType,
+{
 }
