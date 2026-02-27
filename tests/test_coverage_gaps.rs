@@ -8,14 +8,13 @@ use geometric_traits::{
     prelude::*,
     traits::{
         EdgesBuilder, MatrixMut, SparseMatrix, SparseMatrixMut, SparseSquareMatrix,
-        VocabularyBuilder,
-        algorithms::connected_components::ConnectedComponents,
+        VocabularyBuilder, algorithms::connected_components::ConnectedComponents,
     },
 };
 
 // ============================================================================
-// Error conversions: From<MutabilityError<SquareCSR2D<M>>> for UpperTriangularCSR2D<M>
-// and other From impls (lines 98-197 of error.rs)
+// Error conversions: From<MutabilityError<SquareCSR2D<M>>> for
+// UpperTriangularCSR2D<M> and other From impls (lines 98-197 of error.rs)
 // ============================================================================
 
 type TestCSR = CSR2D<usize, usize, usize>;
@@ -63,8 +62,7 @@ fn test_error_conversion_csr2d_to_square() {
 fn test_error_conversion_square_to_upper_triangular() {
     use geometric_traits::impls::UpperTriangularCSR2D;
 
-    let err: MutabilityError<SquareCSR2D<TestCSR>> =
-        MutabilityError::UnorderedCoordinate((1, 2));
+    let err: MutabilityError<SquareCSR2D<TestCSR>> = MutabilityError::UnorderedCoordinate((1, 2));
     let converted: MutabilityError<UpperTriangularCSR2D<TestCSR>> = err.into();
     let display = format!("{converted}");
     assert!(display.contains("Unordered coordinate"));
@@ -136,8 +134,7 @@ fn test_error_conversion_csr2d_to_valued() {
     let display = format!("{converted}");
     assert!(display.contains("Unordered coordinate"));
 
-    let err: MutabilityError<CSR2D<usize, usize, usize>> =
-        MutabilityError::DuplicatedEntry((3, 4));
+    let err: MutabilityError<CSR2D<usize, usize, usize>> = MutabilityError::DuplicatedEntry((3, 4));
     let converted: MutabilityError<ValuedCSR2D<usize, usize, usize, f64>> = err.into();
     let display = format!("{converted}");
     assert!(display.contains("Duplicated entry"));
@@ -209,21 +206,17 @@ fn test_louvain_error_display_all_variants() {
 
 #[test]
 fn test_vocabulary_builder_missing_symbols() {
-    let result = GenericVocabularyBuilder::<
-        std::vec::IntoIter<(usize, usize)>,
-        SortedVec<usize>,
-    >::default()
-    .expected_number_of_symbols(3)
-    .build();
+    let result =
+        GenericVocabularyBuilder::<std::vec::IntoIter<(usize, usize)>, SortedVec<usize>>::default()
+            .expected_number_of_symbols(3)
+            .build();
     assert!(result.is_err());
 }
 
 #[test]
 fn test_vocabulary_builder_ignore_duplicates_flag() {
-    let builder = GenericVocabularyBuilder::<
-        std::vec::IntoIter<(usize, usize)>,
-        SortedVec<usize>,
-    >::default();
+    let builder =
+        GenericVocabularyBuilder::<std::vec::IntoIter<(usize, usize)>, SortedVec<usize>>::default();
     assert!(!builder.should_ignore_duplicates());
 
     let builder = builder.ignore_duplicates();
@@ -232,13 +225,11 @@ fn test_vocabulary_builder_ignore_duplicates_flag() {
 
 #[test]
 fn test_vocabulary_builder_wrong_count() {
-    let result = GenericVocabularyBuilder::<
-        std::vec::IntoIter<(usize, usize)>,
-        SortedVec<usize>,
-    >::default()
-    .expected_number_of_symbols(5)
-    .symbols(vec![(0, 10), (1, 20)].into_iter())
-    .build();
+    let result =
+        GenericVocabularyBuilder::<std::vec::IntoIter<(usize, usize)>, SortedVec<usize>>::default()
+            .expected_number_of_symbols(5)
+            .symbols(vec![(0, 10), (1, 20)].into_iter())
+            .build();
     assert!(result.is_err());
 }
 
@@ -248,16 +239,12 @@ fn test_vocabulary_builder_wrong_count() {
 
 #[test]
 fn test_undirected_edges_builder_delegation() {
-    let builder: UndiEdgesBuilder<std::vec::IntoIter<(usize, usize)>> =
-        UndiEdgesBuilder::default();
+    let builder: UndiEdgesBuilder<std::vec::IntoIter<(usize, usize)>> = UndiEdgesBuilder::default();
     assert!(builder.get_expected_number_of_edges().is_none());
     assert!(!builder.should_ignore_duplicates());
     assert!(builder.get_expected_shape().is_none());
 
-    let builder = builder
-        .expected_number_of_edges(5)
-        .expected_shape(4)
-        .ignore_duplicates();
+    let builder = builder.expected_number_of_edges(5).expected_shape(4).ignore_duplicates();
 
     assert_eq!(builder.get_expected_number_of_edges(), Some(5));
     assert!(builder.should_ignore_duplicates());
@@ -385,9 +372,7 @@ fn build_square_csr(
 fn test_johnson_figure_eight() {
     // Two cycles sharing a single node (0):
     // Cycle A: 0→1→2→0, Cycle B: 0→3→4→0
-    let m = build_square_csr(5, vec![
-        (0, 1), (0, 3), (1, 2), (2, 0), (3, 4), (4, 0),
-    ]);
+    let m = build_square_csr(5, vec![(0, 1), (0, 3), (1, 2), (2, 0), (3, 4), (4, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     assert_eq!(cycles.len(), 2);
 }
@@ -396,12 +381,8 @@ fn test_johnson_figure_eight() {
 fn test_johnson_deeply_nested_blocking() {
     // Chain of 2-cycles with shared nodes that exercises blocking/unblocking:
     // 0↔1↔2↔3, plus 0→2→3→0 and 0→1→3→0
-    let m = build_square_csr(4, vec![
-        (0, 1), (0, 2),
-        (1, 0), (1, 2), (1, 3),
-        (2, 1), (2, 3),
-        (3, 0),
-    ]);
+    let m =
+        build_square_csr(4, vec![(0, 1), (0, 2), (1, 0), (1, 2), (1, 3), (2, 1), (2, 3), (3, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     // Many cycles including length-2, length-3, and length-4
     assert!(cycles.len() >= 4);
@@ -411,9 +392,7 @@ fn test_johnson_deeply_nested_blocking() {
 fn test_johnson_multiple_sccs_with_tails() {
     // SCC1: 0↔1, SCC2: 3↔4, tail: 2→3 (no back edge)
     // Tests root advancement past non-SCC nodes
-    let m = build_square_csr(5, vec![
-        (0, 1), (1, 0), (2, 3), (3, 4), (4, 3),
-    ]);
+    let m = build_square_csr(5, vec![(0, 1), (1, 0), (2, 3), (3, 4), (4, 3)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     assert_eq!(cycles.len(), 2);
 }
@@ -442,8 +421,7 @@ fn test_johnson_k5_complete() {
 #[test]
 fn test_lapjv_chain_conflicts() {
     // Chain of conflicts: each row prefers the next column
-    use geometric_traits::impls::PaddedMatrix2D;
-    use geometric_traits::traits::LAPJV;
+    use geometric_traits::{impls::PaddedMatrix2D, traits::LAPJV};
     let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
         [1.0, 2.0, 99.0, 99.0, 99.0, 99.0],
         [99.0, 1.0, 2.0, 99.0, 99.0, 99.0],
@@ -461,8 +439,7 @@ fn test_lapjv_chain_conflicts() {
 #[test]
 fn test_lapjv_identity_preference() {
     // All rows prefer diagonal - simple column reduction without conflict
-    use geometric_traits::impls::PaddedMatrix2D;
-    use geometric_traits::traits::LAPJV;
+    use geometric_traits::{impls::PaddedMatrix2D, traits::LAPJV};
     let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
         [1.0, 99.0, 99.0, 99.0],
         [99.0, 1.0, 99.0, 99.0],
@@ -633,11 +610,7 @@ fn test_kahn_wide_dag() {
 #[test]
 fn test_tarjan_disconnected_sccs() {
     // Three separate 2-cycles
-    let m = build_square_csr(6, vec![
-        (0, 1), (1, 0),
-        (2, 3), (3, 2),
-        (4, 5), (5, 4),
-    ]);
+    let m = build_square_csr(6, vec![(0, 1), (1, 0), (2, 3), (3, 2), (4, 5), (5, 4)]);
     let sccs: Vec<Vec<usize>> = m.tarjan().collect();
     assert_eq!(sccs.len(), 3);
     for scc in &sccs {
@@ -648,9 +621,7 @@ fn test_tarjan_disconnected_sccs() {
 #[test]
 fn test_tarjan_single_large_scc() {
     // All nodes in one SCC: 0→1→2→3→4→0
-    let m = build_square_csr(5, vec![
-        (0, 1), (1, 2), (2, 3), (3, 4), (4, 0),
-    ]);
+    let m = build_square_csr(5, vec![(0, 1), (1, 2), (2, 3), (3, 4), (4, 0)]);
     let sccs: Vec<Vec<usize>> = m.tarjan().collect();
     assert_eq!(sccs.len(), 1);
     assert_eq!(sccs[0].len(), 5);
@@ -676,12 +647,8 @@ fn test_padded_diagonal_is_imputed() {
     use num_traits::One;
 
     // Create a 3x3 valued matrix with entries only at (0,1), (1,0), (2,0)
-    let m: ValuedCSR2D<usize, usize, usize, f64> = ValuedCSR2D::try_from([
-        [99.0, 5.0, 99.0],
-        [3.0, 99.0, 99.0],
-        [7.0, 99.0, 99.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, usize, usize, f64> =
+        ValuedCSR2D::try_from([[99.0, 5.0, 99.0], [3.0, 99.0, 99.0], [7.0, 99.0, 99.0]]).unwrap();
 
     let padded = GenericMatrix2DWithPaddedDiagonal::new(m, f64::one).unwrap();
     // Matrix is square, has all values including diagonal from try_from
@@ -695,12 +662,8 @@ fn test_padded_diagonal_is_imputed() {
 #[test]
 fn test_padded_matrix2d_coordinates() {
     use geometric_traits::impls::PaddedMatrix2D;
-    let m: ValuedCSR2D<usize, usize, usize, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0],
-        [3.0, 4.0],
-        [5.0, 6.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, usize, usize, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).unwrap();
 
     let padded = PaddedMatrix2D::new(m, |_: (usize, usize)| 99.0).unwrap();
     // 3 rows x 3 cols (padded to square)

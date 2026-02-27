@@ -389,36 +389,23 @@ fn test_view_len_mid_iteration() {
 
 #[test]
 fn test_values_forward_3x3() {
-    let m: TestValCSR = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ])
-    .unwrap();
+    let m: TestValCSR =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]).unwrap();
     let vals: Vec<f64> = m.sparse_values().collect();
     assert_eq!(vals, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]);
 }
 
 #[test]
 fn test_values_backward_3x3() {
-    let m: TestValCSR = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ])
-    .unwrap();
+    let m: TestValCSR =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]).unwrap();
     let vals: Vec<f64> = m.sparse_values().rev().collect();
     assert_eq!(vals, vec![9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0]);
 }
 
 #[test]
 fn test_values_len_during_iteration() {
-    let m: TestValCSR = ValuedCSR2D::try_from([
-        [1.0, 2.0],
-        [3.0, 4.0],
-        [5.0, 6.0],
-    ])
-    .unwrap();
+    let m: TestValCSR = ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).unwrap();
     let mut iter = m.sparse_values();
     assert_eq!(iter.len(), 6);
     iter.next();
@@ -431,12 +418,7 @@ fn test_values_len_during_iteration() {
 // row's iterator (line 57-61), which has quirks. We test what actually works.
 #[test]
 fn test_values_mixed_direction() {
-    let m: TestValCSR = ValuedCSR2D::try_from([
-        [1.0, 2.0],
-        [3.0, 4.0],
-        [5.0, 6.0],
-    ])
-    .unwrap();
+    let m: TestValCSR = ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).unwrap();
     let mut iter = m.sparse_values();
     assert_eq!(iter.next(), Some(1.0));
     assert_eq!(iter.next(), Some(2.0));
@@ -465,4 +447,5 @@ fn test_two_row_columns_falls_to_back() {
     assert_eq!(iter.next(), None);
 }
 
-// Note: backward iteration on sparse_rows has the same subtraction overflow bug.
+// Note: backward iteration on sparse_rows has the same subtraction overflow
+// bug.

@@ -78,19 +78,12 @@ where
         let column_indices: Vec<M::ColumnIndex> = csr.sparse_row(row_index).collect();
         let mut sorted_column_indices = column_indices.clone();
         sorted_column_indices.sort_unstable();
-        assert_eq!(
-            column_indices, sorted_column_indices,
-            "The row {row_index:?} is not sorted"
-        );
+        assert_eq!(column_indices, sorted_column_indices, "The row {row_index:?} is not sorted");
         sorted_column_indices.dedup();
-        assert_eq!(
-            column_indices, sorted_column_indices,
-            "The row {row_index:?} has duplicates"
-        );
+        assert_eq!(column_indices, sorted_column_indices, "The row {row_index:?} has duplicates");
     }
 
-    let sparse_coordinates: Vec<M::Coordinates> =
-        SparseMatrix::sparse_coordinates(csr).collect();
+    let sparse_coordinates: Vec<M::Coordinates> = SparseMatrix::sparse_coordinates(csr).collect();
     let mut clone_sparse_coordinates = sparse_coordinates.clone();
     clone_sparse_coordinates.sort_unstable();
     assert_eq!(
@@ -147,9 +140,7 @@ pub type FuzzPaddedDiag =
 /// # Panics
 ///
 /// Panics if any invariant is violated.
-pub fn check_padded_diagonal_invariants(
-    padded_csr: &FuzzPaddedDiag,
-) {
+pub fn check_padded_diagonal_invariants(padded_csr: &FuzzPaddedDiag) {
     assert_eq!(
         padded_csr.number_of_rows(),
         padded_csr.number_of_columns(),
@@ -175,9 +166,7 @@ pub fn check_padded_diagonal_invariants(
         // Check that the `is_diagonal_imputed` method works as expected.
         let underlying_matrix = padded_csr.matrix();
         let has_diagonal = if row_index < underlying_matrix.number_of_rows() {
-            underlying_matrix
-                .sparse_row(row_index)
-                .any(|column_index| column_index == row_index)
+            underlying_matrix.sparse_row(row_index).any(|column_index| column_index == row_index)
         } else {
             false
         };
@@ -219,9 +208,7 @@ pub fn check_padded_diagonal_invariants(
 /// # Panics
 ///
 /// Panics if any invariant is violated.
-pub fn check_padded_matrix2d_invariants(
-    csr: &ValuedCSR2D<u16, u8, u8, u8>,
-) {
+pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
     let Ok(padded_matrix) = PaddedMatrix2D::new(csr, |_| 1) else {
         return;
     };
@@ -232,14 +219,10 @@ pub fn check_padded_matrix2d_invariants(
     let mut last_tuple = None;
 
     for row_index in csr.row_indices() {
-        let csr_column_values: Vec<(u8, u8)> = csr
-            .sparse_row(row_index)
-            .zip(csr.sparse_row_values(row_index))
-            .collect();
-        let padded_column_values: Vec<(u8, u8)> = padded_matrix
-            .column_indices()
-            .zip(padded_matrix.row_values(row_index))
-            .collect();
+        let csr_column_values: Vec<(u8, u8)> =
+            csr.sparse_row(row_index).zip(csr.sparse_row_values(row_index)).collect();
+        let padded_column_values: Vec<(u8, u8)> =
+            padded_matrix.column_indices().zip(padded_matrix.row_values(row_index)).collect();
 
         for &(column_index, value) in &csr_column_values {
             assert!(
@@ -280,10 +263,7 @@ pub fn check_padded_matrix2d_invariants(
 /// # Panics
 ///
 /// Panics if the ordering violates the topological invariant.
-pub fn check_kahn_ordering(
-    matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>,
-    max_size: usize,
-) {
+pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: usize) {
     if matrix.number_of_rows().into_usize() > max_size
         || matrix.number_of_columns().into_usize() > max_size
     {
@@ -314,8 +294,7 @@ pub fn check_kahn_ordering(
     coordinates.sort_unstable();
 
     let _triangular: UpperTriangularCSR2D<CSR2D<u16, u8, u8>> =
-        UpperTriangularCSR2D::from_entries(coordinates)
-            .expect("The ordering should be valid");
+        UpperTriangularCSR2D::from_entries(coordinates).expect("The ordering should be valid");
 }
 
 // ============================================================================
@@ -331,11 +310,8 @@ pub fn check_kahn_ordering(
 /// # Panics
 ///
 /// Panics if any invariant is violated.
-pub fn check_similarity_invariants<S, N>(
-    similarity: &S,
-    node_ids: &[N],
-    max_outer: usize,
-) where
+pub fn check_similarity_invariants<S, N>(similarity: &S, node_ids: &[N], max_outer: usize)
+where
     S: ScalarSimilarity<N, N, Similarity = f64>,
     N: Copy + Eq + Debug,
 {
@@ -343,10 +319,7 @@ pub fn check_similarity_invariants<S, N>(
         for &dst in node_ids {
             let sim = similarity.similarity(&src, &dst);
             if src == dst {
-                assert!(
-                    sim > 0.99,
-                    "Expected self-similarity of {src:?} > 0.99, got {sim}"
-                );
+                assert!(sim > 0.99, "Expected self-similarity of {src:?} > 0.99, got {sim}");
             } else {
                 let symmetric_similarity = similarity.similarity(&dst, &src);
                 assert!(
@@ -355,14 +328,8 @@ pub fn check_similarity_invariants<S, N>(
                      {sim}!={symmetric_similarity}"
                 );
             }
-            assert!(
-                sim <= 1.0,
-                "Expected sim({src:?},{dst:?}) = {sim} <= 1"
-            );
-            assert!(
-                sim >= 0.0,
-                "Expected sim({src:?},{dst:?}) = {sim} >= 0"
-            );
+            assert!(sim <= 1.0, "Expected sim({src:?},{dst:?}) = {sim} <= 1");
+            assert!(sim >= 0.0, "Expected sim({src:?},{dst:?}) = {sim} >= 0");
         }
     }
 }
@@ -403,14 +370,8 @@ pub fn validate_lap_assignment(
             csr.has_entry(row, column),
             "{label}: assignment includes non-existing edge ({row}, {column})"
         );
-        assert!(
-            !seen_rows[row_index],
-            "{label}: duplicate row in assignment ({row})"
-        );
-        assert!(
-            !seen_columns[column_index],
-            "{label}: duplicate column in assignment ({column})"
-        );
+        assert!(!seen_rows[row_index], "{label}: duplicate row in assignment ({row})");
+        assert!(!seen_columns[column_index], "{label}: duplicate column in assignment ({column})");
 
         seen_rows[row_index] = true;
         seen_columns[column_index] = true;
@@ -420,9 +381,7 @@ pub fn validate_lap_assignment(
 /// Returns `true` when edge weights span a numerically stable range,
 /// avoiding extreme floating-point regimes.
 #[must_use]
-pub fn lap_values_are_numerically_stable(
-    csr: &ValuedCSR2D<u16, u8, u8, f64>,
-) -> bool {
+pub fn lap_values_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) -> bool {
     let mut minimum_value = f64::INFINITY;
     let mut maximum_value = 0.0_f64;
 
@@ -446,10 +405,7 @@ pub fn lap_values_are_numerically_stable(
 
 /// Compute the total cost of an assignment.
 #[must_use]
-pub fn lap_assignment_cost(
-    csr: &ValuedCSR2D<u16, u8, u8, f64>,
-    assignment: &[(u8, u8)],
-) -> f64 {
+pub fn lap_assignment_cost(csr: &ValuedCSR2D<u16, u8, u8, f64>, assignment: &[(u8, u8)]) -> f64 {
     assignment
         .iter()
         .map(|&(row, column)| {
@@ -470,9 +426,7 @@ pub fn lap_assignment_cost(
 /// # Panics
 ///
 /// Panics if the wrappers disagree when they should agree.
-pub fn check_lap_sparse_wrapper_invariants(
-    csr: &ValuedCSR2D<u16, u8, u8, f64>,
-) {
+pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let numerically_stable = lap_values_are_numerically_stable(csr);
     let maximum_value = csr.max_sparse_value().unwrap_or(1000.0);
     let padding_value = (maximum_value + 1.0) * 2.0;
@@ -553,9 +507,7 @@ pub fn check_lap_sparse_wrapper_invariants(
 /// # Panics
 ///
 /// Panics if results are inconsistent.
-pub fn check_lap_square_invariants(
-    csr: &ValuedCSR2D<u16, u8, u8, f64>,
-) {
+pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     if csr.number_of_rows().into_usize() != csr.number_of_columns().into_usize() {
         return;
     }
@@ -584,10 +536,7 @@ pub fn check_lap_square_invariants(
 
     let padding_value = (maximum_value + 1.0) * 4.0;
     let maximal_cost = (padding_value + 1.0) * 2.0;
-    if !padding_value.is_finite()
-        || !maximal_cost.is_finite()
-        || maximal_cost <= padding_value
-    {
+    if !padding_value.is_finite() || !maximal_cost.is_finite() || maximal_cost <= padding_value {
         return;
     }
 
@@ -654,9 +603,7 @@ pub fn check_lap_square_invariants(
 /// Returns `true` when edge weights are in a numerically stable range for
 /// Louvain modularity comparisons.
 #[must_use]
-pub fn louvain_weights_are_numerically_stable(
-    csr: &ValuedCSR2D<u16, u8, u8, f64>,
-) -> bool {
+pub fn louvain_weights_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) -> bool {
     let mut min_val = f64::INFINITY;
     let mut max_val = 0.0_f64;
 
@@ -738,27 +685,22 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     };
 
-    let sym_csr: ValuedCSR2D<u8, u8, u8, f64> =
-        match GenericEdgesBuilder::default()
-            .expected_number_of_edges(edge_count)
-            .expected_shape((n, n))
-            .edges(edges.into_iter())
-            .build()
-        {
-            Ok(m) => m,
-            Err(_) => return,
-        };
+    let sym_csr: ValuedCSR2D<u8, u8, u8, f64> = match GenericEdgesBuilder::default()
+        .expected_number_of_edges(edge_count)
+        .expected_shape((n, n))
+        .edges(edges.into_iter())
+        .build()
+    {
+        Ok(m) => m,
+        Err(_) => return,
+    };
 
     let config = LouvainConfig::default();
     let result = Louvain::<usize>::louvain(&sym_csr, &config)
         .expect("Louvain must not fail on a valid symmetric graph");
 
     let n = n as usize;
-    assert_eq!(
-        result.final_partition().len(),
-        n,
-        "partition length must equal node count"
-    );
+    assert_eq!(result.final_partition().len(), n, "partition length must equal node count");
     let modularity = result.final_modularity();
     assert!(
         (-0.5 - 1e-9..=1.0 + 1e-9).contains(&modularity),

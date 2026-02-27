@@ -28,10 +28,7 @@ fn build_digraph(node_list: Vec<usize>, edge_list: Vec<(usize, usize)>) -> DiGra
     DiGraph::from((nodes, edges))
 }
 
-fn build_undigraph(
-    node_list: Vec<usize>,
-    edge_list: Vec<(usize, usize)>,
-) -> UndiGraph<usize> {
+fn build_undigraph(node_list: Vec<usize>, edge_list: Vec<(usize, usize)>) -> UndiGraph<usize> {
     let num_nodes = node_list.len();
     let num_edges = edge_list.len();
     let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
@@ -59,10 +56,10 @@ fn test_wu_palmer_diamond_dag() {
     let wp = graph.wu_palmer().unwrap();
     // Nodes 1 and 2 are siblings under root 0
     let sim = wp.similarity(&1, &2);
-    assert!(sim >= 0.0 && sim <= 1.0);
+    assert!((0.0..=1.0).contains(&sim));
     // Node 3 is deep, 1 is shallow
     let sim13 = wp.similarity(&1, &3);
-    assert!(sim13 >= 0.0 && sim13 <= 1.0);
+    assert!((0.0..=1.0).contains(&sim13));
 }
 
 #[test]
@@ -79,8 +76,7 @@ fn test_wu_palmer_multiple_roots() {
 #[test]
 fn test_wu_palmer_wide_tree() {
     // Root 0 with many children: 0 -> 1, 0 -> 2, 0 -> 3, 0 -> 4
-    let graph =
-        build_digraph(vec![0, 1, 2, 3, 4], vec![(0, 1), (0, 2), (0, 3), (0, 4)]);
+    let graph = build_digraph(vec![0, 1, 2, 3, 4], vec![(0, 1), (0, 2), (0, 3), (0, 4)]);
     let wp = graph.wu_palmer().unwrap();
     // All children should have same similarity to each other
     let sim12 = wp.similarity(&1, &2);
@@ -91,10 +87,7 @@ fn test_wu_palmer_wide_tree() {
 #[test]
 fn test_wu_palmer_deep_chain() {
     // Chain: 0 -> 1 -> 2 -> 3 -> 4
-    let graph = build_digraph(
-        vec![0, 1, 2, 3, 4],
-        vec![(0, 1), (1, 2), (2, 3), (3, 4)],
-    );
+    let graph = build_digraph(vec![0, 1, 2, 3, 4], vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
     let wp = graph.wu_palmer().unwrap();
     // Nearby nodes should have higher similarity than distant ones
     let sim34 = wp.similarity(&3, &4);
@@ -265,9 +258,7 @@ fn test_tarjan_all_nodes_one_scc() {
     let m: SquareCSR2D<CSR2D<usize, usize, usize>> = DiEdgesBuilder::default()
         .expected_number_of_edges(6)
         .expected_shape(3)
-        .edges(
-            vec![(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)].into_iter(),
-        )
+        .edges(vec![(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)].into_iter())
         .build()
         .unwrap();
     let sccs: Vec<Vec<usize>> = m.tarjan().collect();

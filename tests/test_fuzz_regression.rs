@@ -15,9 +15,9 @@ use geometric_traits::{
     prelude::*,
     test_utils::{
         self, check_kahn_ordering, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_louvain_invariants,
-        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
-        check_sparse_matrix_invariants, check_valued_matrix_invariants, from_bytes, replay_dir,
+        check_lap_square_invariants, check_louvain_invariants, check_padded_diagonal_invariants,
+        check_padded_matrix2d_invariants, check_sparse_matrix_invariants,
+        check_valued_matrix_invariants, from_bytes, replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -44,9 +44,7 @@ fn test_byte_patterns() -> Vec<Vec<u8>> {
         vec![5, 5, 3, 0, 0, 1, 1, 2, 2],
         vec![3, 3, 4, 0, 0, 0, 1, 1, 0, 2, 1],
         // Large: many edges, potential MaxedOut paths
-        vec![
-            10, 10, 8, 0, 1, 0, 3, 1, 2, 2, 0, 3, 4, 4, 5, 5, 6, 7, 8,
-        ],
+        vec![10, 10, 8, 0, 1, 0, 3, 1, 2, 2, 0, 3, 4, 4, 5, 5, 6, 7, 8],
         // All same value: triggers dedup heavily
         vec![5, 5, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         // Descending: tests sort path
@@ -54,10 +52,7 @@ fn test_byte_patterns() -> Vec<Vec<u8>> {
         // Max u8 values: tests MaxedOut error paths
         vec![255, 255, 3, 254, 254, 253, 253, 252, 252],
         // Realistic graph-like pattern
-        vec![
-            6, 6, 10, 0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 4, 3, 2, 3, 5, 4, 3,
-            5, 4,
-        ],
+        vec![6, 6, 10, 0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 4, 3, 2, 3, 5, 4, 3, 5, 4],
     ];
 
     // Add some longer random-ish patterns
@@ -104,7 +99,7 @@ type TestCSR = CSR2D<u16, u8, u8>;
 
 #[test]
 fn test_arbitrary_csr2d_invariants() {
-    for_each_instance::<TestCSR, _>(|csr| check_sparse_matrix_invariants(csr));
+    for_each_instance::<TestCSR, _>(check_sparse_matrix_invariants);
 }
 
 #[test]
@@ -123,7 +118,7 @@ type TestValuedCSR = ValuedCSR2D<u16, u8, u8, f64>;
 
 #[test]
 fn test_arbitrary_valued_csr2d_invariants() {
-    for_each_instance::<TestValuedCSR, _>(|csr| check_valued_matrix_invariants(csr));
+    for_each_instance::<TestValuedCSR, _>(check_valued_matrix_invariants);
 }
 
 #[test]
@@ -223,7 +218,7 @@ type TestPaddedDiag = test_utils::FuzzPaddedDiag;
 
 #[test]
 fn test_arbitrary_padded_diagonal_invariants() {
-    for_each_instance::<TestPaddedDiag, _>(|m| check_padded_diagonal_invariants(m));
+    for_each_instance::<TestPaddedDiag, _>(check_padded_diagonal_invariants);
 }
 
 #[test]
@@ -293,7 +288,7 @@ fn test_arbitrary_padded_matrix2d() {
 
 #[test]
 fn test_arbitrary_louvain() {
-    for_each_instance::<TestValuedCSR, _>(|csr| check_louvain_invariants(csr));
+    for_each_instance::<TestValuedCSR, _>(check_louvain_invariants);
 }
 
 #[test]

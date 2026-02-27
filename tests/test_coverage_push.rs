@@ -58,12 +58,8 @@ fn test_vocabulary_ref_delegation_through_reference() {
 
 #[test]
 fn test_padded_coordinates_next_back() {
-    let m: ValuedCSR2D<usize, usize, usize, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, usize, usize, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]).unwrap();
 
     let padded = PaddedMatrix2D::new(m, |_: (usize, usize)| 99.0).unwrap();
     let mut coords = SparseMatrix::sparse_coordinates(&padded);
@@ -88,11 +84,8 @@ fn test_padded_coordinates_next_back() {
 
 #[test]
 fn test_padded_coordinates_mixed_direction() {
-    let m: ValuedCSR2D<usize, usize, usize, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0],
-        [3.0, 4.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, usize, usize, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
 
     let padded = PaddedMatrix2D::new(m, |_: (usize, usize)| 99.0).unwrap();
     let mut coords = SparseMatrix::sparse_coordinates(&padded);
@@ -113,8 +106,7 @@ fn test_padded_coordinates_mixed_direction() {
 #[test]
 fn test_padded_diagonal_empty_matrix() {
     // Create an empty valued matrix
-    let m: ValuedCSR2D<usize, u8, u8, f64> =
-        ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
+    let m: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
     let padded = GenericMatrix2DWithPaddedDiagonal::new(m, |_: u8| 1.0);
     // Empty matrix should still construct successfully
     if let Ok(p) = padded {
@@ -214,12 +206,8 @@ fn test_m2d_values_forward_crossing() {
     assert!(!values.is_empty());
 
     // Also test through PaddedMatrix2D
-    let m2: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::try_from([
-        [10.0, 20.0],
-        [30.0, 40.0],
-        [50.0, 60.0],
-    ])
-    .unwrap();
+    let m2: ValuedCSR2D<usize, u8, u8, f64> =
+        ValuedCSR2D::try_from([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]]).unwrap();
     let padded2 = PaddedMatrix2D::new(m2, |_: (u8, u8)| 99.0).unwrap();
     let values2: Vec<f64> = padded2.sparse_values().collect();
     assert!(!values2.is_empty());
@@ -244,9 +232,7 @@ fn build_sq(n: usize, mut edges: Vec<(usize, usize)>) -> SquareCSR2D<CSR2D<usize
 fn test_johnson_large_scc_with_bypass() {
     // Large SCC with bypass edges to exercise blocking/unblocking deeply.
     // 0→1→2→3→0 (main cycle) plus bypass edges 0→2, 1→3
-    let m = build_sq(4, vec![
-        (0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 0),
-    ]);
+    let m = build_sq(4, vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     // Multiple cycles: 0→1→2→3→0, 0→2→3→0, 0→1→3→0, 0→1→2→3→0 (various)
     assert!(cycles.len() >= 3);
@@ -255,13 +241,23 @@ fn test_johnson_large_scc_with_bypass() {
 #[test]
 fn test_johnson_dense_with_blocking() {
     // K4 minus one edge to get blocking behavior
-    let m = build_sq(4, vec![
-        (0, 1), (0, 2), (0, 3),
-        (1, 0), (1, 2), (1, 3),
-        (2, 0), (2, 1), (2, 3),
-        (3, 0), (3, 1),
-        // Missing (3, 2) to break symmetry
-    ]);
+    let m = build_sq(
+        4,
+        vec![
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (1, 0),
+            (1, 2),
+            (1, 3),
+            (2, 0),
+            (2, 1),
+            (2, 3),
+            (3, 0),
+            (3, 1),
+            // Missing (3, 2) to break symmetry
+        ],
+    );
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     assert!(cycles.len() >= 5);
 }
@@ -271,11 +267,8 @@ fn test_johnson_multiple_components_varied() {
     // SCC1: 0→1→2→0 (3-cycle)
     // SCC2: 3→4→3 (2-cycle)
     // SCC3: 5→6→7→5 with bypass 5→7 (3-cycle + shortcut)
-    let m = build_sq(8, vec![
-        (0, 1), (1, 2), (2, 0),
-        (3, 4), (4, 3),
-        (5, 6), (5, 7), (6, 7), (7, 5),
-    ]);
+    let m =
+        build_sq(8, vec![(0, 1), (1, 2), (2, 0), (3, 4), (4, 3), (5, 6), (5, 7), (6, 7), (7, 5)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     // 3 SCCs: first has 1 cycle, second has 1, third has 2
     assert_eq!(cycles.len(), 4);
@@ -284,11 +277,7 @@ fn test_johnson_multiple_components_varied() {
 #[test]
 fn test_johnson_chain_of_twocycles() {
     // 0↔1, 1↔2, 2↔3 - overlapping 2-cycles in one SCC
-    let m = build_sq(4, vec![
-        (0, 1), (1, 0),
-        (1, 2), (2, 1),
-        (2, 3), (3, 2),
-    ]);
+    let m = build_sq(4, vec![(0, 1), (1, 0), (1, 2), (2, 1), (2, 3), (3, 2)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     // 3 two-cycles, plus longer cycles through the chain
     assert!(cycles.len() >= 3);
@@ -346,12 +335,8 @@ fn test_lapjv_asymmetric_costs() {
     use geometric_traits::traits::LAPJV;
 
     // Asymmetric costs forcing augmenting path search
-    let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [3.0, 1.0, 2.0],
-        [2.0, 3.0, 1.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [3.0, 1.0, 2.0], [2.0, 3.0, 1.0]]).unwrap();
 
     let padded = PaddedMatrix2D::new(m, |_: (u8, u8)| 900.0).unwrap();
     let result = padded.lapjv(1000.0).unwrap();
@@ -369,12 +354,8 @@ fn test_lapjv_asymmetric_costs() {
 
 #[test]
 fn test_csr2d_columns_exact_size() {
-    let m: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]).unwrap();
 
     let columns = m.sparse_columns();
     let len = columns.len();
@@ -389,12 +370,8 @@ fn test_csr2d_columns_exact_size() {
 
 #[test]
 fn test_m2d_values_exact_size() {
-    let m: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-        [7.0, 8.0, 9.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]).unwrap();
 
     let values = m.sparse_values();
     let len = values.len();
@@ -410,26 +387,16 @@ fn test_m2d_values_exact_size() {
 #[test]
 fn test_louvain_non_square_matrix() {
     // Non-square matrix should return error
-    let m: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0, 3.0],
-        [4.0, 5.0, 6.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).unwrap();
     let result: Result<LouvainResult<usize>, _> = m.louvain(&LouvainConfig::default());
     assert!(result.is_err());
 }
 
 #[test]
 fn test_louvain_config_validation() {
-    let config = LouvainConfig {
-        resolution: -1.0,
-        ..Default::default()
-    };
-    let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 2.0],
-        [2.0, 1.0],
-    ])
-    .unwrap();
+    let config = LouvainConfig { resolution: -1.0, ..Default::default() };
+    let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([[1.0, 2.0], [2.0, 1.0]]).unwrap();
     let result: Result<LouvainResult<usize>, _> = m.louvain(&config);
     assert!(result.is_err());
 }
@@ -442,12 +409,8 @@ fn test_louvain_config_validation() {
 #[test]
 fn test_padded_diagonal_sparse_rows_crossing() {
     // Create a padded diagonal matrix and iterate sparse_rows to cross rows
-    let m: ValuedCSR2D<usize, u8, u8, f64> = ValuedCSR2D::try_from([
-        [1.0, 99.0, 99.0],
-        [99.0, 2.0, 99.0],
-        [99.0, 99.0, 3.0],
-    ])
-    .unwrap();
+    let m: ValuedCSR2D<usize, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 99.0, 99.0], [99.0, 2.0, 99.0], [99.0, 99.0, 3.0]]).unwrap();
 
     let padded = GenericMatrix2DWithPaddedDiagonal::new(m, |_: u8| 1.0).unwrap();
     let rows: Vec<u8> = padded.sparse_rows().collect();

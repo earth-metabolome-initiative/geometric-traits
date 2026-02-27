@@ -120,10 +120,7 @@ fn test_lap_error_non_finite_values() {
 #[test]
 fn test_lap_error_value_too_large() {
     let e = LAPError::ValueTooLarge;
-    assert_eq!(
-        format!("{e}"),
-        "The matrix contains a value larger than the maximum cost."
-    );
+    assert_eq!(format!("{e}"), "The matrix contains a value larger than the maximum cost.");
 }
 
 #[test]
@@ -190,10 +187,7 @@ fn test_from_lapmod_to_lap_error_all_variants() {
         LAPError::from(LAPMODError::MaximalCostNotPositive),
         LAPError::MaximalCostNotPositive
     );
-    assert_eq!(
-        LAPError::from(LAPMODError::InfeasibleAssignment),
-        LAPError::InfeasibleAssignment
-    );
+    assert_eq!(LAPError::from(LAPMODError::InfeasibleAssignment), LAPError::InfeasibleAssignment);
 }
 
 // ============================================================================
@@ -213,10 +207,7 @@ fn test_from_lapjv_to_lap_error_all_variants() {
         LAPError::from(LAPJVError::MaximalCostNotPositive),
         LAPError::MaximalCostNotPositive
     );
-    assert_eq!(
-        LAPError::from(LAPJVError::PaddingValueNotFinite),
-        LAPError::PaddingValueNotFinite
-    );
+    assert_eq!(LAPError::from(LAPJVError::PaddingValueNotFinite), LAPError::PaddingValueNotFinite);
     assert_eq!(
         LAPError::from(LAPJVError::PaddingValueNotPositive),
         LAPError::PaddingValueNotPositive

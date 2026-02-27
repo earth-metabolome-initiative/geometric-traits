@@ -6,9 +6,8 @@ use geometric_traits::{
     impls::{CSR2D, SortedVec, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
     traits::{
-        EdgesBuilder, MatrixMut, SparseMatrix2D, SparseMatrixMut, SparseSquareMatrix,
-        SquareMatrix, VocabularyBuilder,
-        algorithms::connected_components::ConnectedComponents,
+        EdgesBuilder, MatrixMut, SparseMatrix2D, SparseMatrixMut, SparseSquareMatrix, SquareMatrix,
+        VocabularyBuilder, algorithms::connected_components::ConnectedComponents,
     },
 };
 
@@ -147,10 +146,7 @@ fn test_cc_chain_single_component() {
 #[test]
 fn test_cc_three_components() {
     // Three disconnected components: {0,1}, {2}, {3,4,5}
-    let graph = build_undigraph_simple(
-        vec![0, 1, 2, 3, 4, 5],
-        vec![(0, 1), (3, 4), (4, 5)],
-    );
+    let graph = build_undigraph_simple(vec![0, 1, 2, 3, 4, 5], vec![(0, 1), (3, 4), (4, 5)]);
     let cc = ConnectedComponents::<usize>::connected_components(&graph).unwrap();
     assert_eq!(cc.number_of_components(), 3);
     assert_eq!(cc.largest_component_size(), 3);

@@ -6,14 +6,20 @@ use geometric_traits::{
     prelude::*,
 };
 
+type TestCsr = ValuedCSR2D<u8, u8, u8, f64>;
+type TestPadded = PaddedMatrix2D<TestCsr, fn((u8, u8)) -> f64>;
+
+fn padded_value(_: (u8, u8)) -> f64 {
+    900.0
+}
+
 // ============================================================================
 // LAPJV max_cost validation via PaddedMatrix2D (DenseValuedMatrix2D)
 // ============================================================================
 
-fn make_padded_2x2() -> PaddedMatrix2D<ValuedCSR2D<u8, u8, u8, f64>, impl Fn((u8, u8)) -> f64> {
-    let csr: ValuedCSR2D<u8, u8, u8, f64> =
-        ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
-    PaddedMatrix2D::new(csr, |_| 900.0).unwrap()
+fn make_padded_2x2() -> TestPadded {
+    let csr: TestCsr = ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
+    PaddedMatrix2D::new(csr, padded_value as fn((u8, u8)) -> f64).unwrap()
 }
 
 #[test]
@@ -197,8 +203,7 @@ fn test_lapmod_empty_matrix() {
 #[test]
 fn test_sparse_lapmod_nan_max_cost_triggers_from() {
     // Build a non-empty sparse matrix so it reaches the inner lapmod() call
-    let mut csr: ValuedCSR2D<u8, u8, u8, f64> =
-        ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+    let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     MatrixMut::add(&mut csr, (0, 0, 1.0)).unwrap();
     MatrixMut::add(&mut csr, (1, 1, 1.0)).unwrap();
     // Use sparse_lapmod with valid padding but NaN max_cost.
@@ -298,8 +303,7 @@ fn test_lapmod_6x6_complex_augmentation() {
 fn test_lapmod_sparse_needs_augmentation() {
     // Sparse matrix where column reduction leaves unassigned rows, requiring
     // find_path_sparse and augmentation.
-    let mut csr: ValuedCSR2D<u8, u8, u8, f64> =
-        ValuedCSR2D::with_sparse_shaped_capacity((4, 4), 8);
+    let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((4, 4), 8);
     MatrixMut::add(&mut csr, (0, 0, 1.0)).unwrap();
     MatrixMut::add(&mut csr, (0, 1, 5.0)).unwrap();
     MatrixMut::add(&mut csr, (1, 0, 2.0)).unwrap();

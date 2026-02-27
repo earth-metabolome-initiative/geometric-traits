@@ -2,11 +2,7 @@
 //! CSR2D::sparse_rows()).
 #![cfg(feature = "std")]
 
-use geometric_traits::{
-    impls::CSR2D,
-    prelude::*,
-    traits::SparseMatrix2D,
-};
+use geometric_traits::{impls::CSR2D, prelude::*, traits::SparseMatrix2D};
 
 type TestCSR = CSR2D<usize, usize, usize>;
 
@@ -55,10 +51,7 @@ fn test_csr2d_sparse_rows_len_after_next_back() {
 
 #[test]
 fn test_csr2d_sparse_rows_len_multi_entry() {
-    let csr = build_csr(
-        vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (2, 0)],
-        (3, 3),
-    );
+    let csr = build_csr(vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (2, 0)], (3, 3));
     let mut iter = <TestCSR as SparseMatrix2D>::sparse_rows(&csr);
     assert_eq!(iter.len(), 6);
     // Consume entries from first row
