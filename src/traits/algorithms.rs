@@ -63,3 +63,7 @@ pub use johnson::*;
 mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;
+#[cfg(feature = "alloc")]
+mod louvain;
+#[cfg(feature = "alloc")]
+pub use louvain::*;
