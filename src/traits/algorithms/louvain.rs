@@ -596,7 +596,7 @@ fn mix_seed(seed: u64, level_index: usize, pass_index: usize) -> u64 {
     let level = level_index as u64;
     let pass = pass_index as u64;
     seed ^ level.wrapping_add(1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-         ^ pass.wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)
+        ^ pass.wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)
 }
 
 fn has_matching_edge(row: &[(usize, f64)], destination: usize, weight: f64) -> bool {

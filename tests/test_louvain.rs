@@ -222,13 +222,7 @@ fn test_louvain_single_node_self_loop() {
 
 #[test]
 fn test_louvain_disconnected_pairs() {
-    let graph = build_undirected_weighted_graph(
-        4,
-        vec![
-            (0, 1, 5.0),
-            (2, 3, 5.0),
-        ],
-    );
+    let graph = build_undirected_weighted_graph(4, vec![(0, 1, 5.0), (2, 3, 5.0)]);
     let result = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap();
     let partition = result.final_partition();
     assert_eq!(partition.len(), 4);
