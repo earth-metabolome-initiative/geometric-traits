@@ -11,6 +11,8 @@ extern crate std;
 pub mod errors;
 pub mod impls;
 pub mod naive_structs;
+#[cfg(feature = "arbitrary")]
+pub mod test_utils;
 pub mod traits;
 
 /// Prelude module for the graph crate.

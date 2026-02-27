@@ -1,6 +1,7 @@
 use geometric_traits::{
     prelude::{GenericGraph, Lin, SquareCSR2D, CSR2D},
-    traits::{MonopartiteGraph, ScalarSimilarity},
+    test_utils::check_similarity_invariants,
+    traits::MonopartiteGraph,
 };
 use honggfuzz::fuzz;
 
@@ -13,19 +14,8 @@ fn main() {
             let Ok(lin) = csr.lin(occurrences.as_ref()) else {
                 return;
             };
-            for src in csr.node_ids().take(10) {
-                for dst in csr.node_ids() {
-                    let similarity = lin.similarity(&src, &dst);
-                    if src == dst {
-                        assert!(similarity > 0.99);
-                    } else {
-                        let symmetric_similarity = lin.similarity(&dst, &src);
-                        assert!({symmetric_similarity - similarity}.abs() < f64::EPSILON, "Expected sim({src}, {dst}) == sim({dst},{src}) got {similarity}!={symmetric_similarity}, with occurrences: {occurrences:?}");
-                    }
-                    assert!(similarity <= 1.0, "Expected sim({src},{dst}) = {similarity} <= 1");
-                    assert!(similarity >= 0.0, "Expected sim({src},{dst}) = {similarity} >= 0");
-                }
-            }
+            let node_ids: Vec<u8> = csr.node_ids().collect();
+            check_similarity_invariants(&lin, &node_ids, 10);
         });
     }
 }

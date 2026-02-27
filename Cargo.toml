@@ -72,6 +72,7 @@ hashbrown = ["dep:hashbrown"]
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
+arbitrary = { version = "1" }
 
 [[bench]]
 name = "wu_palmer"

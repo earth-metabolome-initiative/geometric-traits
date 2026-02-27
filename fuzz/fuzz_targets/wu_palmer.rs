@@ -1,6 +1,7 @@
 use geometric_traits::{
     prelude::{GenericGraph, SquareCSR2D, WuPalmer, CSR2D},
-    traits::{MonopartiteGraph, ScalarSimilarity},
+    test_utils::check_similarity_invariants,
+    traits::MonopartiteGraph,
 };
 use honggfuzz::fuzz;
 
@@ -10,19 +11,8 @@ fn main() {
             let Ok(wu_palmer) = csr.wu_palmer() else {
                 return;
             };
-            for src in csr.node_ids().take(10) {
-                for dst in csr.node_ids() {
-                    let similarity = wu_palmer.similarity(&src, &dst);
-                    if src == dst {
-                        assert!(similarity > 0.99);
-                    } else {
-                        let symmetric_similarity = wu_palmer.similarity(&dst, &src);
-                        assert!({symmetric_similarity - similarity}.abs() < f64::EPSILON, "Expected sim({src}, {dst}) == sim({dst},{src}) got {similarity}!={symmetric_similarity}");
-                    }
-                    assert!(similarity <= 1.0, "Expected sim({src},{dst}) = {similarity} <= 1");
-                    assert!(similarity >= 0.0, "Expected sim({src},{dst}) = {similarity} >= 0");
-                }
-            }
+            let node_ids: Vec<u8> = csr.node_ids().collect();
+            check_similarity_invariants(&wu_palmer, &node_ids, 10);
         });
     }
 }
