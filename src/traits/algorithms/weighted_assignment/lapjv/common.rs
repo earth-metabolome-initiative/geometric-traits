@@ -187,3 +187,141 @@ pub(crate) fn augmenting_row_reduction_impl<R, C, V>(
 
     unassigned_rows.truncate(updated_number_of_unassigned_rows);
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_find_minimum_distance_groups_equal_minima() {
+        let distances = vec![5.0_f64, 1.0, 1.0, 3.0];
+        let mut to_scan = vec![0usize, 1, 2, 3];
+        let upper_bound = find_minimum_distance(0, &distances, &mut to_scan);
+
+        assert_eq!(upper_bound, 2);
+        assert_eq!(to_scan[0], 1);
+        assert_eq!(to_scan[1], 2);
+    }
+
+    #[test]
+    fn test_find_minimum_distance_resets_on_strict_smaller_minimum() {
+        let distances = vec![4.0_f64, 3.0, 1.0];
+        let mut to_scan = vec![0usize, 1, 2];
+        let upper_bound = find_minimum_distance(0, &distances, &mut to_scan);
+
+        assert_eq!(upper_bound, 1);
+        assert_eq!(to_scan[0], 2);
+    }
+
+    #[test]
+    fn test_find_minimum_distance_keeps_single_frontier_when_first_is_best() {
+        let distances = vec![1.0_f64, 5.0, 6.0];
+        let mut to_scan = vec![0usize, 1, 2];
+        let upper_bound = find_minimum_distance(0, &distances, &mut to_scan);
+
+        assert_eq!(upper_bound, 1);
+        assert_eq!(to_scan, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_augmentation_backtrack_updates_assignment_chain() {
+        let predecessors = vec![1u8, 2u8, 2u8];
+        let mut assigned_rows = vec![
+            AssignmentState::Unassigned,
+            AssignmentState::Unassigned,
+            AssignmentState::Unassigned,
+        ];
+        let mut assigned_columns = vec![
+            AssignmentState::Unassigned,
+            AssignmentState::Assigned(1u8),
+            AssignmentState::Unassigned,
+        ];
+
+        augmentation_backtrack(0u8, &predecessors, &mut assigned_rows, &mut assigned_columns, 2u8);
+
+        assert_eq!(assigned_rows[0], AssignmentState::Assigned(1u8));
+        assert_eq!(assigned_rows[1], AssignmentState::Assigned(2u8));
+        assert_eq!(assigned_columns[1], AssignmentState::Assigned(0u8));
+        assert_eq!(assigned_columns[2], AssignmentState::Assigned(1u8));
+    }
+
+    #[test]
+    #[should_panic(expected = "augmentation_backtrack detected a predecessor cycle")]
+    fn test_augmentation_backtrack_panics_on_predecessor_cycle() {
+        let predecessors = vec![1u8];
+        let mut assigned_rows = vec![AssignmentState::Unassigned];
+        let mut assigned_columns = vec![
+            AssignmentState::Unassigned,
+            AssignmentState::Assigned(0u8),
+            AssignmentState::Unassigned,
+        ];
+
+        augmentation_backtrack(0u8, &predecessors, &mut assigned_rows, &mut assigned_columns, 2u8);
+    }
+
+    #[test]
+    fn test_augmenting_row_reduction_reduces_column_cost_on_strict_second_best() {
+        let mut unassigned_rows = vec![0u8];
+        let mut assigned_rows = vec![AssignmentState::Unassigned, AssignmentState::Unassigned];
+        let mut assigned_columns = vec![AssignmentState::Unassigned, AssignmentState::Unassigned];
+        let mut column_costs = vec![10.0_f64, 10.0_f64];
+
+        augmenting_row_reduction_impl(
+            &mut unassigned_rows,
+            &mut assigned_rows,
+            &mut assigned_columns,
+            &mut column_costs,
+            2,
+            |_row, _col_costs| ((0u8, 1.0_f64), (Some(1u8), 3.0_f64)),
+        );
+
+        assert!((column_costs[0] - 8.0).abs() < f64::EPSILON);
+        assert_eq!(assigned_rows[0], AssignmentState::Assigned(0u8));
+        assert_eq!(assigned_columns[0], AssignmentState::Assigned(0u8));
+        assert!(unassigned_rows.is_empty());
+    }
+
+    #[test]
+    fn test_augmenting_row_reduction_switches_to_second_minimum_on_tie() {
+        let mut unassigned_rows = vec![0u8];
+        let mut assigned_rows = vec![AssignmentState::Assigned(1u8), AssignmentState::Unassigned];
+        let mut assigned_columns =
+            vec![AssignmentState::Unassigned, AssignmentState::Assigned(0u8)];
+        let mut column_costs = vec![10.0_f64, 10.0_f64];
+
+        augmenting_row_reduction_impl(
+            &mut unassigned_rows,
+            &mut assigned_rows,
+            &mut assigned_columns,
+            &mut column_costs,
+            3,
+            |_row, _col_costs| ((0u8, 5.0_f64), (Some(1u8), 5.0_f64)),
+        );
+
+        assert_eq!(assigned_rows[1], AssignmentState::Assigned(0u8));
+        assert_eq!(assigned_columns[0], AssignmentState::Assigned(1u8));
+        assert!(unassigned_rows.is_empty());
+    }
+
+    #[test]
+    fn test_augmenting_row_reduction_iteration_guard_fallback_preserves_progress() {
+        let mut unassigned_rows = vec![0u8];
+        let mut assigned_rows = vec![AssignmentState::Assigned(1u8)];
+        let mut assigned_columns =
+            vec![AssignmentState::Unassigned, AssignmentState::Assigned(0u8)];
+        let mut column_costs = vec![10.0_f64];
+
+        augmenting_row_reduction_impl(
+            &mut unassigned_rows,
+            &mut assigned_rows,
+            &mut assigned_columns,
+            &mut column_costs,
+            1,
+            |_row, _col_costs| ((0u8, 1.0_f64), (None, 9.0_f64)),
+        );
+
+        assert_eq!(unassigned_rows, vec![1u8]);
+        assert_eq!(assigned_rows[0], AssignmentState::Assigned(0u8));
+        assert_eq!(assigned_columns[0], AssignmentState::Assigned(0u8));
+    }
+}
