@@ -41,15 +41,20 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRows<'_, CSR> {
 
 impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
     fn len(&self) -> usize {
-        let next_row_rank = self.csr2d.rank_row(self.next_row).into_usize();
-        let already_observed_in_next_row =
-            self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize()
-                - self.next.len();
-        let back_row_rank = self.csr2d.rank_row(self.back_row).into_usize();
-        let already_observed_in_back_row =
-            self.csr2d.number_of_defined_values_in_row(self.back_row).into_usize()
-                - self.back.len();
-        back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
+        if self.next_row >= self.back_row {
+            // When rows have converged or crossed, remaining items come only
+            // from the `next` and `back` iterators directly.
+            self.next.len() + self.back.len()
+        } else {
+            // Entries in rows [next_row, back_row) minus already consumed from
+            // next_row, plus remaining entries in back_row via `self.back`.
+            let next_row_rank = self.csr2d.rank_row(self.next_row).into_usize();
+            let already_observed_in_next_row =
+                self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize()
+                    - self.next.len();
+            let back_row_rank = self.csr2d.rank_row(self.back_row).into_usize();
+            back_row_rank - next_row_rank - already_observed_in_next_row + self.back.len()
+        }
     }
 }
 
