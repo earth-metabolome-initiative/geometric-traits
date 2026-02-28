@@ -49,6 +49,8 @@ pub mod generic_matrix2d_with_padded_diagonal;
 #[cfg(feature = "alloc")]
 pub mod lower_bounded_sparse_square_matrix;
 #[cfg(feature = "alloc")]
+pub mod compact_matrix;
+#[cfg(feature = "alloc")]
 pub mod padded_matrix2d;
 #[cfg(feature = "alloc")]
 pub mod ragged_vector;
@@ -58,6 +60,8 @@ pub mod subset_sparse_square_matrix;
 pub mod valued_matrix;
 mod vector;
 
+#[cfg(feature = "alloc")]
+pub use compact_matrix::{CompactMatrix, compactify};
 #[cfg(feature = "alloc")]
 pub use generic_bimatrix2d::GenericBiMatrix2D;
 #[cfg(feature = "alloc")]

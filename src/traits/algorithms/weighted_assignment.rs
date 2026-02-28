@@ -8,7 +8,12 @@ pub use lapjv::{LAPJV, LAPJVError, SparseLAPJV};
 #[cfg(feature = "alloc")]
 mod lapmod;
 #[cfg(feature = "alloc")]
-pub use lapmod::{LAPMOD, LAPMODError, SparseLAPMOD};
+pub use lapmod::{Jaqaman, LAPMOD, LAPMODError};
+
+#[cfg(feature = "alloc")]
+pub mod crouse;
+#[cfg(feature = "alloc")]
+pub use crouse::{Crouse, CrouseError};
 
 #[cfg(feature = "alloc")]
 mod lap_error;

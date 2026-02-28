@@ -4,6 +4,16 @@
 //! works directly on the CSR sparse structure as the "core".  Unlike
 //! [`SparseLAPJV`](super::SparseLAPJV), it never allocates or fills a dense
 //! `n × n` matrix, so its memory usage is O(|E|) instead of O(n²).
+//!
+//! ## Rectangular / unbalanced matrices
+//!
+//! [`Jaqaman`] handles non-square L × R matrices by expanding them to a
+//! square (L+R) × (L+R) system using the **diagonal cost extension** described
+//! by Jaqaman *et al.* (*Nature Methods* 5, 695–702, 2008) and formally
+//! analysed by Ramshaw & Tarjan (HP Labs HPL-2012-40, 2012).  The expansion
+//! adds only 2|E| + L + R edges — preserving the sparsity that LAPMOD relies
+//! on — whereas the naïve padding approach (used by [`SparseLAPJV`](super::SparseLAPJV))
+//! produces a dense n × n matrix and loses the O(|E|) advantage.
 use alloc::vec::Vec;
 
 mod errors;
@@ -13,12 +23,17 @@ use core::fmt::Debug;
 
 pub use errors::LAPMODError;
 use inner::LapmodInner;
-use num_traits::Zero;
+use num_traits::{One, Zero};
 
 use super::LAPError;
+use num_traits::AsPrimitive;
+
 use crate::{
-    impls::PaddedMatrix2D,
-    traits::{Finite, IntoUsize, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
+    impls::ValuedCSR2D,
+    traits::{
+        Finite, MatrixMut, Number, SparseMatrixMut, SparseValuedMatrix2D, TotalOrd,
+        TryFromUsize,
+    },
 };
 
 /// Trait providing the LAPMOD algorithm for solving the Weighted Assignment
@@ -91,8 +106,8 @@ where
             return Err(LAPMODError::MaximalCostNotPositive);
         }
 
-        let n_rows = self.number_of_rows().into_usize();
-        let n_cols = self.number_of_columns().into_usize();
+        let n_rows = self.number_of_rows().as_();
+        let n_cols = self.number_of_columns().as_();
 
         if n_rows != n_cols {
             return Err(LAPMODError::NonSquareMatrix);
@@ -125,27 +140,67 @@ where
 {
 }
 
-/// Trait defining the LAPMOD algorithm for solving the Weighted Assignment
-/// Problem, adapted for sparse rectangular matrices by padding to square.
-pub trait SparseLAPMOD: SparseValuedMatrix2D + Sized
+/// Trait providing the **Jaqaman diagonal cost extension** for solving the
+/// weighted assignment problem on sparse rectangular matrices.
+///
+/// Instead of filling missing entries with a uniform padding value (which
+/// destroys sparsity), this implementation uses the **diagonal cost
+/// extension** of Jaqaman *et al.* (2008) / Ramshaw & Tarjan (2012) to
+/// expand an L × R matrix to a square (L+R) × (L+R) system with only
+/// 2|E| + L + R edges:
+///
+/// ```text
+///               real cols (0..R)         dummy cols (R..R+L)
+///             ┌───────────────────────┬───────────────────────┐
+/// real rows   │  C[i,j]               │  Diag(η/2)           │
+/// (0..L)      │  (|E| entries)        │  (L entries)         │
+///             ├───────────────────────┼───────────────────────┤
+/// dummy rows  │  Diag(η/2)           │  ε at (L+j, R+i)     │
+/// (L..L+R)    │  (R entries)          │  wherever (i,j) ∈ E  │
+///             └───────────────────────┴───────────────────────┘
+/// ```
+///
+/// Here η = `padding_cost` and ε ≈ 0 (a negligible positive value required
+/// by LAPMOD's strict-positivity constraint).  An unmatched real row i pays
+/// η/2 (via its dummy column R+i), and the displaced dummy row also pays
+/// η/2, giving a total unmatched cost of η — matching the semantics of the
+/// `padding_cost` parameter.
+///
+/// # Limitations
+///
+/// The unmatching cost η must satisfy η/2 > max(sparse values), so leaving
+/// a peak unmatched always costs more than any real edge.  This forces the
+/// solver to maximise the number of matches, which is not always optimal
+/// (e.g. when a low-product match would lower the overall score).
+///
+/// # References
+///
+/// * Jaqaman *et al.*, "Robust single-particle tracking in live-cell
+///   time-lapse sequences", *Nature Methods* 5, 695–702, 2008.
+/// * Ramshaw & Tarjan, "On minimum-cost assignments in unbalanced bipartite
+///   graphs", HP Labs HPL-2012-40, 2012.
+pub trait Jaqaman: SparseValuedMatrix2D + Sized
 where
     Self::Value: Number,
     Self::RowIndex: TryFromUsize,
     Self::ColumnIndex: TryFromUsize,
 {
     #[allow(clippy::type_complexity)]
-    /// Computes the weighted assignment using LAPMOD on a padded sparse view.
+    /// Computes the weighted assignment using LAPMOD on a sparsity-preserving
+    /// expansion of the matrix.
     ///
     /// # Arguments
     ///
-    /// * `padding_cost`: The cost of padding the matrix to make it square.
-    /// * `max_cost`: The upper bound for the cost of the assignment.
+    /// * `padding_cost`: The total cost charged for leaving a row/column
+    ///   unmatched (η).  Must satisfy η/2 > max(sparse values) so that the
+    ///   diagonal entries dominate all real edges.
+    /// * `max_cost`: An upper bound strictly greater than `padding_cost`.
     ///
     /// # Returns
     ///
     /// A vector of tuples containing row/column assignments in the original
-    /// matrix coordinates. Any assignment that uses imputed padding values is
-    /// filtered out.
+    /// matrix coordinates.  Assignments routed through the dummy layer
+    /// (unmatched rows/columns) are filtered out.
     ///
     /// # Errors
     ///
@@ -157,9 +212,9 @@ where
     ///   (`LAPError::ValueTooLarge`)
     /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
     /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
-    /// - The padded matrix cannot be represented (`LAPError::NonSquareMatrix`)
+    /// - The expanded matrix cannot be solved (`LAPError::InfeasibleAssignment`)
     /// - Matrix values violate LAPMOD input requirements
-    fn sparse_lapmod(
+    fn jaqaman(
         &self,
         padding_cost: Self::Value,
         max_cost: Self::Value,
@@ -182,26 +237,115 @@ where
             return Ok(vec![]);
         }
 
-        debug_assert!(
-            self.max_sparse_value().unwrap() < padding_cost,
-            "The maximum value in the matrix ({:?}) is greater than the padding cost ({:?}).",
-            self.max_sparse_value().unwrap(),
-            padding_cost
-        );
+        let one = Self::Value::one();
+        let two = one + one;
+        let half_eta = padding_cost / two;
 
-        let padding: PaddedMatrix2D<&'_ Self, _> =
-            PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
+        // The diagonal entries (η/2) must strictly dominate all real edges
+        // for the Jaqaman construction to be correct.  This can fail when
+        // padding_cost is computed with an additive offset that vanishes in
+        // floating point (e.g. (max + 1.0) * 2.0 where max + 1.0 == max).
+        if self.max_sparse_value().unwrap() >= half_eta {
+            return Err(LAPError::PaddingCostTooSmall);
+        }
 
-        let assignment = padding.lapmod(max_cost).map_err(LAPError::from)?;
+        let n_rows = self.number_of_rows().as_();
+        let n_cols = self.number_of_columns().as_();
+        let n = n_rows + n_cols;
 
+        if n == 0 {
+            return Ok(vec![]);
+        }
+
+        // Compute a very small positive value for the bottom-right block
+        // entries. Ideally these would be zero (Jaqaman construction), but
+        // LAPMOD requires strictly positive costs. We use half_eta / 2^40
+        // ≈ half_eta × 1e-12 which is negligible for any practical matching.
+        let p2 = two * two;
+        let p4 = p2 * p2;
+        let p8 = p4 * p4;
+        let p16 = p8 * p8;
+        let p32 = p16 * p16;
+        let p40 = p32 * p8;
+        let bottom_right_cost = half_eta / p40;
+
+        // Collect the transpose structure: for each column j, the sorted list
+        // of source rows i that have an edge (i, j) in the original matrix.
+        let mut col_to_rows: Vec<Vec<usize>> = vec![Vec::new(); n_cols];
+        let mut n_edges: usize = 0;
+        for i in 0..n_rows {
+            let row_idx = Self::RowIndex::try_from_usize(i).unwrap();
+            for col in self.sparse_row(row_idx) {
+                col_to_rows[col.as_()].push(i);
+                n_edges += 1;
+            }
+        }
+
+        let total_entries = 2 * n_edges + n_rows + n_cols;
+
+        // Build the (L+R) × (L+R) expanded matrix using the Jaqaman /
+        // Ramshaw-Tarjan diagonal cost extension. Total edges: 2|E| + L + R.
+        //
+        //               real cols (0..R)         dummy cols (R..R+L)
+        //             ┌───────────────────────┬───────────────────────┐
+        // real rows   │  C[i,j]               │  Diag(η/2)           │
+        // (0..L)      │  (|E| entries)         │  (L entries)         │
+        //             ├───────────────────────┼───────────────────────┤
+        // dummy rows  │  Diag(η/2)            │  ε at (L+j, R+i)     │
+        // (L..L+R)    │  (R entries)           │  wherever (i,j) ∈ E  │
+        //             └───────────────────────┴───────────────────────┘
+        let mut expanded: ValuedCSR2D<usize, usize, usize, Self::Value> =
+            SparseMatrixMut::with_sparse_shaped_capacity((n, n), total_entries);
+
+        // Real rows (0..L): original edges + diagonal entry to dummy column.
+        for i in 0..n_rows {
+            let row_idx = Self::RowIndex::try_from_usize(i).unwrap();
+            for (col, value) in self.sparse_row(row_idx).zip(self.sparse_row_values(row_idx)) {
+                expanded
+                    .add((i, col.as_(), value))
+                    .expect("Failed to add real edge to expanded matrix");
+            }
+            // Diagonal entry (i, R+i) at cost η/2.
+            expanded
+                .add((i, n_cols + i, half_eta))
+                .expect("Failed to add top-right diagonal entry to expanded matrix");
+        }
+
+        // Dummy rows (L..L+R): for each j in 0..R:
+        //   - Diagonal entry at column j with cost η/2
+        //   - For each i such that (i,j) ∈ E: entry at column R+i with cost ε
+        for j in 0..n_cols {
+            let dummy_row = n_rows + j;
+            // Bottom-left diagonal entry (L+j, j) at cost η/2.
+            expanded
+                .add((dummy_row, j, half_eta))
+                .expect("Failed to add bottom-left diagonal entry to expanded matrix");
+            // Bottom-right transpose entries.
+            for &i in &col_to_rows[j] {
+                expanded
+                    .add((dummy_row, n_cols + i, bottom_right_cost))
+                    .expect("Failed to add bottom-right entry to expanded matrix");
+            }
+        }
+
+        // Solve the (L+R) × (L+R) assignment problem.
+        let assignment = expanded.lapmod(max_cost).map_err(LAPError::from)?;
+
+        // Filter: keep only assignments where row < L and col < R.
         Ok(assignment
             .into_iter()
-            .filter(|&(row_index, column_index)| !padding.is_imputed((row_index, column_index)))
+            .filter(|&(row, col)| row < n_rows && col < n_cols)
+            .map(|(row, col)| {
+                (
+                    Self::RowIndex::try_from_usize(row).unwrap(),
+                    Self::ColumnIndex::try_from_usize(col).unwrap(),
+                )
+            })
             .collect())
     }
 }
 
-impl<M: SparseValuedMatrix2D> SparseLAPMOD for M
+impl<M: SparseValuedMatrix2D> Jaqaman for M
 where
     M::Value: Number,
     M::RowIndex: TryFromUsize,

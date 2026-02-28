@@ -1,4 +1,4 @@
-//! Tests for LAPJV/SparseLAPJV/LAPMOD/SparseLAPMOD input validation paths.
+//! Tests for LAPJV/SparseLAPJV/LAPMOD/Jaqaman input validation paths.
 #![cfg(feature = "std")]
 
 use geometric_traits::{
@@ -197,19 +197,19 @@ fn test_lapmod_empty_matrix() {
 }
 
 // ============================================================================
-// SparseLAPMOD error via From conversion (triggers LAPError::from(LAPMODError))
+// Jaqaman error via From conversion (triggers LAPError::from(LAPMODError))
 // ============================================================================
 
 #[test]
-fn test_sparse_lapmod_nan_max_cost_triggers_from() {
+fn test_jaqaman_nan_max_cost_triggers_from() {
     // Build a non-empty sparse matrix so it reaches the inner lapmod() call
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     MatrixMut::add(&mut csr, (0, 0, 1.0)).unwrap();
     MatrixMut::add(&mut csr, (1, 1, 1.0)).unwrap();
-    // Use sparse_lapmod with valid padding but NaN max_cost.
+    // Use jaqaman with valid padding but NaN max_cost.
     // NaN passes the `padding_cost >= max_cost` check (NaN comparison = false),
     // and propagates through the inner lapmod() into From<LAPMODError>
-    let result = csr.sparse_lapmod(900.0, f64::NAN);
+    let result = csr.jaqaman(900.0, f64::NAN);
     assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
 }
 

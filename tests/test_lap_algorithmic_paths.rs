@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::{PaddedMatrix2D, ValuedCSR2D},
     prelude::*,
-    traits::{LAPJV, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, SparseLAPMOD},
+    traits::{LAPJV, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, Jaqaman},
 };
 
 // ============================================================================
@@ -87,7 +87,7 @@ fn test_lapmod_diamond_pattern() {
     // Diamond: Row 0→{C0,C1}, Row 1→{C0,C2}, Row 2→{C1,C2}
     let m: ValuedCSR2D<usize, usize, usize, f64> =
         ValuedCSR2D::try_from([[1.0, 5.0, 99.0], [2.0, 99.0, 2.0], [99.0, 3.0, 1.0]]).unwrap();
-    let result = m.sparse_lapmod(900.0, 1000.0).unwrap();
+    let result = m.jaqaman(900.0, 1000.0).unwrap();
     assert_eq!(result.len(), 3);
 }
 
@@ -102,7 +102,7 @@ fn test_lapmod_chain_augmentation() {
         [99.0, 99.0, 2.0, 1.0],
     ])
     .unwrap();
-    let result = m.sparse_lapmod(900.0, 1000.0).unwrap();
+    let result = m.jaqaman(900.0, 1000.0).unwrap();
     assert_eq!(result.len(), 4);
 }
 
@@ -111,7 +111,7 @@ fn test_lapmod_crossing_preferences() {
     // R0 prefers C1, R1 prefers C0 — crossing
     let m: ValuedCSR2D<usize, usize, usize, f64> =
         ValuedCSR2D::try_from([[5.0, 1.0, 99.0], [1.0, 5.0, 99.0], [99.0, 99.0, 1.0]]).unwrap();
-    let result = m.sparse_lapmod(900.0, 1000.0).unwrap();
+    let result = m.jaqaman(900.0, 1000.0).unwrap();
     assert_eq!(result.len(), 3);
 }
 
@@ -126,7 +126,7 @@ fn test_lapmod_5x5_sparse_augmenting() {
         [3.0, 99.0, 99.0, 99.0, 1.0],
     ])
     .unwrap();
-    let result = m.sparse_lapmod(900.0, 1000.0).unwrap();
+    let result = m.jaqaman(900.0, 1000.0).unwrap();
     assert_eq!(result.len(), 5);
 }
 
@@ -142,7 +142,7 @@ fn test_lapmod_6x6_complex() {
         [99.0, 99.0, 99.0, 99.0, 2.0, 1.0],
     ])
     .unwrap();
-    let result = m.sparse_lapmod(900.0, 1000.0).unwrap();
+    let result = m.jaqaman(900.0, 1000.0).unwrap();
     assert_eq!(result.len(), 6);
 }
 
@@ -217,7 +217,7 @@ fn test_lapmod_sparse_frontier_with_overlapping_todo_columns() {
     MatrixMut::add(&mut m, (4, 4, 1.0)).unwrap();
 
     let assignment =
-        m.sparse_lapmod(900.0, 1000.0).expect("SparseLAPMOD should find a valid assignment");
+        m.jaqaman(900.0, 1000.0).expect("Jaqaman should find a valid assignment");
     assert_eq!(assignment.len(), 5);
 
     let mut rows: Vec<usize> = assignment.iter().map(|&(r, _)| r).collect();

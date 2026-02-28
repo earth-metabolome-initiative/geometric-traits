@@ -11,10 +11,12 @@ use core::fmt::Debug;
 
 use arbitrary::{Arbitrary, Unstructured};
 
+use num_traits::AsPrimitive;
+
 use crate::{
     prelude::*,
     traits::{
-        EdgesBuilder, IntoUsize, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
+        EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
         SparseValuedMatrix2D,
     },
 };
@@ -264,8 +266,8 @@ pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
 ///
 /// Panics if the ordering violates the topological invariant.
 pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: usize) {
-    if matrix.number_of_rows().into_usize() > max_size
-        || matrix.number_of_columns().into_usize() > max_size
+    if matrix.number_of_rows().as_() > max_size
+        || matrix.number_of_columns().as_() > max_size
     {
         return;
     }
@@ -275,9 +277,9 @@ pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: u
     };
 
     matrix.row_indices().for_each(|row_id| {
-        let resorted_row_id = ordering[row_id.into_usize()];
+        let resorted_row_id = ordering[row_id.as_()];
         matrix.sparse_row(row_id).for_each(|successor_id| {
-            let resorted_successor_id = ordering[successor_id.into_usize()];
+            let resorted_successor_id = ordering[successor_id.as_()];
             assert!(
                 resorted_row_id <= resorted_successor_id,
                 "The ordering {ordering:?} is not valid: {resorted_row_id} ({row_id}) > \
@@ -289,7 +291,7 @@ pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: u
     // If the ordering is valid, it must be possible to construct an
     // upper triangular matrix from the ordering.
     let mut coordinates: Vec<(u8, u8)> = SparseMatrix::sparse_coordinates(matrix)
-        .map(|(i, j)| (ordering[i.into_usize()], ordering[j.into_usize()]))
+        .map(|(i, j)| (ordering[i.as_()], ordering[j.as_()]))
         .collect();
     coordinates.sort_unstable();
 
@@ -349,14 +351,14 @@ pub fn validate_lap_assignment(
     assignment: &[(u8, u8)],
     label: &str,
 ) {
-    let number_of_rows = csr.number_of_rows().into_usize();
-    let number_of_columns = csr.number_of_columns().into_usize();
+    let number_of_rows = csr.number_of_rows().as_();
+    let number_of_columns = csr.number_of_columns().as_();
     let mut seen_rows = vec![false; number_of_rows];
     let mut seen_columns = vec![false; number_of_columns];
 
     for &(row, column) in assignment {
-        let row_index = row.into_usize();
-        let column_index = column.into_usize();
+        let row_index = row.as_();
+        let column_index = column.as_();
 
         assert!(
             row_index < number_of_rows,
@@ -419,7 +421,7 @@ pub fn lap_assignment_cost(csr: &ValuedCSR2D<u16, u8, u8, f64>, assignment: &[(u
         .sum()
 }
 
-/// Check full LAP sparse-wrapper invariants: both `sparse_lapmod` and
+/// Check full LAP sparse-wrapper invariants: both `jaqaman` and
 /// `sparse_lapjv` should agree on results when the weight range is
 /// numerically stable.
 ///
@@ -429,8 +431,11 @@ pub fn lap_assignment_cost(csr: &ValuedCSR2D<u16, u8, u8, f64>, assignment: &[(u
 pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let numerically_stable = lap_values_are_numerically_stable(csr);
     let maximum_value = csr.max_sparse_value().unwrap_or(1000.0);
-    let padding_value = (maximum_value + 1.0) * 2.0;
-    let maximal_cost = (padding_value + 1.0) * 2.0;
+    // Use multiplicative scaling so that η/2 = 1.05 × max > max at any
+    // magnitude.  The old additive formula (max + 1.0) * 2.0 failed when
+    // max + 1.0 == max in floating point (values above ~1e16).
+    let padding_value = maximum_value * 2.1;
+    let maximal_cost = padding_value * 2.0;
 
     if !padding_value.is_finite()
         || !maximal_cost.is_finite()
@@ -440,60 +445,61 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
         return;
     }
 
-    let sparse_lapmod = csr.sparse_lapmod(padding_value, maximal_cost);
+    let jaqaman_result = csr.jaqaman(padding_value, maximal_cost);
     let sparse_lapjv = csr.sparse_lapjv(padding_value, maximal_cost);
 
-    match (&sparse_lapmod, &sparse_lapjv) {
-        (Ok(lapmod_assignment), Ok(lapjv_assignment)) => {
-            validate_lap_assignment(csr, lapmod_assignment, "SparseLAPMOD");
+    match (&jaqaman_result, &sparse_lapjv) {
+        (Ok(jaqaman_assignment), Ok(lapjv_assignment)) => {
+            validate_lap_assignment(csr, jaqaman_assignment, "Jaqaman");
             validate_lap_assignment(csr, lapjv_assignment, "SparseLAPJV");
 
             if numerically_stable {
                 assert_eq!(
-                    lapmod_assignment.len(),
+                    jaqaman_assignment.len(),
                     lapjv_assignment.len(),
-                    "SparseLAPMOD/SparseLAPJV cardinality mismatch: {csr:?}"
+                    "Jaqaman/SparseLAPJV cardinality mismatch: {csr:?}"
                 );
 
-                let lapmod_cost = lap_assignment_cost(csr, lapmod_assignment);
+                let jaqaman_cost = lap_assignment_cost(csr, jaqaman_assignment);
                 let lapjv_cost = lap_assignment_cost(csr, lapjv_assignment);
+                let denom = jaqaman_cost.abs().max(lapjv_cost.abs()).max(1e-30);
                 assert!(
-                    (lapmod_cost - lapjv_cost).abs() < 1e-9,
-                    "SparseLAPMOD/SparseLAPJV objective mismatch ({lapmod_cost} vs \
+                    (jaqaman_cost - lapjv_cost).abs() / denom < 1e-9,
+                    "Jaqaman/SparseLAPJV objective mismatch ({jaqaman_cost} vs \
                      {lapjv_cost}): {csr:?}"
                 );
                 if let Ok(hopcroft_karp_assignment) = csr.hopcroft_karp() {
                     assert_eq!(
-                        lapmod_assignment.len(),
+                        jaqaman_assignment.len(),
                         hopcroft_karp_assignment.len(),
-                        "SparseLAPMOD/Hopcroft-Karp cardinality mismatch: {csr:?}"
+                        "Jaqaman/Hopcroft-Karp cardinality mismatch: {csr:?}"
                     );
                 }
             }
         }
-        (Err(lapmod_error), Err(lapjv_error)) => {
+        (Err(jaqaman_error), Err(lapjv_error)) => {
             if numerically_stable {
                 assert_eq!(
-                    lapmod_error, lapjv_error,
-                    "Sparse wrapper error mismatch: SparseLAPMOD={lapmod_error:?} \
+                    jaqaman_error, lapjv_error,
+                    "Sparse wrapper error mismatch: Jaqaman={jaqaman_error:?} \
                      SparseLAPJV={lapjv_error:?} matrix={csr:?}"
                 );
             }
         }
-        (Ok(lapmod_assignment), Err(lapjv_error)) => {
-            validate_lap_assignment(csr, lapmod_assignment, "SparseLAPMOD");
+        (Ok(jaqaman_assignment), Err(lapjv_error)) => {
+            validate_lap_assignment(csr, jaqaman_assignment, "Jaqaman");
             assert!(
                 !numerically_stable,
-                "Sparse wrapper mismatch: SparseLAPMOD returned assignment of len {} \
+                "Sparse wrapper mismatch: Jaqaman returned assignment of len {} \
                  but SparseLAPJV failed with {lapjv_error:?}: {csr:?}",
-                lapmod_assignment.len(),
+                jaqaman_assignment.len(),
             );
         }
-        (Err(lapmod_error), Ok(lapjv_assignment)) => {
+        (Err(jaqaman_error), Ok(lapjv_assignment)) => {
             validate_lap_assignment(csr, lapjv_assignment, "SparseLAPJV");
             assert!(
                 !numerically_stable,
-                "Sparse wrapper mismatch: SparseLAPMOD failed with {lapmod_error:?} \
+                "Sparse wrapper mismatch: Jaqaman failed with {jaqaman_error:?} \
                  but SparseLAPJV returned assignment of len {}: {csr:?}",
                 lapjv_assignment.len(),
             );
@@ -508,12 +514,12 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
 ///
 /// Panics if results are inconsistent.
 pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
-    if csr.number_of_rows().into_usize() != csr.number_of_columns().into_usize() {
+    if csr.number_of_rows().as_() != csr.number_of_columns().as_() {
         return;
     }
 
     let maximum_value = csr.max_sparse_value().unwrap_or(1000.0);
-    let max_cost = (maximum_value + 1.0) * 2.0;
+    let max_cost = maximum_value * 2.1;
     if !max_cost.is_finite() || max_cost <= 0.0 {
         return;
     }
@@ -534,18 +540,18 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         }
     }
 
-    let padding_value = (maximum_value + 1.0) * 4.0;
-    let maximal_cost = (padding_value + 1.0) * 2.0;
+    let padding_value = maximum_value * 4.2;
+    let maximal_cost = padding_value * 2.0;
     if !padding_value.is_finite() || !maximal_cost.is_finite() || maximal_cost <= padding_value {
         return;
     }
 
-    let sparse_lapmod_assignment = csr.sparse_lapmod(padding_value, maximal_cost);
+    let jaqaman_assignment = csr.jaqaman(padding_value, maximal_cost);
     let sparse_lapjv_assignment = csr.sparse_lapjv(padding_value, maximal_cost);
 
     if !numerically_stable {
-        if let Ok(assignment) = &sparse_lapmod_assignment {
-            validate_lap_assignment(csr, assignment, "SparseLAPMOD");
+        if let Ok(assignment) = &jaqaman_assignment {
+            validate_lap_assignment(csr, assignment, "Jaqaman");
         }
         if let Ok(assignment) = &sparse_lapjv_assignment {
             validate_lap_assignment(csr, assignment, "SparseLAPJV");
@@ -553,9 +559,9 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     }
 
-    let sparse_lapmod_assignment = sparse_lapmod_assignment.unwrap_or_else(|error| {
+    let jaqaman_assignment = jaqaman_assignment.unwrap_or_else(|error| {
         panic!(
-            "SparseLAPMOD failed on square matrix that LAPMOD solved with error \
+            "Jaqaman failed on square matrix that LAPMOD solved with error \
              {error:?}: {csr:?}"
         )
     });
@@ -566,13 +572,13 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         )
     });
 
-    validate_lap_assignment(csr, &sparse_lapmod_assignment, "SparseLAPMOD");
+    validate_lap_assignment(csr, &jaqaman_assignment, "Jaqaman");
     validate_lap_assignment(csr, &sparse_lapjv_assignment, "SparseLAPJV");
 
     assert_eq!(
         lapmod_assignment.len(),
-        sparse_lapmod_assignment.len(),
-        "LAPMOD/SparseLAPMOD cardinality mismatch: {csr:?}"
+        jaqaman_assignment.len(),
+        "LAPMOD/Jaqaman cardinality mismatch: {csr:?}"
     );
     assert_eq!(
         lapmod_assignment.len(),
@@ -581,16 +587,18 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 
     let lapmod_cost = lap_assignment_cost(csr, &lapmod_assignment);
-    let sparse_lapmod_cost = lap_assignment_cost(csr, &sparse_lapmod_assignment);
+    let jaqaman_cost = lap_assignment_cost(csr, &jaqaman_assignment);
     let sparse_lapjv_cost = lap_assignment_cost(csr, &sparse_lapjv_assignment);
 
+    let denom1 = lapmod_cost.abs().max(jaqaman_cost.abs()).max(1e-30);
     assert!(
-        (lapmod_cost - sparse_lapmod_cost).abs() < 1e-9,
-        "LAPMOD/SparseLAPMOD objective mismatch ({lapmod_cost} vs \
-         {sparse_lapmod_cost}): {csr:?}",
+        (lapmod_cost - jaqaman_cost).abs() / denom1 < 1e-9,
+        "LAPMOD/Jaqaman objective mismatch ({lapmod_cost} vs \
+         {jaqaman_cost}): {csr:?}",
     );
+    let denom2 = lapmod_cost.abs().max(sparse_lapjv_cost.abs()).max(1e-30);
     assert!(
-        (lapmod_cost - sparse_lapjv_cost).abs() < 1e-9,
+        (lapmod_cost - sparse_lapjv_cost).abs() / denom2 < 1e-9,
         "LAPMOD/SparseLAPJV objective mismatch ({lapmod_cost} vs \
          {sparse_lapjv_cost}): {csr:?}",
     );
@@ -640,8 +648,8 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     }
 
-    let rows = csr.number_of_rows().into_usize();
-    let cols = csr.number_of_columns().into_usize();
+    let rows = csr.number_of_rows().as_();
+    let cols = csr.number_of_columns().as_();
     if rows != cols || rows == 0 || rows > u8::MAX as usize {
         return;
     }
@@ -653,12 +661,12 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     // Extract upper-triangle edges with finite positive weights, then mirror.
     let mut edges: Vec<(u8, u8, f64)> = Vec::new();
     for row in csr.row_indices() {
-        let r = row.into_usize();
+        let r = row.as_();
         if r >= rows {
             continue;
         }
         for (col, val) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
-            let c = col.into_usize();
+            let c = col.as_();
             if r <= c && val.is_finite() && val.is_normal() && val > 0.0 {
                 let Ok(r8) = u8::try_from(r) else {
                     continue;

@@ -1,4 +1,4 @@
-//! Shared error type for sparse LAP wrappers (`SparseLAPJV`, `SparseLAPMOD`).
+//! Shared error type for sparse LAP wrappers (`SparseLAPJV`, `Jaqaman`).
 
 use core::fmt::Display;
 
@@ -25,6 +25,13 @@ pub enum LAPError {
     PaddingValueNotFinite,
     /// The provided padding value is not a positive number.
     PaddingValueNotPositive,
+    /// The padding cost is too small relative to the sparse values.
+    ///
+    /// The diagonal cost extension requires `padding_cost / 2` to be strictly
+    /// greater than every sparse value. This typically happens when the
+    /// padding cost is computed with an additive offset that vanishes in
+    /// floating point at extreme magnitudes.
+    PaddingCostTooSmall,
     /// The sparse structure has no perfect matching.
     InfeasibleAssignment,
 }
@@ -51,6 +58,13 @@ impl Display for LAPError {
             }
             LAPError::PaddingValueNotPositive => {
                 write!(f, "The provided padding value is not a positive number.")
+            }
+            LAPError::PaddingCostTooSmall => {
+                write!(
+                    f,
+                    "The padding cost is too small: padding_cost / 2 must be strictly \
+                     greater than the maximum sparse value."
+                )
             }
             LAPError::InfeasibleAssignment => {
                 write!(f, "The sparse structure has no perfect matching (infeasible assignment).")
