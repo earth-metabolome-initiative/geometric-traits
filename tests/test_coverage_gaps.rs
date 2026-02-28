@@ -173,7 +173,10 @@ fn test_louvain_error_display_non_square() {
 
 #[test]
 fn test_louvain_error_display_unrepresentable() {
-    let err = LouvainError::UnrepresentableWeight { source: 0, destination: 1 };
+    let err = LouvainError::UnrepresentableWeight {
+        source_id: 0,
+        destination_id: 1,
+    };
     let display = format!("{err}");
     assert!(display.contains("cannot be represented"));
 }
@@ -186,10 +189,22 @@ fn test_louvain_error_display_all_variants() {
         LouvainError::InvalidMaxLevels,
         LouvainError::InvalidMaxLocalPasses,
         LouvainError::NonSquareMatrix { rows: 2, columns: 3 },
-        LouvainError::UnrepresentableWeight { source: 0, destination: 1 },
-        LouvainError::NonFiniteWeight { source: 0, destination: 1 },
-        LouvainError::NonPositiveWeight { source: 0, destination: 1 },
-        LouvainError::NonSymmetricEdge { source: 0, destination: 1 },
+        LouvainError::UnrepresentableWeight {
+            source_id: 0,
+            destination_id: 1,
+        },
+        LouvainError::NonFiniteWeight {
+            source_id: 0,
+            destination_id: 1,
+        },
+        LouvainError::NonPositiveWeight {
+            source_id: 0,
+            destination_id: 1,
+        },
+        LouvainError::NonSymmetricEdge {
+            source_id: 0,
+            destination_id: 1,
+        },
         LouvainError::TooManyCommunities,
     ];
     for err in &variants {
