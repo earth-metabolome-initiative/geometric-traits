@@ -4,9 +4,7 @@
 //! rectangular, new rows and columns will be added to make it square.
 use alloc::vec::Vec;
 
-use num_traits::{Bounded, One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, Bounded, One, Zero};
 
 use crate::traits::{
     EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,

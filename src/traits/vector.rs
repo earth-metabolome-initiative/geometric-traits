@@ -2,9 +2,7 @@
 
 use core::ops::Index;
 
-use num_traits::Zero;
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, Zero};
 
 use crate::traits::PositiveInteger;
 

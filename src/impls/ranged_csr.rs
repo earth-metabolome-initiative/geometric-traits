@@ -5,10 +5,8 @@ pub mod ranged_csr2d;
 use core::fmt::Debug;
 
 use multi_ranged::{MultiRanged, Step};
-use num_traits::Zero;
+use num_traits::{AsPrimitive, Zero};
 pub use ranged_csr2d::RangedCSR2D;
-
-use num_traits::AsPrimitive;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,

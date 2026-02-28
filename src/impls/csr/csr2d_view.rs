@@ -2,9 +2,7 @@
 
 use core::cmp::Ordering;
 
-use num_traits::{One, SaturatingSub, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, SaturatingSub, Zero};
 
 use crate::prelude::*;
 

@@ -17,6 +17,7 @@ pub use dense_matrix::*;
 pub use dense_matrix2d::*;
 pub use matrix_mut::*;
 pub use matrix2d::*;
+use num_traits::AsPrimitive;
 pub use sparse_matrix2d::*;
 pub use square_matrix::*;
 pub use transposed_valued_matrix2d::*;
@@ -24,8 +25,6 @@ pub use triangular_matrix::*;
 pub use valued_matrix2d::*;
 
 use super::Coordinates;
-use num_traits::AsPrimitive;
-
 use crate::{
     impls::ImplicitValuedSparseIterator,
     traits::{PositiveInteger, TotalOrd},

@@ -3,17 +3,13 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use num_traits::{Bounded, Zero};
+use num_traits::{AsPrimitive, Bounded, Zero};
 
 use super::{
     LAPJVError,
     common::{augmentation_backtrack, augmenting_row_reduction_impl, find_minimum_distance},
 };
-use num_traits::AsPrimitive;
-
-use crate::traits::{
-    AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize,
-};
+use crate::traits::{AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize};
 
 /// Support struct for computing the weighted assignment using the LAPJV
 /// algorithm.
@@ -75,10 +71,7 @@ where
             unassigned_rows: Vec::new(),
             max_cost,
             assigned_rows: vec![AssignmentState::Unassigned; matrix.number_of_rows().as_()],
-            assigned_columns: vec![
-                AssignmentState::Unassigned;
-                matrix.number_of_columns().as_()
-            ],
+            assigned_columns: vec![AssignmentState::Unassigned; matrix.number_of_columns().as_()],
         })
     }
 }
@@ -124,8 +117,7 @@ where
                 }
 
                 if value < self.column_costs[column_index.as_()] {
-                    self.assigned_rows[column_index.as_()] =
-                        AssignmentState::Assigned(row_index);
+                    self.assigned_rows[column_index.as_()] = AssignmentState::Assigned(row_index);
                     self.column_costs[column_index.as_()] = value;
                 }
             }
@@ -137,8 +129,7 @@ where
         );
 
         for column_index in self.matrix.column_indices().rev() {
-            let AssignmentState::Assigned(assigned_row) =
-                self.assigned_rows[column_index.as_()]
+            let AssignmentState::Assigned(assigned_row) = self.assigned_rows[column_index.as_()]
             else {
                 unreachable!("We expected the assigned row to be in the assigned state");
             };
@@ -217,9 +208,7 @@ where
             number_of_rows,
             |row, col_costs| {
                 let mut iterator = matrix.column_indices().zip(matrix.row_values(row)).map(
-                    |(column_index, cost)| {
-                        (column_index, cost - col_costs[column_index.as_()])
-                    },
+                    |(column_index, cost)| (column_index, cost - col_costs[column_index.as_()]),
                 );
 
                 let (mut first_minimum_index, mut first_minimum_reduced_cost) =
@@ -272,8 +261,7 @@ where
 
             let column_index = to_scan[lower_bound];
             lower_bound += 1;
-            let AssignmentState::Assigned(row_index) =
-                self.assigned_rows[column_index.as_()]
+            let AssignmentState::Assigned(row_index) = self.assigned_rows[column_index.as_()]
             else {
                 unreachable!("We expected the assigned row to be in the assigned state");
             };

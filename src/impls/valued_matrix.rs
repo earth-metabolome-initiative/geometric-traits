@@ -4,16 +4,14 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use multi_ranged::Step;
-use num_traits::{One, Zero};
+use num_traits::{AsPrimitive, One, Zero};
 
 use super::{CSR2D, MutabilityError};
-use num_traits::AsPrimitive;
-
 use crate::traits::{
-    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
-    RankSelectSparseMatrix, SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D,
-    SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix,
-    SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
+    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger, RankSelectSparseMatrix,
+    SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix,
+    SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
+    TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
 #[cfg(feature = "arbitrary")]

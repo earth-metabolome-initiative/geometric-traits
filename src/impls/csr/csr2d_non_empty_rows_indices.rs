@@ -2,9 +2,7 @@
 //! matrix.
 
 use multi_ranged::SimpleRange;
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::traits::SizedRowsSparseMatrix2D;
 

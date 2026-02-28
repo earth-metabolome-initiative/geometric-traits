@@ -2,16 +2,14 @@
 //! [`GenericImplicitValuedMatrix2D`].
 use alloc::vec::Vec;
 
-use num_traits::Zero;
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, Zero};
 
 use crate::traits::{
     BidirectionalVocabulary, BipartiteGraph, Edges, EmptyRows, Graph, ImplicitValuedMatrix,
-    ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator, Matrix, Matrix2D,
-    Matrix2DRef, MonoplexGraph, Number, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
-    SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D,
-    SparseValuedMatrix, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
+    ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator, Matrix, Matrix2D, Matrix2DRef,
+    MonoplexGraph, Number, RankSelectSparseMatrix, SizedRowsSparseMatrix2D, SizedSparseMatrix,
+    SizedSparseMatrix2D, SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
+    SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
 #[derive(Clone, Debug)]

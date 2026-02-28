@@ -1,15 +1,14 @@
 //! Submodule implementing Edges for CSR2D.
 
 use multi_ranged::Step;
-
 use num_traits::AsPrimitive;
 
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     impls::csr::CSR2D,
     traits::{
-        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix,
-        Matrix2D, Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix, Matrix2D,
+        Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
         TryFromUsize,
     },
 };

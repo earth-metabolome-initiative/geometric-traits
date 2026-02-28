@@ -2,10 +2,9 @@
 //! trait and its related traits.
 
 use multi_ranged::Step;
-
-use super::{PaddedMatrix2D, imputed_row_values::ImputedRowValues};
 use num_traits::AsPrimitive;
 
+use super::{PaddedMatrix2D, imputed_row_values::ImputedRowValues};
 use crate::{
     impls::M2DValues,
     traits::{

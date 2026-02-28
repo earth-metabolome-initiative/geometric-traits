@@ -5,15 +5,13 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};
 
 use multi_ranged::Step;
-use num_traits::Zero;
+use num_traits::{AsPrimitive, Zero};
 
 use super::MutabilityError;
-use num_traits::AsPrimitive;
-
 use crate::traits::{
-    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
-    SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut,
-    TransposableMatrix2D, TryFromUsize,
+    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D,
+    SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, TransposableMatrix2D,
+    TryFromUsize,
 };
 
 #[derive(Clone)]
@@ -185,11 +183,8 @@ where
         Self: 'a;
 
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        let slice = if row.as_() >= self.data.len() {
-            &[]
-        } else {
-            self.data[row.as_()].as_slice()
-        };
+        let slice =
+            if row.as_() >= self.data.len() { &[] } else { self.data[row.as_()].as_slice() };
         slice.iter().copied()
     }
 

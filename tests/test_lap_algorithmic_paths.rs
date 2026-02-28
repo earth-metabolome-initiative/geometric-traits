@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::{PaddedMatrix2D, ValuedCSR2D},
     prelude::*,
-    traits::{LAPJV, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, Jaqaman},
+    traits::{Jaqaman, LAPJV, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV},
 };
 
 // ============================================================================
@@ -216,8 +216,7 @@ fn test_lapmod_sparse_frontier_with_overlapping_todo_columns() {
     MatrixMut::add(&mut m, (4, 3, 1.0)).unwrap();
     MatrixMut::add(&mut m, (4, 4, 1.0)).unwrap();
 
-    let assignment =
-        m.jaqaman(900.0, 1000.0).expect("Jaqaman should find a valid assignment");
+    let assignment = m.jaqaman(900.0, 1000.0).expect("Jaqaman should find a valid assignment");
     assert_eq!(assignment.len(), 5);
 
     let mut rows: Vec<usize> = assignment.iter().map(|&(r, _)| r).collect();

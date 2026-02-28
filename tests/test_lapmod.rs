@@ -10,8 +10,6 @@ use std::{
     time::Duration,
 };
 
-use num_traits::AsPrimitive;
-
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::{
@@ -20,7 +18,7 @@ use geometric_traits::{
     },
     traits::{Matrix2D, algorithms::randomized_graphs::XorShift64},
 };
-use num_traits::ToPrimitive;
+use num_traits::{AsPrimitive, ToPrimitive};
 
 // ---------------------------------------------------------------------------
 // Helper: sort assignment for stable comparison

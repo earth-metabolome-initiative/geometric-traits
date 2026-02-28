@@ -12,8 +12,9 @@
 //! by Jaqaman *et al.* (*Nature Methods* 5, 695–702, 2008) and formally
 //! analysed by Ramshaw & Tarjan (HP Labs HPL-2012-40, 2012).  The expansion
 //! adds only 2|E| + L + R edges — preserving the sparsity that LAPMOD relies
-//! on — whereas the naïve padding approach (used by [`SparseLAPJV`](super::SparseLAPJV))
-//! produces a dense n × n matrix and loses the O(|E|) advantage.
+//! on — whereas the naïve padding approach (used by
+//! [`SparseLAPJV`](super::SparseLAPJV)) produces a dense n × n matrix and loses
+//! the O(|E|) advantage.
 use alloc::vec::Vec;
 
 mod errors;
@@ -23,16 +24,13 @@ use core::fmt::Debug;
 
 pub use errors::LAPMODError;
 use inner::LapmodInner;
-use num_traits::{One, Zero};
+use num_traits::{AsPrimitive, One, Zero};
 
 use super::LAPError;
-use num_traits::AsPrimitive;
-
 use crate::{
     impls::ValuedCSR2D,
     traits::{
-        Finite, MatrixMut, Number, SparseMatrixMut, SparseValuedMatrix2D, TotalOrd,
-        TryFromUsize,
+        Finite, MatrixMut, Number, SparseMatrixMut, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
     },
 };
 
@@ -175,8 +173,8 @@ where
 ///
 /// # References
 ///
-/// * Jaqaman *et al.*, "Robust single-particle tracking in live-cell
-///   time-lapse sequences", *Nature Methods* 5, 695–702, 2008.
+/// * Jaqaman *et al.*, "Robust single-particle tracking in live-cell time-lapse
+///   sequences", *Nature Methods* 5, 695–702, 2008.
 /// * Ramshaw & Tarjan, "On minimum-cost assignments in unbalanced bipartite
 ///   graphs", HP Labs HPL-2012-40, 2012.
 pub trait Jaqaman: SparseValuedMatrix2D + Sized
@@ -212,7 +210,8 @@ where
     ///   (`LAPError::ValueTooLarge`)
     /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
     /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
-    /// - The expanded matrix cannot be solved (`LAPError::InfeasibleAssignment`)
+    /// - The expanded matrix cannot be solved
+    ///   (`LAPError::InfeasibleAssignment`)
     /// - Matrix values violate LAPMOD input requirements
     fn jaqaman(
         &self,

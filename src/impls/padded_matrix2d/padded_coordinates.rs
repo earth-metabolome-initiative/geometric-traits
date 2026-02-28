@@ -2,9 +2,7 @@
 //! of a dense rectangular matrix.
 
 use multi_ranged::SimpleRange;
-use num_traits::Zero;
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, Zero};
 
 use crate::traits::Matrix2D;
 

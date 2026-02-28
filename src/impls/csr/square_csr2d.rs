@@ -2,9 +2,7 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::traits::PositiveInteger;
 

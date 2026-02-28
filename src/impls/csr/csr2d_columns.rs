@@ -1,8 +1,6 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::prelude::*;
 
@@ -43,12 +41,10 @@ where
     fn len(&self) -> usize {
         let next_row_rank = self.csr2d.rank_row(self.next_row).as_();
         let already_observed_in_next_row =
-            self.csr2d.number_of_defined_values_in_row(self.next_row).as_()
-                - self.next.len();
+            self.csr2d.number_of_defined_values_in_row(self.next_row).as_() - self.next.len();
         let back_row_rank = self.csr2d.rank_row(self.back_row).as_();
         let already_observed_in_back_row =
-            self.csr2d.number_of_defined_values_in_row(self.back_row).as_()
-                - self.back.len();
+            self.csr2d.number_of_defined_values_in_row(self.back_row).as_() - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }
 }

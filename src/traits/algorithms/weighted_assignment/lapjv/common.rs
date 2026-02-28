@@ -94,8 +94,7 @@ pub(crate) fn augmentation_backtrack<R, C>(
             break;
         }
 
-        let AssignmentState::Assigned(old_column_index) = assigned_columns[row_index.as_()]
-        else {
+        let AssignmentState::Assigned(old_column_index) = assigned_columns[row_index.as_()] else {
             unreachable!("We expected the assigned column to be in the assigned state");
         };
 

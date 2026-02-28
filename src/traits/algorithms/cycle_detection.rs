@@ -3,7 +3,6 @@
 use alloc::vec::Vec;
 
 use bitvec::vec::BitVec;
-
 use num_traits::AsPrimitive;
 
 use crate::traits::MonoplexMonopartiteGraph;

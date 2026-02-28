@@ -4,11 +4,9 @@
 use alloc::{string::String, vec::Vec};
 use core::fmt::Debug;
 
-use num_traits::Bounded;
+use num_traits::{AsPrimitive, Bounded};
 
 use super::MutabilityError;
-use num_traits::AsPrimitive;
-
 use crate::traits::{Matrix2D, SparseMatrix2D, SparseValuedMatrix2D, ValuedMatrix};
 
 mod imputed_row_values;

@@ -1,8 +1,6 @@
 //! Iterator of the sparse coordinates of the CSR2D matrix.
 
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::prelude::*;
 

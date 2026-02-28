@@ -2,9 +2,7 @@
 
 use core::iter::{RepeatN, repeat_n};
 
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::prelude::*;
 
@@ -52,8 +50,7 @@ impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
             // next_row, plus remaining entries in back_row via `self.back`.
             let next_row_rank = self.csr2d.rank_row(self.next_row).as_();
             let already_observed_in_next_row =
-                self.csr2d.number_of_defined_values_in_row(self.next_row).as_()
-                    - self.next.len();
+                self.csr2d.number_of_defined_values_in_row(self.next_row).as_() - self.next.len();
             let back_row_rank = self.csr2d.rank_row(self.back_row).as_();
             back_row_rank - next_row_rank - already_observed_in_next_row + self.back.len()
         }

@@ -3,9 +3,9 @@
 //! A bipartite graph is a graph whose vertices can be divided into two disjoint
 //! sets such that no two vertices within the same set are adjacent.
 
-use super::{BidirectionalVocabulary, Graph, Vocabulary};
 use num_traits::AsPrimitive;
 
+use super::{BidirectionalVocabulary, Graph, Vocabulary};
 use crate::traits::{PositiveInteger, Symbol, TryFromUsize};
 
 /// Trait defining the properties of a bipartite graph.

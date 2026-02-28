@@ -2,9 +2,9 @@
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use super::PaddedMatrix2D;
 use num_traits::AsPrimitive;
 
+use super::PaddedMatrix2D;
 use crate::traits::{Matrix, Matrix2D, TryFromUsize};
 
 impl<M, Map> Matrix for PaddedMatrix2D<M, Map>

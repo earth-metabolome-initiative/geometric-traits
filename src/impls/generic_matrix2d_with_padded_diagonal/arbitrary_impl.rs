@@ -2,9 +2,7 @@
 //! `GenericMatrix2DWithPaddedDiagonal` struct.
 
 use arbitrary::{Arbitrary, Unstructured};
-use num_traits::One;
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One};
 
 use crate::{
     impls::GenericMatrix2DWithPaddedDiagonal,

@@ -10,14 +10,12 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use arbitrary::{Arbitrary, Unstructured};
-
 use num_traits::AsPrimitive;
 
 use crate::{
     prelude::*,
     traits::{
-        EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
-        SparseValuedMatrix2D,
+        EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix, SparseValuedMatrix2D,
     },
 };
 

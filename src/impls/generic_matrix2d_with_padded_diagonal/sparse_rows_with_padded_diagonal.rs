@@ -3,7 +3,6 @@
 //! automatically adds diagonal values when missing.
 
 use multi_ranged::SimpleRange;
-
 use num_traits::AsPrimitive;
 
 use crate::traits::{SparseMatrix2D, TryFromUsize};

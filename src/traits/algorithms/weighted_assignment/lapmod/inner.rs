@@ -3,11 +3,9 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use num_traits::{Bounded, Zero};
+use num_traits::{AsPrimitive, Bounded, Zero};
 
 use super::LAPMODError;
-use num_traits::AsPrimitive;
-
 use crate::traits::{
     AssignmentState, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
     algorithms::weighted_assignment::lapjv::common::{

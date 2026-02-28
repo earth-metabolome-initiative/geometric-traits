@@ -42,14 +42,14 @@ pub use csr::*;
 pub mod error;
 pub use error::*;
 #[cfg(feature = "alloc")]
+pub mod compact_matrix;
+#[cfg(feature = "alloc")]
 pub mod generic_bimatrix2d;
 pub mod generic_iterators;
 #[cfg(feature = "alloc")]
 pub mod generic_matrix2d_with_padded_diagonal;
 #[cfg(feature = "alloc")]
 pub mod lower_bounded_sparse_square_matrix;
-#[cfg(feature = "alloc")]
-pub mod compact_matrix;
 #[cfg(feature = "alloc")]
 pub mod padded_matrix2d;
 #[cfg(feature = "alloc")]

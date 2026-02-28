@@ -3,14 +3,10 @@
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::fmt::{Display, Formatter};
 
-use num_traits::ToPrimitive;
+use num_traits::{AsPrimitive, ToPrimitive};
 use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
-use num_traits::AsPrimitive;
-
-use crate::traits::{
-    Finite, MonopartiteGraph, Number, PositiveInteger, SparseValuedMatrix2D,
-};
+use crate::traits::{Finite, MonopartiteGraph, Number, PositiveInteger, SparseValuedMatrix2D};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Configuration options for the Louvain community detection algorithm.

@@ -20,9 +20,7 @@
 //! Crouse, D. F. (2016). "On implementing 2D rectangular assignment
 //! algorithms." *IEEE Transactions on Aerospace and Electronic Systems*,
 //! 52(4), 1679–1696.
-use alloc::vec;
-use alloc::vec::Vec;
-
+use alloc::{vec, vec::Vec};
 use core::fmt::Debug;
 
 pub mod errors;
@@ -123,24 +121,17 @@ where
         }
 
         // Step 3: Solve with Crouse rectangular LAPJV.
-        let assignments =
-            inner::crouse_inner(&dense, eff_nr, eff_nc, max_cost)?;
+        let assignments = inner::crouse_inner(&dense, eff_nr, eff_nc, max_cost)?;
 
         // Step 4: Map back to original indices and filter non-edges.
         let mut result = Vec::with_capacity(assignments.len());
         for (eff_row, eff_col) in assignments {
             // Un-transpose if needed.
-            let (compact_row, compact_col) = if transposed {
-                (eff_col, eff_row)
-            } else {
-                (eff_row, eff_col)
-            };
+            let (compact_row, compact_col) =
+                if transposed { (eff_col, eff_row) } else { (eff_row, eff_col) };
 
             // Check if this is a real edge (not a non_edge_cost entry).
-            let has_edge = compact
-                .matrix
-                .sparse_row(compact_row)
-                .any(|c| c == compact_col);
+            let has_edge = compact.matrix.sparse_row(compact_row).any(|c| c == compact_col);
 
             if has_edge {
                 let orig_row = compact.row_map[compact_row];

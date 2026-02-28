@@ -3,11 +3,9 @@
 //! A monopartite graph is a graph where the nodes are of the same type, i.e
 //! they are not divided into different partitions.
 
-use num_traits::{SaturatingAdd, Zero};
+use num_traits::{AsPrimitive, SaturatingAdd, Zero};
 
 use super::{BidirectionalVocabulary, Edges, Vocabulary};
-use num_traits::AsPrimitive;
-
 use crate::traits::{PositiveInteger, SparseSquareMatrix, Symbol, TryFromUsize};
 
 /// Trait defining the properties of the monopartited edges of a graph.

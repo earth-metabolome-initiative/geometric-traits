@@ -12,7 +12,8 @@ use crate::{
 /// A sparse matrix whose row/column indices have been compacted to contiguous
 /// 0-based ranges, along with reverse mappings back to the original indices.
 pub struct CompactMatrix<RowIndex, ColumnIndex> {
-    /// The compacted matrix with indices in 0..n_unique_rows × 0..n_unique_cols.
+    /// The compacted matrix with indices in 0..n_unique_rows ×
+    /// 0..n_unique_cols.
     pub matrix: ValuedCSR2D<usize, usize, usize, f64>,
     /// Maps compact row index → original row index.
     pub row_map: Vec<RowIndex>,
@@ -30,9 +31,9 @@ pub struct CompactMatrix<RowIndex, ColumnIndex> {
 /// - `row_map`: compact row → original row index.
 /// - `col_map`: compact column → original column index.
 ///
-/// This is useful for reducing a large sparse matrix (with many empty rows/cols)
-/// down to only the rows and columns that participate in edges, before feeding
-/// it to a dense solver.
+/// This is useful for reducing a large sparse matrix (with many empty
+/// rows/cols) down to only the rows and columns that participate in edges,
+/// before feeding it to a dense solver.
 pub fn compactify<M>(matrix: &M) -> CompactMatrix<M::RowIndex, M::ColumnIndex>
 where
     M: SparseValuedMatrix2D,
@@ -78,19 +79,13 @@ where
     };
 
     // Count total edges for capacity.
-    let n_edges: usize = row_map
-        .iter()
-        .map(|&row| matrix.sparse_row(row).count())
-        .sum();
+    let n_edges: usize = row_map.iter().map(|&row| matrix.sparse_row(row).count()).sum();
 
     let mut compact: ValuedCSR2D<usize, usize, usize, f64> =
         SparseMatrixMut::with_sparse_shaped_capacity((n_rows, n_cols), n_edges);
 
     for (compact_row, &orig_row) in row_map.iter().enumerate() {
-        for (col, value) in matrix
-            .sparse_row(orig_row)
-            .zip(matrix.sparse_row_values(orig_row))
-        {
+        for (col, value) in matrix.sparse_row(orig_row).zip(matrix.sparse_row_values(orig_row)) {
             let compact_col = col_to_compact(col);
             compact
                 .add((compact_row, compact_col, value.into()))
@@ -98,11 +93,7 @@ where
         }
     }
 
-    CompactMatrix {
-        matrix: compact,
-        row_map,
-        col_map,
-    }
+    CompactMatrix { matrix: compact, row_map, col_map }
 }
 
 #[cfg(all(test, feature = "alloc"))]

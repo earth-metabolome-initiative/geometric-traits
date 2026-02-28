@@ -1,11 +1,9 @@
 //! Trait defining a bidimensional matrix.
 
 use multi_ranged::{SimpleRange, Step};
-use num_traits::Zero;
+use num_traits::{AsPrimitive, Zero};
 
 use super::SquareMatrix;
-use num_traits::AsPrimitive;
-
 use crate::traits::{Matrix, PositiveInteger};
 
 /// Trait defining a bidimensional matrix.

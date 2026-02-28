@@ -3,8 +3,8 @@
 use num_traits::AsPrimitive;
 
 use crate::traits::{
-    BidirectionalVocabulary, Edges, Graph, MonopartiteGraph, MonoplexGraph,
-    PositiveInteger, TryFromUsize,
+    BidirectionalVocabulary, Edges, Graph, MonopartiteGraph, MonoplexGraph, PositiveInteger,
+    TryFromUsize,
 };
 
 #[cfg(feature = "arbitrary")]

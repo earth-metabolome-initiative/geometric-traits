@@ -8,9 +8,10 @@
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 #[cfg(feature = "alloc")]
 use num_traits::AsPrimitive;
+
+use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 
 /// Trait defining the properties of monoplex monopartite graphs.
 ///

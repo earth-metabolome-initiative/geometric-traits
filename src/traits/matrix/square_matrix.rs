@@ -1,10 +1,9 @@
 //! Submodule for the [`SquareMatrix`] trait.
 
 use multi_ranged::Step;
-
-use super::{Matrix2D, SparseMatrix2D, SymmetricMatrix2D};
 use num_traits::AsPrimitive;
 
+use super::{Matrix2D, SparseMatrix2D, SymmetricMatrix2D};
 use crate::traits::PositiveInteger;
 
 /// Trait defining a square matrix.

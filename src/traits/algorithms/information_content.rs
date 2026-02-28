@@ -6,7 +6,6 @@ mod error;
 use core::ops::Index;
 
 pub use error::InformationContentError;
-
 use num_traits::AsPrimitive;
 
 use crate::traits::{
@@ -117,9 +116,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         // processed before the node itself.
         let mut sorted_nodes: Vec<Self::NodeId> = self.node_ids().collect();
         sorted_nodes.sort_unstable_by(|&a, &b| {
-            topological_ordering[b.as_()]
-                .as_()
-                .cmp(&topological_ordering[a.as_()].as_())
+            topological_ordering[b.as_()].as_().cmp(&topological_ordering[a.as_()].as_())
         });
 
         let mut propagated_occurrences = vec![0usize; expected];

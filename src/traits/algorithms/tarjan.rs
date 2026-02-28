@@ -4,9 +4,7 @@
 use alloc::vec::Vec;
 
 use multi_ranged::SimpleRange;
-use num_traits::{ConstOne, ConstZero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, ConstOne, ConstZero};
 
 use crate::traits::{SparseMatrix2D, SquareMatrix};
 

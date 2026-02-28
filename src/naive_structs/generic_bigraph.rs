@@ -1,11 +1,11 @@
 //! Submodule providing a naively implemented `GenericBiGraph`.
 
-use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
 use num_traits::AsPrimitive;
 
+use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
 use crate::traits::{
-    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph,
-    PositiveInteger, TryFromUsize, Vocabulary,
+    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph, PositiveInteger,
+    TryFromUsize, Vocabulary,
 };
 
 #[derive(Clone)]

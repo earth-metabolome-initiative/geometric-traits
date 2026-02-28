@@ -1,13 +1,9 @@
 //! Submodule providing the `ConnectedComponents` trait and its primary methods.
 use alloc::vec::Vec;
 
-use num_traits::{One, Zero};
+use num_traits::{AsPrimitive, One, Zero};
 
-use num_traits::AsPrimitive;
-
-use crate::traits::{
-    MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
-};
+use crate::traits::{MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph};
 
 /// Connected components object.
 pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {

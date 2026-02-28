@@ -2,9 +2,9 @@
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use super::HopcroftKarpError;
 use num_traits::AsPrimitive;
 
+use super::HopcroftKarpError;
 use crate::traits::{Number, SparseMatrix2D};
 
 /// Struct representing a partial assignment.

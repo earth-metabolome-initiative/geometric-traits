@@ -2,11 +2,9 @@
 //! and related traits for the `PaddedMatrix2D` struct.
 
 use multi_ranged::{SimpleRange, Step};
-use num_traits::{One, Zero};
+use num_traits::{AsPrimitive, One, Zero};
 
 use super::{PaddedMatrix2D, padded_coordinates::PaddedCoordinates};
-use num_traits::AsPrimitive;
-
 use crate::{
     impls::CSR2DColumns,
     traits::{

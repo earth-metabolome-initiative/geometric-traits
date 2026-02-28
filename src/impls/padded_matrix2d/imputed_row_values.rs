@@ -4,10 +4,9 @@
 //! struct.
 
 use multi_ranged::SimpleRange;
-
-use super::PaddedMatrix2D;
 use num_traits::AsPrimitive;
 
+use super::PaddedMatrix2D;
 use crate::traits::{Matrix2D, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix};
 
 /// A wrapper over the `SparseRowValues` from the `SparseValuedMatrix2D` trait,

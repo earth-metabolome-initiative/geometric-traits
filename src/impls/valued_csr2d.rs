@@ -2,7 +2,6 @@
 //! [`ValuedCSR2D`].
 
 use multi_ranged::Step;
-
 use num_traits::AsPrimitive;
 
 use crate::{

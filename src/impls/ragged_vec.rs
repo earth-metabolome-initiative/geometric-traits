@@ -4,7 +4,6 @@
 use core::fmt::Debug;
 
 use multi_ranged::Step;
-
 use num_traits::AsPrimitive;
 
 use crate::{

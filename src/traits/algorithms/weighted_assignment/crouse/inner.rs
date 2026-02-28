@@ -5,8 +5,7 @@
 //! nr ≤ nc) cost matrices.  No initialization phases are needed — all column
 //! costs start at zero, all rows are unassigned.
 #![cfg(feature = "alloc")]
-use alloc::vec;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 
 use super::errors::CrouseError;
 use crate::traits::{
@@ -56,11 +55,9 @@ pub(crate) fn crouse_inner(
     let mut column_costs = vec![0.0f64; nc];
 
     // Assignment state: assigned_rows[col] = which row is assigned to col.
-    let mut assigned_rows: Vec<AssignmentState<usize>> =
-        vec![AssignmentState::Unassigned; nc];
+    let mut assigned_rows: Vec<AssignmentState<usize>> = vec![AssignmentState::Unassigned; nc];
     // assigned_columns[row] = which col is assigned to row.
-    let mut assigned_columns: Vec<AssignmentState<usize>> =
-        vec![AssignmentState::Unassigned; nr];
+    let mut assigned_columns: Vec<AssignmentState<usize>> = vec![AssignmentState::Unassigned; nr];
 
     // Augmentation buffers.
     let mut to_scan: Vec<usize> = vec![0; nc];
@@ -84,8 +81,7 @@ pub(crate) fn crouse_inner(
         let sink_col = 'outer: loop {
             if lower_bound == upper_bound {
                 n_ready = lower_bound;
-                upper_bound =
-                    find_minimum_distance(lower_bound, &distances, &mut to_scan);
+                upper_bound = find_minimum_distance(lower_bound, &distances, &mut to_scan);
 
                 for &col in &to_scan[lower_bound..upper_bound] {
                     if assigned_rows[col].is_unassigned() {
@@ -164,8 +160,7 @@ fn scan(
         };
 
         let min_dist = distances[col];
-        let initial_reduced =
-            data[row * nc + col] - column_costs[col] - min_dist;
+        let initial_reduced = data[row * nc + col] - column_costs[col] - min_dist;
 
         let current_upper = upper_bound;
         for k in current_upper..to_scan.len() {
@@ -244,17 +239,8 @@ mod tests {
             crouse_inner(&[f64::NAN], 1, 1, 100.0),
             Err(CrouseError::NonFiniteValues)
         ));
-        assert!(matches!(
-            crouse_inner(&[0.0], 1, 1, 100.0),
-            Err(CrouseError::ZeroValues)
-        ));
-        assert!(matches!(
-            crouse_inner(&[-1.0], 1, 1, 100.0),
-            Err(CrouseError::NegativeValues)
-        ));
-        assert!(matches!(
-            crouse_inner(&[100.0], 1, 1, 100.0),
-            Err(CrouseError::ValueTooLarge)
-        ));
+        assert!(matches!(crouse_inner(&[0.0], 1, 1, 100.0), Err(CrouseError::ZeroValues)));
+        assert!(matches!(crouse_inner(&[-1.0], 1, 1, 100.0), Err(CrouseError::NegativeValues)));
+        assert!(matches!(crouse_inner(&[100.0], 1, 1, 100.0), Err(CrouseError::ValueTooLarge)));
     }
 }

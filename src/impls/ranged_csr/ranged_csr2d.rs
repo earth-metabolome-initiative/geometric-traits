@@ -4,9 +4,7 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};
 
 use multi_ranged::{MultiRanged, Step, errors::Error as RangedError};
-use num_traits::{One, Zero};
-
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::{
     impls::MutabilityError,
@@ -92,8 +90,8 @@ where
     }
 }
 
-impl<SparseIndex, RowIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged> Matrix
-    for RangedCSR2D<SparseIndex, RowIndex, R>
+impl<SparseIndex, RowIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged>
+    Matrix for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R::Step: AsPrimitive<usize> + PositiveInteger,
 {
@@ -105,8 +103,11 @@ where
     }
 }
 
-impl<SparseIndex, RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged>
-    Matrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
+impl<
+    SparseIndex,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    R: MultiRanged,
+> Matrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R::Step: AsPrimitive<usize> + PositiveInteger,
 {
@@ -124,8 +125,11 @@ where
     }
 }
 
-impl<SparseIndex, RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged>
-    Matrix2DRef for RangedCSR2D<SparseIndex, RowIndex, R>
+impl<
+    SparseIndex,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    R: MultiRanged,
+> Matrix2DRef for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R::Step: AsPrimitive<usize> + PositiveInteger,
 {

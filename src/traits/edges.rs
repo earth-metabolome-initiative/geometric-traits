@@ -1,14 +1,12 @@
 //! Trait defining a data structure to handle Edges, such as a simple edge list,
 //! or a ragged list or a compressed sparse row matrix.
 
-use num_traits::{SaturatingAdd, Zero};
+use num_traits::{AsPrimitive, SaturatingAdd, Zero};
 
 use super::{AttributedEdge, Edge, EdgeType, TypedEdge};
-use num_traits::AsPrimitive;
-
 use crate::traits::{
-    MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D, SizedSparseMatrix,
-    SparseMatrix, SparseMatrix2D, SparseMatrixMut, TryFromUsize,
+    MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix,
+    SparseMatrix2D, SparseMatrixMut, TryFromUsize,
 };
 
 /// Trait defining a data structure to handle Edges, such as a simple edge list,
