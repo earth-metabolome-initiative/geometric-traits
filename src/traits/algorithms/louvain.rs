@@ -1,7 +1,6 @@
 //! Submodule providing the `Louvain` trait and its blanket implementation for
 //! weighted monopartite graphs.
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::fmt::{Display, Formatter};
 
 use num_traits::{AsPrimitive, ToPrimitive};
 use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
@@ -37,18 +36,23 @@ impl Default for LouvainConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Error enumeration for Louvain community detection.
 pub enum LouvainError {
     /// The resolution parameter must be finite and strictly positive.
+    #[error("The Louvain resolution must be finite and strictly positive.")]
     InvalidResolution,
     /// The modularity threshold must be finite and non-negative.
+    #[error("The Louvain modularity threshold must be finite and non-negative.")]
     InvalidModularityThreshold,
     /// The maximum number of levels must be strictly positive.
+    #[error("The Louvain maximum number of levels must be strictly positive.")]
     InvalidMaxLevels,
     /// The maximum number of local passes must be strictly positive.
+    #[error("The Louvain maximum number of local passes must be strictly positive.")]
     InvalidMaxLocalPasses,
     /// The matrix is not square.
+    #[error("The Louvain matrix must be square, but received shape ({rows}, {columns}).")]
     NonSquareMatrix {
         /// Number of rows in the matrix.
         rows: usize,
@@ -56,84 +60,45 @@ pub enum LouvainError {
         columns: usize,
     },
     /// The edge weight cannot be represented as `f64`.
+    #[error(
+        "Found an edge weight on ({source_id}, {destination_id}) that cannot be represented as f64."
+    )]
     UnrepresentableWeight {
         /// Source node identifier.
-        source: usize,
+        source_id: usize,
         /// Destination node identifier.
-        destination: usize,
+        destination_id: usize,
     },
     /// The edge weight is not finite.
+    #[error("Found a non-finite edge weight on ({source_id}, {destination_id}).")]
     NonFiniteWeight {
         /// Source node identifier.
-        source: usize,
+        source_id: usize,
         /// Destination node identifier.
-        destination: usize,
+        destination_id: usize,
     },
     /// The edge weight must be strictly positive.
+    #[error("Found a non-positive edge weight on ({source_id}, {destination_id}).")]
     NonPositiveWeight {
         /// Source node identifier.
-        source: usize,
+        source_id: usize,
         /// Destination node identifier.
-        destination: usize,
+        destination_id: usize,
     },
     /// The matrix does not represent an undirected graph.
+    #[error(
+        "The matrix is not symmetric: edge ({source_id}, {destination_id}) has no matching reverse edge."
+    )]
     NonSymmetricEdge {
         /// Source node identifier.
-        source: usize,
+        source_id: usize,
         /// Destination node identifier.
-        destination: usize,
+        destination_id: usize,
     },
     /// The selected community marker type is too small.
+    #[error("The selected community marker type is too small for this partition.")]
     TooManyCommunities,
 }
-
-impl Display for LouvainError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InvalidResolution => {
-                write!(f, "The Louvain resolution must be finite and strictly positive.")
-            }
-            Self::InvalidModularityThreshold => {
-                write!(f, "The Louvain modularity threshold must be finite and non-negative.")
-            }
-            Self::InvalidMaxLevels => {
-                write!(f, "The Louvain maximum number of levels must be strictly positive.")
-            }
-            Self::InvalidMaxLocalPasses => {
-                write!(f, "The Louvain maximum number of local passes must be strictly positive.")
-            }
-            Self::NonSquareMatrix { rows, columns } => {
-                write!(
-                    f,
-                    "The Louvain matrix must be square, but received shape ({rows}, {columns})."
-                )
-            }
-            Self::UnrepresentableWeight { source, destination } => {
-                write!(
-                    f,
-                    "Found an edge weight on ({source}, {destination}) that cannot be represented as f64."
-                )
-            }
-            Self::NonFiniteWeight { source, destination } => {
-                write!(f, "Found a non-finite edge weight on ({source}, {destination}).")
-            }
-            Self::NonPositiveWeight { source, destination } => {
-                write!(f, "Found a non-positive edge weight on ({source}, {destination}).")
-            }
-            Self::NonSymmetricEdge { source, destination } => {
-                write!(
-                    f,
-                    "The matrix is not symmetric: edge ({source}, {destination}) has no matching reverse edge."
-                )
-            }
-            Self::TooManyCommunities => {
-                write!(f, "The selected community marker type is too small for this partition.")
-            }
-        }
-    }
-}
-
-impl core::error::Error for LouvainError {}
 
 impl From<LouvainError>
     for crate::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError
@@ -349,16 +314,28 @@ impl WeightedUndirectedGraph {
             {
                 let destination = column_id.as_();
                 if !weight.is_finite() {
-                    return Err(LouvainError::NonFiniteWeight { source, destination });
+                    return Err(LouvainError::NonFiniteWeight {
+                        source_id: source,
+                        destination_id: destination,
+                    });
                 }
                 let weight = weight
                     .to_f64()
-                    .ok_or(LouvainError::UnrepresentableWeight { source, destination })?;
+                    .ok_or(LouvainError::UnrepresentableWeight {
+                        source_id: source,
+                        destination_id: destination,
+                    })?;
                 if !weight.is_finite() {
-                    return Err(LouvainError::NonFiniteWeight { source, destination });
+                    return Err(LouvainError::NonFiniteWeight {
+                        source_id: source,
+                        destination_id: destination,
+                    });
                 }
                 if weight <= 0.0 {
-                    return Err(LouvainError::NonPositiveWeight { source, destination });
+                    return Err(LouvainError::NonPositiveWeight {
+                        source_id: source,
+                        destination_id: destination,
+                    });
                 }
                 adjacency[source].push((destination, weight));
                 degree[source] += weight;
@@ -369,8 +346,8 @@ impl WeightedUndirectedGraph {
             for (destination, weight) in neighbors {
                 if !has_matching_edge(&adjacency[*destination], source, *weight) {
                     return Err(LouvainError::NonSymmetricEdge {
-                        source,
-                        destination: *destination,
+                        source_id: source,
+                        destination_id: *destination,
                     });
                 }
             }

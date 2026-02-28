@@ -1,16 +1,16 @@
 //! Submodule providing `Information Content` Errors for working with IC based
 //! Algorithms
-use core::fmt::Display;
-
 use crate::traits::KahnError;
 
 /// Information Content Enum for Errors that may occur during IC calculation
 /// process
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum InformationContentError {
     /// Error for when a graph is not a DAG / contains a cycle
+    #[error("The graph is not a DAG")]
     NotDag,
     /// Error for unexpected occurrence size
+    #[error("Received an occurrence vector with {found} entries but expected {expected} entries")]
     UnequalOccurrenceSize {
         /// The expected size for the occurrence
         expected: usize,
@@ -18,25 +18,9 @@ pub enum InformationContentError {
         found: usize,
     },
     /// Sink Node found with 0 occurrence count
+    #[error("Found a Sink Node with a 0 Occurrence")]
     SinkNodeZeroOccurrence,
 }
-
-impl Display for InformationContentError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NotDag => write!(f, "The graph is not a DAG"),
-            Self::UnequalOccurrenceSize { expected, found } => {
-                write!(
-                    f,
-                    "Received an occurrence vector with {found} entries but expected {expected} entries"
-                )
-            }
-            Self::SinkNodeZeroOccurrence => write!(f, "Found a Sink Node with a 0 Occurrence"),
-        }
-    }
-}
-
-impl core::error::Error for InformationContentError {}
 
 impl From<KahnError> for InformationContentError {
     fn from(value: KahnError) -> Self {

@@ -7,12 +7,13 @@ use partial_assignment::PartialAssignment;
 
 use crate::traits::SparseMatrix2D;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Enumeration of the errors that might occur during the Hopcroft-Karp
 /// algorithm.
 pub enum HopcroftKarpError {
     /// The provided distance type is not large enough to be used in the
     /// algorithm for the provided graph.
+    #[error("The provided distance type is not large enough for this graph.")]
     InsufficientDistanceType,
 }
 

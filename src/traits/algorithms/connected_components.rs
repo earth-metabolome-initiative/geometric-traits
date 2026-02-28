@@ -71,25 +71,13 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Error type for connected components.
 pub enum ConnectedComponentsError {
     /// The graph has too many connected components for the provided marker
     /// type.
+    #[error("The graph has too many connected components for the provided marker type.")]
     TooManyComponents,
-}
-
-impl core::fmt::Display for ConnectedComponentsError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            ConnectedComponentsError::TooManyComponents => {
-                write!(
-                    f,
-                    "The graph has too many connected components for the provided marker type."
-                )
-            }
-        }
-    }
 }
 
 impl From<ConnectedComponentsError>

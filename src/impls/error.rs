@@ -6,25 +6,17 @@ use core::fmt::Debug;
 use super::{CSR2D, SquareCSR2D, SymmetricCSR2D, UpperTriangularCSR2D, ValuedCSR2D};
 use crate::traits::Matrix2D;
 
+#[derive(thiserror::Error)]
 /// Enumeration for the errors associated with the CSR data structure.
 pub enum Error<M: Matrix2D> {
     /// Mutability error.
-    Mutability(MutabilityError<M>),
+    #[error("Mutability error: {0}")]
+    Mutability(#[from] MutabilityError<M>),
 }
 
 impl<M: Matrix2D> Debug for Error<M> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         <Self as core::fmt::Display>::fmt(self, f)
-    }
-}
-
-impl<M: Matrix2D> core::error::Error for Error<M> {}
-
-impl<M: Matrix2D> core::fmt::Display for Error<M> {
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        match self {
-            Error::Mutability(error) => write!(f, "Mutability error: {error}"),
-        }
     }
 }
 
@@ -57,12 +49,6 @@ impl<M: Matrix2D> Debug for MutabilityError<M> {
 }
 
 impl<M: Matrix2D> core::error::Error for MutabilityError<M> {}
-
-impl<M: Matrix2D> From<MutabilityError<M>> for Error<M> {
-    fn from(error: MutabilityError<M>) -> Self {
-        Error::Mutability(error)
-    }
-}
 
 impl<M: Matrix2D> core::fmt::Display for MutabilityError<M> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {

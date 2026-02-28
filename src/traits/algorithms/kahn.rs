@@ -7,10 +7,11 @@ use num_traits::{AsPrimitive, ConstOne, ConstZero};
 
 use crate::traits::{SparseMatrix2D, SquareMatrix};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
 /// Error enumeration for Kahn's algorithm.
 pub enum KahnError {
     /// Error when the graph contains a cycle.
+    #[error("The graph contains a cycle.")]
     Cycle,
 }
 
