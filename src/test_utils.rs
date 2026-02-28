@@ -266,9 +266,9 @@ pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
 ///
 /// Panics if the ordering violates the topological invariant.
 pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: usize) {
-    if matrix.number_of_rows().as_() > max_size
-        || matrix.number_of_columns().as_() > max_size
-    {
+    let number_of_rows: usize = matrix.number_of_rows().as_();
+    let number_of_columns: usize = matrix.number_of_columns().as_();
+    if number_of_rows > max_size || number_of_columns > max_size {
         return;
     }
 
@@ -277,9 +277,11 @@ pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: u
     };
 
     matrix.row_indices().for_each(|row_id| {
-        let resorted_row_id = ordering[row_id.as_()];
+        let row_index = usize::from(row_id);
+        let resorted_row_id = ordering[row_index];
         matrix.sparse_row(row_id).for_each(|successor_id| {
-            let resorted_successor_id = ordering[successor_id.as_()];
+            let successor_index = usize::from(successor_id);
+            let resorted_successor_id = ordering[successor_index];
             assert!(
                 resorted_row_id <= resorted_successor_id,
                 "The ordering {ordering:?} is not valid: {resorted_row_id} ({row_id}) > \
@@ -291,7 +293,7 @@ pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: u
     // If the ordering is valid, it must be possible to construct an
     // upper triangular matrix from the ordering.
     let mut coordinates: Vec<(u8, u8)> = SparseMatrix::sparse_coordinates(matrix)
-        .map(|(i, j)| (ordering[i.as_()], ordering[j.as_()]))
+        .map(|(i, j)| (ordering[usize::from(i)], ordering[usize::from(j)]))
         .collect();
     coordinates.sort_unstable();
 
@@ -351,14 +353,14 @@ pub fn validate_lap_assignment(
     assignment: &[(u8, u8)],
     label: &str,
 ) {
-    let number_of_rows = csr.number_of_rows().as_();
-    let number_of_columns = csr.number_of_columns().as_();
+    let number_of_rows: usize = csr.number_of_rows().as_();
+    let number_of_columns: usize = csr.number_of_columns().as_();
     let mut seen_rows = vec![false; number_of_rows];
     let mut seen_columns = vec![false; number_of_columns];
 
     for &(row, column) in assignment {
-        let row_index = row.as_();
-        let column_index = column.as_();
+        let row_index: usize = row.as_();
+        let column_index: usize = column.as_();
 
         assert!(
             row_index < number_of_rows,
@@ -514,7 +516,9 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
 ///
 /// Panics if results are inconsistent.
 pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
-    if csr.number_of_rows().as_() != csr.number_of_columns().as_() {
+    let number_of_rows: usize = csr.number_of_rows().as_();
+    let number_of_columns: usize = csr.number_of_columns().as_();
+    if number_of_rows != number_of_columns {
         return;
     }
 
@@ -648,8 +652,8 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     }
 
-    let rows = csr.number_of_rows().as_();
-    let cols = csr.number_of_columns().as_();
+    let rows: usize = csr.number_of_rows().as_();
+    let cols: usize = csr.number_of_columns().as_();
     if rows != cols || rows == 0 || rows > u8::MAX as usize {
         return;
     }
@@ -661,12 +665,12 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     // Extract upper-triangle edges with finite positive weights, then mirror.
     let mut edges: Vec<(u8, u8, f64)> = Vec::new();
     for row in csr.row_indices() {
-        let r = row.as_();
+        let r: usize = row.as_();
         if r >= rows {
             continue;
         }
         for (col, val) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
-            let c = col.as_();
+            let c: usize = col.as_();
             if r <= c && val.is_finite() && val.is_normal() && val > 0.0 {
                 let Ok(r8) = u8::try_from(r) else {
                     continue;
