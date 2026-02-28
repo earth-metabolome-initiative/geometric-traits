@@ -31,6 +31,14 @@ fn assignment_cost(csr: &ValuedCSR2D<u8, u8, u8, f64>, assignment: &[(u8, u8)]) 
         .sum()
 }
 
+fn assert_costs_close(lhs: f64, rhs: f64) {
+    let denom = lhs.abs().max(rhs.abs()).max(1e-12);
+    assert!(
+        (lhs - rhs).abs() / denom < 1e-12,
+        "costs differ: {lhs} vs {rhs}"
+    );
+}
+
 #[test]
 fn test_jaqaman_zero_columns() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((10, 0), 0);
@@ -140,7 +148,7 @@ fn test_jaqaman_truly_sparse_rectangular() {
     let jaqaman = sorted(csr.jaqaman(900.0, 1000.0).expect("Jaqaman failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv));
     // Optimal: row 0→col 0 (0.1), row 1→col 2 (0.3), row 2→col 1 (0.2).
     assert_eq!(jaqaman, vec![(0, 0), (1, 2), (2, 1)]);
 }
@@ -156,7 +164,7 @@ fn test_jaqaman_rows_with_no_sparse_entries() {
     let jaqaman = sorted(csr.jaqaman(900.0, 1000.0).expect("Jaqaman failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv));
     // Only rows 0 and 2 can match. Row 0→col 1 (0.3), row 2→col 2 (0.1).
     assert_eq!(jaqaman, vec![(0, 1), (2, 2)]);
 }
@@ -174,7 +182,7 @@ fn test_jaqaman_square_sparse() {
     let jaqaman = sorted(csr.jaqaman(900.0, 1000.0).expect("Jaqaman failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv));
     // Optimal: row 0→col 0 (0.1), row 1→col 1 (0.2), row 2→col 2 (0.3).
     assert_eq!(jaqaman, vec![(0, 0), (1, 1), (2, 2)]);
 }
@@ -201,7 +209,7 @@ fn test_jaqaman_no_matching_preferred() {
     let jaqaman = sorted(csr.jaqaman(900.0, 1000.0).expect("Jaqaman failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &jaqaman), assignment_cost(&csr, &sparse_lapjv));
     // Only row 0 should match col 0 (cost 1.0 vs 100.0).
     assert_eq!(jaqaman, vec![(0, 0)]);
 }

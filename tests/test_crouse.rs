@@ -22,6 +22,14 @@ fn assignment_cost(csr: &ValuedCSR2D<u8, u8, u8, f64>, assignment: &[(u8, u8)]) 
     assignment.iter().map(|&(r, c)| edge_cost(csr, r, c).unwrap()).sum()
 }
 
+fn assert_costs_close(lhs: f64, rhs: f64) {
+    let denom = lhs.abs().max(rhs.abs()).max(1e-12);
+    assert!(
+        (lhs - rhs).abs() / denom < 1e-12,
+        "costs differ: {lhs} vs {rhs}"
+    );
+}
+
 #[test]
 fn test_wide_rectangular() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
@@ -68,7 +76,7 @@ fn test_truly_sparse_rectangular() {
     let result = sorted(csr.crouse(900.0, 1000.0).expect("Crouse failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv));
     assert_eq!(result, vec![(0, 0), (1, 2), (2, 1)]);
 }
 
@@ -83,7 +91,7 @@ fn test_rows_with_no_entries() {
     let result = sorted(csr.crouse(900.0, 1000.0).expect("Crouse failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv));
     assert_eq!(result, vec![(0, 1), (2, 2)]);
 }
 
@@ -128,6 +136,6 @@ fn test_square_sparse() {
     let result = sorted(csr.crouse(900.0, 1000.0).expect("Crouse failed"));
     let sparse_lapjv = sorted(csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed"));
 
-    assert_eq!(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv),);
+    assert_costs_close(assignment_cost(&csr, &result), assignment_cost(&csr, &sparse_lapjv));
     assert_eq!(result, vec![(0, 0), (1, 1), (2, 2)]);
 }
