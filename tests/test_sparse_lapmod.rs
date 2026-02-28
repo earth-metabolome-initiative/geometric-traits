@@ -33,10 +33,7 @@ fn assignment_cost(csr: &ValuedCSR2D<u8, u8, u8, f64>, assignment: &[(u8, u8)]) 
 
 fn assert_costs_close(lhs: f64, rhs: f64) {
     let denom = lhs.abs().max(rhs.abs()).max(1e-12);
-    assert!(
-        (lhs - rhs).abs() / denom < 1e-12,
-        "costs differ: {lhs} vs {rhs}"
-    );
+    assert!((lhs - rhs).abs() / denom < 1e-12, "costs differ: {lhs} vs {rhs}");
 }
 
 #[test]

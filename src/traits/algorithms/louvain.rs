@@ -319,12 +319,10 @@ impl WeightedUndirectedGraph {
                         destination_id: destination,
                     });
                 }
-                let weight = weight
-                    .to_f64()
-                    .ok_or(LouvainError::UnrepresentableWeight {
-                        source_id: source,
-                        destination_id: destination,
-                    })?;
+                let weight = weight.to_f64().ok_or(LouvainError::UnrepresentableWeight {
+                    source_id: source,
+                    destination_id: destination,
+                })?;
                 if !weight.is_finite() {
                     return Err(LouvainError::NonFiniteWeight {
                         source_id: source,

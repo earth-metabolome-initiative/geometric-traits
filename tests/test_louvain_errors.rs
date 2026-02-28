@@ -51,10 +51,7 @@ fn test_louvain_error_non_square_matrix() {
 
 #[test]
 fn test_louvain_error_unrepresentable_weight() {
-    let e = LouvainError::UnrepresentableWeight {
-        source_id: 1,
-        destination_id: 2,
-    };
+    let e = LouvainError::UnrepresentableWeight { source_id: 1, destination_id: 2 };
     let s = format!("{e}");
     assert!(s.contains("represented"));
     assert!(s.contains("(1, 2)"));
@@ -62,10 +59,7 @@ fn test_louvain_error_unrepresentable_weight() {
 
 #[test]
 fn test_louvain_error_non_finite_weight() {
-    let e = LouvainError::NonFiniteWeight {
-        source_id: 0,
-        destination_id: 3,
-    };
+    let e = LouvainError::NonFiniteWeight { source_id: 0, destination_id: 3 };
     let s = format!("{e}");
     assert!(s.contains("non-finite"));
     assert!(s.contains("(0, 3)"));
@@ -73,10 +67,7 @@ fn test_louvain_error_non_finite_weight() {
 
 #[test]
 fn test_louvain_error_non_positive_weight() {
-    let e = LouvainError::NonPositiveWeight {
-        source_id: 2,
-        destination_id: 4,
-    };
+    let e = LouvainError::NonPositiveWeight { source_id: 2, destination_id: 4 };
     let s = format!("{e}");
     assert!(s.contains("non-positive"));
     assert!(s.contains("(2, 4)"));
@@ -84,10 +75,7 @@ fn test_louvain_error_non_positive_weight() {
 
 #[test]
 fn test_louvain_error_non_symmetric_edge() {
-    let e = LouvainError::NonSymmetricEdge {
-        source_id: 1,
-        destination_id: 5,
-    };
+    let e = LouvainError::NonSymmetricEdge { source_id: 1, destination_id: 5 };
     let s = format!("{e}");
     assert!(s.contains("symmetric"));
     assert!(s.contains("(1, 5)"));
