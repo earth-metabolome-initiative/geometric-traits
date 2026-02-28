@@ -3,12 +3,14 @@
 use multi_ranged::Step;
 
 use super::{Matrix2D, SparseMatrix2D, SymmetricMatrix2D};
-use crate::traits::{IntoUsize, PositiveInteger};
+use num_traits::AsPrimitive;
+
+use crate::traits::PositiveInteger;
 
 /// Trait defining a square matrix.
 pub trait SquareMatrix: Matrix2D<RowIndex = Self::Index, ColumnIndex = Self::Index> {
     /// Type of the index for this matrix.
-    type Index: Step + PositiveInteger + IntoUsize;
+    type Index: Step + PositiveInteger + AsPrimitive<usize>;
 
     /// Returns the order of the matrix.
     fn order(&self) -> Self::Index;

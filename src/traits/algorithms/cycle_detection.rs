@@ -4,7 +4,9 @@ use alloc::vec::Vec;
 
 use bitvec::vec::BitVec;
 
-use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
+use num_traits::AsPrimitive;
+
+use crate::traits::MonoplexMonopartiteGraph;
 
 /// Trait providing the `has_cycle` method, which returns true if the graph
 /// contains a cycle, and false otherwise. The cycle detection algorithm is
@@ -45,7 +47,7 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
     /// assert!(!graph.has_cycle());
     /// ```
     fn has_cycle(&self) -> bool {
-        let n = self.number_of_nodes().into_usize();
+        let n = self.number_of_nodes().as_();
         let mut visited: BitVec = BitVec::repeat(false, n);
         let mut on_stack: BitVec = BitVec::repeat(false, n);
 
@@ -53,11 +55,11 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
         let mut dfs_stack: Vec<(Self::NodeId, Vec<Self::NodeId>, usize)> = Vec::new();
 
         for start in self.node_ids() {
-            if visited[start.into_usize()] {
+            if visited[start.as_()] {
                 continue;
             }
-            visited.set(start.into_usize(), true);
-            on_stack.set(start.into_usize(), true);
+            visited.set(start.as_(), true);
+            on_stack.set(start.as_(), true);
             dfs_stack.push((start, self.successors(start).collect(), 0));
 
             loop {
@@ -71,17 +73,17 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
                     let successor = dfs_stack.last().unwrap().1[top_idx];
                     dfs_stack.last_mut().unwrap().2 += 1;
 
-                    if on_stack[successor.into_usize()] {
+                    if on_stack[successor.as_()] {
                         return true;
                     }
-                    if !visited[successor.into_usize()] {
-                        visited.set(successor.into_usize(), true);
-                        on_stack.set(successor.into_usize(), true);
+                    if !visited[successor.as_()] {
+                        visited.set(successor.as_(), true);
+                        on_stack.set(successor.as_(), true);
                         dfs_stack.push((successor, self.successors(successor).collect(), 0));
                     }
                 } else {
                     let (node, _, _) = dfs_stack.pop().unwrap();
-                    on_stack.set(node.into_usize(), false);
+                    on_stack.set(node.as_(), false);
                 }
             }
         }

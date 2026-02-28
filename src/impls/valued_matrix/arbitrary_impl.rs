@@ -4,19 +4,20 @@
 use alloc::vec::Vec;
 
 use arbitrary::{Arbitrary, Unstructured};
+use num_traits::AsPrimitive;
 
 use crate::{
     impls::{MutabilityError, ValuedCSR2D},
-    traits::{IntoUsize, MatrixMut, PositiveInteger, SparseMatrixMut, TryFromUsize},
+    traits::{MatrixMut, PositiveInteger, SparseMatrixMut, TryFromUsize},
 };
 
 impl<'a, SparseIndex, RowIndex, ColumnIndex, Value> Arbitrary<'a>
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     RowIndex: PositiveInteger
         + for<'b> Arbitrary<'b>
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
         + num_traits::ConstOne
         + num_traits::ConstZero
@@ -28,7 +29,7 @@ where
     ColumnIndex: PositiveInteger
         + for<'b> Arbitrary<'b>
         + TryFrom<SparseIndex>
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
         + num_traits::ConstOne
         + num_traits::ConstZero

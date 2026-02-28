@@ -5,11 +5,13 @@ use core::fmt::Debug;
 
 use multi_ranged::Step;
 
+use num_traits::AsPrimitive;
+
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     impls::RaggedVector,
     traits::{
-        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix2D,
         Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrix,
         SparseMatrixMut, TryFromUsize,
     },
@@ -17,9 +19,9 @@ use crate::{
 
 impl<SparseIndex, RowIndex, ColumnIndex> Edges for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -37,9 +39,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> GrowableEdges
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger + 'static,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger + 'static,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -68,9 +70,9 @@ where
 
 impl<SparseIndex, RowIndex, ColumnIndex> Graph for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -87,9 +89,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> MonoplexGraph
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -106,16 +108,16 @@ impl<SparseIndex, RowIndex, ColumnIndex> BipartiteGraph
 where
     RowIndex: Step
         + PositiveInteger
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
         + BidirectionalVocabulary<
             SourceSymbol = <Self as Matrix2D>::RowIndex,
             DestinationSymbol = <Self as Matrix2D>::RowIndex,
         >,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     ColumnIndex: Step
         + PositiveInteger
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
         + BidirectionalVocabulary<
             SourceSymbol = <Self as Matrix2D>::ColumnIndex,

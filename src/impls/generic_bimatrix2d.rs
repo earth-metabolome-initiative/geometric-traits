@@ -2,7 +2,9 @@
 //! and its transposed version.
 use alloc::vec::Vec;
 
-use crate::{prelude::*, traits::IntoUsize};
+use num_traits::AsPrimitive;
+
+use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
@@ -36,7 +38,7 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 

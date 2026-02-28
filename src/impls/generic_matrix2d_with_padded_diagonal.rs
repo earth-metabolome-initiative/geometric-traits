@@ -6,8 +6,10 @@ use alloc::vec::Vec;
 
 use num_traits::{Bounded, One, Zero};
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    EmptyRows, IntoUsize, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
+    EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
     SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 mod sparse_row_with_padded_diagonal;
@@ -33,8 +35,8 @@ pub struct GenericMatrix2DWithPaddedDiagonal<M, Map> {
 
 impl<M, Map> GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
-    M::RowIndex: IntoUsize + Bounded,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Bounded,
+    M::RowIndex: AsPrimitive<usize> + Bounded,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Bounded,
     M: SparseMatrix2D,
 {
     /// Creates a new `GenericMatrix2DWithPaddedDiagonal` with the given matrix
@@ -50,12 +52,12 @@ where
     /// * Returns an error if the number of rows or columns exceeds the maximum
     ///   allowed size for the given row and column index types.
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
-        let number_of_columns: usize = matrix.number_of_columns().into_usize();
-        let number_of_rows: usize = matrix.number_of_rows().into_usize();
-        if number_of_columns > M::RowIndex::max_value().into_usize() {
+        let number_of_columns: usize = matrix.number_of_columns().as_();
+        let number_of_rows: usize = matrix.number_of_rows().as_();
+        if number_of_columns > M::RowIndex::max_value().as_() {
             return Err(MutabilityError::<M>::MaxedOutColumnIndex);
         }
-        if number_of_rows > M::ColumnIndex::max_value().into_usize() {
+        if number_of_rows > M::ColumnIndex::max_value().as_() {
             return Err(MutabilityError::<M>::MaxedOutRowIndex);
         }
 
@@ -81,7 +83,7 @@ where
             return true;
         }
 
-        let row_as_column = M::ColumnIndex::try_from_usize(row.into_usize())
+        let row_as_column = M::ColumnIndex::try_from_usize(row.as_())
             .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)
             .unwrap();
 
@@ -92,28 +94,28 @@ where
 impl<M, Map> Matrix for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: Matrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type Coordinates = M::Coordinates;
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 
 impl<M, Map> Matrix2D for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: Matrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type RowIndex = M::RowIndex;
     type ColumnIndex = M::ColumnIndex;
 
     fn number_of_columns(&self) -> Self::ColumnIndex {
-        let number_of_columns: usize = self.matrix.number_of_columns().into_usize();
-        let number_of_rows: usize = self.matrix.number_of_rows().into_usize();
+        let number_of_columns: usize = self.matrix.number_of_columns().as_();
+        let number_of_rows: usize = self.matrix.number_of_rows().as_();
         let max = number_of_columns.max(number_of_rows);
         let Ok(number_of_columns) = Self::ColumnIndex::try_from_usize(max) else {
             panic!("The number of columns {max} is too large to be represented as a ColumnIndex")
@@ -122,8 +124,8 @@ where
     }
 
     fn number_of_rows(&self) -> Self::RowIndex {
-        let number_of_columns: usize = self.matrix.number_of_columns().into_usize();
-        let number_of_rows: usize = self.matrix.number_of_rows().into_usize();
+        let number_of_columns: usize = self.matrix.number_of_columns().as_();
+        let number_of_rows: usize = self.matrix.number_of_rows().as_();
         let max = number_of_columns.max(number_of_rows);
         let Ok(number_of_rows) = Self::RowIndex::try_from_usize(max) else {
             panic!("The number of rows {max} is too large to be represented as a RowIndex")
@@ -135,8 +137,8 @@ where
 impl<M, Map> SparseMatrix for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: SparseMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type SparseIndex = M::SparseIndex;
     type SparseCoordinates<'a>
@@ -170,8 +172,8 @@ where
 impl<M, Map> SparseMatrix2D for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: SparseMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type SparseRow<'a>
         = SparseRowWithPaddedDiagonal<'a, M>
@@ -207,8 +209,8 @@ where
 impl<M, Map> EmptyRows for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: EmptyRows,
-    M::RowIndex: IntoUsize + TryFromUsize + Step,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize + Step,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type EmptyRowIndices<'a>
         = core::iter::Empty<Self::RowIndex>
@@ -246,8 +248,8 @@ where
 impl<M, Map> ValuedMatrix for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: ValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type Value = M::Value;
 }
@@ -255,16 +257,16 @@ where
 impl<M, Map> ValuedMatrix2D for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: ValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
 }
 
 impl<M, Map> SparseValuedMatrix for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
     Map: Fn(M::RowIndex) -> M::Value,
     M::Value: Clone,
 {
@@ -281,8 +283,8 @@ where
 impl<M, Map> SparseValuedMatrix2D for GenericMatrix2DWithPaddedDiagonal<M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
     Map: Fn(M::RowIndex) -> M::Value,
     M::Value: Clone,
 {

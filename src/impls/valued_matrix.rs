@@ -7,8 +7,10 @@ use multi_ranged::Step;
 use num_traits::{One, Zero};
 
 use super::{CSR2D, MutabilityError};
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    EmptyRows, IntoUsize, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
+    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
     RankSelectSparseMatrix, SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D,
     SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix,
     SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
@@ -25,9 +27,9 @@ pub struct ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value> {
 }
 
 impl<
-    SparseIndex: PositiveInteger + TryFromUsize + IntoUsize,
-    RowIndex: Step + TryFromUsize + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + TryFromUsize + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
     Value,
     const ROWS: usize,
     const COLS: usize,
@@ -82,7 +84,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 
@@ -198,9 +200,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex, Value> SizedRowsSparseMatrix2D
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
     CSR2D<SparseIndex, RowIndex, ColumnIndex>: SizedRowsSparseMatrix2D<
             RowIndex = RowIndex,
             ColumnIndex = ColumnIndex,
@@ -226,9 +228,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex, Value> SizedSparseMatrix2D
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     CSR2D<SparseIndex, RowIndex, ColumnIndex>: SizedSparseMatrix2D<
             RowIndex = RowIndex,
             ColumnIndex = ColumnIndex,
@@ -292,9 +294,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex, Value> RankSelectSparseMatrix
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     CSR2D<SparseIndex, RowIndex, ColumnIndex>: RankSelectSparseMatrix<SparseIndex = SparseIndex>,
 {
     #[inline]
@@ -333,9 +335,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
     Value,
 > SparseMatrixMut for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
@@ -353,7 +355,7 @@ where
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self {
             csr: CSR2D::with_sparse_capacity(number_of_values),
-            values: Vec::with_capacity(number_of_values.into_usize()),
+            values: Vec::with_capacity(number_of_values.as_()),
         }
     }
 
@@ -368,7 +370,7 @@ where
     ) -> Self {
         Self {
             csr: CSR2D::with_sparse_shaped_capacity(shape, number_of_values),
-            values: Vec::with_capacity(number_of_values.into_usize()),
+            values: Vec::with_capacity(number_of_values.as_()),
         }
     }
 }
@@ -409,14 +411,14 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value> SizedSparseValuedMatrix
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
     Self: SparseValuedMatrix<Value = Value>,
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
     Self::Value: Clone,
 {
     #[inline]
     fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
-        self.values[sparse_index.into_usize()].clone()
+        self.values[sparse_index.as_()].clone()
     }
 }
 
@@ -433,8 +435,8 @@ where
 
     #[inline]
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
-        let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + Self::RowIndex::one()).into_usize();
+        let start = self.rank_row(row).as_();
+        let end = self.rank_row(row + Self::RowIndex::one()).as_();
         self.values[start..end].iter().cloned()
     }
 }

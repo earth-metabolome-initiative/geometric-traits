@@ -3,8 +3,10 @@ use alloc::vec::Vec;
 
 use num_traits::{One, Zero};
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    IntoUsize, MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
+    MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
 };
 
 /// Connected components object.
@@ -24,7 +26,7 @@ pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {
 impl<G: UndirectedMonopartiteMonoplexGraph, Marker: PositiveInteger>
     ConnectedComponentsResult<'_, G, Marker>
 where
-    G::NodeId: IntoUsize,
+    G::NodeId: AsPrimitive<usize>,
 {
     /// Returns the number of connected components in the graph.
     pub fn number_of_components(&self) -> Marker {
@@ -43,7 +45,7 @@ where
 
     /// Returns the connected component of a node.
     pub fn component_of_node(&self, node: G::NodeId) -> Marker {
-        self.component_identifiers[node.into_usize()]
+        self.component_identifiers[node.as_()]
     }
 
     /// Returns an iterator over the connected component identifiers.
@@ -117,7 +119,7 @@ impl<G: MonopartiteGraph> From<ConnectedComponentsError> for crate::errors::Mono
 ///   the number of connected components in the graph. On very large graphs
 ///   which are expected to be strongly connected, choosing a smaller integer
 ///   type may save a significant amount of memory.
-pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
+pub trait ConnectedComponents<Marker: AsPrimitive<usize> + PositiveInteger = usize>:
     UndirectedMonopartiteMonoplexGraph + Sized
 {
     /// Returns the number of connected components in the graph.
@@ -167,7 +169,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     ) -> Result<ConnectedComponentsResult<'_, Self, Marker>, crate::errors::MonopartiteError<Self>>
     {
         let mut component_identifiers: Vec<Marker> =
-            vec![Marker::max_value(); self.number_of_nodes().into_usize()];
+            vec![Marker::max_value(); self.number_of_nodes().as_()];
         let mut number_of_components: Marker = Marker::zero();
         let mut largest_component_size: Self::NodeId = Self::NodeId::zero();
         let mut smallest_component_size: Self::NodeId = self.number_of_nodes();
@@ -177,7 +179,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
 
         for node in self.node_ids() {
             // If the node is already marked as part of a component, skip it.
-            if component_identifiers[node.into_usize()] != Marker::max_value() {
+            if component_identifiers[node.as_()] != Marker::max_value() {
                 continue;
             }
             // Otherwise, we have found a new component and need to mark all nodes in it.
@@ -190,12 +192,12 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
                 // For each node in the frontier, mark it and add its neighbors to the frontier.
                 for neighbour in frontier.drain(..) {
                     // If the neighbour is already marked as part of a component, skip it.
-                    if component_identifiers[neighbour.into_usize()] != Marker::max_value() {
+                    if component_identifiers[neighbour.as_()] != Marker::max_value() {
                         continue;
                     }
 
                     // Mark the neighbour as part of the current component.
-                    component_identifiers[neighbour.into_usize()] = number_of_components;
+                    component_identifiers[neighbour.as_()] = number_of_components;
 
                     // Increment the size of the current component.
                     current_component_size += Self::NodeId::one();
@@ -236,7 +238,7 @@ pub trait ConnectedComponents<Marker: IntoUsize + PositiveInteger = usize>:
     }
 }
 
-impl<G: UndirectedMonopartiteMonoplexGraph, Marker: IntoUsize + PositiveInteger>
+impl<G: UndirectedMonopartiteMonoplexGraph, Marker: AsPrimitive<usize> + PositiveInteger>
     ConnectedComponents<Marker> for G
 {
 }

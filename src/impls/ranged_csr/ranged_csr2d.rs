@@ -6,10 +6,12 @@ use core::{fmt::Debug, iter::repeat_n};
 use multi_ranged::{MultiRanged, Step, errors::Error as RangedError};
 use num_traits::{One, Zero};
 
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::MutabilityError,
     prelude::*,
-    traits::{IntoUsize, PositiveInteger, TryFromUsize},
+    traits::{PositiveInteger, TryFromUsize},
 };
 
 #[derive(Clone)]
@@ -56,13 +58,13 @@ impl<SparseIndex: Zero, RowIndex: Zero, R: MultiRanged> Default
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > SparseMatrixMut for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = R::Step, SparseIndex = SparseIndex>,
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -84,29 +86,29 @@ where
             number_of_defined_values: SparseIndex::zero(),
             number_of_columns,
             number_of_rows,
-            ranges: Vec::with_capacity(number_of_rows.into_usize()),
+            ranges: Vec::with_capacity(number_of_rows.as_()),
             number_of_non_empty_rows: RowIndex::zero(),
         }
     }
 }
 
-impl<SparseIndex, RowIndex: PositiveInteger + IntoUsize + TryFromUsize, R: MultiRanged> Matrix
+impl<SparseIndex, RowIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged> Matrix
     for RangedCSR2D<SparseIndex, RowIndex, R>
 where
-    R::Step: IntoUsize + PositiveInteger,
+    R::Step: AsPrimitive<usize> + PositiveInteger,
 {
     type Coordinates = (RowIndex, R::Step);
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
     }
 }
 
-impl<SparseIndex, RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize, R: MultiRanged>
+impl<SparseIndex, RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged>
     Matrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
 where
-    R::Step: IntoUsize + PositiveInteger,
+    R::Step: AsPrimitive<usize> + PositiveInteger,
 {
     type RowIndex = RowIndex;
     type ColumnIndex = R::Step;
@@ -122,10 +124,10 @@ where
     }
 }
 
-impl<SparseIndex, RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize, R: MultiRanged>
+impl<SparseIndex, RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize, R: MultiRanged>
     Matrix2DRef for RangedCSR2D<SparseIndex, RowIndex, R>
 where
-    R::Step: IntoUsize + PositiveInteger,
+    R::Step: AsPrimitive<usize> + PositiveInteger,
 {
     #[inline]
     fn number_of_columns_ref(&self) -> &Self::ColumnIndex {
@@ -139,13 +141,13 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > SparseMatrix for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -179,13 +181,13 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > SizedSparseMatrix for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -196,12 +198,12 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > SparseMatrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
 where
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <R::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -220,7 +222,7 @@ where
 
     #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        self.ranges[row.into_usize()].clone()
+        self.ranges[row.as_()].clone()
     }
 
     #[inline]
@@ -240,12 +242,12 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > EmptyRows for RangedCSR2D<SparseIndex, RowIndex, R>
 where
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <R::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -279,14 +281,14 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > SizedRowsSparseMatrix2D for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
     Self::ColumnIndex: TryFromUsize,
-    R::Step: IntoUsize + PositiveInteger,
+    R::Step: AsPrimitive<usize> + PositiveInteger,
     <R::Step as TryFrom<usize>>::Error: Debug,
     <RowIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -302,18 +304,18 @@ where
 
     #[inline]
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
-        Self::ColumnIndex::try_from_usize(self.ranges[row.into_usize()].len()).unwrap()
+        Self::ColumnIndex::try_from_usize(self.ranges[row.as_()].len()).unwrap()
     }
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     R: MultiRanged,
 > MatrixMut for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
-    R::Step: IntoUsize + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
     <R::Step as TryFrom<usize>>::Error: Debug,
     <RowIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -321,11 +323,11 @@ where
     type Error = MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
-        if row.into_usize() >= self.ranges.len() {
-            self.ranges.extend(repeat_n(R::default(), row.into_usize() - self.ranges.len() + 1));
+        if row.as_() >= self.ranges.len() {
+            self.ranges.extend(repeat_n(R::default(), row.as_() - self.ranges.len() + 1));
         }
 
-        let range = &mut self.ranges[row.into_usize()];
+        let range = &mut self.ranges[row.as_()];
 
         if let Err(err) = range.insert(column) {
             match err {
@@ -357,7 +359,7 @@ where
             return Err(MutabilityError::IncompatibleShape);
         }
 
-        self.ranges.extend(repeat_n(R::default(), shape.0.into_usize() - self.ranges.len()));
+        self.ranges.extend(repeat_n(R::default(), shape.0.as_() - self.ranges.len()));
 
         self.number_of_rows = shape.0;
         self.number_of_columns = shape.1;
@@ -366,14 +368,14 @@ where
     }
 }
 
-impl<SparseIndex: PositiveInteger + IntoUsize + 'static, R1: MultiRanged, R2: MultiRanged>
+impl<SparseIndex: PositiveInteger + AsPrimitive<usize> + 'static, R1: MultiRanged, R2: MultiRanged>
     TransposableMatrix2D<RangedCSR2D<SparseIndex, R1::Step, R2>>
     for RangedCSR2D<SparseIndex, R2::Step, R1>
 where
     Self: Matrix2D<RowIndex = R2::Step, ColumnIndex = R1::Step>,
     RangedCSR2D<SparseIndex, R1::Step, R2>: Matrix2D<RowIndex = R1::Step, ColumnIndex = R2::Step>,
-    R1::Step: TryFromUsize + IntoUsize + PositiveInteger,
-    R2::Step: TryFromUsize + IntoUsize + PositiveInteger,
+    R1::Step: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
+    R2::Step: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     <<R1 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
     <<R2 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {

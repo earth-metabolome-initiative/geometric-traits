@@ -4,7 +4,9 @@
 use multi_ranged::SimpleRange;
 use num_traits::{One, Zero};
 
-use crate::traits::{IntoUsize, Matrix2D, SizedRowsSparseMatrix2D};
+use num_traits::AsPrimitive;
+
+use crate::traits::{Matrix2D, SizedRowsSparseMatrix2D};
 
 /// Iterator over the indices of empty rows in a CSR matrix.
 pub struct CSR2DEmptyRowIndices<'a, CSR: SizedRowsSparseMatrix2D> {
@@ -34,7 +36,7 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DEmptyRowIndices<'_, CSR> {
 
 impl<CSR: SizedRowsSparseMatrix2D> ExactSizeIterator for CSR2DEmptyRowIndices<'_, CSR> {
     fn len(&self) -> usize {
-        (self.csr2d.number_of_rows() - self.returned_empty_rows).into_usize()
+        (self.csr2d.number_of_rows() - self.returned_empty_rows).as_()
     }
 }
 

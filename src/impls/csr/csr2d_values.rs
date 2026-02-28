@@ -2,7 +2,9 @@
 
 use num_traits::{One, Zero};
 
-use crate::{prelude::*, traits::IntoUsize};
+use num_traits::AsPrimitive;
+
+use crate::prelude::*;
 
 /// Iterator of the sparse coordinates of the M2D matrix.
 pub struct M2DValues<'a, M: SparseValuedMatrix2D> {
@@ -40,13 +42,13 @@ where
     M::SparseRowValues<'matrix>: ExactSizeIterator,
 {
     fn len(&self) -> usize {
-        let next_row_rank = self.matrix.rank_row(self.next_row).into_usize();
+        let next_row_rank = self.matrix.rank_row(self.next_row).as_();
         let already_observed_in_next_row =
-            self.matrix.number_of_defined_values_in_row(self.next_row).into_usize()
+            self.matrix.number_of_defined_values_in_row(self.next_row).as_()
                 - self.next.len();
-        let back_row_rank = self.matrix.rank_row(self.back_row).into_usize();
+        let back_row_rank = self.matrix.rank_row(self.back_row).as_();
         let already_observed_in_back_row =
-            self.matrix.number_of_defined_values_in_row(self.back_row).into_usize()
+            self.matrix.number_of_defined_values_in_row(self.back_row).as_()
                 - self.back.len();
         back_row_rank - next_row_rank - already_observed_in_next_row - already_observed_in_back_row
     }

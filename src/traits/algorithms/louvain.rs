@@ -6,8 +6,10 @@ use core::fmt::{Display, Formatter};
 use num_traits::ToPrimitive;
 use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    Finite, IntoUsize, MonopartiteGraph, Number, PositiveInteger, SparseValuedMatrix2D,
+    Finite, MonopartiteGraph, Number, PositiveInteger, SparseValuedMatrix2D,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -212,11 +214,11 @@ impl<Marker> LouvainResult<Marker> {
 ///
 /// The graph is expected to be represented by a weighted, square matrix with
 /// symmetric entries (undirected weighted graph).
-pub trait Louvain<Marker: IntoUsize + PositiveInteger = usize>:
+pub trait Louvain<Marker: AsPrimitive<usize> + PositiveInteger = usize>:
     SparseValuedMatrix2D + Sized
 where
-    Self::RowIndex: IntoUsize,
-    Self::ColumnIndex: IntoUsize,
+    Self::RowIndex: AsPrimitive<usize>,
+    Self::ColumnIndex: AsPrimitive<usize>,
     Self::Value: Number + ToPrimitive + Finite,
 {
     /// Executes the Louvain algorithm with the provided configuration.
@@ -269,7 +271,7 @@ where
 
         let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
 
-        let original_number_of_nodes = self.number_of_rows().into_usize();
+        let original_number_of_nodes = self.number_of_rows().as_();
         let mut current_members: Vec<Vec<usize>> =
             (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
 
@@ -309,9 +311,9 @@ where
 impl<G, Marker> Louvain<Marker> for G
 where
     G: SparseValuedMatrix2D + Sized,
-    Marker: IntoUsize + PositiveInteger,
-    G::RowIndex: IntoUsize,
-    G::ColumnIndex: IntoUsize,
+    Marker: AsPrimitive<usize> + PositiveInteger,
+    G::RowIndex: AsPrimitive<usize>,
+    G::ColumnIndex: AsPrimitive<usize>,
     G::Value: Number + ToPrimitive + Finite,
 {
 }
@@ -331,12 +333,12 @@ impl WeightedUndirectedGraph {
     fn from_matrix<M>(matrix: &M) -> Result<Self, LouvainError>
     where
         M: SparseValuedMatrix2D,
-        M::RowIndex: IntoUsize,
-        M::ColumnIndex: IntoUsize,
+        M::RowIndex: AsPrimitive<usize>,
+        M::ColumnIndex: AsPrimitive<usize>,
         M::Value: ToPrimitive + Finite,
     {
-        let rows = matrix.number_of_rows().into_usize();
-        let columns = matrix.number_of_columns().into_usize();
+        let rows = matrix.number_of_rows().as_();
+        let columns = matrix.number_of_columns().as_();
         if rows != columns {
             return Err(LouvainError::NonSquareMatrix { rows, columns });
         }
@@ -345,11 +347,11 @@ impl WeightedUndirectedGraph {
         let mut degree = vec![0.0; rows];
 
         for row_id in matrix.row_indices() {
-            let source = row_id.into_usize();
+            let source = row_id.as_();
             for (column_id, weight) in
                 matrix.sparse_row(row_id).zip(matrix.sparse_row_values(row_id))
             {
-                let destination = column_id.into_usize();
+                let destination = column_id.as_();
                 if !weight.is_finite() {
                     return Err(LouvainError::NonFiniteWeight { source, destination });
                 }

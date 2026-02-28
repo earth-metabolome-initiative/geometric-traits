@@ -4,7 +4,9 @@ use core::cmp::Ordering;
 
 use num_traits::{One, SaturatingSub, Zero};
 
-use crate::{prelude::*, traits::IntoUsize};
+use num_traits::AsPrimitive;
+
+use crate::prelude::*;
 
 /// Iterator of the sparse coordinates of the CSR2D matrix.
 pub struct CSR2DView<'a, CSR: SparseMatrix2D> {
@@ -45,11 +47,11 @@ where
     CSR::SparseRow<'matrix>: ExactSizeIterator,
 {
     fn len(&self) -> usize {
-        let next_row_rank = self.csr2d.rank_row(self.next_row).into_usize();
+        let next_row_rank = self.csr2d.rank_row(self.next_row).as_();
         let already_observed_in_next_row =
-            self.csr2d.number_of_defined_values_in_row(self.next_row).into_usize()
+            self.csr2d.number_of_defined_values_in_row(self.next_row).as_()
                 - self.next.as_ref().map_or(0, ExactSizeIterator::len);
-        let back_row_rank = self.csr2d.rank_row(self.back_row).into_usize();
+        let back_row_rank = self.csr2d.rank_row(self.back_row).as_();
         let still_to_be_observed_in_back_row = self.back.as_ref().map_or(0, ExactSizeIterator::len);
         back_row_rank + still_to_be_observed_in_back_row
             - next_row_rank

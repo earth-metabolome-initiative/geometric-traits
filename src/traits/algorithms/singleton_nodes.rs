@@ -3,7 +3,9 @@
 //! a graph, which is a node with no predecessor and no successors edges.
 use alloc::vec::Vec;
 
-use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
+use num_traits::AsPrimitive;
+
+use crate::traits::MonoplexMonopartiteGraph;
 /// Trait providing the `singleton_nodes` method, which returns the singleton
 /// nodes of the graph. A singleton node is a node with no predecessors and no
 /// successors.
@@ -38,7 +40,7 @@ pub trait SingletonNodes: MonoplexMonopartiteGraph {
     /// assert_eq!(graph.singleton_nodes(), vec![2, 3]);
     /// ```
     fn singleton_nodes(&self) -> Vec<Self::NodeId> {
-        let mut visited = vec![false; self.number_of_nodes().into_usize()];
+        let mut visited = vec![false; self.number_of_nodes().as_()];
 
         // Iterate over all nodes and mark the successors of each node as
         // visited. A node is considered visited if it has a predecessor.
@@ -46,11 +48,11 @@ pub trait SingletonNodes: MonoplexMonopartiteGraph {
             let mut has_successors = false;
             // Mark the successors of the node as visited.
             for successor_node_id in self.successors(node) {
-                visited[successor_node_id.into_usize()] = true;
+                visited[successor_node_id.as_()] = true;
                 has_successors = true;
             }
             if has_successors {
-                visited[node.into_usize()] = true;
+                visited[node.as_()] = true;
             }
         }
         // Finally, we iterate over all nodes and keep the nodes that have not

@@ -4,7 +4,9 @@ use core::fmt::Debug;
 
 use num_traits::{One, Zero};
 
-use crate::traits::{IntoUsize, PositiveInteger};
+use num_traits::AsPrimitive;
+
+use crate::traits::PositiveInteger;
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
@@ -32,13 +34,13 @@ impl<M: Matrix2D + Debug> Debug for SquareCSR2D<M> {
 impl<M: Matrix2D> Matrix for SquareCSR2D<M>
 where
     M: Matrix2D,
-    M::RowIndex: IntoUsize + PositiveInteger,
-    M::ColumnIndex: IntoUsize + PositiveInteger,
+    M::RowIndex: AsPrimitive<usize> + PositiveInteger,
+    M::ColumnIndex: AsPrimitive<usize> + PositiveInteger,
 {
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 

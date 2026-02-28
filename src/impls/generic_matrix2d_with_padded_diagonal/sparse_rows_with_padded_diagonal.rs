@@ -4,7 +4,9 @@
 
 use multi_ranged::SimpleRange;
 
-use crate::traits::{IntoUsize, SparseMatrix2D, TryFromUsize};
+use num_traits::AsPrimitive;
+
+use crate::traits::{SparseMatrix2D, TryFromUsize};
 
 /// Iterator over the indices of the rows with values for the
 /// [`super::GenericMatrix2DWithPaddedDiagonal`] struct, which automatically
@@ -28,7 +30,7 @@ impl<'matrix, M: SparseMatrix2D> From<&'matrix M> for SparseRowsWithPaddedDiagon
 
 impl<M: SparseMatrix2D> Iterator for SparseRowsWithPaddedDiagonal<'_, M>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
 {
     type Item = M::RowIndex;
@@ -59,7 +61,7 @@ where
 
 impl<M: SparseMatrix2D> DoubleEndedIterator for SparseRowsWithPaddedDiagonal<'_, M>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
 {
     fn next_back(&mut self) -> Option<Self::Item> {

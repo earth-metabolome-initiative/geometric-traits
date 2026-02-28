@@ -1,17 +1,18 @@
 //! Implementation of the `Arbitrary` trait for the `SquareCSR2D` struct.
 
 use arbitrary::{Arbitrary, Unstructured};
+use num_traits::AsPrimitive;
 
 use crate::{
     impls::SquareCSR2D,
     prelude::{Matrix2D, MatrixMut},
-    traits::{IntoUsize, PositiveInteger, SparseMatrix2D, TryFromUsize},
+    traits::{PositiveInteger, SparseMatrix2D, TryFromUsize},
 };
 
 impl<'a, M> Arbitrary<'a> for SquareCSR2D<M>
 where
     M: Arbitrary<'a> + MatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
-    M::RowIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    M::RowIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let mut matrix: M = M::arbitrary(u)?;

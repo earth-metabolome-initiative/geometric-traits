@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 
 use super::{MonopartiteEdges, MonopartiteGraph, MonoplexGraph};
 #[cfg(feature = "alloc")]
-use crate::traits::IntoUsize;
+use num_traits::AsPrimitive;
 
 /// Trait defining the properties of monoplex monopartite graphs.
 ///
@@ -219,18 +219,18 @@ pub trait MonoplexMonopartiteGraph:
     /// ```
     #[cfg(feature = "alloc")]
     fn successors_set(&self, source: Self::NodeId) -> Vec<Self::NodeId> {
-        let mut visited_nodes = vec![false; self.number_of_nodes().into_usize()];
+        let mut visited_nodes = vec![false; self.number_of_nodes().as_()];
 
         let mut frontier = vec![source];
         let mut temporary_frontier = Vec::new();
-        visited_nodes[source.into_usize()] = true;
+        visited_nodes[source.as_()] = true;
         let mut reachable_nodes = Vec::new();
 
         while !frontier.is_empty() {
             for node in frontier.drain(..) {
                 for successor in self.successors(node) {
-                    if !visited_nodes[successor.into_usize()] {
-                        visited_nodes[successor.into_usize()] = true;
+                    if !visited_nodes[successor.as_()] {
+                        visited_nodes[successor.as_()] = true;
                         temporary_frontier.push(successor);
                     }
                 }
@@ -276,11 +276,11 @@ pub trait MonoplexMonopartiteGraph:
     /// ```
     #[cfg(feature = "alloc")]
     fn has_path(&self, source: Self::NodeId, destination: Self::NodeId) -> bool {
-        let mut visited_nodes = vec![false; self.number_of_nodes().into_usize()];
+        let mut visited_nodes = vec![false; self.number_of_nodes().as_()];
 
         let mut frontier = vec![source];
         let mut temporary_frontier = Vec::new();
-        visited_nodes[source.into_usize()] = true;
+        visited_nodes[source.as_()] = true;
 
         while !frontier.is_empty() {
             for node in frontier.drain(..) {
@@ -288,8 +288,8 @@ pub trait MonoplexMonopartiteGraph:
                     if successor == destination {
                         return true;
                     }
-                    if !visited_nodes[successor.into_usize()] {
-                        visited_nodes[successor.into_usize()] = true;
+                    if !visited_nodes[successor.as_()] {
+                        visited_nodes[successor.as_()] = true;
                         temporary_frontier.push(successor);
                     }
                 }

@@ -4,9 +4,11 @@
 //! in the sorted position where it is expected to be in the
 //! sparse row.
 
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::MutabilityError,
-    traits::{IntoUsize, SparseMatrix2D, TryFromUsize},
+    traits::{SparseMatrix2D, TryFromUsize},
 };
 
 /// A wrapper iterator over the sparse row which includes the diagonal
@@ -31,7 +33,7 @@ pub struct SparseRowWithPaddedDiagonal<'matrix, M: SparseMatrix2D + ?Sized + 'ma
 impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> Clone
     for SparseRowWithPaddedDiagonal<'matrix, M>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
 {
     fn clone(&self) -> Self {
@@ -47,7 +49,7 @@ where
 
 impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> SparseRowWithPaddedDiagonal<'matrix, M>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
 {
     /// Creates a new `SparseRowWithPaddedDiagonal` with the given sparse row
@@ -61,7 +63,7 @@ where
         let sparse_row = (row < matrix.number_of_rows()).then(|| matrix.sparse_row(row));
         Ok(Self {
             sparse_row,
-            row: M::ColumnIndex::try_from_usize(row.into_usize())
+            row: M::ColumnIndex::try_from_usize(row.as_())
                 .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)?,
             start_element_backup: None,
             end_element_backup: None,

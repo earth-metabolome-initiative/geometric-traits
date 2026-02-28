@@ -6,7 +6,9 @@
 use num_traits::{SaturatingAdd, Zero};
 
 use super::{BidirectionalVocabulary, Edges, Vocabulary};
-use crate::traits::{IntoUsize, PositiveInteger, SparseSquareMatrix, Symbol, TryFromUsize};
+use num_traits::AsPrimitive;
+
+use crate::traits::{PositiveInteger, SparseSquareMatrix, Symbol, TryFromUsize};
 
 /// Trait defining the properties of the monopartited edges of a graph.
 pub trait MonopartiteEdges:
@@ -20,7 +22,7 @@ pub trait MonopartiteEdges:
     type MonopartiteMatrix: SparseSquareMatrix<Index = Self::NodeId>;
 
     /// The identifier of the node.
-    type NodeId: PositiveInteger + IntoUsize + TryFromUsize + SaturatingAdd;
+    type NodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize + SaturatingAdd;
 
     /// Returns whether the graph has self-loops.
     ///
@@ -101,7 +103,7 @@ where
 /// Trait defining the properties of a monopartited graph.
 pub trait MonopartiteGraph: super::Graph {
     /// The dense identifier of the nodes in the graph.
-    type NodeId: PositiveInteger + IntoUsize + TryFromUsize;
+    type NodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize;
     /// The symbol of the node.
     type NodeSymbol: Symbol;
     /// The vocabulary holding the symbols of the nodes.

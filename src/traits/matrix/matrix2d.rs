@@ -4,16 +4,18 @@ use multi_ranged::{SimpleRange, Step};
 use num_traits::Zero;
 
 use super::SquareMatrix;
-use crate::traits::{IntoUsize, Matrix, PositiveInteger};
+use num_traits::AsPrimitive;
+
+use crate::traits::{Matrix, PositiveInteger};
 
 /// Trait defining a bidimensional matrix.
 pub trait Matrix2D:
     Matrix<Coordinates = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex)>
 {
     /// Type of the row index.
-    type RowIndex: Step + PositiveInteger + IntoUsize;
+    type RowIndex: Step + PositiveInteger + AsPrimitive<usize>;
     /// Type of the column index.
-    type ColumnIndex: Step + PositiveInteger + IntoUsize;
+    type ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>;
 
     /// Returns the number of rows of the matrix.
     fn number_of_rows(&self) -> Self::RowIndex;

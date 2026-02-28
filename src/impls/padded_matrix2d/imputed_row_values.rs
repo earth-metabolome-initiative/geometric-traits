@@ -6,7 +6,9 @@
 use multi_ranged::SimpleRange;
 
 use super::PaddedMatrix2D;
-use crate::traits::{IntoUsize, Matrix2D, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix};
+use num_traits::AsPrimitive;
+
+use crate::traits::{Matrix2D, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix};
 
 /// A wrapper over the `SparseRowValues` from the `SparseValuedMatrix2D` trait,
 /// adding the imputation of all the missing values by using the `Map` generic
@@ -31,8 +33,8 @@ pub struct ImputedRowValues<'a, M: SparseValuedMatrix2D, Map> {
 impl<M, Map> Clone for ImputedRowValues<'_, M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     fn clone(&self) -> Self {
         Self {
@@ -50,8 +52,8 @@ where
 impl<'a, M, Map> ImputedRowValues<'a, M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     /// Creates a new `ImputedRowValues` instance.
     ///
@@ -77,8 +79,8 @@ where
 impl<M, Map> Iterator for ImputedRowValues<'_, M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     type Item = <M as ValuedMatrix>::Value;
@@ -114,8 +116,8 @@ where
 impl<M, Map> DoubleEndedIterator for ImputedRowValues<'_, M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     #[inline]
@@ -141,8 +143,8 @@ where
 impl<M, Map> ExactSizeIterator for ImputedRowValues<'_, M, Map>
 where
     M: SparseValuedMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     fn len(&self) -> usize {

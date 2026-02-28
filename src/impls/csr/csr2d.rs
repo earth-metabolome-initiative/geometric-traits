@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};
 
 use multi_ranged::Step;
-use num_traits::Zero;
+use num_traits::{AsPrimitive, Zero};
 
 use crate::{
     impls::{
@@ -11,7 +11,7 @@ use crate::{
         MutabilityError,
     },
     prelude::*,
-    traits::{IntoUsize, PositiveInteger, TryFromUsize},
+    traits::{PositiveInteger, TryFromUsize},
 };
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -58,9 +58,9 @@ impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero> Default
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SparseMatrixMut for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex, SparseIndex = SparseIndex>,
@@ -79,13 +79,13 @@ where
         (number_of_rows, number_of_columns): Self::MinimalShape,
         number_of_values: Self::SparseIndex,
     ) -> Self {
-        let mut offsets = Vec::with_capacity(number_of_rows.into_usize() + 1);
+        let mut offsets = Vec::with_capacity(number_of_rows.as_() + 1);
         offsets.push(SparseIndex::zero());
         Self {
             offsets,
             number_of_columns,
             number_of_rows,
-            column_indices: Vec::with_capacity(number_of_values.into_usize()),
+            column_indices: Vec::with_capacity(number_of_values.as_()),
             number_of_non_empty_rows: RowIndex::zero(),
         }
     }
@@ -93,21 +93,21 @@ where
 
 impl<
     SparseIndex,
-    RowIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: PositiveInteger + IntoUsize,
+    RowIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: PositiveInteger + AsPrimitive<usize>,
 > Matrix for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
     }
 }
 
 impl<
     SparseIndex,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 > Matrix2D for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     type RowIndex = RowIndex;
@@ -119,9 +119,9 @@ impl<
             "The offsets should always have at least one element."
         );
         debug_assert!(
-            self.offsets.len() - 1 <= self.number_of_rows.into_usize(),
+            self.offsets.len() - 1 <= self.number_of_rows.as_(),
             "The matrix is in an illegal state where the number of rows {} is less than the number of rows in the offsets {}.",
-            self.number_of_rows.into_usize(),
+            self.number_of_rows.as_(),
             self.offsets.len()
         );
         self.number_of_rows
@@ -134,8 +134,8 @@ impl<
 
 impl<
     SparseIndex,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 > Matrix2DRef for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     fn number_of_rows_ref(&self) -> &Self::RowIndex {
@@ -148,9 +148,9 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SparseMatrix for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
@@ -193,9 +193,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SizedSparseMatrix for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
@@ -206,9 +206,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > RankSelectSparseMatrix for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
@@ -221,7 +221,7 @@ where
         let start = self.rank_row(row_index);
         let end = self.rank_row(row_index + RowIndex::one());
         let Ok(relative_column_index) =
-            self.column_indices[start.into_usize()..end.into_usize()].binary_search(&column_index)
+            self.column_indices[start.as_()..end.as_()].binary_search(&column_index)
         else {
             panic!("The column index {column_index} is not present in the row {row_index}.");
         };
@@ -236,9 +236,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SparseMatrix2D for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     type SparseRow<'a>
@@ -255,14 +255,14 @@ impl<
         Self: 'a;
 
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + RowIndex::one()).into_usize();
+        let start = self.rank_row(row).as_();
+        let end = self.rank_row(row + RowIndex::one()).as_();
         self.column_indices[start..end].iter().copied()
     }
 
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
-        let start = self.rank_row(row).into_usize();
-        let end = self.rank_row(row + RowIndex::one()).into_usize();
+        let start = self.rank_row(row).as_();
+        let end = self.rank_row(row + RowIndex::one()).as_();
         self.column_indices[start..end].binary_search(&column).is_ok()
     }
 
@@ -276,9 +276,9 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > EmptyRows for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
     type EmptyRowIndices<'a>
@@ -307,15 +307,15 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SizedSparseMatrix2D for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     fn rank_row(&self, row: RowIndex) -> SparseIndex {
-        if self.offsets.len() <= row.into_usize() && row <= self.number_of_rows() {
+        if self.offsets.len() <= row.as_() && row <= self.number_of_rows() {
             return self.number_of_defined_values();
         }
         assert!(
@@ -325,7 +325,7 @@ where
             self.number_of_columns(),
             self.offsets.len()
         );
-        self.offsets[row.into_usize()]
+        self.offsets[row.as_()]
     }
 
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
@@ -339,14 +339,14 @@ where
     }
 
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
-        self.column_indices[sparse_index.into_usize()]
+        self.column_indices[sparse_index.as_()]
     }
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > SizedRowsSparseMatrix2D for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
@@ -374,9 +374,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > MatrixMut for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
@@ -385,7 +385,7 @@ where
     type Error = crate::impls::MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
-        if !self.is_empty() && row.into_usize() == self.offsets.len() - 2 {
+        if !self.is_empty() && row.as_() == self.offsets.len() - 2 {
             // We check that the provided column is not repeated.
             if self.sparse_row(row).last().is_some_and(|last| last == column) {
                 return Err(MutabilityError::DuplicatedEntry((row, column)));
@@ -420,7 +420,7 @@ where
             );
 
             Ok(())
-        } else if row.into_usize() >= self.offsets.len() - 1 {
+        } else if row.as_() >= self.offsets.len() - 1 {
             if self.number_of_non_empty_rows == RowIndex::max_value() {
                 return Err(MutabilityError::MaxedOutRowIndex);
             }
@@ -438,7 +438,7 @@ where
             // indices.
             self.offsets.extend(repeat_n(
                 self.number_of_defined_values(),
-                (row.into_usize() + 1) - self.offsets.len(),
+                (row.as_() + 1) - self.offsets.len(),
             ));
             self.number_of_non_empty_rows += RowIndex::one();
             self.column_indices.push(column);
@@ -472,9 +472,9 @@ where
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
 > TransposableMatrix2D<CSR2D<SparseIndex, ColumnIndex, RowIndex>>
     for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
@@ -485,16 +485,16 @@ where
     fn transpose(&self) -> CSR2D<SparseIndex, ColumnIndex, RowIndex> {
         // We initialize the transposed matrix.
         let mut transposed: CSR2D<SparseIndex, ColumnIndex, RowIndex> = CSR2D {
-            offsets: vec![SparseIndex::zero(); self.number_of_columns().into_usize() + 1],
+            offsets: vec![SparseIndex::zero(); self.number_of_columns().as_() + 1],
             number_of_columns: self.number_of_rows(),
             number_of_rows: self.number_of_columns(),
-            column_indices: vec![RowIndex::zero(); self.number_of_defined_values().into_usize()],
+            column_indices: vec![RowIndex::zero(); self.number_of_defined_values().as_()],
             number_of_non_empty_rows: self.number_of_columns(),
         };
 
         // First, we proceed to compute the number of elements in each column.
         for column in self.column_indices.iter().copied() {
-            transposed.offsets[column.into_usize() + 1] += SparseIndex::one();
+            transposed.offsets[column.as_() + 1] += SparseIndex::one();
         }
 
         // Then, we compute the prefix sum of the degrees to get the offsets.
@@ -510,11 +510,11 @@ where
         }
 
         // Finally, we fill the column indices.
-        let mut degree = vec![SparseIndex::zero(); self.number_of_columns.into_usize()];
+        let mut degree = vec![SparseIndex::zero(); self.number_of_columns.as_()];
         for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
-            let current_degree: &mut SparseIndex = &mut degree[column.into_usize()];
-            let index = *current_degree + transposed.offsets[column.into_usize()];
-            transposed.column_indices[index.into_usize()] = row;
+            let current_degree: &mut SparseIndex = &mut degree[column.as_()];
+            let index = *current_degree + transposed.offsets[column.as_()];
+            transposed.column_indices[index.as_()] = row;
             *current_degree += SparseIndex::one();
         }
 

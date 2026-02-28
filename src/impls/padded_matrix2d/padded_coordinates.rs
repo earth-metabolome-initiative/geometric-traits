@@ -4,7 +4,9 @@
 use multi_ranged::SimpleRange;
 use num_traits::Zero;
 
-use crate::traits::{IntoUsize, Matrix2D};
+use num_traits::AsPrimitive;
+
+use crate::traits::Matrix2D;
 
 /// Iterator over all of the (row, column) coordinates of a dense rectangular
 pub struct PaddedCoordinates<M: Matrix2D> {
@@ -63,7 +65,7 @@ impl<M: Matrix2D> DoubleEndedIterator for PaddedCoordinates<M> {
 
 impl<M: Matrix2D> ExactSizeIterator for PaddedCoordinates<M> {
     fn len(&self) -> usize {
-        let number_of_columns = self.matrix.number_of_columns().into_usize();
+        let number_of_columns = self.matrix.number_of_columns().as_();
         number_of_columns * self.row_iter.len() + self.column_iter.len()
     }
 }

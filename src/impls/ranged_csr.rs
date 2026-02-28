@@ -8,10 +8,12 @@ use multi_ranged::{MultiRanged, Step};
 use num_traits::Zero;
 pub use ranged_csr2d::RangedCSR2D;
 
+use num_traits::AsPrimitive;
+
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     traits::{
-        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix2D,
         Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrix,
         SparseMatrixMut, TryFromUsize,
     },
@@ -20,9 +22,9 @@ use crate::{
 impl<SparseIndex, RowIndex, R> Edges for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R: MultiRanged,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
-    R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
+    R::Step: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -40,9 +42,9 @@ where
 impl<SparseIndex, RowIndex, R> GrowableEdges for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R: MultiRanged,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger + 'static,
-    R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger + 'static,
+    R::Step: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <R::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -72,9 +74,9 @@ where
 impl<SparseIndex, RowIndex, R> Graph for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R: MultiRanged,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
-    R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
+    R::Step: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -91,9 +93,9 @@ where
 impl<SparseIndex, RowIndex, R> MonoplexGraph for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     R: MultiRanged,
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
-    R::Step: PositiveInteger + TryFromUsize + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
+    R::Step: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
@@ -110,18 +112,18 @@ where
     R: MultiRanged,
     RowIndex: Step
         + PositiveInteger
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
         + BidirectionalVocabulary<
             SourceSymbol = <Self as Matrix2D>::RowIndex,
             DestinationSymbol = <Self as Matrix2D>::RowIndex,
         >,
-    SparseIndex: TryFromUsize + IntoUsize + PositiveInteger,
+    SparseIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
     R::Step: TryFromUsize
         + BidirectionalVocabulary<
             SourceSymbol = <Self as Matrix2D>::ColumnIndex,
             DestinationSymbol = <Self as Matrix2D>::ColumnIndex,
-        > + IntoUsize
+        > + AsPrimitive<usize>
         + PositiveInteger,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <<R as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,

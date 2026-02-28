@@ -3,20 +3,22 @@
 
 use multi_ranged::Step;
 
+use num_traits::AsPrimitive;
+
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     impls::ValuedCSR2D,
     traits::{
-        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, IntoUsize, Matrix2D,
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix2D,
         Matrix2DRef, MonoplexGraph, Number, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
         TryFromUsize,
     },
 };
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + TryFromUsize + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
     Value: Number,
 > Edges for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
@@ -62,9 +64,9 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + TryFromUsize + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
     Value: Number,
 > Graph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
@@ -78,9 +80,9 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
-    RowIndex: Step + PositiveInteger + TryFromUsize + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
     Value: Number,
 > MonoplexGraph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
@@ -93,15 +95,15 @@ impl<
 }
 
 impl<
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     RowIndex: Step
         + PositiveInteger
         + TryFromUsize
-        + IntoUsize
+        + AsPrimitive<usize>
         + BidirectionalVocabulary<SourceSymbol = RowIndex, DestinationSymbol = RowIndex>,
     ColumnIndex: Step
         + PositiveInteger
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFrom<SparseIndex>
         + TryFromUsize
         + BidirectionalVocabulary<SourceSymbol = ColumnIndex, DestinationSymbol = ColumnIndex>,

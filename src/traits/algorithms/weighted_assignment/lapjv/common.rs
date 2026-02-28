@@ -2,7 +2,9 @@
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
 
-use crate::traits::{AssignmentState, IntoUsize, Number, TotalOrd};
+use num_traits::AsPrimitive;
+
+use crate::traits::{AssignmentState, Number, TotalOrd};
 
 /// Finds the minimum distance among the columns in `to_scan[lower_bound..]`,
 /// rearranges them so that all minimum-distance columns come immediately after
@@ -23,7 +25,7 @@ pub(crate) fn find_minimum_distance<C, V>(
     to_scan: &mut [C],
 ) -> usize
 where
-    C: IntoUsize + Copy,
+    C: AsPrimitive<usize> + Copy,
     V: PartialOrd + Copy,
 {
     debug_assert!(
@@ -32,11 +34,11 @@ where
     );
     let mut upper_bound = lower_bound + 1;
     let column_index = to_scan[lower_bound];
-    let mut minimum_distance = distances[column_index.into_usize()];
+    let mut minimum_distance = distances[column_index.as_()];
 
     for k in lower_bound + 1..to_scan.len() {
         let column_index = to_scan[k];
-        let distance = distances[column_index.into_usize()];
+        let distance = distances[column_index.as_()];
         if distance <= minimum_distance {
             if distance < minimum_distance {
                 upper_bound = lower_bound;
@@ -68,8 +70,8 @@ pub(crate) fn augmentation_backtrack<R, C>(
     assigned_columns: &mut [AssignmentState<C>],
     start_row: R,
 ) where
-    R: Copy + Eq + IntoUsize,
-    C: Copy + IntoUsize,
+    R: Copy + Eq + AsPrimitive<usize>,
+    C: Copy + AsPrimitive<usize>,
 {
     let mut number_of_steps = 0usize;
     let max_steps = assigned_rows.len();
@@ -81,23 +83,23 @@ pub(crate) fn augmentation_backtrack<R, C>(
             "augmentation_backtrack detected a predecessor cycle"
         );
 
-        let row_index = predecessors[column_index.into_usize()];
+        let row_index = predecessors[column_index.as_()];
 
-        assigned_rows[column_index.into_usize()] = AssignmentState::Assigned(row_index);
+        assigned_rows[column_index.as_()] = AssignmentState::Assigned(row_index);
 
         // Root of the augmenting path: this row was intentionally unassigned
         // when the search started, so it has no previous column to follow.
         if row_index == start_row {
-            assigned_columns[row_index.into_usize()] = AssignmentState::Assigned(column_index);
+            assigned_columns[row_index.as_()] = AssignmentState::Assigned(column_index);
             break;
         }
 
-        let AssignmentState::Assigned(old_column_index) = assigned_columns[row_index.into_usize()]
+        let AssignmentState::Assigned(old_column_index) = assigned_columns[row_index.as_()]
         else {
             unreachable!("We expected the assigned column to be in the assigned state");
         };
 
-        assigned_columns[row_index.into_usize()] = AssignmentState::Assigned(column_index);
+        assigned_columns[row_index.as_()] = AssignmentState::Assigned(column_index);
         column_index = old_column_index;
     }
 }
@@ -126,8 +128,8 @@ pub(crate) fn augmenting_row_reduction_impl<R, C, V>(
     number_of_rows: usize,
     mut first_and_second_min: impl FnMut(R, &[V]) -> ((C, V), (Option<C>, V)),
 ) where
-    R: Copy + IntoUsize,
-    C: Copy + IntoUsize,
+    R: Copy + AsPrimitive<usize>,
+    C: Copy + AsPrimitive<usize>,
     V: Number + TotalOrd,
 {
     if unassigned_rows.is_empty() {
@@ -151,17 +153,17 @@ pub(crate) fn augmenting_row_reduction_impl<R, C, V>(
             (second_minimum_column_index, second_minimum_value),
         ) = first_and_second_min(unassigned_row_index, column_costs.as_slice());
 
-        let mut row_index = assigned_rows[first_minimum_column_index.into_usize()];
+        let mut row_index = assigned_rows[first_minimum_column_index.as_()];
 
         if number_of_iterations < current_unassigned_row_index * number_of_rows {
             if first_minimum_value < second_minimum_value {
-                column_costs[first_minimum_column_index.into_usize()] -=
+                column_costs[first_minimum_column_index.as_()] -=
                     second_minimum_value - first_minimum_value;
             } else if let (AssignmentState::Assigned(_), Some(second_minimum_column_index)) =
                 (row_index, second_minimum_column_index)
             {
                 first_minimum_column_index = second_minimum_column_index;
-                row_index = assigned_rows[first_minimum_column_index.into_usize()];
+                row_index = assigned_rows[first_minimum_column_index.as_()];
             }
             if let AssignmentState::Assigned(assigned_row) = row_index {
                 if first_minimum_value < second_minimum_value {
@@ -178,10 +180,10 @@ pub(crate) fn augmenting_row_reduction_impl<R, C, V>(
         }
 
         // We update the assigned row with the new column index.
-        assigned_rows[first_minimum_column_index.into_usize()] =
+        assigned_rows[first_minimum_column_index.as_()] =
             AssignmentState::Assigned(unassigned_row_index);
         // We update the assigned column with the new row index.
-        assigned_columns[unassigned_row_index.into_usize()] =
+        assigned_columns[unassigned_row_index.as_()] =
             AssignmentState::Assigned(first_minimum_column_index);
     }
 

@@ -6,8 +6,10 @@ use core::fmt::Debug;
 use num_traits::{Bounded, Zero};
 
 use super::LAPMODError;
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    AssignmentState, Finite, IntoUsize, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
+    AssignmentState, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
     algorithms::weighted_assignment::lapjv::common::{
         augmentation_backtrack, augmenting_row_reduction_impl,
     },
@@ -43,7 +45,7 @@ where
 {
     fn from(inner: LapmodInner<'matrix, M>) -> Self {
         let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
-            Vec::with_capacity(inner.matrix.number_of_rows().into_usize());
+            Vec::with_capacity(inner.matrix.number_of_rows().as_());
         for (col_usize, state) in inner.assigned_rows.into_iter().enumerate() {
             let AssignmentState::Assigned(row) = state else {
                 // Column was not assigned — only happens if we returned an
@@ -67,10 +69,10 @@ where
     M::ColumnIndex: Bounded,
 {
     pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPMODError> {
-        if matrix.number_of_rows().into_usize() != matrix.number_of_columns().into_usize() {
+        if matrix.number_of_rows().as_() != matrix.number_of_columns().as_() {
             return Err(LAPMODError::NonSquareMatrix);
         }
-        let n = matrix.number_of_columns().into_usize();
+        let n = matrix.number_of_columns().as_();
         Ok(LapmodInner {
             matrix,
             column_costs: vec![max_cost; n],
@@ -127,28 +129,28 @@ where
                     return Err(LAPMODError::ValueTooLarge);
                 }
 
-                if cost < self.column_costs[col.into_usize()] {
-                    self.assigned_rows[col.into_usize()] = AssignmentState::Assigned(row);
-                    self.column_costs[col.into_usize()] = cost;
+                if cost < self.column_costs[col.as_()] {
+                    self.assigned_rows[col.as_()] = AssignmentState::Assigned(row);
+                    self.column_costs[col.as_()] = cost;
                 }
             }
         }
 
         // Reverse-scan columns to resolve conflicts.
         for col in self.matrix.column_indices().rev() {
-            let AssignmentState::Assigned(row) = self.assigned_rows[col.into_usize()] else {
+            let AssignmentState::Assigned(row) = self.assigned_rows[col.as_()] else {
                 // Column has no sparse entries or was displaced — skip.
                 continue;
             };
-            match self.assigned_columns.get(row.into_usize()) {
+            match self.assigned_columns.get(row.as_()) {
                 Some(AssignmentState::Unassigned) => {
-                    self.assigned_columns[row.into_usize()] = AssignmentState::Assigned(col);
+                    self.assigned_columns[row.as_()] = AssignmentState::Assigned(col);
                 }
                 Some(
                     AssignmentState::Assigned(other_col) | AssignmentState::Conflict(other_col),
                 ) => {
-                    self.assigned_columns[row.into_usize()] = AssignmentState::Conflict(*other_col);
-                    self.assigned_rows[col.into_usize()] = AssignmentState::Unassigned;
+                    self.assigned_columns[row.as_()] = AssignmentState::Conflict(*other_col);
+                    self.assigned_rows[col.as_()] = AssignmentState::Unassigned;
                 }
                 None => {
                     unreachable!("Row index out of bounds during column reduction reverse scan");
@@ -168,12 +170,12 @@ where
     #[inline]
     pub(super) fn reduction_transfer_sparse(&mut self) {
         for row in self.matrix.row_indices() {
-            match self.assigned_columns[row.into_usize()] {
+            match self.assigned_columns[row.as_()] {
                 AssignmentState::Unassigned => {
                     self.unassigned_rows.push(row);
                 }
                 AssignmentState::Conflict(col) => {
-                    self.assigned_columns[row.into_usize()] = AssignmentState::Assigned(col);
+                    self.assigned_columns[row.as_()] = AssignmentState::Assigned(col);
                 }
                 AssignmentState::Assigned(col) => {
                     let min_reduced = self
@@ -181,15 +183,15 @@ where
                         .sparse_row(row)
                         .zip(self.matrix.sparse_row_values(row))
                         .filter_map(|(c, cost)| {
-                            if c.into_usize() == col.into_usize() {
+                            if c.as_() == col.as_() {
                                 None
                             } else {
-                                Some(cost - self.column_costs[c.into_usize()])
+                                Some(cost - self.column_costs[c.as_()])
                             }
                         })
                         .min_by(TotalOrd::total_cmp)
                         .unwrap_or(self.max_cost);
-                    self.column_costs[col.into_usize()] -= min_reduced;
+                    self.column_costs[col.as_()] -= min_reduced;
                 }
             }
         }
@@ -200,7 +202,7 @@ where
     pub(super) fn augmenting_row_reduction_sparse(&mut self) {
         let matrix = self.matrix;
         let max_cost = self.max_cost;
-        let number_of_rows = matrix.number_of_rows().into_usize();
+        let number_of_rows = matrix.number_of_rows().as_();
         augmenting_row_reduction_impl(
             &mut self.unassigned_rows,
             &mut self.assigned_rows,
@@ -211,7 +213,7 @@ where
                 let mut iter = matrix
                     .sparse_row(row)
                     .zip(matrix.sparse_row_values(row))
-                    .map(|(col, cost)| (col, cost - col_costs[col.into_usize()]));
+                    .map(|(col, cost)| (col, cost - col_costs[col.as_()]));
 
                 let (mut first_col, mut first_val) = iter
                     .next()
@@ -259,7 +261,7 @@ where
         let mut has_minimum = false;
 
         for &col in &todo[0..n_todo] {
-            let col_usize = col.into_usize();
+            let col_usize = col.as_();
             if done[col_usize] {
                 continue;
             }
@@ -313,28 +315,28 @@ where
             let col = scan[lower_bound];
             lower_bound += 1;
 
-            let AssignmentState::Assigned(row) = self.assigned_rows[col.into_usize()] else {
+            let AssignmentState::Assigned(row) = self.assigned_rows[col.as_()] else {
                 unreachable!("Frontier column must be assigned to a row during augmentation scan");
             };
 
             ready[n_ready] = col;
             n_ready += 1;
 
-            let minimum_distance = distances[col.into_usize()];
+            let minimum_distance = distances[col.as_()];
 
             // Compute h = cost(row,col) - column_cost[col] - d[col].
             let initial_reduced = self
                 .matrix
                 .sparse_row(row)
                 .zip(self.matrix.sparse_row_values(row))
-                .find(|&(c, _)| c.into_usize() == col.into_usize())
-                .map(|(_, cost)| cost - self.column_costs[col.into_usize()] - minimum_distance)
+                .find(|&(c, _)| c.as_() == col.as_())
+                .map(|(_, cost)| cost - self.column_costs[col.as_()] - minimum_distance)
                 .expect("Row assigned to column must have an entry for that column in sparse_row");
 
             for (neighbour_col, neighbour_cost) in
                 self.matrix.sparse_row(row).zip(self.matrix.sparse_row_values(row))
             {
-                let nc_usize = neighbour_col.into_usize();
+                let nc_usize = neighbour_col.as_();
                 if done[nc_usize] {
                     continue;
                 }
@@ -399,7 +401,7 @@ where
         for (col, cost) in
             self.matrix.sparse_row(start_row).zip(self.matrix.sparse_row_values(start_row))
         {
-            let col_usize = col.into_usize();
+            let col_usize = col.as_();
             let dist = cost - self.column_costs[col_usize];
 
             if dist < distances[col_usize] {
@@ -424,10 +426,10 @@ where
                 }
 
                 for &col in &scan[lower_bound..upper_bound] {
-                    if self.assigned_rows[col.into_usize()].is_unassigned() {
+                    if self.assigned_rows[col.as_()].is_unassigned() {
                         break 'outer col;
                     }
-                    done[col.into_usize()] = true;
+                    done[col.as_()] = true;
                 }
             }
 
@@ -448,9 +450,9 @@ where
             }
         };
 
-        let minimum_distance = distances[scan[lower_bound].into_usize()];
+        let minimum_distance = distances[scan[lower_bound].as_()];
         for &col in &ready[0..n_ready] {
-            self.column_costs[col.into_usize()] += distances[col.into_usize()] - minimum_distance;
+            self.column_costs[col.as_()] += distances[col.as_()] - minimum_distance;
         }
 
         Ok(sink_col)
@@ -467,7 +469,7 @@ where
             return Ok(());
         }
 
-        let n = self.matrix.number_of_columns().into_usize();
+        let n = self.matrix.number_of_columns().as_();
         let mut scan: Vec<M::ColumnIndex> = vec![M::ColumnIndex::max_value(); n];
         let mut todo: Vec<M::ColumnIndex> = vec![M::ColumnIndex::max_value(); n];
         let mut ready: Vec<M::ColumnIndex> = vec![M::ColumnIndex::max_value(); n];

@@ -2,7 +2,9 @@
 
 use num_traits::{One, Zero};
 
-use crate::{prelude::*, traits::IntoUsize};
+use num_traits::AsPrimitive;
+
+use crate::prelude::*;
 
 /// Iterator of the sparse coordinates of the CSR2D matrix.
 pub struct CSR2DSizedRowsizes<'a, CSR: SizedRowsSparseMatrix2D> {
@@ -26,7 +28,7 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRowsizes<'_, CSR> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = (self.back_row + CSR::RowIndex::one() - self.next_row).into_usize();
+        let remaining = (self.back_row + CSR::RowIndex::one() - self.next_row).as_();
         (remaining, Some(remaining))
     }
 }

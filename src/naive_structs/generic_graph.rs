@@ -1,7 +1,9 @@
 //! Submodule providing a naively implemented generic Monoparted Graph.
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    BidirectionalVocabulary, Edges, Graph, IntoUsize, MonopartiteGraph, MonoplexGraph,
+    BidirectionalVocabulary, Edges, Graph, MonopartiteGraph, MonoplexGraph,
     PositiveInteger, TryFromUsize,
 };
 
@@ -49,7 +51,7 @@ impl<Nodes, Edges> From<(Nodes, Edges)> for GenericGraph<Nodes, Edges> {
 impl<Nodes, E> Graph for GenericGraph<Nodes, E>
 where
     Nodes: BidirectionalVocabulary,
-    Nodes::SourceSymbol: PositiveInteger + IntoUsize + TryFromUsize,
+    Nodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     E: Edges<SourceNodeId = Nodes::SourceSymbol, DestinationNodeId = Nodes::SourceSymbol>,
 {
     fn has_edges(&self) -> bool {
@@ -64,7 +66,7 @@ where
 impl<Nodes, E> MonopartiteGraph for GenericGraph<Nodes, E>
 where
     Nodes: BidirectionalVocabulary,
-    Nodes::SourceSymbol: PositiveInteger + IntoUsize + TryFromUsize,
+    Nodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     E: Edges<SourceNodeId = Nodes::SourceSymbol, DestinationNodeId = Nodes::SourceSymbol>,
 {
     type NodeId = Nodes::SourceSymbol;
@@ -79,7 +81,7 @@ where
 impl<Nodes, E> MonoplexGraph for GenericGraph<Nodes, E>
 where
     Nodes: BidirectionalVocabulary,
-    Nodes::SourceSymbol: PositiveInteger + IntoUsize + TryFromUsize,
+    Nodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     E: Edges<SourceNodeId = Nodes::SourceSymbol, DestinationNodeId = Nodes::SourceSymbol>,
 {
     type Edge = E::Edge;

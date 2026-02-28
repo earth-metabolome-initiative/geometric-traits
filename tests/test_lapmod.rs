@@ -10,10 +10,12 @@ use std::{
     time::Duration,
 };
 
+use num_traits::AsPrimitive;
+
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::{
-        HopcroftKarp, IntoUsize, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, SparseMatrixMut,
+        HopcroftKarp, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, SparseMatrixMut,
         SparseValuedMatrix,
     },
     traits::{Matrix2D, algorithms::randomized_graphs::XorShift64},
@@ -675,7 +677,7 @@ fn test_lapmod_stress_correctness_vs_sparse_lapjv() {
 
         let lapmod_result = csr.lapmod(max_cost);
         let slapjv_result = csr.sparse_lapjv(padding, max_cost);
-        let hk_len = csr.hopcroft_karp().expect("Hopcroft-Karp failed").len().into_usize();
+        let hk_len: usize = csr.hopcroft_karp().expect("Hopcroft-Karp failed").len().as_();
 
         match (lapmod_result, slapjv_result) {
             (Ok(lapmod), Ok(slapjv)) => {

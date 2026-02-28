@@ -24,9 +24,11 @@ pub use triangular_matrix::*;
 pub use valued_matrix2d::*;
 
 use super::Coordinates;
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::ImplicitValuedSparseIterator,
-    traits::{IntoUsize, PositiveInteger, TotalOrd},
+    traits::{PositiveInteger, TotalOrd},
 };
 
 /// Trait defining a matrix.
@@ -98,7 +100,7 @@ pub trait ImplicitValuedMatrix: ValuedMatrix {
 /// Trait defining a sparse matrix.
 pub trait SparseMatrix: Matrix {
     /// Type defining the numeric index for the sparse values in the matrix.
-    type SparseIndex: PositiveInteger + IntoUsize;
+    type SparseIndex: PositiveInteger + AsPrimitive<usize>;
 
     /// Iterator of the sparse coordinates of the matrix.
     type SparseCoordinates<'a>: Iterator<Item = Self::Coordinates>
@@ -142,7 +144,7 @@ pub trait SizedSparseMatrix: SparseMatrix {
     #[cfg(feature = "alloc")]
     /// Returns the density of the matrix.
     fn density(&self) -> f64 {
-        let defined_values = self.number_of_defined_values().into_usize();
+        let defined_values = self.number_of_defined_values().as_();
         let total_values = self.total_values();
         defined_values as f64 / total_values as f64
     }

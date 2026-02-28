@@ -4,9 +4,11 @@
 use arbitrary::{Arbitrary, Unstructured};
 use num_traits::One;
 
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::GenericMatrix2DWithPaddedDiagonal,
-    traits::{IntoUsize, Matrix2D, SparseMatrix2D, TryFromUsize, ValuedMatrix2D},
+    traits::{Matrix2D, SparseMatrix2D, TryFromUsize, ValuedMatrix2D},
 };
 
 fn one<R, V: One>(_a: R) -> V {
@@ -17,7 +19,7 @@ impl<'a, M> Arbitrary<'a> for GenericMatrix2DWithPaddedDiagonal<M, fn(M::RowInde
 where
     M: for<'b> Arbitrary<'b> + ValuedMatrix2D + Matrix2D + SparseMatrix2D,
     M::Value: One,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let matrix = M::arbitrary(u)?;

@@ -5,18 +5,20 @@ use multi_ranged::{SimpleRange, Step};
 use num_traits::{One, Zero};
 
 use super::{PaddedMatrix2D, padded_coordinates::PaddedCoordinates};
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::CSR2DColumns,
     traits::{
-        EmptyRows, IntoUsize, Matrix2D, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix,
+        EmptyRows, Matrix2D, SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix,
         SparseMatrix2D, TryFromUsize,
     },
 };
 
 impl<M: SparseMatrix2D, Map> SparseMatrix for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type SparseIndex = usize;
     type SparseCoordinates<'a>
@@ -49,19 +51,19 @@ where
 impl<M, Map> SizedSparseMatrix for PaddedMatrix2D<M, Map>
 where
     M: SparseMatrix2D,
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
-        self.number_of_rows().into_usize() * self.number_of_columns().into_usize()
+        self.number_of_rows().as_() * self.number_of_columns().as_()
     }
 }
 
 impl<M: SparseMatrix2D, Map> SizedRowsSparseMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
 {
     type SparseRowSizes<'a>
         = crate::impls::CSR2DSizedRowsizes<'a, Self>
@@ -81,8 +83,8 @@ where
 
 impl<M: SparseMatrix2D, Map> SparseMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
 {
     type SparseRow<'a>
         = SimpleRange<M::ColumnIndex>
@@ -120,8 +122,8 @@ where
 
 impl<M: EmptyRows, Map> EmptyRows for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize + Step,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize + Step,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
 {
     type EmptyRowIndices<'a>
         = core::iter::Empty<M::RowIndex>

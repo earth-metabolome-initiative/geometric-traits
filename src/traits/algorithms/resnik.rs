@@ -1,10 +1,12 @@
 //! Submodule providing `Resnik` trait based on the algorithm implementation.
 use alloc::vec::Vec;
 
+use num_traits::AsPrimitive;
+
 use crate::{
     prelude::information_content::InformationContentError,
     traits::{
-        InformationContent, IntoUsize, MonoplexMonopartiteGraph, ScalarSimilarity,
+        InformationContent, MonoplexMonopartiteGraph, ScalarSimilarity,
         information_content::InformationContentResult,
     },
 };
@@ -100,7 +102,7 @@ fn information_content_search<G>(
 where
     G: MonoplexMonopartiteGraph + ?Sized,
 {
-    let n = information_content_result.graph().number_of_nodes().into_usize();
+    let n = information_content_result.graph().number_of_nodes().as_();
     // Memo table: once a subtree result is known, store it here to avoid
     // reprocessing diamond-shaped subgraphs.
     let mut memo: Vec<Option<InformationContentSearch>> = vec![None; n];
@@ -126,7 +128,7 @@ where
             if frame.idx < frame.successors.len() {
                 let successor = frame.successors[frame.idx];
                 frame.idx += 1;
-                if let Some(child_result) = memo[successor.into_usize()] {
+                if let Some(child_result) = memo[successor.as_()] {
                     // Already memoised: fold directly into parent state.
                     let parent_ic = information_content_result[frame.node];
                     frame.state = combine_ic_states(frame.state, child_result, parent_ic);
@@ -157,7 +159,7 @@ where
         } else if should_pop {
             let frame = stack.pop().expect("stack is non-empty when popping");
             let node_state = frame.state;
-            memo[frame.node.into_usize()] = Some(node_state);
+            memo[frame.node.as_()] = Some(node_state);
             if let Some(parent) = stack.last_mut() {
                 let parent_ic = information_content_result[parent.node];
                 parent.state = combine_ic_states(parent.state, node_state, parent_ic);

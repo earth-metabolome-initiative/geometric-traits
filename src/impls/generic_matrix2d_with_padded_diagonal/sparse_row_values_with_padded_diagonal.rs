@@ -4,9 +4,11 @@
 //! in the sorted position where it is expected to be in the
 //! sparse row.
 
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::MutabilityError,
-    traits::{IntoUsize, SparseValuedMatrix2D, TryFromUsize},
+    traits::{SparseValuedMatrix2D, TryFromUsize},
 };
 
 /// A wrapper iterator over the sparse row values which includes the diagonal
@@ -37,7 +39,7 @@ pub struct SparseRowValuesWithPaddedDiagonal<'matrix, M: SparseValuedMatrix2D + 
 impl<'matrix, M: SparseValuedMatrix2D + 'matrix, Map> Clone
     for SparseRowValuesWithPaddedDiagonal<'matrix, M, Map>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
     M::Value: Clone,
     Map: Clone,
@@ -58,7 +60,7 @@ where
 impl<'matrix, M: SparseValuedMatrix2D + 'matrix, Map>
     SparseRowValuesWithPaddedDiagonal<'matrix, M, Map>
 where
-    M::RowIndex: IntoUsize,
+    M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: TryFromUsize,
 {
     /// Creates a new `SparseRowValuesWithPaddedDiagonal` with the given sparse
@@ -73,7 +75,7 @@ where
             sparse_row: (row < matrix.number_of_rows())
                 .then(|| (matrix.sparse_row(row), matrix.sparse_row_values(row))),
             row,
-            row_as_column: M::ColumnIndex::try_from_usize(row.into_usize())
+            row_as_column: M::ColumnIndex::try_from_usize(row.as_())
                 .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)?,
             start_element_backup: None,
             end_element_backup: None,

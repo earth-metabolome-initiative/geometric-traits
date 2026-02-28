@@ -4,8 +4,10 @@
 use num_traits::{SaturatingAdd, Zero};
 
 use super::{AttributedEdge, Edge, EdgeType, TypedEdge};
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    IntoUsize, MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D, SizedSparseMatrix,
+    MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D, SizedSparseMatrix,
     SparseMatrix, SparseMatrix2D, SparseMatrixMut, TryFromUsize,
 };
 
@@ -15,11 +17,11 @@ pub trait Edges {
     /// The type of the edge.
     type Edge: Edge<SourceNodeId = Self::SourceNodeId, DestinationNodeId = Self::DestinationNodeId>;
     /// The type of the source node ID.
-    type SourceNodeId: PositiveInteger + IntoUsize + TryFromUsize + SaturatingAdd;
+    type SourceNodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize + SaturatingAdd;
     /// The type of the destination node ID.
-    type DestinationNodeId: PositiveInteger + IntoUsize + TryFromUsize + SaturatingAdd;
+    type DestinationNodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize + SaturatingAdd;
     /// The type of the edge identifier.
-    type EdgeId: PositiveInteger + IntoUsize + TryFromUsize + SaturatingAdd;
+    type EdgeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize + SaturatingAdd;
     /// The underlying matrix type.
     type Matrix: SizedRowsSparseMatrix2D<
             RowIndex = Self::SourceNodeId,

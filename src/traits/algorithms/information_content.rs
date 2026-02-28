@@ -7,8 +7,10 @@ use core::ops::Index;
 
 pub use error::InformationContentError;
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    IntoUsize, Kahn, MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges,
+    Kahn, MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges,
 };
 
 /// Result of information content computation.
@@ -38,7 +40,7 @@ impl<G: ?Sized + MonoplexMonopartiteGraph> InformationContentResult<'_, G> {
 impl<G: ?Sized + MonoplexMonopartiteGraph> Index<G::NodeId> for InformationContentResult<'_, G> {
     type Output = f64;
     fn index(&self, index: G::NodeId) -> &Self::Output {
-        &self.information_contents[index.into_usize()]
+        &self.information_contents[index.as_()]
     }
 }
 
@@ -95,7 +97,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         // Check whether the graph is a DAG (characterize by having no cycles)
         let topological_ordering = self.edges().matrix().kahn()?;
         // Validate occurrences length.
-        let expected = self.number_of_nodes().into_usize();
+        let expected = self.number_of_nodes().as_();
         if occurrences.len() != expected {
             return Err(InformationContentError::UnequalOccurrenceSize {
                 expected,
@@ -104,7 +106,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         }
 
         for sink_node in self.sink_nodes().into_iter().chain(self.singleton_nodes()) {
-            if occurrences[sink_node.into_usize()] == 0 {
+            if occurrences[sink_node.as_()] == 0 {
                 // raise error that sink_node has a zero occurrence
                 return Err(InformationContentError::SinkNodeZeroOccurrence);
             }
@@ -115,18 +117,18 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
         // processed before the node itself.
         let mut sorted_nodes: Vec<Self::NodeId> = self.node_ids().collect();
         sorted_nodes.sort_unstable_by(|&a, &b| {
-            topological_ordering[b.into_usize()]
-                .into_usize()
-                .cmp(&topological_ordering[a.into_usize()].into_usize())
+            topological_ordering[b.as_()]
+                .as_()
+                .cmp(&topological_ordering[a.as_()].as_())
         });
 
         let mut propagated_occurrences = vec![0usize; expected];
         for &node_id in &sorted_nodes {
-            let mut acc = occurrences[node_id.into_usize()];
+            let mut acc = occurrences[node_id.as_()];
             for successor in self.successors(node_id) {
-                acc = acc.saturating_add(propagated_occurrences[successor.into_usize()]);
+                acc = acc.saturating_add(propagated_occurrences[successor.as_()]);
             }
-            propagated_occurrences[node_id.into_usize()] = acc;
+            propagated_occurrences[node_id.as_()] = acc;
         }
 
         // total information content, initialized to 0

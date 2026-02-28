@@ -1,47 +1,48 @@
-//! Tests for basic traits: IntoUsize, TotalOrd, Coordinates, Vector, Symbol.
+//! Tests for basic traits: AsPrimitive, TotalOrd, Coordinates, Vector, Symbol.
 #![cfg(feature = "std")]
 
 use core::cmp::Ordering;
 
-use geometric_traits::traits::{Coordinates, IntoUsize, Symbol, TotalOrd, Vector};
+use geometric_traits::traits::{Coordinates, Symbol, TotalOrd, Vector};
+use num_traits::AsPrimitive;
 
 // ============================================================================
-// IntoUsize tests
+// AsPrimitive<usize> tests
 // ============================================================================
 
 #[test]
-fn test_into_usize_u8() {
-    assert_eq!(0_u8.into_usize(), 0_usize);
-    assert_eq!(42_u8.into_usize(), 42_usize);
-    assert_eq!(255_u8.into_usize(), 255_usize);
+fn test_as_usize_u8() {
+    assert_eq!(AsPrimitive::<usize>::as_(0_u8), 0_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(42_u8), 42_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(255_u8), 255_usize);
 }
 
 #[test]
-fn test_into_usize_u16() {
-    assert_eq!(0_u16.into_usize(), 0_usize);
-    assert_eq!(1000_u16.into_usize(), 1000_usize);
-    assert_eq!(65535_u16.into_usize(), 65535_usize);
+fn test_as_usize_u16() {
+    assert_eq!(AsPrimitive::<usize>::as_(0_u16), 0_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(1000_u16), 1000_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(65535_u16), 65535_usize);
 }
 
 #[test]
-fn test_into_usize_u32() {
-    assert_eq!(0_u32.into_usize(), 0_usize);
-    assert_eq!(100_000_u32.into_usize(), 100_000_usize);
-    assert_eq!(u32::MAX.into_usize(), u32::MAX as usize);
+fn test_as_usize_u32() {
+    assert_eq!(AsPrimitive::<usize>::as_(0_u32), 0_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(100_000_u32), 100_000_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(u32::MAX), u32::MAX as usize);
 }
 
 #[test]
 #[cfg(target_pointer_width = "64")]
-fn test_into_usize_u64() {
-    assert_eq!(0_u64.into_usize(), 0_usize);
-    assert_eq!(1_000_000_000_u64.into_usize(), 1_000_000_000_usize);
+fn test_as_usize_u64() {
+    assert_eq!(AsPrimitive::<usize>::as_(0_u64), 0_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(1_000_000_000_u64), 1_000_000_000_usize);
 }
 
 #[test]
-fn test_into_usize_usize() {
-    assert_eq!(0_usize.into_usize(), 0_usize);
-    assert_eq!(42_usize.into_usize(), 42_usize);
-    assert_eq!(usize::MAX.into_usize(), usize::MAX);
+fn test_as_usize_usize() {
+    assert_eq!(AsPrimitive::<usize>::as_(0_usize), 0_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(42_usize), 42_usize);
+    assert_eq!(AsPrimitive::<usize>::as_(usize::MAX), usize::MAX);
 }
 
 // ============================================================================

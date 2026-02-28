@@ -5,7 +5,9 @@ use alloc::vec::Vec;
 
 use num_traits::{ConstOne, ConstZero};
 
-use crate::traits::{IntoUsize, SparseMatrix2D, SquareMatrix};
+use num_traits::AsPrimitive;
+
+use crate::traits::{SparseMatrix2D, SquareMatrix};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Error enumeration for Kahn's algorithm.
@@ -54,31 +56,31 @@ pub trait Kahn: SquareMatrix + SparseMatrix2D {
     /// assert_eq!(topological_order.len(), 3);
     /// ```
     fn kahn(&self) -> Result<Vec<Self::Index>, KahnError> {
-        let mut in_degree = vec![Self::Index::ZERO; self.order().into_usize()];
+        let mut in_degree = vec![Self::Index::ZERO; self.order().as_()];
         let mut frontier = Vec::new();
         let mut temporary_frontier = Vec::new();
         let mut number_of_visited_nodes = Self::Index::ZERO;
-        let mut topological_order = vec![Self::Index::ZERO; self.order().into_usize()];
+        let mut topological_order = vec![Self::Index::ZERO; self.order().as_()];
 
         for row_id in self.row_indices() {
             for successor_id in self.sparse_row(row_id) {
-                in_degree[successor_id.into_usize()] += Self::Index::ONE;
+                in_degree[successor_id.as_()] += Self::Index::ONE;
             }
         }
 
         frontier.extend(
-            self.row_indices().filter(|row_id| in_degree[row_id.into_usize()] == Self::Index::ZERO),
+            self.row_indices().filter(|row_id| in_degree[row_id.as_()] == Self::Index::ZERO),
         );
 
         while !frontier.is_empty() {
             temporary_frontier.clear();
 
             for row_id in frontier.drain(..) {
-                topological_order[row_id.into_usize()] = number_of_visited_nodes;
+                topological_order[row_id.as_()] = number_of_visited_nodes;
                 number_of_visited_nodes += Self::Index::ONE;
                 temporary_frontier.extend(self.sparse_row(row_id).filter(|successor_id| {
-                    in_degree[successor_id.into_usize()] -= Self::Index::ONE;
-                    in_degree[successor_id.into_usize()] == Self::Index::ZERO
+                    in_degree[successor_id.as_()] -= Self::Index::ONE;
+                    in_degree[successor_id.as_()] == Self::Index::ZERO
                 }));
             }
 

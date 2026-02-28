@@ -6,13 +6,7 @@ use core::{
     ops::{AddAssign, SubAssign},
 };
 
-use num_traits::{Bounded, ConstOne, ConstZero, Num, SaturatingAdd, Unsigned};
-
-use super::into_usize::IntoUsize as IntoUsizeMethod;
-
-/// Trait for types that can be converted into `usize`.
-pub trait IntoUsize: Into<usize> + Copy {}
-impl<T: Into<usize> + Copy> IntoUsize for T {}
+use num_traits::{AsPrimitive, Bounded, ConstOne, ConstZero, Num, SaturatingAdd, Unsigned};
 
 /// Trait for types that can be created from `usize`.
 pub trait TryFromUsize: TryFrom<usize> + Copy {
@@ -36,9 +30,8 @@ pub trait PositiveInteger:
     + Debug
     + Display
     + Ord
-    + IntoUsize
+    + AsPrimitive<usize>
     + TryFromUsize
-    + IntoUsizeMethod
     + Bounded
     + AddAssign
     + SubAssign
@@ -55,9 +48,8 @@ impl<
         + Debug
         + Display
         + Ord
-        + IntoUsize
+        + AsPrimitive<usize>
         + TryFromUsize
-        + IntoUsizeMethod
         + Bounded
         + AddAssign
         + SubAssign

@@ -4,11 +4,11 @@
 use alloc::vec::Vec;
 
 use lender::prelude::{Lender, Lending};
-use num_traits::{ConstOne, ConstZero};
+use num_traits::{AsPrimitive, ConstOne, ConstZero};
 
 use crate::{
     impls::{LowerBoundedSquareMatrix, SubsetSquareMatrix},
-    traits::{IntoUsize, SparseMatrix2D, SquareMatrix, Tarjan},
+    traits::{SparseMatrix2D, SquareMatrix, Tarjan},
 };
 
 #[allow(clippy::type_complexity)]
@@ -51,13 +51,13 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         let mut worklist: Vec<M::Index> = Vec::new();
         worklist.push(row_id);
         while let Some(node) = worklist.pop() {
-            if !self.data.blocked[node.into_usize()] {
+            if !self.data.blocked[node.as_()] {
                 continue;
             }
-            self.data.blocked[node.into_usize()] = false;
-            let row_block = core::mem::take(&mut self.data.block_map[node.into_usize()]);
+            self.data.blocked[node.as_()] = false;
+            let row_block = core::mem::take(&mut self.data.block_map[node.as_()]);
             for column_id in row_block {
-                if self.data.blocked[column_id.into_usize()] {
+                if self.data.blocked[column_id.as_()] {
                     worklist.push(column_id);
                 }
             }
@@ -65,7 +65,7 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
     }
 
     fn is_blocked(&self, row_id: M::Index) -> bool {
-        self.data.blocked[row_id.into_usize()]
+        self.data.blocked[row_id.as_()]
     }
 
     fn next_circuit(&mut self) -> Option<&[M::Index]> {
@@ -131,7 +131,7 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         );
         self.data.stack.push(row_id);
         self.row_iterators.push(self.current_component.sparse_row(row_id));
-        self.data.blocked[row_id.into_usize()] = true;
+        self.data.blocked[row_id.as_()] = true;
     }
 
     fn remove_last_circuit_search(&mut self) {
@@ -142,8 +142,8 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
             self.unblock(row_id);
         } else {
             for column_id in self.current_component.sparse_row(row_id) {
-                if self.data.block_map[column_id.into_usize()].contains(&row_id) {
-                    self.data.block_map[column_id.into_usize()].push(row_id);
+                if self.data.block_map[column_id.as_()].contains(&row_id) {
+                    self.data.block_map[column_id.as_()].push(row_id);
                 }
             }
         }
@@ -176,8 +176,8 @@ struct Data<M: SquareMatrix + SparseMatrix2D> {
 impl<M: SquareMatrix + SparseMatrix2D> From<M> for Data<M> {
     fn from(matrix: M) -> Self {
         let order = matrix.order();
-        let blocked = vec![false; order.into_usize()];
-        let block_map = vec![Vec::new(); order.into_usize()];
+        let blocked = vec![false; order.as_()];
+        let block_map = vec![Vec::new(); order.as_()];
         Self {
             current_root_id: M::Index::ZERO,
             blocked,
@@ -233,8 +233,8 @@ impl<M: SquareMatrix + SparseMatrix2D> Lender for InnerJohnsonIterator<'_, M> {
 
             self.data.current_root_id = new_root_id;
             for row_id in &strongly_connected_component_with_smallest_node {
-                self.data.blocked[row_id.into_usize()] = false;
-                self.data.block_map[row_id.into_usize()].clear();
+                self.data.blocked[row_id.as_()] = false;
+                self.data.block_map[row_id.as_()].clear();
             }
 
             strongly_connected_component_with_smallest_node.sort_unstable();

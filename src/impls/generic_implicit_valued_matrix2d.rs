@@ -4,9 +4,11 @@ use alloc::vec::Vec;
 
 use num_traits::Zero;
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
     BidirectionalVocabulary, BipartiteGraph, Edges, EmptyRows, Graph, ImplicitValuedMatrix,
-    ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator, IntoUsize, Matrix, Matrix2D,
+    ImplicitValuedSparseMatrix, ImplicitValuedSparseRowIterator, Matrix, Matrix2D,
     Matrix2DRef, MonoplexGraph, Number, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
     SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix, SparseMatrix, SparseMatrix2D,
     SparseValuedMatrix, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
@@ -43,7 +45,7 @@ where
 
     #[inline]
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 

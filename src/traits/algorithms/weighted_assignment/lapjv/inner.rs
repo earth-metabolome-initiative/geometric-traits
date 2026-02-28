@@ -9,8 +9,10 @@ use super::{
     LAPJVError,
     common::{augmentation_backtrack, augmenting_row_reduction_impl, find_minimum_distance},
 };
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    AssignmentState, DenseValuedMatrix2D, Finite, IntoUsize, Number, TotalOrd, TryFromUsize,
+    AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize,
 };
 
 /// Support struct for computing the weighted assignment using the LAPJV
@@ -39,7 +41,7 @@ where
 {
     fn from(inner: Inner<'matrix, M>) -> Self {
         let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
-            Vec::with_capacity(inner.matrix.number_of_rows().into_usize());
+            Vec::with_capacity(inner.matrix.number_of_rows().as_());
         for (expected_column_index, maybe_row_index) in inner.assigned_rows.into_iter().enumerate()
         {
             let AssignmentState::Assigned(row_index) = maybe_row_index else {
@@ -61,21 +63,21 @@ where
 {
     pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPJVError> {
         // Check if the matrix is square
-        if matrix.number_of_rows().into_usize() != matrix.number_of_columns().into_usize() {
+        if matrix.number_of_rows().as_() != matrix.number_of_columns().as_() {
             return Err(LAPJVError::NonSquareMatrix);
         }
 
-        let column_costs = vec![max_cost; matrix.number_of_columns().into_usize()];
+        let column_costs = vec![max_cost; matrix.number_of_columns().as_()];
 
         Ok(Inner {
             matrix,
             column_costs,
             unassigned_rows: Vec::new(),
             max_cost,
-            assigned_rows: vec![AssignmentState::Unassigned; matrix.number_of_rows().into_usize()],
+            assigned_rows: vec![AssignmentState::Unassigned; matrix.number_of_rows().as_()],
             assigned_columns: vec![
                 AssignmentState::Unassigned;
-                matrix.number_of_columns().into_usize()
+                matrix.number_of_columns().as_()
             ],
         })
     }
@@ -121,10 +123,10 @@ where
                     return Err(LAPJVError::NegativeValues);
                 }
 
-                if value < self.column_costs[column_index.into_usize()] {
-                    self.assigned_rows[column_index.into_usize()] =
+                if value < self.column_costs[column_index.as_()] {
+                    self.assigned_rows[column_index.as_()] =
                         AssignmentState::Assigned(row_index);
-                    self.column_costs[column_index.into_usize()] = value;
+                    self.column_costs[column_index.as_()] = value;
                 }
             }
         }
@@ -136,22 +138,22 @@ where
 
         for column_index in self.matrix.column_indices().rev() {
             let AssignmentState::Assigned(assigned_row) =
-                self.assigned_rows[column_index.into_usize()]
+                self.assigned_rows[column_index.as_()]
             else {
                 unreachable!("We expected the assigned row to be in the assigned state");
             };
-            match self.assigned_columns.get(assigned_row.into_usize()) {
+            match self.assigned_columns.get(assigned_row.as_()) {
                 Some(AssignmentState::Unassigned) => {
-                    self.assigned_columns[assigned_row.into_usize()] =
+                    self.assigned_columns[assigned_row.as_()] =
                         AssignmentState::Assigned(column_index);
                 }
                 Some(
                     AssignmentState::Assigned(assigned_column_index)
                     | AssignmentState::Conflict(assigned_column_index),
                 ) => {
-                    self.assigned_columns[assigned_row.into_usize()] =
+                    self.assigned_columns[assigned_row.as_()] =
                         AssignmentState::Conflict(*assigned_column_index);
-                    self.assigned_rows[column_index.into_usize()] = AssignmentState::Unassigned;
+                    self.assigned_rows[column_index.as_()] = AssignmentState::Unassigned;
                 }
                 None => {
                     unreachable!("We expected the assigned column to be in the assigned state");
@@ -170,12 +172,12 @@ where
         );
 
         for row_index in self.matrix.row_indices() {
-            match self.assigned_columns.get(row_index.into_usize()) {
+            match self.assigned_columns.get(row_index.as_()) {
                 Some(AssignmentState::Unassigned) => {
                     self.unassigned_rows.push(row_index);
                 }
                 Some(AssignmentState::Conflict(conflicted_column)) => {
-                    self.assigned_columns[row_index.into_usize()] =
+                    self.assigned_columns[row_index.as_()] =
                         AssignmentState::Assigned(*conflicted_column);
                 }
                 Some(AssignmentState::Assigned(assigned_column)) => {
@@ -188,12 +190,12 @@ where
                             if column_index == *assigned_column {
                                 None
                             } else {
-                                Some(value - self.column_costs[column_index.into_usize()])
+                                Some(value - self.column_costs[column_index.as_()])
                             }
                         })
                         .min_by(|&a, &b| a.total_cmp(&b))
                         .unwrap_or(self.max_cost);
-                    self.column_costs[assigned_column.into_usize()] -= minimum_reduced_cost;
+                    self.column_costs[assigned_column.as_()] -= minimum_reduced_cost;
                 }
                 None => {
                     unreachable!("We expected the assigned column to be in the assigned state");
@@ -206,7 +208,7 @@ where
     pub(super) fn augmenting_row_reduction(&mut self) {
         let matrix = self.matrix;
         let max_cost = self.max_cost;
-        let number_of_rows = matrix.number_of_rows().into_usize();
+        let number_of_rows = matrix.number_of_rows().as_();
         augmenting_row_reduction_impl(
             &mut self.unassigned_rows,
             &mut self.assigned_rows,
@@ -216,7 +218,7 @@ where
             |row, col_costs| {
                 let mut iterator = matrix.column_indices().zip(matrix.row_values(row)).map(
                     |(column_index, cost)| {
-                        (column_index, cost - col_costs[column_index.into_usize()])
+                        (column_index, cost - col_costs[column_index.as_()])
                     },
                 );
 
@@ -262,7 +264,7 @@ where
         while lower_bound != upper_bound {
             number_of_iterations += 1;
             debug_assert!(
-                number_of_iterations < self.matrix.number_of_columns().into_usize(),
+                number_of_iterations < self.matrix.number_of_columns().as_(),
                 "We expected the number of iterations to be less than the number of columns ({}), with max cost {:?}",
                 self.matrix.number_of_columns(),
                 self.max_cost
@@ -271,26 +273,26 @@ where
             let column_index = to_scan[lower_bound];
             lower_bound += 1;
             let AssignmentState::Assigned(row_index) =
-                self.assigned_rows[column_index.into_usize()]
+                self.assigned_rows[column_index.as_()]
             else {
                 unreachable!("We expected the assigned row to be in the assigned state");
             };
-            let minimum_distance = distances[column_index.into_usize()];
+            let minimum_distance = distances[column_index.as_()];
             let initial_reduced_cost = self.matrix.value((row_index, column_index))
-                - self.column_costs[column_index.into_usize()]
+                - self.column_costs[column_index.as_()]
                 - minimum_distance;
 
             let current_upper_bound = upper_bound;
             for k in current_upper_bound..to_scan.len() {
                 let column_index = to_scan[k];
                 let reduced_cost = self.matrix.value((row_index, column_index))
-                    - self.column_costs[column_index.into_usize()]
+                    - self.column_costs[column_index.as_()]
                     - initial_reduced_cost;
-                if reduced_cost < distances[column_index.into_usize()] {
-                    distances[column_index.into_usize()] = reduced_cost;
-                    predecessors[column_index.into_usize()] = row_index;
+                if reduced_cost < distances[column_index.as_()] {
+                    distances[column_index.as_()] = reduced_cost;
+                    predecessors[column_index.as_()] = row_index;
                     if reduced_cost == minimum_distance {
-                        if self.assigned_rows[column_index.into_usize()].is_unassigned() {
+                        if self.assigned_rows[column_index.as_()].is_unassigned() {
                             return Some(column_index);
                         }
                         to_scan[k] = to_scan[upper_bound];
@@ -332,14 +334,14 @@ where
             *predecessor = start_row_index;
             *column_index_to_scan = column_index;
             *distance = self.matrix.value((start_row_index, column_index))
-                - self.column_costs[column_index.into_usize()];
+                - self.column_costs[column_index.as_()];
         }
 
         let mut number_of_iterations = 0;
         let column_index = 'outer: loop {
             number_of_iterations += 1;
             debug_assert!(
-                number_of_iterations < self.matrix.number_of_columns().into_usize(),
+                number_of_iterations < self.matrix.number_of_columns().as_(),
                 "We expected the number of iterations to be less than the number of columns ({}): with max cost {:?}",
                 self.matrix.number_of_columns(),
                 self.max_cost
@@ -350,7 +352,7 @@ where
                 upper_bound = find_minimum_distance(lower_bound, distances, to_scan);
 
                 for column_index in to_scan[lower_bound..upper_bound].iter().copied() {
-                    if self.assigned_rows[column_index.into_usize()].is_unassigned() {
+                    if self.assigned_rows[column_index.as_()].is_unassigned() {
                         break 'outer column_index;
                     }
                 }
@@ -363,10 +365,10 @@ where
             }
         };
 
-        let minimum_distance = distances[to_scan[lower_bound].into_usize()];
+        let minimum_distance = distances[to_scan[lower_bound].as_()];
         for column_index in to_scan[0..n_ready].iter().copied() {
-            self.column_costs[column_index.into_usize()] +=
-                distances[column_index.into_usize()] - minimum_distance;
+            self.column_costs[column_index.as_()] +=
+                distances[column_index.as_()] - minimum_distance;
         }
 
         column_index
@@ -378,7 +380,7 @@ where
             return;
         }
 
-        let n = self.matrix.number_of_columns().into_usize();
+        let n = self.matrix.number_of_columns().as_();
         let mut to_scan = vec![M::ColumnIndex::max_value(); n];
         let mut predecessors = vec![M::RowIndex::max_value(); n];
         let mut distances = vec![self.max_cost; n];

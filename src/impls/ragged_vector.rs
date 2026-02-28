@@ -8,8 +8,10 @@ use multi_ranged::Step;
 use num_traits::Zero;
 
 use super::MutabilityError;
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    EmptyRows, IntoUsize, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
+    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger,
     SizedRowsSparseMatrix2D, SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut,
     TransposableMatrix2D, TryFromUsize,
 };
@@ -66,21 +68,21 @@ where
 
 impl<SparseIndex, RowIndex, ColumnIndex> Matrix for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 {
     type Coordinates = (RowIndex, ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows.into_usize(), self.number_of_columns.into_usize()]
+        vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
     }
 }
 
 impl<SparseIndex, RowIndex, ColumnIndex> Matrix2D
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 {
     type RowIndex = RowIndex;
     type ColumnIndex = ColumnIndex;
@@ -97,8 +99,8 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> Matrix2DRef
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 {
     fn number_of_columns_ref(&self) -> &Self::ColumnIndex {
         &self.number_of_columns
@@ -112,9 +114,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrix
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -149,9 +151,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> SizedSparseMatrix
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -163,9 +165,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrix2D
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -183,20 +185,20 @@ where
         Self: 'a;
 
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        let slice = if row.into_usize() >= self.data.len() {
+        let slice = if row.as_() >= self.data.len() {
             &[]
         } else {
-            self.data[row.into_usize()].as_slice()
+            self.data[row.as_()].as_slice()
         };
         slice.iter().copied()
     }
 
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
-        if row.into_usize() >= self.data.len() {
+        if row.as_() >= self.data.len() {
             return false;
         }
 
-        let columns_in_row = &self.data[row.into_usize()];
+        let columns_in_row = &self.data[row.as_()];
         columns_in_row.binary_search(&column).is_ok()
     }
 
@@ -212,9 +214,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> EmptyRows
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -246,9 +248,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> SizedRowsSparseMatrix2D
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
     <RowIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -262,7 +264,7 @@ where
     }
 
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
-        ColumnIndex::try_from_usize(self.data[row.into_usize()].len()).expect(
+        ColumnIndex::try_from_usize(self.data[row.as_()].len()).expect(
             "The number of defined values in a row must be less than the number of columns.",
         )
     }
@@ -271,19 +273,19 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> MatrixMut
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
 {
     type Entry = Self::Coordinates;
     type Error = MutabilityError<Self>;
 
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
-        if row.into_usize() >= self.data.len() {
-            self.data.extend(repeat_n(Vec::default(), row.into_usize() - self.data.len() + 1));
+        if row.as_() >= self.data.len() {
+            self.data.extend(repeat_n(Vec::default(), row.as_() - self.data.len() + 1));
         }
 
-        let columns_in_row = &mut self.data[row.into_usize()];
+        let columns_in_row = &mut self.data[row.as_()];
 
         if let Some(last_column) = columns_in_row.last() {
             if *last_column == column {
@@ -327,9 +329,9 @@ impl<SparseIndex, RowIndex, ColumnIndex>
     TransposableMatrix2D<RaggedVector<SparseIndex, ColumnIndex, RowIndex>>
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
-    SparseIndex: PositiveInteger + IntoUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
@@ -353,9 +355,9 @@ impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrixMut
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex, SparseIndex = SparseIndex>,
-    SparseIndex: PositiveInteger + IntoUsize,
-    RowIndex: Step + PositiveInteger + IntoUsize,
-    ColumnIndex: Step + PositiveInteger + IntoUsize + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
 {
     type MinimalShape = Self::Coordinates;
 
@@ -372,7 +374,7 @@ where
         number_of_values: Self::SparseIndex,
     ) -> Self {
         Self {
-            data: vec![Vec::new(); number_of_rows.into_usize()],
+            data: vec![Vec::new(); number_of_rows.as_()],
             number_of_defined_values: number_of_values,
             number_of_columns,
             number_of_rows,

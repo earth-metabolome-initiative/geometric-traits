@@ -61,13 +61,11 @@ pub mod transmute_from;
 pub use transmute_from::*;
 
 mod coordinates;
-mod into_usize;
 mod matrix;
 mod symbol;
 mod vector;
 
 pub use coordinates::*;
-pub use into_usize::IntoUsize;
 pub use matrix::*;
 pub use symbol::*;
 pub use vector::*;

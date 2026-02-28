@@ -1,8 +1,10 @@
 //! Submodule providing a naively implemented `GenericBiGraph`.
 
 use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
+use num_traits::AsPrimitive;
+
 use crate::traits::{
-    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, IntoUsize, MonoplexGraph,
+    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph,
     PositiveInteger, TryFromUsize, Vocabulary,
 };
 
@@ -78,8 +80,8 @@ impl<LeftNodes, RightNodes, E> BipartiteGraph for GenericBiGraph<LeftNodes, Righ
 where
     LeftNodes: Vocabulary + BidirectionalVocabulary,
     RightNodes: Vocabulary + BidirectionalVocabulary,
-    LeftNodes::SourceSymbol: PositiveInteger + IntoUsize + TryFromUsize,
-    RightNodes::SourceSymbol: PositiveInteger + IntoUsize + TryFromUsize,
+    LeftNodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RightNodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     E: Edges<SourceNodeId = LeftNodes::SourceSymbol, DestinationNodeId = RightNodes::SourceSymbol>,
 {
     type LeftNodeId = LeftNodes::SourceSymbol;

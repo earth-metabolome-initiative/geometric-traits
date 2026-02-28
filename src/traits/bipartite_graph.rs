@@ -4,14 +4,16 @@
 //! sets such that no two vertices within the same set are adjacent.
 
 use super::{BidirectionalVocabulary, Graph, Vocabulary};
-use crate::traits::{IntoUsize, PositiveInteger, Symbol, TryFromUsize};
+use num_traits::AsPrimitive;
+
+use crate::traits::{PositiveInteger, Symbol, TryFromUsize};
 
 /// Trait defining the properties of a bipartite graph.
 pub trait BipartiteGraph: Graph {
     /// The dense identifiers of the left nodes in the graph.
-    type LeftNodeId: PositiveInteger + IntoUsize + TryFromUsize;
+    type LeftNodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize;
     /// The dense identifiers of the right nodes in the graph.
-    type RightNodeId: PositiveInteger + IntoUsize + TryFromUsize;
+    type RightNodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize;
     /// The symbol of the left node.
     type LeftNodeSymbol: Symbol;
     /// The symbol of the right node.

@@ -2,7 +2,9 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use crate::{impls::SquareCSR2D, prelude::*, traits::IntoUsize};
+use num_traits::AsPrimitive;
+
+use crate::{impls::SquareCSR2D, prelude::*};
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A symmetric compressed sparse row matrix.
@@ -24,7 +26,7 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 

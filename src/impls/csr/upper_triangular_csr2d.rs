@@ -2,12 +2,12 @@
 use alloc::vec::Vec;
 
 use multi_ranged::Step;
-use num_traits::Zero;
+use num_traits::{AsPrimitive, Zero};
 
 use crate::{
     impls::{MutabilityError, SquareCSR2D},
     prelude::*,
-    traits::{IntoUsize, PositiveInteger, TryFromUsize},
+    traits::{PositiveInteger, TryFromUsize},
 };
 
 #[derive(Clone, Debug)]
@@ -24,7 +24,7 @@ where
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
     fn shape(&self) -> Vec<usize> {
-        vec![self.number_of_rows().into_usize(), self.number_of_columns().into_usize()]
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
 }
 
@@ -291,18 +291,18 @@ where
 impl<SparseIndex, Idx> Symmetrize<SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>>
     for UpperTriangularCSR2D<CSR2D<SparseIndex, Idx, Idx>>
 where
-    Idx: Step + PositiveInteger + IntoUsize + TryFromUsize + TryFrom<SparseIndex>,
-    SparseIndex: PositiveInteger + IntoUsize + TryFromUsize,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
 {
     fn symmetrize(&self) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>> {
         // We initialize the transposed matrix.
-        let number_of_expected_column_indices = (self.number_of_defined_values().into_usize()
-            - self.number_of_defined_diagonal_values().into_usize())
+        let number_of_expected_column_indices = (self.number_of_defined_values().as_()
+            - self.number_of_defined_diagonal_values().as_())
             * 2
-            + self.number_of_defined_diagonal_values().into_usize();
+            + self.number_of_defined_diagonal_values().as_();
 
         let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
-            offsets: vec![SparseIndex::zero(); self.order().into_usize() + 1],
+            offsets: vec![SparseIndex::zero(); self.order().as_() + 1],
             number_of_columns: self.order(),
             number_of_rows: self.order(),
             column_indices: vec![Idx::zero(); number_of_expected_column_indices],
@@ -313,8 +313,8 @@ where
         for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
             // TODO! IF YOU INITIALIZE OFFSETS WITH THE OUT BOUND DEGREES, THERE IS NO NEED
             // FOR ALL OF THE SPARSE ROW ACCESSES!
-            symmetric.offsets[row.into_usize() + 1] += SparseIndex::one();
-            symmetric.offsets[column.into_usize() + 1] +=
+            symmetric.offsets[row.as_() + 1] += SparseIndex::one();
+            symmetric.offsets[column.as_() + 1] +=
                 if row == column { SparseIndex::zero() } else { SparseIndex::one() };
         }
 
@@ -328,7 +328,7 @@ where
         }
 
         // Finally, we fill the column indices.
-        let mut degree = vec![SparseIndex::zero(); self.order().into_usize()];
+        let mut degree = vec![SparseIndex::zero(); self.order().as_()];
         for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
             let edges: Vec<(Idx, Idx)> = if row == column {
                 vec![(row, column)]
@@ -336,15 +336,15 @@ where
                 vec![(row, column), (column, row)]
             };
             for (i, j) in edges {
-                let current_degree: &mut SparseIndex = &mut degree[i.into_usize()];
-                let index = *current_degree + symmetric.offsets[i.into_usize()];
-                symmetric.column_indices[index.into_usize()] = j;
+                let current_degree: &mut SparseIndex = &mut degree[i.as_()];
+                let index = *current_degree + symmetric.offsets[i.as_()];
+                symmetric.column_indices[index.as_()] = j;
                 *current_degree += SparseIndex::one();
             }
         }
 
         debug_assert_eq!(
-            symmetric.number_of_defined_values().into_usize(),
+            symmetric.number_of_defined_values().as_(),
             number_of_expected_column_indices,
             "The number of inserted values is not the expected one. Original number of values: {}. Diagonals: {}",
             self.number_of_defined_values(),

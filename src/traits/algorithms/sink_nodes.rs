@@ -3,7 +3,9 @@
 //! graph, which are the set of nodes with no successors.
 use alloc::vec::Vec;
 
-use crate::traits::{IntoUsize, MonoplexMonopartiteGraph};
+use num_traits::AsPrimitive;
+
+use crate::traits::MonoplexMonopartiteGraph;
 /// Trait providing the `sink_nodes` method, which returns the sink nodes of the
 /// graph. A sink node is a node with no successors.
 pub trait SinkNodes: MonoplexMonopartiteGraph {
@@ -38,14 +40,14 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
     /// assert_eq!(graph.sink_nodes(), vec![1]);
     /// ```
     fn sink_nodes(&self) -> Vec<Self::NodeId> {
-        let mut visited = vec![false; self.number_of_nodes().into_usize()];
+        let mut visited = vec![false; self.number_of_nodes().as_()];
 
         // Iterate over all nodes and mark the successors of each node as
         // visited. A node is considered visited if it has a predecessor.
         for node in self.node_ids() {
             // Mark the successors of the node as visited.
             for successor_node_id in self.successors(node) {
-                visited[successor_node_id.into_usize()] = true;
+                visited[successor_node_id.as_()] = true;
             }
         }
         // Finally, we iterate over all nodes and keep the nodes that have not

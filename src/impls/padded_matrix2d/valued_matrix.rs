@@ -4,47 +4,49 @@
 use multi_ranged::Step;
 
 use super::{PaddedMatrix2D, imputed_row_values::ImputedRowValues};
+use num_traits::AsPrimitive;
+
 use crate::{
     impls::M2DValues,
     traits::{
-        DenseMatrix, DenseMatrix2D, DenseValuedMatrix, DenseValuedMatrix2D, IntoUsize,
-        SparseValuedMatrix, SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
+        DenseMatrix, DenseMatrix2D, DenseValuedMatrix, DenseValuedMatrix2D, SparseValuedMatrix,
+        SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
     },
 };
 
 impl<M: ValuedMatrix2D, Map> ValuedMatrix for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
     type Value = M::Value;
 }
 
 impl<M: ValuedMatrix2D, Map> ValuedMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
 }
 
 impl<M: ValuedMatrix2D, Map> DenseMatrix for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
 }
 
 impl<M: ValuedMatrix2D, Map> DenseMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
 }
 
 impl<M: SparseValuedMatrix2D, Map> DenseValuedMatrix for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     type Values<'a>
@@ -75,8 +77,8 @@ where
 
 impl<M: SparseValuedMatrix2D, Map> SparseValuedMatrix for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     type SparseValues<'a>
@@ -92,8 +94,8 @@ where
 
 impl<M: SparseValuedMatrix2D, Map> SparseValuedMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     type SparseRowValues<'a>
@@ -109,8 +111,8 @@ where
 
 impl<M: SparseValuedMatrix2D, Map> DenseValuedMatrix2D for PaddedMatrix2D<M, Map>
 where
-    M::RowIndex: IntoUsize + TryFromUsize,
-    M::ColumnIndex: IntoUsize + TryFromUsize + Step,
+    M::RowIndex: AsPrimitive<usize> + TryFromUsize,
+    M::ColumnIndex: AsPrimitive<usize> + TryFromUsize + Step,
     Map: Fn((M::RowIndex, M::ColumnIndex)) -> M::Value,
 {
     type RowValues<'a>
