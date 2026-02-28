@@ -59,6 +59,17 @@ where
     ///
     /// A vector of `(row, column)` pairs in the original matrix coordinates,
     /// containing only assignments that correspond to actual sparse edges.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - `max_cost` is not finite (`CrouseError::MaximalCostNotFinite`)
+    /// - `max_cost` is not positive (`CrouseError::MaximalCostNotPositive`)
+    /// - Any matrix value is non-finite (`CrouseError::NonFiniteValues`)
+    /// - Any matrix value is zero (`CrouseError::ZeroValues`)
+    /// - Any matrix value is negative (`CrouseError::NegativeValues`)
+    /// - Any matrix value is greater than or equal to `max_cost`
+    ///   (`CrouseError::ValueTooLarge`)
     fn crouse(
         &self,
         non_edge_cost: f64,

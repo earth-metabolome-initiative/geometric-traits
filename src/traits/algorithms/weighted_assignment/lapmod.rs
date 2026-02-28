@@ -313,14 +313,14 @@ where
         // Dummy rows (L..L+R): for each j in 0..R:
         //   - Diagonal entry at column j with cost η/2
         //   - For each i such that (i,j) ∈ E: entry at column R+i with cost ε
-        for j in 0..n_cols {
+        for (j, source_rows) in col_to_rows.iter().enumerate() {
             let dummy_row = n_rows + j;
             // Bottom-left diagonal entry (L+j, j) at cost η/2.
             expanded
                 .add((dummy_row, j, half_eta))
                 .expect("Failed to add bottom-left diagonal entry to expanded matrix");
             // Bottom-right transpose entries.
-            for &i in &col_to_rows[j] {
+            for &i in source_rows {
                 expanded
                     .add((dummy_row, n_cols + i, bottom_right_cost))
                     .expect("Failed to add bottom-right entry to expanded matrix");

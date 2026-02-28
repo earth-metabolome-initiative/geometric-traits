@@ -172,7 +172,7 @@ fn scan(
                 distances[neighbour_col] = reduced;
                 predecessors[neighbour_col] = row;
 
-                if reduced == min_dist {
+                if reduced.total_cmp(&min_dist).is_eq() {
                     if assigned_rows[neighbour_col].is_unassigned() {
                         *lower_bound_ref = lower_bound;
                         *upper_bound_ref = upper_bound;
@@ -204,7 +204,7 @@ mod tests {
             10.0, 10.0, 1.0, //
         ];
         let mut result = crouse_inner(&data, 3, 3, 100.0).unwrap();
-        result.sort();
+        result.sort_unstable();
         assert_eq!(result, vec![(0, 0), (1, 1), (2, 2)]);
     }
 
@@ -216,7 +216,7 @@ mod tests {
             1.0, 10.0, 5.0, //
         ];
         let mut result = crouse_inner(&data, 2, 3, 100.0).unwrap();
-        result.sort();
+        result.sort_unstable();
         assert_eq!(result, vec![(0, 1), (1, 0)]);
     }
 
