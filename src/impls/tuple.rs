@@ -7,10 +7,12 @@ impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger> Edge
     type SourceNodeId = SourceNodeId;
     type DestinationNodeId = DestinationNodeId;
 
+    #[inline]
     fn source(&self) -> Self::SourceNodeId {
         self.0
     }
 
+    #[inline]
     fn destination(&self) -> Self::DestinationNodeId {
         self.1
     }
@@ -22,10 +24,12 @@ impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Weight: 
     type SourceNodeId = SourceNodeId;
     type DestinationNodeId = DestinationNodeId;
 
+    #[inline]
     fn source(&self) -> Self::SourceNodeId {
         self.0
     }
 
+    #[inline]
     fn destination(&self) -> Self::DestinationNodeId {
         self.1
     }
@@ -36,6 +40,7 @@ impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Weight: 
 {
     type Attribute = Weight;
 
+    #[inline]
     fn attribute(&self) -> Self::Attribute {
         self.2
     }

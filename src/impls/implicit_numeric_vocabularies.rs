@@ -8,24 +8,29 @@ impl Vocabulary for u8 {
     type Sources<'a> = core::ops::Range<u8>;
     type Destinations<'a> = core::ops::Range<u8>;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         Some(*source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         usize::from(*self)
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..*self
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         0..*self
     }
 }
 
 impl BidirectionalVocabulary for u8 {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         Some(*destination)
     }
@@ -37,24 +42,29 @@ impl Vocabulary for u16 {
     type Sources<'a> = core::ops::Range<u16>;
     type Destinations<'a> = core::ops::Range<u16>;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         Some(*source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         usize::from(*self)
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..*self
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         0..*self
     }
 }
 
 impl BidirectionalVocabulary for u16 {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         Some(*destination)
     }
@@ -66,24 +76,29 @@ impl Vocabulary for u32 {
     type Sources<'a> = core::ops::Range<u32>;
     type Destinations<'a> = core::ops::Range<u32>;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         Some(*source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         *self as usize
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..*self
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         0..*self
     }
 }
 
 impl BidirectionalVocabulary for u32 {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         Some(*destination)
     }
@@ -95,24 +110,29 @@ impl Vocabulary for usize {
     type Sources<'a> = core::ops::Range<usize>;
     type Destinations<'a> = core::ops::Range<usize>;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         Some(*source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         *self
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..*self
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         0..*self
     }
 }
 
 impl BidirectionalVocabulary for usize {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         Some(*destination)
     }
@@ -124,25 +144,30 @@ impl Vocabulary for u64 {
     type Sources<'a> = core::ops::Range<u64>;
     type Destinations<'a> = core::ops::Range<u64>;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         Some(*source)
     }
 
     #[allow(clippy::cast_possible_truncation)]
+    #[inline]
     fn len(&self) -> usize {
         *self as usize
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..*self
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         0..*self
     }
 }
 
 impl BidirectionalVocabulary for u64 {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         Some(*destination)
     }

@@ -16,6 +16,7 @@ pub struct SortedVec<V> {
 }
 
 impl<V> Default for SortedVec<V> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -27,6 +28,7 @@ where
 {
     type Error = SortedError<V>;
 
+    #[inline]
     fn try_from(vec: Vec<V>) -> Result<Self, Self::Error> {
         if vec.is_sorted() {
             Ok(Self { vec })
@@ -45,6 +47,7 @@ where
 }
 
 impl<V: Ord> TransmuteFrom<Vec<V>> for SortedVec<V> {
+    #[inline]
     unsafe fn transmute_from(source: Vec<V>) -> Self {
         debug_assert!(source.is_sorted(), "The source vector is not sorted.");
         Self { vec: source }
@@ -57,6 +60,7 @@ where
 {
     type Output = <Vec<V> as Index<Idx>>::Output;
 
+    #[inline]
     fn index(&self, index: Idx) -> &Self::Output {
         &self.vec[index]
     }
@@ -65,47 +69,55 @@ where
 impl<V> SortedVec<V> {
     #[must_use]
     /// Returns a new instance of the struct.
+    #[inline]
     pub fn new() -> Self {
         Self { vec: Vec::new() }
     }
 
     #[must_use]
     /// Returns a new instance of the struct with the provided capacity.
+    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self { vec: Vec::with_capacity(capacity) }
     }
 
     #[must_use]
     /// Returns the entry at the provided index.
+    #[inline]
     pub fn get(&self, index: usize) -> Option<&V> {
         self.vec.get(index)
     }
 
     #[must_use]
     /// Returns the length of the vector.
+    #[inline]
     pub fn len(&self) -> usize {
         self.vec.len()
     }
 
     #[must_use]
     /// Returns whether the vector is empty.
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.vec.is_empty()
     }
 
     /// Returns an iterator over the vector.
+    #[inline]
     pub fn iter(&self) -> core::slice::Iter<'_, V> {
         self.into_iter()
     }
 
     #[must_use]
     /// Returns a reference to the last node in the vector, if any.
+    #[inline]
     pub fn last(&self) -> Option<&V> {
         self.vec.last()
     }
 
     #[must_use]
     /// Returns a reference to the first node in the vector, if any.
+    #[inline]
     pub fn first(&self) -> Option<&V> {
         self.vec.first()
     }
@@ -119,6 +131,7 @@ impl<V> SortedVec<V> {
     /// * `Err(usize)` if the value is not found, containing the index where it
     ///   could be inserted to maintain sorted order.
     /// * `Ok(usize)` if the value is found, containing the index of the value.
+    #[inline]
     pub fn binary_search(&self, value: &V) -> Result<usize, usize>
     where
         V: Ord,
@@ -135,6 +148,7 @@ impl<V> SortedVec<V> {
     /// * `Err(usize)` if the value is not found, containing the index where it
     ///   could be inserted to maintain sorted order.
     /// * `Ok(usize)` if the value is found, containing the index of the value.
+    #[inline]
     pub fn binary_search_by<F>(&self, f: F) -> Result<usize, usize>
     where
         F: FnMut(&V) -> core::cmp::Ordering,
@@ -146,6 +160,7 @@ impl<V> SortedVec<V> {
 impl<V: PartialOrd> SortedVec<V> {
     #[must_use]
     /// Returns whether the vector is sorted.
+    #[inline]
     pub fn is_sorted(&self) -> bool {
         true
     }
@@ -159,6 +174,7 @@ impl<V: PartialOrd> SortedVec<V> {
     /// # Errors
     ///
     /// * `Error::UnsortedPush(v)` if the value is not sorted.
+    #[inline]
     pub fn push(&mut self, value: V) -> Result<(), SortedError<V>> {
         if self.last().is_some_and(|last| last >= &value) {
             Err(SortedError::UnsortedEntry(value))
@@ -173,12 +189,14 @@ impl<'a, V> IntoIterator for &'a SortedVec<V> {
     type Item = &'a V;
     type IntoIter = core::slice::Iter<'a, V>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.vec.iter()
     }
 }
 
 impl<V> AsRef<[V]> for SortedVec<V> {
+    #[inline]
     fn as_ref(&self) -> &[V] {
         &self.vec
     }
@@ -196,18 +214,22 @@ impl<V: Symbol> Vocabulary for SortedVec<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         self.get(*source).cloned()
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.len()
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..self.len()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         self.iter().cloned()
     }
@@ -219,30 +241,36 @@ impl<V: Symbol> VocabularyRef for SortedVec<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
         self.get(*source)
     }
 
+    #[inline]
     fn destination_refs(&self) -> Self::DestinationRefs<'_> {
         self.iter()
     }
 }
 
 impl<V: Symbol + Ord> BidirectionalVocabulary for SortedVec<V> {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         self.as_ref().binary_search(destination).ok()
     }
 }
 
 impl<V: Symbol + Ord> GrowableVocabulary for SortedVec<V> {
+    #[inline]
     fn new() -> Self {
         SortedVec::new()
     }
 
+    #[inline]
     fn with_capacity(capacity: usize) -> Self {
         SortedVec::with_capacity(capacity)
     }
 
+    #[inline]
     fn add(
         &mut self,
         source: Self::SourceSymbol,

@@ -95,6 +95,7 @@ impl<'a, V, const N: usize> IntoIterator for &'a SortedArray<V, N> {
     type Item = &'a V;
     type IntoIter = core::slice::Iter<'a, V>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.array.iter()
     }

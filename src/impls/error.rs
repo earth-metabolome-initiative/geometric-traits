@@ -15,6 +15,7 @@ pub enum Error<M: Matrix2D> {
 }
 
 impl<M: Matrix2D> Debug for Error<M> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         <Self as core::fmt::Display>::fmt(self, f)
     }
@@ -43,6 +44,7 @@ pub enum MutabilityError<M: Matrix2D + ?Sized> {
 }
 
 impl<M: Matrix2D> Debug for MutabilityError<M> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         <Self as core::fmt::Display>::fmt(self, f)
     }
@@ -51,6 +53,7 @@ impl<M: Matrix2D> Debug for MutabilityError<M> {
 impl<M: Matrix2D> core::error::Error for MutabilityError<M> {}
 
 impl<M: Matrix2D> core::fmt::Display for MutabilityError<M> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         match self {
             MutabilityError::UnorderedCoordinate(coordinates) => {
@@ -86,6 +89,7 @@ impl<M> From<MutabilityError<SquareCSR2D<M>>> for MutabilityError<UpperTriangula
 where
     M: Matrix2D,
 {
+    #[inline]
     fn from(error: MutabilityError<SquareCSR2D<M>>) -> Self {
         match error {
             MutabilityError::UnorderedCoordinate(coordinates) => {
@@ -110,6 +114,7 @@ impl<M> From<MutabilityError<UpperTriangularCSR2D<M>>> for MutabilityError<Symme
 where
     M: Matrix2D,
 {
+    #[inline]
     fn from(error: MutabilityError<UpperTriangularCSR2D<M>>) -> Self {
         match error {
             MutabilityError::UnorderedCoordinate(coordinates) => {
@@ -134,6 +139,7 @@ impl<M> From<MutabilityError<M>> for MutabilityError<SquareCSR2D<M>>
 where
     M: Matrix2D,
 {
+    #[inline]
     fn from(error: MutabilityError<M>) -> Self {
         match error {
             MutabilityError::UnorderedCoordinate(coordinates) => {
@@ -163,6 +169,7 @@ where
     ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>:
         Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
+    #[inline]
     fn from(error: MutabilityError<CSR2D<SparseIndex, RowIndex, ColumnIndex>>) -> Self {
         match error {
             MutabilityError::UnorderedCoordinate(coordinates) => {

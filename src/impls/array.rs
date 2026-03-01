@@ -16,18 +16,22 @@ impl<V: Symbol, const N: usize> crate::traits::Vocabulary for [V; N] {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         self.get(*source).cloned()
     }
 
+    #[inline]
     fn len(&self) -> usize {
         N
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..self.len()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         self.iter().cloned()
     }
@@ -39,16 +43,19 @@ impl<V: Symbol, const N: usize> crate::traits::VocabularyRef for [V; N] {
     where
         Self: 'a;
 
+    #[inline]
     fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
         self.get(*source)
     }
 
+    #[inline]
     fn destination_refs(&self) -> Self::DestinationRefs<'_> {
         self.iter()
     }
 }
 
 impl<V: Symbol, const N: usize> crate::traits::BidirectionalVocabulary for [V; N] {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         self.iter().position(|v| v == destination)
     }
@@ -58,10 +65,12 @@ impl<NodeId: PositiveInteger> crate::traits::Edge for [NodeId; 2] {
     type SourceNodeId = NodeId;
     type DestinationNodeId = NodeId;
 
+    #[inline]
     fn source(&self) -> Self::SourceNodeId {
         self[0]
     }
 
+    #[inline]
     fn destination(&self) -> Self::DestinationNodeId {
         self[1]
     }

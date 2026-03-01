@@ -18,18 +18,22 @@ macro_rules! impl_hashmap {
             where
                 Self: 'a;
 
+            #[inline]
             fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
                 self.get(source).cloned()
             }
 
+            #[inline]
             fn len(&self) -> usize {
                 self.len()
             }
 
+            #[inline]
             fn sources(&self) -> Self::Sources<'_> {
                 self.keys().cloned()
             }
 
+            #[inline]
             fn destinations(&self) -> Self::Destinations<'_> {
                 self.values().cloned()
             }
@@ -41,16 +45,19 @@ macro_rules! impl_hashmap {
             where
                 Self: 'a;
 
+            #[inline]
             fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
                 self.get(source)
             }
 
+            #[inline]
             fn destination_refs(&self) -> Self::DestinationRefs<'_> {
                 self.values()
             }
         }
 
         impl<K: Symbol, V: Symbol, S: BuildHasher + Clone> BidirectionalVocabulary for $Map<K, V, S> {
+            #[inline]
             fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
                 self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k.clone())
             }
@@ -62,10 +69,12 @@ macro_rules! impl_hashmap {
             where
                 Self: 'a;
 
+            #[inline]
             fn invert_ref(&self, destination: &Self::DestinationSymbol) -> Option<&Self::SourceSymbol> {
                 self.iter().find(|(_, v)| v == &destination).map(|(k, _)| k)
             }
 
+            #[inline]
             fn source_refs(&self) -> Self::SourceRefs<'_> {
                 self.keys()
             }
@@ -74,15 +83,18 @@ macro_rules! impl_hashmap {
         impl<K: Symbol, V: Symbol, S: BuildHasher + Default + Clone> GrowableVocabulary
             for $Map<K, V, S>
         {
+            #[inline]
             fn new() -> Self {
                 // In hashbrown and std, with_hasher is consistent
                 $Map::with_hasher(Default::default())
             }
 
+            #[inline]
             fn with_capacity(capacity: usize) -> Self {
                 $Map::with_capacity_and_hasher(capacity, Default::default())
             }
 
+            #[inline]
             fn add(
                 &mut self,
                 source: K,

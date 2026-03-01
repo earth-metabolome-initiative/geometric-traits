@@ -18,18 +18,22 @@ impl<V: Symbol> Vocabulary for Vec<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         self.get(*source).cloned()
     }
 
+    #[inline]
     fn len(&self) -> usize {
         self.len()
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         0..self.len()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         self.iter().cloned()
     }
@@ -41,30 +45,36 @@ impl<V: Symbol> VocabularyRef for Vec<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
         self.get(*source)
     }
 
+    #[inline]
     fn destination_refs(&self) -> Self::DestinationRefs<'_> {
         self.iter()
     }
 }
 
 impl<V: Symbol> BidirectionalVocabulary for Vec<V> {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         self.iter().position(|v| v == destination)
     }
 }
 
 impl<V: Symbol + Ord> GrowableVocabulary for Vec<V> {
+    #[inline]
     fn new() -> Self {
         Vec::new()
     }
 
+    #[inline]
     fn with_capacity(capacity: usize) -> Self {
         Vec::with_capacity(capacity)
     }
 
+    #[inline]
     fn add(
         &mut self,
         source: Self::SourceSymbol,

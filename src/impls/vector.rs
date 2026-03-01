@@ -14,14 +14,17 @@ impl<V> Vector for [V] {
     where
         Self: 'a;
 
+    #[inline]
     fn indices(&self) -> Self::Indices<'_> {
         0..self.len()
     }
 
+    #[inline]
     fn len(&self) -> usize {
         <[V]>::len(self)
     }
 
+    #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         self.iter()
     }
@@ -43,14 +46,17 @@ impl<V> Vector for Vec<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn indices(&self) -> Self::Indices<'_> {
         0..self.len()
     }
 
+    #[inline]
     fn len(&self) -> usize {
         Vec::len(self)
     }
 
+    #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         self.as_slice().iter()
     }
@@ -68,14 +74,17 @@ impl<V, const N: usize> Vector for [V; N] {
     where
         Self: 'a;
 
+    #[inline]
     fn indices(&self) -> Self::Indices<'_> {
         0..N
     }
 
+    #[inline]
     fn len(&self) -> usize {
         N
     }
 
+    #[inline]
     fn iter(&self) -> Self::Iter<'_> {
         <[V]>::iter(self)
     }
