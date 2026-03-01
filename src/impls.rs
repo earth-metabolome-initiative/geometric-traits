@@ -33,6 +33,8 @@ mod squared_csr2d;
 #[cfg(feature = "alloc")]
 mod symmetric_csr;
 #[cfg(feature = "alloc")]
+pub(crate) mod square_padding_utils;
+#[cfg(feature = "alloc")]
 mod upper_triangular_csr;
 #[cfg(feature = "alloc")]
 mod valued_csr2d;

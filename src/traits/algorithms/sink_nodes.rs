@@ -3,8 +3,7 @@
 //! graph, which are the set of nodes with no successors.
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-
+use super::node_classification::predecessor_successor_flags;
 use crate::traits::MonoplexMonopartiteGraph;
 /// Trait providing the `sink_nodes` method, which returns the sink nodes of the
 /// graph. A sink node is a node with no successors.
@@ -40,25 +39,13 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
     /// assert_eq!(graph.sink_nodes(), vec![1]);
     /// ```
     fn sink_nodes(&self) -> Vec<Self::NodeId> {
-        let mut visited = vec![false; self.number_of_nodes().as_()];
+        let (has_predecessor, has_successor) = predecessor_successor_flags(self);
 
-        // Iterate over all nodes and mark the successors of each node as
-        // visited. A node is considered visited if it has a predecessor.
-        for node in self.node_ids() {
-            // Mark the successors of the node as visited.
-            for successor_node_id in self.successors(node) {
-                visited[successor_node_id.as_()] = true;
-            }
-        }
-        // Finally, we iterate over all nodes and keep the nodes that have not
-        // been visited. A node is considered visited if it has a predecessor.
         self.node_ids()
-            .zip(visited)
-            .filter_map(
-                |(node, visited)| {
-                    if visited && !self.has_successors(node) { Some(node) } else { None }
-                },
-            )
+            .zip(has_predecessor.into_iter().zip(has_successor))
+            .filter_map(|(node, (has_predecessor, has_successor))| {
+                (has_predecessor && !has_successor).then_some(node)
+            })
             .collect()
     }
 }

@@ -3,8 +3,7 @@
 //! graph, which are the set of nodes with no predecessors.
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-
+use super::node_classification::predecessor_successor_flags;
 use crate::traits::MonoplexMonopartiteGraph;
 
 /// Trait providing the `root_nodes` method, which returns the root nodes of the
@@ -40,24 +39,11 @@ pub trait RootNodes: MonoplexMonopartiteGraph {
     /// assert_eq!(roots, vec![0, 2]);
     /// ```
     fn root_nodes(&self) -> Vec<Self::NodeId> {
-        // Create a vector to store whether a node has been visited or not
-        // and initialize it to false for all nodes.
-        let mut visited = vec![false; self.number_of_nodes().as_()];
+        let (has_predecessor, _) = predecessor_successor_flags(self);
 
-        // Iterate over all nodes and mark the successors of each node as
-        // visited. A node is considered visited if it has a predecessor.
-        for node in self.node_ids() {
-            // Mark the successors of the node as visited.
-            for successor_node_id in self.successors(node) {
-                visited[successor_node_id.as_()] = true;
-            }
-        }
-
-        // Finally, we iterate over all nodes and keep the nodes that have not
-        // been visited. A node is considered visited if it has a predecessor.
         self.node_ids()
-            .zip(visited)
-            .filter_map(|(node, visited)| if visited { None } else { Some(node) })
+            .zip(has_predecessor)
+            .filter_map(|(node, has_predecessor)| (!has_predecessor).then_some(node))
             .collect()
     }
 }

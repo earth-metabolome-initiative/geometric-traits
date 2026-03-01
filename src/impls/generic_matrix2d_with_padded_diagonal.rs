@@ -18,7 +18,10 @@ mod sparse_row_values_with_padded_diagonal;
 use multi_ranged::{SimpleRange, Step};
 use sparse_row_values_with_padded_diagonal::SparseRowValuesWithPaddedDiagonal;
 
-use super::{CSR2DColumns, CSR2DView, M2DValues, MutabilityError};
+use super::{
+    CSR2DColumns, CSR2DView, M2DValues, MutabilityError, square_padding_utils::padded_square_size,
+    square_padding_utils::validate_padded_square_capacity,
+};
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
@@ -50,14 +53,7 @@ where
     /// * Returns an error if the number of rows or columns exceeds the maximum
     ///   allowed size for the given row and column index types.
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
-        let number_of_columns: usize = matrix.number_of_columns().as_();
-        let number_of_rows: usize = matrix.number_of_rows().as_();
-        if number_of_columns > M::RowIndex::max_value().as_() {
-            return Err(MutabilityError::<M>::MaxedOutColumnIndex);
-        }
-        if number_of_rows > M::ColumnIndex::max_value().as_() {
-            return Err(MutabilityError::<M>::MaxedOutRowIndex);
-        }
+        validate_padded_square_capacity(&matrix)?;
 
         Ok(Self { matrix, map })
     }
@@ -112,9 +108,7 @@ where
     type ColumnIndex = M::ColumnIndex;
 
     fn number_of_columns(&self) -> Self::ColumnIndex {
-        let number_of_columns: usize = self.matrix.number_of_columns().as_();
-        let number_of_rows: usize = self.matrix.number_of_rows().as_();
-        let max = number_of_columns.max(number_of_rows);
+        let max = padded_square_size(&self.matrix);
         let Ok(number_of_columns) = Self::ColumnIndex::try_from_usize(max) else {
             panic!("The number of columns {max} is too large to be represented as a ColumnIndex")
         };
@@ -122,9 +116,7 @@ where
     }
 
     fn number_of_rows(&self) -> Self::RowIndex {
-        let number_of_columns: usize = self.matrix.number_of_columns().as_();
-        let number_of_rows: usize = self.matrix.number_of_rows().as_();
-        let max = number_of_columns.max(number_of_rows);
+        let max = padded_square_size(&self.matrix);
         let Ok(number_of_rows) = Self::RowIndex::try_from_usize(max) else {
             panic!("The number of rows {max} is too large to be represented as a RowIndex")
         };

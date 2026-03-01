@@ -6,7 +6,7 @@ use core::fmt::Debug;
 
 use num_traits::{AsPrimitive, Bounded};
 
-use super::MutabilityError;
+use super::{MutabilityError, square_padding_utils::validate_padded_square_capacity};
 use crate::traits::{Matrix2D, SparseMatrix2D, SparseValuedMatrix2D, ValuedMatrix};
 
 mod imputed_row_values;
@@ -74,14 +74,7 @@ where
     /// * `MutabilityError::MaxedOutRowIndex` - The number of rows in the matrix
     ///   exceeds the maximum row index.
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
-        let number_of_columns: usize = matrix.number_of_columns().as_();
-        let number_of_rows: usize = matrix.number_of_rows().as_();
-        if number_of_columns > M::RowIndex::max_value().as_() {
-            return Err(MutabilityError::<M>::MaxedOutColumnIndex);
-        }
-        if number_of_rows > M::ColumnIndex::max_value().as_() {
-            return Err(MutabilityError::<M>::MaxedOutRowIndex);
-        }
+        validate_padded_square_capacity(&matrix)?;
 
         Ok(Self { matrix, map })
     }

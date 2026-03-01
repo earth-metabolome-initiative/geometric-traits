@@ -9,6 +9,8 @@ pub mod cycle_detection;
 #[cfg(feature = "alloc")]
 pub use cycle_detection::CycleDetection;
 #[cfg(feature = "alloc")]
+mod node_classification;
+#[cfg(feature = "alloc")]
 pub mod root_nodes;
 #[cfg(feature = "alloc")]
 pub use root_nodes::RootNodes;
