@@ -10,6 +10,15 @@ use geometric_traits::traits::{LAPError, LAPJVError, LAPMODError};
 // ============================================================================
 
 #[test]
+fn test_lapmod_error_non_fractional_value_type_unsupported() {
+    let e = LAPMODError::NonFractionalValueTypeUnsupported;
+    assert_eq!(
+        format!("{e}"),
+        "The matrix value type is non-fractional and is not supported by LAP algorithms."
+    );
+}
+
+#[test]
 fn test_lapmod_error_non_square_matrix() {
     let e = LAPMODError::NonSquareMatrix;
     assert_eq!(format!("{e}"), "The matrix is not square.");
@@ -86,6 +95,15 @@ fn test_lapmod_error_debug_clone_eq() {
 // ============================================================================
 // LAPError Display
 // ============================================================================
+
+#[test]
+fn test_lap_error_non_fractional_value_type_unsupported() {
+    let e = LAPError::NonFractionalValueTypeUnsupported;
+    assert_eq!(
+        format!("{e}"),
+        "The matrix value type is non-fractional and is not supported by LAP algorithms."
+    );
+}
 
 #[test]
 fn test_lap_error_non_square_matrix() {
@@ -176,6 +194,10 @@ fn test_lap_error_debug_clone_eq() {
 
 #[test]
 fn test_from_lapmod_to_lap_error_all_variants() {
+    assert_eq!(
+        LAPError::from(LAPMODError::NonFractionalValueTypeUnsupported),
+        LAPError::NonFractionalValueTypeUnsupported
+    );
     assert_eq!(LAPError::from(LAPMODError::NonSquareMatrix), LAPError::NonSquareMatrix);
     assert_eq!(LAPError::from(LAPMODError::EmptyMatrix), LAPError::EmptyMatrix);
     assert_eq!(LAPError::from(LAPMODError::ZeroValues), LAPError::ZeroValues);
@@ -196,6 +218,10 @@ fn test_from_lapmod_to_lap_error_all_variants() {
 
 #[test]
 fn test_from_lapjv_to_lap_error_all_variants() {
+    assert_eq!(
+        LAPError::from(LAPJVError::NonFractionalValueTypeUnsupported),
+        LAPError::NonFractionalValueTypeUnsupported
+    );
     assert_eq!(LAPError::from(LAPJVError::NonSquareMatrix), LAPError::NonSquareMatrix);
     assert_eq!(LAPError::from(LAPJVError::EmptyMatrix), LAPError::EmptyMatrix);
     assert_eq!(LAPError::from(LAPJVError::ZeroValues), LAPError::ZeroValues);

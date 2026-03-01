@@ -6,6 +6,15 @@ use std::error::Error;
 use geometric_traits::prelude::LAPJVError;
 
 #[test]
+fn test_lapjv_error_non_fractional_value_type_unsupported() {
+    let err = LAPJVError::NonFractionalValueTypeUnsupported;
+    assert_eq!(
+        format!("{err}"),
+        "The matrix value type is non-fractional and is not supported by LAP algorithms."
+    );
+}
+
+#[test]
 fn test_lapjv_error_non_square_matrix() {
     let err = LAPJVError::NonSquareMatrix;
     assert_eq!(format!("{err}"), "The matrix is not square.");

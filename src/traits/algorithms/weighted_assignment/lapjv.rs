@@ -11,7 +11,10 @@ pub use errors::LAPJVError;
 use inner::Inner;
 use num_traits::Zero;
 
-use super::{LAPError, lap_error::validate_sparse_wrapper_costs};
+use super::{
+    LAPError,
+    lap_error::{validate_fractional_value_domain, validate_sparse_wrapper_costs},
+};
 use crate::{
     impls::PaddedMatrix2D,
     traits::{DenseValuedMatrix2D, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
@@ -39,6 +42,8 @@ where
     /// # Errors
     ///
     /// Returns an error if:
+    /// - The value type is non-fractional
+    ///   (`LAPJVError::NonFractionalValueTypeUnsupported`)
     /// - `max_cost` is not a finite number (`LAPJVError::MaximalCostNotFinite`)
     /// - `max_cost` is not positive (`LAPJVError::MaximalCostNotPositive`)
     /// - The matrix is not square (`LAPJVError::NonSquareMatrix`)
@@ -55,6 +60,9 @@ where
     where
         <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
+        validate_fractional_value_domain::<Self::Value>()
+            .map_err(|_| LAPJVError::NonFractionalValueTypeUnsupported)?;
+
         if !max_cost.is_finite() {
             return Err(LAPJVError::MaximalCostNotFinite);
         }
@@ -108,6 +116,8 @@ where
     /// # Errors
     ///
     /// Returns an error if:
+    /// - The value type is non-fractional
+    ///   (`LAPError::NonFractionalValueTypeUnsupported`)
     /// - `padding_cost` is not a finite number
     ///   (`LAPError::PaddingValueNotFinite`)
     /// - `padding_cost` is not positive (`LAPError::PaddingValueNotPositive`)
@@ -141,6 +151,7 @@ where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
+        validate_fractional_value_domain::<Self::Value>()?;
         validate_sparse_wrapper_costs(padding_cost, max_cost)?;
         if self.is_empty() {
             return Ok(vec![]);
@@ -172,6 +183,9 @@ where
 impl From<LAPJVError> for LAPError {
     fn from(error: LAPJVError) -> Self {
         match error {
+            LAPJVError::NonFractionalValueTypeUnsupported => {
+                LAPError::NonFractionalValueTypeUnsupported
+            }
             LAPJVError::NonSquareMatrix => LAPError::NonSquareMatrix,
             LAPJVError::EmptyMatrix => LAPError::EmptyMatrix,
             LAPJVError::ZeroValues => LAPError::ZeroValues,

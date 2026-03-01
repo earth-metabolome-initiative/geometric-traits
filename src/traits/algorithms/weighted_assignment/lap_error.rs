@@ -4,6 +4,11 @@ use crate::traits::{Finite, Number};
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Errors that can occur while executing sparse LAP wrapper algorithms.
 pub enum LAPError {
+    /// The value type is non-fractional, which is not supported by LAP routines.
+    #[error(
+        "The matrix value type is non-fractional and is not supported by LAP algorithms."
+    )]
+    NonFractionalValueTypeUnsupported,
     /// The matrix is not square.
     #[error("The matrix is not square.")]
     NonSquareMatrix,
@@ -76,6 +81,22 @@ where
     }
     if padding_cost >= max_cost {
         return Err(LAPError::ValueTooLarge);
+    }
+
+    Ok(())
+}
+
+/// Validates that the value domain supports fractional arithmetic needed by
+/// LAP reduced-cost updates and epsilon constructions.
+pub(crate) fn validate_fractional_value_domain<V>() -> Result<(), LAPError>
+where
+    V: Number + Finite,
+{
+    let one = V::one();
+    let two = one + one;
+
+    if two == V::zero() || one / two == V::zero() {
+        return Err(LAPError::NonFractionalValueTypeUnsupported);
     }
 
     Ok(())

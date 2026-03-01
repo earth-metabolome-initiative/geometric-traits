@@ -12,8 +12,17 @@ use geometric_traits::{
 };
 
 // ============================================================================
-// LAPJVError Display (10 variants, all manual Display impl)
+// LAPJVError Display (11 variants)
 // ============================================================================
+
+#[test]
+fn test_lapjv_non_fractional_value_type_unsupported() {
+    let e = LAPJVError::NonFractionalValueTypeUnsupported;
+    assert_eq!(
+        format!("{e}"),
+        "The matrix value type is non-fractional and is not supported by LAP algorithms."
+    );
+}
 
 #[test]
 fn test_lapjv_non_square_matrix() {
