@@ -71,6 +71,15 @@ fn test_density_quarter() {
     assert!((density - 0.25).abs() < 1e-10, "Quarter density should be 0.25, got {density}");
 }
 
+#[test]
+fn test_density_empty_matrix_is_zero() {
+    let csr: TestCSR2D = CSR2D::with_sparse_shaped_capacity((0, 0), 0);
+    let density = csr.density();
+    assert!(density.abs() < f64::EPSILON, "Empty matrix density should be 0.0, got {density}");
+    assert!(density.is_finite(), "Empty matrix density should be finite");
+    assert!(!density.is_nan(), "Empty matrix density should not be NaN");
+}
+
 // ============================================================================
 // SquareMatrix::order
 // ============================================================================

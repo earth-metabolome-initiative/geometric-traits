@@ -145,6 +145,9 @@ pub trait SizedSparseMatrix: SparseMatrix {
     fn density(&self) -> f64 {
         let defined_values = self.number_of_defined_values().as_();
         let total_values = self.total_values();
+        if total_values == 0 {
+            return 0.0;
+        }
         defined_values as f64 / total_values as f64
     }
 
