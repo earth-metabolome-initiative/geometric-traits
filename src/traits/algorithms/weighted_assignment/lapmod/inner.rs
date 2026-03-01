@@ -251,20 +251,28 @@ where
         &self,
         distances: &[M::Value],
         scan: &mut [M::ColumnIndex],
-        n_todo: usize,
-        todo: &[M::ColumnIndex],
+        todo: &mut [M::ColumnIndex],
+        n_todo_ref: &mut usize,
         done: &[bool],
     ) -> usize {
+        // Compact the TODO worklist in-place so settled columns are never
+        // rescanned in later rounds.
+        let mut compacted_n_todo = 0usize;
+        for read_idx in 0..*n_todo_ref {
+            let col = todo[read_idx];
+            if !done[col.as_()] {
+                todo[compacted_n_todo] = col;
+                compacted_n_todo += 1;
+            }
+        }
+        *n_todo_ref = compacted_n_todo;
+
         let mut hi = 0usize;
         let mut minimum_distance = self.max_cost;
         let mut has_minimum = false;
 
-        for &col in &todo[0..n_todo] {
+        for &col in &todo[0..compacted_n_todo] {
             let col_usize = col.as_();
-            if done[col_usize] {
-                continue;
-            }
-
             let distance = distances[col_usize];
             if !has_minimum || distance <= minimum_distance {
                 if !has_minimum || distance < minimum_distance {
@@ -313,6 +321,7 @@ where
         while lower_bound != upper_bound {
             let col = scan[lower_bound];
             lower_bound += 1;
+            debug_assert!(n_ready < ready.len(), "ready worklist overflow");
 
             let AssignmentState::Assigned(row) = self.assigned_rows[col.as_()] else {
                 unreachable!("Frontier column must be assigned to a row during augmentation scan");
@@ -352,10 +361,12 @@ where
                             return Some(neighbour_col);
                         }
 
+                        debug_assert!(upper_bound < scan.len(), "scan worklist overflow");
                         scan[upper_bound] = neighbour_col;
                         upper_bound += 1;
                         done[nc_usize] = true;
                     } else if !added[nc_usize] {
+                        debug_assert!(n_todo < todo.len(), "todo worklist overflow");
                         todo[n_todo] = neighbour_col;
                         n_todo += 1;
                         added[nc_usize] = true;
@@ -408,6 +419,7 @@ where
                 predecessors[col_usize] = start_row;
             }
             if !added[col_usize] {
+                debug_assert!(n_todo < todo.len(), "todo worklist overflow during seeding");
                 todo[n_todo] = col;
                 n_todo += 1;
                 added[col_usize] = true;
@@ -418,7 +430,7 @@ where
             if lower_bound == upper_bound {
                 lower_bound = 0;
                 upper_bound =
-                    self.find_minimum_distance_sparse(distances, scan, n_todo, todo, done);
+                    self.find_minimum_distance_sparse(distances, scan, todo, &mut n_todo, done);
 
                 if upper_bound == 0 {
                     return Err(LAPMODError::InfeasibleAssignment);

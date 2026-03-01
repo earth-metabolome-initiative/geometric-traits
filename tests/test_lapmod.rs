@@ -2,6 +2,7 @@
 #![cfg(feature = "std")]
 
 use std::{
+    collections::HashMap,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -289,6 +290,80 @@ fn test_lapmod_classic_benchmark() {
 
     assert_eq!(lapmod, slapjv);
     assert_eq!(lapmod, vec![(0, 1), (1, 0), (2, 2)]);
+}
+
+#[test]
+/// Matrix with multiple equal-cost optimal matchings. LAPMOD must still return
+/// a perfect matching with optimal objective value.
+fn test_lapmod_equal_cost_multiple_optima() {
+    let costs =
+        [[1.0, 1.0, 9.0, 9.0], [1.0, 1.0, 9.0, 9.0], [9.0, 9.0, 1.0, 1.0], [9.0, 9.0, 1.0, 1.0]];
+    let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from(costs).unwrap();
+
+    let assignment = csr.lapmod(1000.0).expect("LAPMOD failed");
+    assert_eq!(assignment.len(), 4);
+
+    let assignment_cost: f64 =
+        assignment.iter().map(|&(row, column)| costs[usize::from(row)][usize::from(column)]).sum();
+    assert!(
+        (assignment_cost - 4.0).abs() < 1e-9,
+        "Expected optimal cost 4.0, got {assignment_cost}"
+    );
+}
+
+#[test]
+/// Sparse graph with heavily shared frontier columns. Validate that LAPMOD
+/// matches SparseLAPJV objective cost on the same sparse matrix.
+fn test_lapmod_shared_frontier_matches_sparse_lapjv_cost() {
+    let edges: Vec<(u8, u8, f64)> = vec![
+        (0, 0, 1.0),
+        (0, 1, 3.0),
+        (0, 2, 4.0),
+        (1, 0, 2.0),
+        (1, 1, 1.0),
+        (1, 3, 4.0),
+        (2, 1, 2.0),
+        (2, 2, 1.0),
+        (2, 4, 4.0),
+        (3, 2, 2.0),
+        (3, 3, 1.0),
+        (3, 5, 4.0),
+        (4, 3, 2.0),
+        (4, 4, 1.0),
+        (4, 5, 3.0),
+        (5, 0, 4.0),
+        (5, 4, 2.0),
+        (5, 5, 1.0),
+    ];
+
+    let sparse_capacity =
+        u8::try_from(edges.len()).expect("edge list length must fit into u8 in this test");
+    let mut csr: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::with_sparse_shaped_capacity((6, 6), sparse_capacity);
+    for &(row, column, cost) in &edges {
+        csr.add((row, column, cost)).unwrap();
+    }
+
+    let lapmod_assignment = csr.lapmod(1000.0).expect("LAPMOD failed");
+    let sparse_lapjv_assignment = csr.sparse_lapjv(900.0, 1000.0).expect("SparseLAPJV failed");
+    assert_eq!(lapmod_assignment.len(), 6);
+    assert_eq!(sparse_lapjv_assignment.len(), 6);
+
+    let edge_costs: HashMap<(u8, u8), f64> =
+        edges.iter().map(|&(row, column, cost)| ((row, column), cost)).collect();
+
+    let lapmod_cost: f64 = lapmod_assignment
+        .iter()
+        .map(|&(row, column)| *edge_costs.get(&(row, column)).unwrap())
+        .sum();
+    let sparse_lapjv_cost: f64 = sparse_lapjv_assignment
+        .iter()
+        .map(|&(row, column)| *edge_costs.get(&(row, column)).unwrap())
+        .sum();
+    assert!(
+        (lapmod_cost - sparse_lapjv_cost).abs() < 1e-9,
+        "LAPMOD and SparseLAPJV objective costs differ: {lapmod_cost} vs {sparse_lapjv_cost}"
+    );
 }
 
 #[test]
