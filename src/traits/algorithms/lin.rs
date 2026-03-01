@@ -17,6 +17,7 @@ pub struct LinResult<'graph, G: ?Sized + MonoplexMonopartiteGraph>(ResnikResult<
 impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> From<ResnikResult<'graph, G>>
     for LinResult<'graph, G>
 {
+    #[inline]
     fn from(value: ResnikResult<'graph, G>) -> Self {
         Self(value)
     }
@@ -64,6 +65,7 @@ pub trait Lin: Resnik {
     /// assert!(lin.similarity(&0, &0) > 0.99);
     /// assert!(lin.similarity(&0, &1) < 0.99);
     /// ```
+    #[inline]
     fn lin(&self, occurrences: &[usize]) -> Result<LinResult<'_, Self>, InformationContentError> {
         Ok(self.resnik(occurrences)?.into())
     }
@@ -72,6 +74,7 @@ pub trait Lin: Resnik {
 impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<ResnikResult<'graph, G>>
     for LinResult<'graph, G>
 {
+    #[inline]
     fn as_ref(&self) -> &ResnikResult<'graph, G> {
         &self.0
     }
@@ -80,6 +83,7 @@ impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<ResnikResult<'graph, G>
 impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<InformationContentResult<'graph, G>>
     for LinResult<'graph, G>
 {
+    #[inline]
     fn as_ref(&self) -> &InformationContentResult<'graph, G> {
         self.0.as_ref()
     }
@@ -90,6 +94,7 @@ where
     G: MonoplexMonopartiteGraph,
 {
     type Similarity = f64;
+    #[inline]
     fn similarity(&self, left: &G::NodeId, right: &G::NodeId) -> Self::Similarity {
         if left == right {
             return 1.0;

@@ -45,6 +45,7 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
     ///
     /// assert!(!graph.has_cycle());
     /// ```
+    #[inline]
     fn has_cycle(&self) -> bool {
         let n = self.number_of_nodes().as_();
         let mut visited: BitVec = BitVec::repeat(false, n);

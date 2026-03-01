@@ -23,6 +23,7 @@ pub enum InformationContentError {
 }
 
 impl From<KahnError> for InformationContentError {
+    #[inline]
     fn from(value: KahnError) -> Self {
         match value {
             KahnError::Cycle => Self::NotDag,

@@ -20,6 +20,7 @@ pub struct ResnikResult<'graph, G: ?Sized + MonoplexMonopartiteGraph>(
 impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<InformationContentResult<'graph, G>>
     for ResnikResult<'graph, G>
 {
+    #[inline]
     fn as_ref(&self) -> &InformationContentResult<'graph, G> {
         &self.0
     }
@@ -28,6 +29,7 @@ impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<InformationContentResul
 impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> From<InformationContentResult<'graph, G>>
     for ResnikResult<'graph, G>
 {
+    #[inline]
     fn from(value: InformationContentResult<'graph, G>) -> Self {
         Self(value)
     }
@@ -38,6 +40,7 @@ where
     G: MonoplexMonopartiteGraph,
 {
     type Similarity = f64;
+    #[inline]
     fn similarity(&self, left: &G::NodeId, right: &G::NodeId) -> Self::Similarity {
         let mut max_score = 0.0;
         for root_node in self.as_ref().root_nodes() {
@@ -222,6 +225,7 @@ pub trait Resnik: MonoplexMonopartiteGraph {
     /// let resnik = graph.resnik(&[1, 1, 1]).unwrap();
     /// assert!(resnik.similarity(&0, &0) >= 0.0);
     /// ```
+    #[inline]
     fn resnik(
         &self,
         occurrences: &[usize],

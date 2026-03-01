@@ -50,6 +50,7 @@ pub trait Vector: Index<<Self as Vector>::Index, Output = <Self as Vector>::Valu
     fn len(&self) -> Self::Index;
 
     /// Returns whether the vector is empty.
+    #[inline]
     fn is_empty(&self) -> bool {
         self.len() == <Self::Index as Zero>::zero()
     }

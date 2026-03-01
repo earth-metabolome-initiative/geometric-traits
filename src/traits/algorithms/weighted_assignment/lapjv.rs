@@ -53,6 +53,7 @@ where
     /// - The matrix contains non-finite values (`LAPJVError::NonFiniteValues`)
     /// - The matrix contains a value larger than the maximum cost
     ///   (`LAPJVError::ValueTooLarge`)
+    #[inline]
     fn lapjv(
         &self,
         max_cost: Self::Value,
@@ -142,6 +143,7 @@ where
     /// assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
     /// assert_eq!(assignment, vec![(0, 1), (1, 0), (2, 2)]);
     /// ```
+    #[inline]
     fn sparse_lapjv(
         &self,
         padding_cost: Self::Value,
@@ -181,6 +183,7 @@ where
 }
 
 impl From<LAPJVError> for LAPError {
+    #[inline]
     fn from(error: LAPJVError) -> Self {
         match error {
             LAPJVError::NonFractionalValueTypeUnsupported => {

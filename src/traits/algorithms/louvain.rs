@@ -25,6 +25,7 @@ pub struct LouvainConfig {
 }
 
 impl Default for LouvainConfig {
+    #[inline]
     fn default() -> Self {
         Self {
             resolution: 1.0,
@@ -103,12 +104,14 @@ pub enum LouvainError {
 impl From<LouvainError>
     for crate::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError
 {
+    #[inline]
     fn from(error: LouvainError) -> Self {
         Self::LouvainError(error)
     }
 }
 
 impl<G: MonopartiteGraph> From<LouvainError> for crate::errors::MonopartiteError<G> {
+    #[inline]
     fn from(error: LouvainError) -> Self {
         Self::AlgorithmError(error.into())
     }
@@ -128,18 +131,21 @@ pub struct LouvainLevel<Marker> {
 impl<Marker> LouvainLevel<Marker> {
     /// Returns the partition of the original nodes at this level.
     #[must_use]
+    #[inline]
     pub fn partition(&self) -> &[Marker] {
         &self.partition
     }
 
     /// Returns the modularity value at this level.
     #[must_use]
+    #[inline]
     pub fn modularity(&self) -> f64 {
         self.modularity
     }
 
     /// Returns the number of node moves performed at this level.
     #[must_use]
+    #[inline]
     pub fn moved_nodes(&self) -> usize {
         self.moved_nodes
     }
@@ -154,18 +160,21 @@ pub struct LouvainResult<Marker> {
 impl<Marker> LouvainResult<Marker> {
     /// Returns the final partition of original nodes.
     #[must_use]
+    #[inline]
     pub fn final_partition(&self) -> &[Marker] {
         self.levels.last().map_or(&[], LouvainLevel::partition)
     }
 
     /// Returns the final modularity value.
     #[must_use]
+    #[inline]
     pub fn final_modularity(&self) -> f64 {
         self.levels.last().map_or(0.0, |l| l.modularity)
     }
 
     /// Returns all hierarchy levels computed by Louvain.
     #[must_use]
+    #[inline]
     pub fn levels(&self) -> &[LouvainLevel<Marker>] {
         &self.levels
     }
@@ -227,6 +236,7 @@ where
     /// assert_eq!(result.final_partition().len(), 4);
     /// assert!(!result.levels().is_empty());
     /// ```
+    #[inline]
     fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, LouvainError> {
         validate_config(config)?;
 

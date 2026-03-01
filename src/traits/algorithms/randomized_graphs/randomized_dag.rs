@@ -28,6 +28,7 @@ where
         SparseMatrixMut<MinimalShape = usize>,
 {
     #[allow(clippy::cast_possible_truncation)]
+    #[inline]
     fn randomized_dag(seed: u64, nodes: usize) -> Self {
         if nodes <= 1 {
             let edges = G::MonoplexMonopartiteEdges::with_shaped_capacity(nodes, 0);
@@ -71,6 +72,7 @@ where
 pub struct XorShift64(u64);
 
 impl From<u64> for XorShift64 {
+    #[inline]
     fn from(state: u64) -> Self {
         Self(state)
     }
@@ -79,6 +81,7 @@ impl From<u64> for XorShift64 {
 impl Iterator for XorShift64 {
     type Item = u64;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let mut x = self.0;
         x ^= x << 13;

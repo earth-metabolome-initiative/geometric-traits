@@ -38,6 +38,7 @@ pub trait SingletonNodes: MonoplexMonopartiteGraph {
     /// // Node 2 and 3 are singleton nodes because they have no incoming or outgoing edges.
     /// assert_eq!(graph.singleton_nodes(), vec![2, 3]);
     /// ```
+    #[inline]
     fn singleton_nodes(&self) -> Vec<Self::NodeId> {
         let (has_predecessor, has_successor) = predecessor_successor_flags(self);
 

@@ -38,6 +38,7 @@ pub trait SinkNodes: MonoplexMonopartiteGraph {
     /// // Node 2 is isolated, so it is not considered a sink node.
     /// assert_eq!(graph.sink_nodes(), vec![1]);
     /// ```
+    #[inline]
     fn sink_nodes(&self) -> Vec<Self::NodeId> {
         let (has_predecessor, has_successor) = predecessor_successor_flags(self);
 

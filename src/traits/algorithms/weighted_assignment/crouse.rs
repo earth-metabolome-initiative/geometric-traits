@@ -70,6 +70,7 @@ where
     /// - Any matrix value is negative (`CrouseError::NegativeValues`)
     /// - Any matrix value is greater than or equal to `max_cost`
     ///   (`CrouseError::ValueTooLarge`)
+    #[inline]
     fn crouse(
         &self,
         non_edge_cost: f64,

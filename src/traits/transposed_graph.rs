@@ -17,6 +17,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
     /// # Arguments
     ///
     /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
     fn predecessors(
         &self,
         destination_node_id: Self::DestinationNodeId,
@@ -31,6 +32,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
     ///
     /// * `destination_node_id` - The identifier of the destination node.
     /// * `source_node_id` - The identifier of the source node.
+    #[inline]
     fn has_predecessor(
         &self,
         destination_node_id: Self::DestinationNodeId,
@@ -44,6 +46,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
     /// # Arguments
     ///
     /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
     fn has_predecessors(&self, destination_node_id: Self::DestinationNodeId) -> bool {
         self.in_degree(destination_node_id) > Self::SourceNodeId::zero()
     }
@@ -53,11 +56,13 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
     /// # Arguments
     ///
     /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
     fn in_degree(&self, destination_node_id: Self::DestinationNodeId) -> Self::SourceNodeId {
         self.matrix().number_of_defined_values_in_column(destination_node_id)
     }
 
     /// Returns an iterator over the in-bound degrees of the nodes.
+    #[inline]
     fn in_degrees(&self) -> <<Self::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{
         self.matrix().sparse_column_sizes()
     }

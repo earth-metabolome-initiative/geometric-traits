@@ -18,6 +18,7 @@ pub trait SquareMatrix: Matrix2D<RowIndex = Self::Index, ColumnIndex = Self::Ind
 impl<M: SquareMatrix> SquareMatrix for &M {
     type Index = M::Index;
 
+    #[inline]
     fn order(&self) -> Self::Index {
         (*self).order()
     }
@@ -30,6 +31,7 @@ pub trait SparseSquareMatrix: SquareMatrix + SparseMatrix2D {
 }
 
 impl<M: SparseSquareMatrix> SparseSquareMatrix for &M {
+    #[inline]
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         (*self).number_of_defined_diagonal_values()
     }

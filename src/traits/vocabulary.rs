@@ -52,6 +52,7 @@ pub trait Vocabulary: Debug {
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol>;
 
     /// Returns whether the vocabulary is empty.
+    #[inline]
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -78,18 +79,22 @@ impl<V: Vocabulary + ?Sized> Vocabulary for &V {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         (*self).convert(source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         (*self).len()
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         (*self).sources()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         (*self).destinations()
     }
@@ -108,18 +113,22 @@ impl<V: Vocabulary + ?Sized> Vocabulary for Box<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         (**self).convert(source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         (**self).len()
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         (**self).sources()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         (**self).destinations()
     }
@@ -138,18 +147,22 @@ impl<V: Vocabulary + ?Sized> Vocabulary for Rc<V> {
     where
         Self: 'a;
 
+    #[inline]
     fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
         (**self).convert(source)
     }
 
+    #[inline]
     fn len(&self) -> usize {
         (**self).len()
     }
 
+    #[inline]
     fn sources(&self) -> Self::Sources<'_> {
         (**self).sources()
     }
 
+    #[inline]
     fn destinations(&self) -> Self::Destinations<'_> {
         (**self).destinations()
     }
@@ -176,10 +189,12 @@ impl<V: VocabularyRef + ?Sized> VocabularyRef for &V {
     where
         Self: 'a;
 
+    #[inline]
     fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
         (*self).convert_ref(source)
     }
 
+    #[inline]
     fn destination_refs(&self) -> Self::DestinationRefs<'_> {
         (*self).destination_refs()
     }
@@ -193,6 +208,7 @@ pub trait BidirectionalVocabulary: Vocabulary {
 }
 
 impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for &V {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         (*self).invert(destination)
     }
@@ -200,6 +216,7 @@ impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for &V {
 
 #[cfg(feature = "alloc")]
 impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for Box<V> {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         (**self).invert(destination)
     }
@@ -207,6 +224,7 @@ impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for Box<V> {
 
 #[cfg(feature = "alloc")]
 impl<V: BidirectionalVocabulary + ?Sized> BidirectionalVocabulary for Rc<V> {
+    #[inline]
     fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
         (**self).invert(destination)
     }
@@ -233,10 +251,12 @@ impl<V: BidirectionalVocabularyRef + ?Sized> BidirectionalVocabularyRef for &V {
     where
         Self: 'a;
 
+    #[inline]
     fn invert_ref(&self, destination: &Self::DestinationSymbol) -> Option<&Self::SourceSymbol> {
         (*self).invert_ref(destination)
     }
 
+    #[inline]
     fn source_refs(&self) -> Self::SourceRefs<'_> {
         (*self).source_refs()
     }

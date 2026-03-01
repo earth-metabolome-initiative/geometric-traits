@@ -26,12 +26,14 @@ pub trait TotalOrd {
 }
 
 impl TotalOrd for f32 {
+    #[inline]
     fn total_cmp(&self, other: &Self) -> Ordering {
         self.total_cmp(other)
     }
 }
 
 impl TotalOrd for f64 {
+    #[inline]
     fn total_cmp(&self, other: &Self) -> Ordering {
         self.total_cmp(other)
     }
@@ -41,6 +43,7 @@ macro_rules! impl_total_ord {
     ($($t:ty),*) => {
         $(
             impl TotalOrd for $t {
+                #[inline]
                 fn total_cmp(&self, other: &Self) -> Ordering {
                     self.cmp(other)
                 }

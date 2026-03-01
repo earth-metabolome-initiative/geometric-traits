@@ -152,6 +152,7 @@ pub struct ImplicitValuedSparseRowIterator<'matrix, M: SparseMatrix2D> {
 }
 
 impl<M: SparseMatrix2D> Clone for ImplicitValuedSparseRowIterator<'_, M> {
+    #[inline]
     fn clone(&self) -> Self {
         Self { iter: self.iter.clone(), row: self.row, matrix: self.matrix }
     }
@@ -164,6 +165,7 @@ impl<'matrix, M: SparseMatrix2D> ImplicitValuedSparseRowIterator<'matrix, M> {
     ///
     /// * `matrix`: The matrix.
     /// * `row`: The row.
+    #[inline]
     pub fn new(matrix: &'matrix M, row: M::RowIndex) -> Self {
         Self { iter: matrix.sparse_row(row), row, matrix }
     }

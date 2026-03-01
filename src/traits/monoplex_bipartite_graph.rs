@@ -60,6 +60,7 @@ pub trait MonoplexBipartiteGraph:
     /// assert!(dot.contains("L1 -> R0;"));
     /// ```
     #[cfg(feature = "alloc")]
+    #[inline]
     fn to_mb_dot(&self) -> alloc::string::String {
         use core::fmt::Write;
         let mut dot = alloc::string::String::new();

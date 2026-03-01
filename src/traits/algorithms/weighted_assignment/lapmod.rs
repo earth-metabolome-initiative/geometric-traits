@@ -93,6 +93,7 @@ where
     /// assignment.sort_unstable_by_key(|&(r, c)| (r, c));
     /// assert_eq!(assignment, vec![(0, 0), (1, 1), (2, 2)]);
     /// ```
+    #[inline]
     fn lapmod(
         &self,
         max_cost: Self::Value,
@@ -223,6 +224,7 @@ where
     /// - The expanded matrix cannot be solved
     ///   (`LAPError::InfeasibleAssignment`)
     /// - Matrix values violate LAPMOD input requirements
+    #[inline]
     fn jaqaman(
         &self,
         padding_cost: Self::Value,
@@ -356,6 +358,7 @@ where
 }
 
 impl From<LAPMODError> for LAPError {
+    #[inline]
     fn from(error: LAPMODError) -> Self {
         match error {
             LAPMODError::NonFractionalValueTypeUnsupported => {

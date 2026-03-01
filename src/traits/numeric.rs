@@ -15,6 +15,7 @@ pub trait TryFromUsize: TryFrom<usize> + Copy {
     /// # Errors
     ///
     /// Returns an error if the value cannot be converted from `usize`.
+    #[inline]
     fn try_from_usize(v: usize) -> Result<Self, Self::Error> {
         Self::try_from(v)
     }
@@ -71,12 +72,14 @@ pub trait Finite {
 }
 
 impl Finite for f32 {
+    #[inline]
     fn is_finite(&self) -> bool {
         f32::is_finite(*self)
     }
 }
 
 impl Finite for f64 {
+    #[inline]
     fn is_finite(&self) -> bool {
         f64::is_finite(*self)
     }
@@ -86,6 +89,7 @@ macro_rules! impl_finite_int {
     ($($t:ty),*) => {
         $(
             impl Finite for $t {
+                #[inline]
                 fn is_finite(&self) -> bool {
                     true
                 }

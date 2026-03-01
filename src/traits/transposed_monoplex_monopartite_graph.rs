@@ -34,6 +34,7 @@ pub trait TransposedMonoplexMonopartiteGraph:
     /// # Returns
     ///
     /// `true` if the node has no incoming or outgoing edges, `false` otherwise.
+    #[inline]
     fn is_singleton(&self, node: Self::NodeId) -> bool {
         !self.has_successors(node) && !self.has_predecessors(node)
     }

@@ -41,6 +41,7 @@ where
     M::ColumnIndex: TryFromUsize,
     <M::ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
+    #[inline]
     fn from(inner: LapmodInner<'matrix, M>) -> Self {
         let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
             Vec::with_capacity(inner.matrix.number_of_rows().as_());

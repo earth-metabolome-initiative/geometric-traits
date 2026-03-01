@@ -38,6 +38,7 @@ pub trait MatrixMut: Matrix + Default {
     /// * If the entries are not provided in the expected order.
     /// * If the entry is out of bounds.
     /// * If the entry is already defined.
+    #[inline]
     fn from_entries<I: IntoIterator<Item = Self::Entry>>(entries: I) -> Result<Self, Self::Error> {
         let mut matrix = Self::default();
         matrix.extend(entries)?;
@@ -55,6 +56,7 @@ pub trait MatrixMut: Matrix + Default {
     /// * If the entries are not provided in the expected order.
     /// * If the entry is out of bounds.
     /// * If the entry is already defined.
+    #[inline]
     fn extend<I: IntoIterator<Item = Self::Entry>>(
         &mut self,
         entries: I,

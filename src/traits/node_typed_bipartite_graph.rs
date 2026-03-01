@@ -99,6 +99,7 @@ where
     /// assert_eq!(graph.left_node_type(&1), Some(LeftKind::Action));
     /// assert_eq!(graph.left_node_type(&2), None);
     /// ```
+    #[inline]
     fn left_node_type(
         &self,
         left_node_id: &Self::LeftNodeId,
@@ -107,6 +108,7 @@ where
     }
 
     /// Returns the node type of the right node with the provided identifier.
+    #[inline]
     fn right_node_type(
         &self,
         right_node_id: &Self::RightNodeId,
@@ -116,6 +118,7 @@ where
 
     /// Returns whether the left node with the provided identifier has the
     /// provided node type.
+    #[inline]
     fn is_left_node_of_type(
         &self,
         left_node_id: &Self::LeftNodeId,
@@ -129,6 +132,7 @@ where
 
     /// Returns whether the right node with the provided identifier has the
     /// provided node type.
+    #[inline]
     fn is_right_node_of_type(
         &self,
         right_node_id: &Self::RightNodeId,
@@ -142,6 +146,7 @@ where
 
     /// Returns whether the graph contains at least one left node of the
     /// provided node type.
+    #[inline]
     fn has_left_node_type(
         &self,
         node_type: &<Self::LeftNodeSymbol as TypedNode>::NodeType,
@@ -151,6 +156,7 @@ where
 
     /// Returns whether the graph contains at least one right node of the
     /// provided node type.
+    #[inline]
     fn has_right_node_type(
         &self,
         node_type: &<Self::RightNodeSymbol as TypedNode>::NodeType,

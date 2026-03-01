@@ -31,6 +31,7 @@ pub struct TarjanIterator<'matrix, M: SquareMatrix + SparseMatrix2D + ?Sized> {
 impl<'matrix, M: SquareMatrix + SparseMatrix2D + ?Sized> From<&'matrix M>
     for TarjanIterator<'matrix, M>
 {
+    #[inline]
     fn from(matrix: &'matrix M) -> Self {
         Self {
             lowlink: vec![None; matrix.order().as_()],
@@ -94,6 +95,7 @@ impl<M: SquareMatrix + SparseMatrix2D + ?Sized> TarjanIterator<'_, M> {
 impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
     type Item = Vec<M::Index>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.sparse_row_stack.is_empty() {
@@ -171,6 +173,7 @@ pub trait Tarjan: SquareMatrix + SparseMatrix2D {
     /// assert_eq!(sccs.len(), 1);
     /// assert_eq!(sccs[0].len(), 3);
     /// ```
+    #[inline]
     fn tarjan(&self) -> TarjanIterator<'_, Self> {
         TarjanIterator::from(self)
     }

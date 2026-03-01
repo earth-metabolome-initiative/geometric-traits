@@ -38,6 +38,7 @@ pub trait RootNodes: MonoplexMonopartiteGraph {
     /// let roots = graph.root_nodes();
     /// assert_eq!(roots, vec![0, 2]);
     /// ```
+    #[inline]
     fn root_nodes(&self) -> Vec<Self::NodeId> {
         let (has_predecessor, _) = predecessor_successor_flags(self);
 

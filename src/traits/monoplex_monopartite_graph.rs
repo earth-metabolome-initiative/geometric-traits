@@ -53,6 +53,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// assert!(graph.has_self_loops());
     /// ```
+    #[inline]
     fn has_self_loops(&self) -> bool {
         self.edges().has_self_loops()
     }
@@ -85,6 +86,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// assert_eq!(graph.number_of_self_loops(), 2);
     /// ```
+    #[inline]
     fn number_of_self_loops(&self) -> Self::NodeId {
         self.edges().number_of_self_loops()
     }
@@ -119,6 +121,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// assert!(graph.is_topologically_sorted());
     /// ```
+    #[inline]
     fn is_topologically_sorted(&self) -> bool {
         self.sparse_coordinates().all(|(src, dst)| src < dst)
     }
@@ -157,6 +160,7 @@ pub trait MonoplexMonopartiteGraph:
     /// assert_eq!(paths.len(), 2);
     /// ```
     #[cfg(feature = "alloc")]
+    #[inline]
     fn unique_paths_from(&self, source: Self::NodeId) -> Vec<Vec<Self::NodeId>> {
         let mut growing_paths = vec![vec![source]];
         let mut growing_paths_tmp = Vec::new();
@@ -219,6 +223,7 @@ pub trait MonoplexMonopartiteGraph:
     /// assert_eq!(successors, vec![1, 2]);
     /// ```
     #[cfg(feature = "alloc")]
+    #[inline]
     fn successors_set(&self, source: Self::NodeId) -> Vec<Self::NodeId> {
         let mut visited_nodes = vec![false; self.number_of_nodes().as_()];
 
@@ -276,6 +281,7 @@ pub trait MonoplexMonopartiteGraph:
     /// assert!(!graph.has_path(2, 0));
     /// ```
     #[cfg(feature = "alloc")]
+    #[inline]
     fn has_path(&self, source: Self::NodeId, destination: Self::NodeId) -> bool {
         let mut visited_nodes = vec![false; self.number_of_nodes().as_()];
 
@@ -339,6 +345,7 @@ pub trait MonoplexMonopartiteGraph:
     /// assert!(graph.is_reachable_through(0, 2, 1));
     /// ```
     #[cfg(feature = "alloc")]
+    #[inline]
     fn is_reachable_through(
         &self,
         source: Self::NodeId,

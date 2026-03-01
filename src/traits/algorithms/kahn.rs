@@ -54,6 +54,7 @@ pub trait Kahn: SquareMatrix + SparseMatrix2D {
     /// let topological_order = edges.kahn().unwrap();
     /// assert_eq!(topological_order.len(), 3);
     /// ```
+    #[inline]
     fn kahn(&self) -> Result<Vec<Self::Index>, KahnError> {
         let mut in_degree = vec![Self::Index::ZERO; self.order().as_()];
         let mut frontier = Vec::new();

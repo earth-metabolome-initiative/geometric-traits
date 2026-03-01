@@ -43,6 +43,7 @@ pub trait SimplePath: RootNodes {
     ///
     /// assert!(graph.is_simple_path());
     /// ```
+    #[inline]
     fn is_simple_path(&self) -> bool {
         if self.number_of_nodes() == Self::NodeId::zero() {
             // An empty graph is not a simple path.

@@ -19,6 +19,7 @@ where
 {
     type Weight = E::Attribute;
 
+    #[inline]
     fn weight(&self) -> Self::Weight {
         self.attribute()
     }
@@ -56,6 +57,7 @@ pub trait WeightedEdges:
     /// # Returns
     ///
     /// The weights of the successors of the node.
+    #[inline]
     fn successor_weights(
         &self,
         source_node_id: Self::SourceNodeId,
@@ -72,6 +74,7 @@ pub trait WeightedEdges:
     /// # Returns
     ///
     /// The largest weight of the successors of the node, if any.
+    #[inline]
     fn max_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight>
     where
         Self::Weight: crate::traits::total_ord::TotalOrd,
@@ -90,6 +93,7 @@ pub trait WeightedEdges:
     ///
     /// The largest weight of the successors of the node and the corresponding
     /// successor node identifier, if any.
+    #[inline]
     fn max_successor_weight_and_id(
         &self,
         source_node_id: Self::SourceNodeId,
@@ -109,6 +113,7 @@ pub trait WeightedEdges:
     /// # Returns
     ///
     /// The smallest weight of the successors of the node, if any.
+    #[inline]
     fn min_successor_weight(&self, source_node_id: Self::SourceNodeId) -> Option<Self::Weight>
     where
         Self::Weight: crate::traits::total_ord::TotalOrd,
@@ -127,6 +132,7 @@ pub trait WeightedEdges:
     ///
     /// The smallest weight of the successors of the node and the corresponding
     /// successor node identifier, if any.
+    #[inline]
     fn min_successor_weight_and_id(
         &self,
         source_node_id: Self::SourceNodeId,
@@ -138,6 +144,7 @@ pub trait WeightedEdges:
     }
 
     /// Returns the sparse weights of the edges.
+    #[inline]
     fn sparse_weights(&self) -> <Self::WeightedMatrix as SparseValuedMatrix>::SparseValues<'_> {
         self.matrix().sparse_values()
     }
@@ -199,6 +206,7 @@ pub trait WeightedMonoplexGraph:
     /// let weights: Vec<f64> = graph.successor_weights(0).collect();
     /// assert_eq!(weights, vec![1.0, 2.0]);
     /// ```
+    #[inline]
     fn successor_weights(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -238,6 +246,7 @@ pub trait WeightedMonoplexGraph:
     ///
     /// assert_eq!(graph.max_successor_weight(0), Some(2.0));
     /// ```
+    #[inline]
     fn max_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -280,6 +289,7 @@ pub trait WeightedMonoplexGraph:
     ///
     /// assert_eq!(graph.max_successor_weight_and_id(0), Some((2.0, 2)));
     /// ```
+    #[inline]
     fn max_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -321,6 +331,7 @@ pub trait WeightedMonoplexGraph:
     ///
     /// assert_eq!(graph.min_successor_weight(0), Some(1.0));
     /// ```
+    #[inline]
     fn min_successor_weight(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -363,6 +374,7 @@ pub trait WeightedMonoplexGraph:
     ///
     /// assert_eq!(graph.min_successor_weight_and_id(0), Some((1.0, 1)));
     /// ```
+    #[inline]
     fn min_successor_weight_and_id(
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
@@ -374,6 +386,7 @@ pub trait WeightedMonoplexGraph:
     }
 
     /// Returns the sparse weights of the edges.
+    #[inline]
     fn sparse_weights(&self) -> <<Self::WeightedEdges as WeightedEdges>::WeightedMatrix as SparseValuedMatrix>::SparseValues<'_>{
         self.edges().sparse_weights()
     }

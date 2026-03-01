@@ -60,6 +60,7 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
     /// assert!(wu_palmer.similarity(&0, &0) > 0.99);
     /// assert!(wu_palmer.similarity(&0, &1) < 0.99);
     /// ```
+    #[inline]
     fn wu_palmer(&self) -> Result<WuPalmerResult<'_, Self>, KahnError> {
         // Check whether the graph is a DAG (characterize by having no cycles)
         let _topological_ordering = self.edges().matrix().kahn()?;
@@ -74,6 +75,7 @@ where
 {
     type Similarity = f64;
     #[allow(clippy::cast_precision_loss)]
+    #[inline]
     fn similarity(&self, left: &G::NodeId, right: &G::NodeId) -> Self::Similarity {
         if left == right {
             return 1.0;

@@ -80,6 +80,7 @@ where
     /// assert_eq!(graph.node_type(&1), Some(Kind::Action));
     /// assert_eq!(graph.node_type(&3), None);
     /// ```
+    #[inline]
     fn node_type(
         &self,
         node_id: &Self::NodeId,
@@ -89,6 +90,7 @@ where
 
     /// Returns whether the node with the provided identifier has the provided
     /// node type.
+    #[inline]
     fn is_node_of_type(
         &self,
         node_id: &Self::NodeId,
@@ -102,6 +104,7 @@ where
 
     /// Returns whether the graph contains at least one node of the provided
     /// node type.
+    #[inline]
     fn has_node_type(&self, node_type: &<Self::NodeSymbol as TypedNode>::NodeType) -> bool {
         self.nodes().any(|node| node.node_type() == *node_type)
     }

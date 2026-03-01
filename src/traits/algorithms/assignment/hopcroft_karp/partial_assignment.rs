@@ -19,6 +19,7 @@ pub struct PartialAssignment<'a, M: SparseMatrix2D + ?Sized, Distance = u16> {
 impl<'a, M: SparseMatrix2D + ?Sized, Distance: Number> From<PartialAssignment<'a, M, Distance>>
     for Vec<(M::RowIndex, M::ColumnIndex)>
 {
+    #[inline]
     fn from(assignment: PartialAssignment<'a, M, Distance>) -> Self {
         assignment
             .successors

@@ -275,6 +275,7 @@ pub struct JohnsonIterator<'matrix, M: SquareMatrix + SparseMatrix2D> {
 }
 
 impl<'matrix, M: SquareMatrix + SparseMatrix2D> From<&'matrix M> for JohnsonIterator<'matrix, M> {
+    #[inline]
     fn from(matrix: &'matrix M) -> Self {
         Self { inner: InnerJohnsonIterator::from(matrix).flatten() }
     }
@@ -283,6 +284,7 @@ impl<'matrix, M: SquareMatrix + SparseMatrix2D> From<&'matrix M> for JohnsonIter
 impl<M: SquareMatrix + SparseMatrix2D> Iterator for JohnsonIterator<'_, M> {
     type Item = Vec<M::Index>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(<[M::Index]>::to_vec)
     }
@@ -319,6 +321,7 @@ pub trait Johnson: SquareMatrix + SparseMatrix2D + Sized {
     /// assert_eq!(cycles.len(), 1);
     /// assert_eq!(cycles[0], vec![0, 1, 2]);
     /// ```
+    #[inline]
     fn johnson(&self) -> JohnsonIterator<'_, Self> {
         JohnsonIterator::from(self)
     }

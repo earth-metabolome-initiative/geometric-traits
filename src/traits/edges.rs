@@ -170,6 +170,7 @@ pub trait GrowableEdges: Edges<Matrix = <Self as GrowableEdges>::GrowableMatrix>
     /// - The entries are not provided in the expected order.
     /// - The entry is out of bounds.
     /// - The entry is already defined.
+    #[inline]
     fn add(&mut self, edge: Self::Edge) -> Result<(), Self::Error> {
         Ok(self.matrix_mut().add(edge)?)
     }

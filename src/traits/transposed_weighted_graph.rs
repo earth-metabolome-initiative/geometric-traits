@@ -27,6 +27,7 @@ pub trait TransposedWeightedEdges:
     /// # Returns
     ///
     /// The weights of the predecessors of the node.
+    #[inline]
     fn predecessor_weights(
         &self,
         destination_node_id: Self::DestinationNodeId,
@@ -43,6 +44,7 @@ pub trait TransposedWeightedEdges:
     /// # Returns
     ///
     /// The largest weight of the predecessors of the node, if any.
+    #[inline]
     fn max_predecessor_weight(
         &self,
         destination_node_id: Self::DestinationNodeId,
@@ -62,6 +64,7 @@ pub trait TransposedWeightedEdges:
     /// # Returns
     ///
     /// The smallest weight of the predecessors of the node, if any.
+    #[inline]
     fn min_predecessor_weight(
         &self,
         destination_node_id: Self::DestinationNodeId,
@@ -108,6 +111,7 @@ pub trait TransposedWeightedMonoplexGraph:
     /// # Returns
     ///
     /// The weights of the predecessors of the node.
+    #[inline]
     fn predecessor_weights(
         &self,
         destination_node_id: <Self::TransposedWeightedEdges as Edges>::DestinationNodeId,
@@ -124,6 +128,7 @@ pub trait TransposedWeightedMonoplexGraph:
     /// # Returns
     ///
     /// The largest weight of the predecessors of the node, if any.
+    #[inline]
     fn max_predecessor_weight(
         &self,
         destination_node_id: <Self::TransposedWeightedEdges as Edges>::DestinationNodeId,
@@ -143,6 +148,7 @@ pub trait TransposedWeightedMonoplexGraph:
     /// # Returns
     ///
     /// The smallest weight of the predecessors of the node, if any.
+    #[inline]
     fn min_predecessor_weight(
         &self,
         destination_node_id: <Self::TransposedWeightedEdges as Edges>::DestinationNodeId,

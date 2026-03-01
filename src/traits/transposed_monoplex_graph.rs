@@ -51,6 +51,7 @@ pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> 
     /// let predecessors: Vec<usize> = graph.predecessors(1).collect();
     /// assert_eq!(predecessors, vec![0]);
     /// ```
+    #[inline]
 	fn predecessors(
 		&self,
 		destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -95,6 +96,7 @@ pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> 
     /// assert!(graph.has_predecessor(1, 0));
     /// assert!(!graph.has_predecessor(1, 2));
     /// ```
+    #[inline]
     fn has_predecessor(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -139,6 +141,7 @@ pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> 
     /// assert!(graph.has_predecessors(1));
     /// assert!(!graph.has_predecessors(0));
     /// ```
+    #[inline]
     fn has_predecessors(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -182,6 +185,7 @@ pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> 
     /// assert_eq!(graph.in_degree(1), 1);
     /// assert_eq!(graph.in_degree(0), 0);
     /// ```
+    #[inline]
     fn in_degree(
         &self,
         destination_node_id: <Self::TransposedEdges as Edges>::DestinationNodeId,
@@ -229,6 +233,7 @@ pub trait TransposedMonoplexGraph: MonoplexGraph<Edges = Self::TransposedEdges> 
     /// let in_degrees: Vec<usize> = graph.in_degrees().collect();
     /// assert_eq!(in_degrees, vec![0, 1, 1]);
     /// ```
+    #[inline]
 	fn in_degrees(
 		&self
     ) -> <<<Self::TransposedEdges as TransposedEdges>::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{

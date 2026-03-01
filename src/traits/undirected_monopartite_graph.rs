@@ -22,6 +22,7 @@ pub trait UndirectedMonopartiteEdges:
         + SizedSparseBiMatrix2D;
 
     /// Returns the neighbors of the node with the given identifier.
+    #[inline]
     fn neighbors(
         &self,
         node: Self::NodeId,
@@ -30,6 +31,7 @@ pub trait UndirectedMonopartiteEdges:
     }
 
     /// Returns the degree of the node with the given identifier.
+    #[inline]
     fn degree(&self, node: Self::NodeId) -> Self::NodeId {
         debug_assert_eq!(
             self.matrix().number_of_defined_values_in_row(node),
@@ -39,6 +41,7 @@ pub trait UndirectedMonopartiteEdges:
     }
 
     /// Returns the iterator over the degrees of the nodes in the graph.
+    #[inline]
     fn degrees(
         &self,
     ) -> <Self::SymmetricSquaredMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_> {
@@ -109,6 +112,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     /// let neighbors: Vec<usize> = graph.neighbors(1).collect();
     /// assert_eq!(neighbors, vec![0, 2]);
     /// ```
+    #[inline]
     fn neighbors(
         &self,
         node: Self::NodeId,
@@ -151,6 +155,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     ///
     /// assert_eq!(graph.degree(1), 2);
     /// ```
+    #[inline]
     fn degree(&self, node: Self::NodeId) -> Self::NodeId {
         self.edges().degree(node)
     }
@@ -191,6 +196,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     /// let degrees: Vec<usize> = graph.degrees().collect();
     /// assert_eq!(degrees, vec![1, 2, 1]);
     /// ```
+    #[inline]
     fn degrees(&self) -> <<Self::UndirectedMonopartiteEdges as UndirectedMonopartiteEdges>::SymmetricSquaredMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{
         self.edges().degrees()
     }

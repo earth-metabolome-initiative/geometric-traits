@@ -18,6 +18,7 @@ pub trait Edge: Debug + Clone {
     fn destination(&self) -> Self::DestinationNodeId;
 
     /// Returns whether the edge is a self-loop.
+    #[inline]
     fn is_self_loop(&self) -> bool
     where
         Self::SourceNodeId: PartialEq<Self::DestinationNodeId>,
@@ -43,6 +44,7 @@ impl<T> EdgeType for T where T: Symbol {}
 /// Trait defining an attributed edge whose attribute is an edge type.
 pub trait TypedEdge: AttributedEdge {
     /// Returns the edge type.
+    #[inline]
     fn edge_type(&self) -> Self::Attribute
     where
         Self::Attribute: EdgeType,

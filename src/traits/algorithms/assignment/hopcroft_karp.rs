@@ -55,6 +55,7 @@ pub trait HopcroftKarp: SparseMatrix2D {
     /// let assignment = edges.hopcroft_karp().unwrap();
     /// assert_eq!(assignment.len(), 3);
     /// ```
+    #[inline]
     fn hopcroft_karp(&self) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, HopcroftKarpError> {
         let mut partial_assignment: PartialAssignment<'_, Self, u32> =
             PartialAssignment::from(self);

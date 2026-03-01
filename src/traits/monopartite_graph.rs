@@ -50,6 +50,7 @@ pub trait MonopartiteEdges:
     ///
     /// assert!(graph.edges().has_self_loops());
     /// ```
+    #[inline]
     fn has_self_loops(&self) -> bool {
         self.number_of_self_loops() > Self::NodeId::zero()
     }
@@ -93,6 +94,7 @@ where
     type MonopartiteMatrix = E::Matrix;
     type NodeId = E::SourceNodeId;
 
+    #[inline]
     fn number_of_self_loops(&self) -> Self::NodeId {
         self.matrix().number_of_defined_diagonal_values()
     }
@@ -166,6 +168,7 @@ pub trait MonopartiteGraph: super::Graph {
     /// let node_ids: Vec<usize> = graph.node_ids().collect();
     /// assert_eq!(node_ids, vec![0, 1, 2, 3]);
     /// ```
+    #[inline]
     fn node_ids(&self) -> <Self::Nodes as Vocabulary>::Sources<'_> {
         self.nodes_vocabulary().sources()
     }
@@ -199,6 +202,7 @@ pub trait MonopartiteGraph: super::Graph {
     /// let nodes: Vec<usize> = graph.nodes().collect();
     /// assert_eq!(nodes, vec![0, 1, 2, 3]);
     /// ```
+    #[inline]
     fn nodes(&self) -> <Self::Nodes as Vocabulary>::Destinations<'_> {
         self.nodes_vocabulary().destinations()
     }
@@ -231,6 +235,7 @@ pub trait MonopartiteGraph: super::Graph {
     ///
     /// assert_eq!(graph.number_of_nodes(), 4);
     /// ```
+    #[inline]
     fn number_of_nodes(&self) -> Self::NodeId {
         if let Ok(number_of_nodes) = Self::NodeId::try_from(self.nodes_vocabulary().len()) {
             number_of_nodes

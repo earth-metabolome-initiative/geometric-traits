@@ -26,6 +26,7 @@ impl<T> AssignmentState<T> {
     /// let state: AssignmentState<usize> = AssignmentState::Unassigned;
     /// assert!(state.is_unassigned());
     /// ```
+    #[inline]
     pub fn is_unassigned(&self) -> bool {
         matches!(self, AssignmentState::Unassigned)
     }
@@ -40,6 +41,7 @@ impl<T> AssignmentState<T> {
     /// let state: AssignmentState<usize> = AssignmentState::Assigned(1);
     /// assert!(state.is_assigned());
     /// ```
+    #[inline]
     pub fn is_assigned(&self) -> bool {
         matches!(self, AssignmentState::Assigned(_))
     }

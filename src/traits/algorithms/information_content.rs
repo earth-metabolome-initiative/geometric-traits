@@ -38,6 +38,7 @@ impl<G: ?Sized + MonoplexMonopartiteGraph> InformationContentResult<'_, G> {
 
 impl<G: ?Sized + MonoplexMonopartiteGraph> Index<G::NodeId> for InformationContentResult<'_, G> {
     type Output = f64;
+    #[inline]
     fn index(&self, index: G::NodeId) -> &Self::Output {
         &self.information_contents[index.as_()]
     }
@@ -89,6 +90,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
     /// let ic = graph.information_content(&[1, 1, 1]).unwrap();
     /// assert!(ic[0] >= 0.0);
     /// ```
+    #[inline]
     fn information_content(
         &self,
         occurrences: &[usize],

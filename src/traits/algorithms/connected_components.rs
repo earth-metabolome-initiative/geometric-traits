@@ -25,31 +25,37 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     /// Returns the number of connected components in the graph.
+    #[inline]
     pub fn number_of_components(&self) -> Marker {
         self.number_of_components
     }
 
     /// Returns the size of the largest connected component.
+    #[inline]
     pub fn largest_component_size(&self) -> G::NodeId {
         self.largest_component_size
     }
 
     /// Returns the size of the smallest connected component.
+    #[inline]
     pub fn smallest_component_size(&self) -> G::NodeId {
         self.smallest_component_size
     }
 
     /// Returns the connected component of a node.
+    #[inline]
     pub fn component_of_node(&self, node: G::NodeId) -> Marker {
         self.component_identifiers[node.as_()]
     }
 
     /// Returns an iterator over the connected component identifiers.
+    #[inline]
     pub fn component_identifiers(&self) -> core::iter::Copied<core::slice::Iter<'_, Marker>> {
         self.component_identifiers.iter().copied()
     }
 
     /// Returns an iterator over the node ids of a connected component.
+    #[inline]
     pub fn node_ids_of_component(
         &self,
         component_identifier: Marker,
@@ -61,6 +67,7 @@ where
 
     /// Returns an iterator over the symbols of the nodes of a connected
     /// component.
+    #[inline]
     pub fn nodes_of_component(
         &self,
         component_identifier: Marker,
@@ -83,12 +90,14 @@ pub enum ConnectedComponentsError {
 impl From<ConnectedComponentsError>
     for crate::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError
 {
+    #[inline]
     fn from(error: ConnectedComponentsError) -> Self {
         Self::ConnectedComponentsError(error)
     }
 }
 
 impl<G: MonopartiteGraph> From<ConnectedComponentsError> for crate::errors::MonopartiteError<G> {
+    #[inline]
     fn from(error: ConnectedComponentsError) -> Self {
         Self::AlgorithmError(error.into())
     }
@@ -148,6 +157,7 @@ pub trait ConnectedComponents<Marker: AsPrimitive<usize> + PositiveInteger = usi
     /// let cc: ConnectedComponentsResult<_, usize> = graph.connected_components().unwrap();
     /// assert_eq!(cc.number_of_components(), 2);
     /// ```
+    #[inline]
     fn connected_components(
         &self,
     ) -> Result<ConnectedComponentsResult<'_, Self, Marker>, crate::errors::MonopartiteError<Self>>

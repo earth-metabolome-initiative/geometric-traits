@@ -37,6 +37,7 @@ pub trait Matrix {
 
     #[must_use]
     /// Returns the number of dimensions of this matrix.
+    #[inline]
     fn dimensions() -> usize {
         Self::Coordinates::dimensions()
     }
@@ -49,6 +50,7 @@ pub trait Matrix {
     #[must_use]
     #[cfg(feature = "alloc")]
     /// Returns the total number of values in the matrix.
+    #[inline]
     fn total_values(&self) -> usize {
         self.shape().iter().product()
     }
@@ -57,16 +59,19 @@ pub trait Matrix {
 impl<M: Matrix> Matrix for &M {
     type Coordinates = M::Coordinates;
 
+    #[inline]
     fn dimensions() -> usize {
         M::dimensions()
     }
 
     #[cfg(feature = "alloc")]
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         (*self).shape()
     }
 
     #[cfg(feature = "alloc")]
+    #[inline]
     fn total_values(&self) -> usize {
         (*self).total_values()
     }
@@ -124,14 +129,17 @@ impl<M: SparseMatrix> SparseMatrix for &M {
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         (*self).sparse_coordinates()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         (*self).last_sparse_coordinates()
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         (*self).is_empty()
     }
@@ -142,6 +150,7 @@ pub trait SizedSparseMatrix: SparseMatrix {
     #[allow(clippy::cast_precision_loss)]
     #[cfg(feature = "alloc")]
     /// Returns the density of the matrix.
+    #[inline]
     fn density(&self) -> f64 {
         let defined_values = self.number_of_defined_values().as_();
         let total_values = self.total_values();
@@ -156,6 +165,7 @@ pub trait SizedSparseMatrix: SparseMatrix {
 }
 
 impl<M: SizedSparseMatrix> SizedSparseMatrix for &M {
+    #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         (*self).number_of_defined_values()
     }
@@ -187,10 +197,12 @@ pub trait RankSelectSparseMatrix: SizedSparseMatrix {
 }
 
 impl<M: RankSelectSparseMatrix> RankSelectSparseMatrix for &M {
+    #[inline]
     fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
         (*self).rank(coordinates)
     }
 
+    #[inline]
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
         (*self).select(sparse_index)
     }
@@ -204,6 +216,7 @@ pub trait DenseValuedMatrix: DenseMatrix + ValuedMatrix {
         Self: 'a;
 
     /// Returns the largest value in the matrix.
+    #[inline]
     fn max_value(&self) -> Option<Self::Value>
     where
         Self::Value: TotalOrd,
@@ -212,6 +225,7 @@ pub trait DenseValuedMatrix: DenseMatrix + ValuedMatrix {
     }
 
     /// Returns the smallest value in the matrix.
+    #[inline]
     fn min_value(&self) -> Option<Self::Value>
     where
         Self::Value: TotalOrd,
@@ -232,10 +246,12 @@ impl<M: DenseValuedMatrix> DenseValuedMatrix for &M {
     where
         Self: 'a;
 
+    #[inline]
     fn value(&self, coordinates: Self::Coordinates) -> Self::Value {
         (*self).value(coordinates)
     }
 
+    #[inline]
     fn values(&self) -> Self::Values<'_> {
         (*self).values()
     }
@@ -249,6 +265,7 @@ pub trait SparseValuedMatrix: SparseMatrix + ValuedMatrix {
         Self: 'a;
 
     /// Returns the largest value in the matrix.
+    #[inline]
     fn max_sparse_value(&self) -> Option<Self::Value>
     where
         Self::Value: TotalOrd,
@@ -257,6 +274,7 @@ pub trait SparseValuedMatrix: SparseMatrix + ValuedMatrix {
     }
 
     /// Returns the smallest value in the matrix.
+    #[inline]
     fn min_sparse_value(&self) -> Option<Self::Value>
     where
         Self::Value: TotalOrd,
@@ -274,6 +292,7 @@ impl<M: SparseValuedMatrix> SparseValuedMatrix for &M {
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_values(&self) -> Self::SparseValues<'_> {
         (*self).sparse_values()
     }
@@ -314,6 +333,7 @@ where
     where
         M: 'a;
 
+    #[inline]
     fn sparse_implicit_values(&self) -> Self::SparseImplicitValues<'_> {
         self.into()
     }
