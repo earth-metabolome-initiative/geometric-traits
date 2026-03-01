@@ -96,7 +96,7 @@ impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> Iterator
                     })
                 })
             })
-            .or(self.end_element_backup.take())
+            .or_else(|| self.end_element_backup.take())
             .or_else(|| {
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal

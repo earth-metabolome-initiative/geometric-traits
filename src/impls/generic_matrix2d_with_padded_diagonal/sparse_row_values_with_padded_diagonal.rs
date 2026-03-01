@@ -113,7 +113,7 @@ where
                     )
                 })
             })
-            .or(self.end_element_backup.take())
+            .or_else(|| self.end_element_backup.take())
             .or_else(|| {
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal
@@ -141,7 +141,7 @@ where
                             if column_index == self.row_as_column && !self.diagonal_returned {
                                 self.diagonal_returned = true;
                                 column_value
-                            } else if column_index > self.row_as_column && !self.diagonal_returned {
+                            } else if column_index < self.row_as_column && !self.diagonal_returned {
                                 self.diagonal_returned = true;
                                 self.end_element_backup = Some(column_value);
                                 (self.map)(self.row)
@@ -161,5 +161,6 @@ where
                     (self.map)(self.row)
                 })
             })
+            .or_else(|| self.start_element_backup.take())
     }
 }
