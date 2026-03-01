@@ -329,9 +329,16 @@ where
     }
 
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
-        Self::RowIndex::try_from_usize(
-            self.offsets.binary_search(&sparse_index).unwrap_or_else(|x| x),
-        ).unwrap_or_else(|_| {
+        assert!(
+            sparse_index < self.number_of_defined_values(),
+            "The sparse index {sparse_index} is out of bounds for a matrix with {} defined values.",
+            self.number_of_defined_values()
+        );
+
+        // Rows are half-open intervals in `offsets`: [offsets[r], offsets[r + 1]).
+        // We therefore need the last row start <= sparse_index, i.e. upper_bound - 1.
+        let row = self.offsets.partition_point(|&offset| offset <= sparse_index) - 1;
+        Self::RowIndex::try_from_usize(row).unwrap_or_else(|_| {
             unreachable!(
                 "The Matrix is in an illegal state where a sparse index is greater than the number of defined values."
             )

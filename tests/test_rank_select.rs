@@ -148,6 +148,25 @@ fn test_select_row_via_select() {
     }
 }
 
+#[test]
+fn test_select_row_inside_multi_entry_row() {
+    let csr = build_csr(vec![(0, 1), (0, 2), (1, 0)], 2, 3);
+
+    // Sparse index 1 is the second entry of row 0.
+    assert_eq!(csr.select_row(1), 0);
+}
+
+#[test]
+fn test_rank_select_roundtrip_with_multi_entry_rows() {
+    let csr = build_csr(vec![(0, 1), (0, 2), (1, 0)], 2, 3);
+
+    // Every sparse index must map to an existing coordinate with the same rank.
+    for i in 0..csr.number_of_defined_values() {
+        let coords = csr.select(i);
+        assert_eq!(csr.rank(&coords), i, "roundtrip failed for sparse_index {i}");
+    }
+}
+
 // ============================================================================
 // SizedSparseMatrix2D::select_column tests
 // ============================================================================
