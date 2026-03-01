@@ -194,3 +194,52 @@ fn test_wu_palmer_regression_multi_path_depth_bounds() {
     // With deepest-depth propagation the expected score is 2*3/(3+4) = 6/7.
     assert_approx_eq(sim_2_3, 6.0 / 7.0);
 }
+
+#[test]
+fn test_wu_palmer_upper_bound_on_dense_acyclic_4_nodes() {
+    // Dense acyclic DAG with every forward edge present.
+    let graph =
+        build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    for left in 0..4usize {
+        for right in 0..4usize {
+            let similarity = wu_palmer.similarity(&left, &right);
+            assert!(
+                (-1e-12..=1.0 + 1e-12).contains(&similarity),
+                "similarity out of bounds for ({left}, {right}): {similarity}"
+            );
+        }
+    }
+}
+
+#[test]
+fn test_wu_palmer_multiple_roots_selects_best_root_consistently() {
+    // Two disjoint roots can both explain (4,5):
+    // root 0 path: 0 -> 2 -> {4,5} gives 2*2/(3+3)=2/3
+    // root 1 path: 1 -> {4,5} gives 2*1/(2+2)=1/2
+    // Similarity should be the maximum across roots, i.e. 2/3.
+    let graph = build_digraph(vec![0, 1, 2, 3, 4, 5], vec![(0, 2), (1, 4), (1, 5), (2, 4), (2, 5)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    assert_approx_eq(wu_palmer.similarity(&4, &5), 2.0 / 3.0);
+}
+
+#[test]
+fn test_wu_palmer_zero_for_disconnected_components_matrix() {
+    // Components:
+    // C0: 0 -> 1 -> 2
+    // C1: 3 -> 4
+    // C2: 5 (singleton)
+    let graph = build_digraph(vec![0, 1, 2, 3, 4, 5], vec![(0, 1), (1, 2), (3, 4)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+    let component = [0usize, 0, 0, 1, 1, 2];
+
+    for left in 0..6usize {
+        for right in 0..6usize {
+            if component[left] != component[right] {
+                assert_approx_eq(wu_palmer.similarity(&left, &right), 0.0);
+            }
+        }
+    }
+}
