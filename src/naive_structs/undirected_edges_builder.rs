@@ -24,6 +24,7 @@ pub struct GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE: GrowableEd
 impl<EdgeIterator, GE: GrowableEdges, UE> Default
     for GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE, UE>
 {
+    #[inline]
     fn default() -> Self {
         Self { builder: GenericEdgesBuilder::default(), _undirected_edges: PhantomData }
     }
@@ -46,24 +47,29 @@ where
     type IntermediateEdges = GE;
     type Edges = UE;
 
+    #[inline]
     fn expected_number_of_edges(mut self, number_of_edges: GE::EdgeId) -> Self {
         self.builder = self.builder.expected_number_of_edges(number_of_edges);
         self
     }
 
+    #[inline]
     fn get_expected_number_of_edges(&self) -> Option<GE::EdgeId> {
         self.builder.get_expected_number_of_edges()
     }
 
+    #[inline]
     fn ignore_duplicates(mut self) -> Self {
         self.builder = self.builder.ignore_duplicates();
         self
     }
 
+    #[inline]
     fn should_ignore_duplicates(&self) -> bool {
         self.builder.should_ignore_duplicates()
     }
 
+    #[inline]
     fn expected_shape(
         mut self,
         shape: <<Self::IntermediateEdges as GrowableEdges>::GrowableMatrix as SparseMatrixMut>::MinimalShape,
@@ -72,10 +78,12 @@ where
         self
     }
 
+    #[inline]
     fn get_expected_shape(&self) -> Option<<<Self::IntermediateEdges as GrowableEdges>::GrowableMatrix as SparseMatrixMut>::MinimalShape>{
         self.builder.get_expected_shape()
     }
 
+    #[inline]
     fn edges(mut self, edges: Self::EdgeIterator) -> Self {
         self.builder = self.builder.edges(edges);
         self
@@ -100,6 +108,7 @@ where
     /// # Errors
     ///
     /// Returns [`EdgesBuilderError`] if the edges cannot be built.
+    #[inline]
     pub fn build(self) -> Result<UE, EdgesBuilderError<UE>> {
         let directed_edges: GE = self.builder.build()?;
         let undirected_edges: UE = UE::from_directed_edges(directed_edges);

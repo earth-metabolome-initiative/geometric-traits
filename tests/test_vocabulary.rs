@@ -9,6 +9,7 @@ use geometric_traits::impls::SortedVec;
 
 #[test]
 /// First simple test for vocabulary.
+#[inline]
 pub fn test_vocabulary() {
     let nodes: Vec<usize> = vec![1, 2, 3, 4, 5];
     let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
@@ -31,6 +32,7 @@ pub fn test_vocabulary() {
 
 #[test]
 /// Test vocabulary trait methods on Vec.
+#[inline]
 pub fn test_vec_vocabulary() {
     use geometric_traits::traits::{BidirectionalVocabulary, Vocabulary, VocabularyRef};
 
@@ -67,6 +69,7 @@ pub fn test_vec_vocabulary() {
 
 #[test]
 /// Test empty vocabulary.
+#[inline]
 pub fn test_empty_vocabulary() {
     use geometric_traits::traits::Vocabulary;
 
@@ -78,6 +81,7 @@ pub fn test_empty_vocabulary() {
 
 #[test]
 /// Test vocabulary through reference.
+#[inline]
 pub fn test_vocabulary_ref_impl() {
     use geometric_traits::traits::Vocabulary;
 

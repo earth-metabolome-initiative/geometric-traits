@@ -25,6 +25,7 @@ where
     RightNodes: core::fmt::Debug,
     Edges: core::fmt::Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("GenericBiGraph")
             .field("left_nodes", &self.left_nodes)
@@ -39,6 +40,7 @@ impl<LeftNodes, RightNodes, Edges> TryFrom<(LeftNodes, RightNodes, Edges)>
 {
     type Error = MonoplexBipartiteGraphBuilderError;
 
+    #[inline]
     fn try_from(
         (left_nodes, right_nodes, edges): (LeftNodes, RightNodes, Edges),
     ) -> Result<Self, Self::Error> {
@@ -52,6 +54,7 @@ where
     RightNodes: Default,
     Edges: Default,
 {
+    #[inline]
     fn default() -> Self {
         Self {
             left_nodes: LeftNodes::default(),
@@ -67,10 +70,12 @@ where
     RightNodes: Vocabulary,
     E: Edges<SourceNodeId = LeftNodes::SourceSymbol, DestinationNodeId = RightNodes::SourceSymbol>,
 {
+    #[inline]
     fn has_edges(&self) -> bool {
         self.edges.has_edges()
     }
 
+    #[inline]
     fn has_nodes(&self) -> bool {
         !self.left_nodes.is_empty() && !self.right_nodes.is_empty()
     }
@@ -91,10 +96,12 @@ where
     type LeftNodes = LeftNodes;
     type RightNodes = RightNodes;
 
+    #[inline]
     fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
         &self.left_nodes
     }
 
+    #[inline]
     fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
         &self.right_nodes
     }
@@ -109,6 +116,7 @@ where
     type Edge = E::Edge;
     type Edges = E;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         &self.edges
     }

@@ -23,6 +23,7 @@ pub struct GenericEdgesBuilder<EdgeIterator, GE: GrowableEdges> {
 }
 
 impl<EdgeIterator, GE: GrowableEdges> Default for GenericEdgesBuilder<EdgeIterator, GE> {
+    #[inline]
     fn default() -> Self {
         Self {
             edges: None,
@@ -43,24 +44,29 @@ where
     type IntermediateEdges = GE;
     type Edges = GE;
 
+    #[inline]
     fn expected_number_of_edges(mut self, number_of_edges: GE::EdgeId) -> Self {
         self.expected_number_of_edges = Some(number_of_edges);
         self
     }
 
+    #[inline]
     fn get_expected_number_of_edges(&self) -> Option<GE::EdgeId> {
         self.expected_number_of_edges
     }
 
+    #[inline]
     fn ignore_duplicates(mut self) -> Self {
         self.ignore_duplicates = true;
         self
     }
 
+    #[inline]
     fn should_ignore_duplicates(&self) -> bool {
         self.ignore_duplicates
     }
 
+    #[inline]
     fn expected_shape(
         mut self,
         shape: <GE::GrowableMatrix as SparseMatrixMut>::MinimalShape,
@@ -69,12 +75,14 @@ where
         self
     }
 
+    #[inline]
     fn get_expected_shape(
         &self,
     ) -> Option<<<GE as GrowableEdges>::GrowableMatrix as SparseMatrixMut>::MinimalShape> {
         self.expected_shape
     }
 
+    #[inline]
     fn edges(mut self, edges: Self::EdgeIterator) -> Self {
         self.edges = Some(edges);
         self
@@ -95,6 +103,7 @@ where
     /// # Errors
     ///
     /// * If any edge is invalid.
+    #[inline]
     pub fn build(self: GenericEdgesBuilder<EdgeIterator, GE>) -> Result<GE, EdgesBuilderError<GE>> {
         let expected_number_of_edges = self.get_expected_number_of_edges();
         let mut edges = match (expected_number_of_edges, self.get_expected_shape()) {

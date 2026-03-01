@@ -33,6 +33,7 @@ where
     M::RowIndex: TryFromUsize,
     M::SparseIndex: TryFromUsize,
 {
+    #[inline]
     fn from(e: EdgesBuilderError<UpperTriangularCSR2D<M>>) -> Self {
         match e {
             EdgesBuilderError::MissingAttribute(attr) => EdgesBuilderError::MissingAttribute(attr),

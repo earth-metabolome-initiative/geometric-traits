@@ -26,6 +26,7 @@ where
         + num_traits::SaturatingSub
         + 'static,
 {
+    #[inline]
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let edges = SquareCSR2D::arbitrary(u)?;
         let nodes: Idx = edges.number_of_rows();

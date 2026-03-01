@@ -7,6 +7,7 @@ use geometric_traits::{
 
 #[test]
 /// Test function for InChI failure case.
+#[inline]
 pub fn test_inchi_failure() {
     let vocabulary_size = 20;
     let edges: Vec<(usize, usize)> = vec![

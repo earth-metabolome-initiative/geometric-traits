@@ -24,6 +24,7 @@ where
     Nodes: Default,
     Edges: Default,
 {
+    #[inline]
     fn default() -> Self {
         Self { nodes: Nodes::default(), edges: Edges::default() }
     }
@@ -34,6 +35,7 @@ where
     Nodes: core::fmt::Debug,
     Edges: core::fmt::Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("GenericGraph")
             .field("nodes", &self.nodes)
@@ -43,6 +45,7 @@ where
 }
 
 impl<Nodes, Edges> From<(Nodes, Edges)> for GenericGraph<Nodes, Edges> {
+    #[inline]
     fn from((nodes, edges): (Nodes, Edges)) -> Self {
         Self { nodes, edges }
     }
@@ -54,10 +57,12 @@ where
     Nodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     E: Edges<SourceNodeId = Nodes::SourceSymbol, DestinationNodeId = Nodes::SourceSymbol>,
 {
+    #[inline]
     fn has_edges(&self) -> bool {
         self.edges.has_edges()
     }
 
+    #[inline]
     fn has_nodes(&self) -> bool {
         !self.nodes.is_empty()
     }
@@ -73,6 +78,7 @@ where
     type NodeSymbol = Nodes::DestinationSymbol;
     type Nodes = Nodes;
 
+    #[inline]
     fn nodes_vocabulary(&self) -> &Self::Nodes {
         &self.nodes
     }
@@ -87,6 +93,7 @@ where
     type Edge = E::Edge;
     type Edges = E;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         &self.edges
     }

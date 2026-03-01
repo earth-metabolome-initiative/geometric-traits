@@ -40,6 +40,7 @@ fn recursive_build_tree(
 }
 
 impl From<PathBuf> for DirectoryTree {
+    #[inline]
     fn from(path: PathBuf) -> Self {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
@@ -82,6 +83,7 @@ fn display_node(
 }
 
 impl Display for DirectoryTree {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // We display the directory tree in a simple text format, with indentation
         // representing depth.

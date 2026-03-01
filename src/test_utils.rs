@@ -28,6 +28,7 @@ use crate::{
 /// Returns `None` if the bytes are insufficient or do not produce a valid
 /// instance.
 #[must_use]
+#[inline]
 pub fn from_bytes<T: for<'a> Arbitrary<'a>>(bytes: &[u8]) -> Option<T> {
     let mut u = Unstructured::new(bytes);
     T::arbitrary(&mut u).ok()
@@ -39,6 +40,7 @@ pub fn from_bytes<T: for<'a> Arbitrary<'a>>(bytes: &[u8]) -> Option<T> {
 /// Files that fail to produce valid instances are silently skipped.
 /// Returns an empty vector if the directory does not exist or is unreadable.
 #[must_use]
+#[inline]
 pub fn replay_dir<T: for<'a> Arbitrary<'a>>(dir: &std::path::Path) -> Vec<T> {
     let mut results = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -67,6 +69,7 @@ pub fn replay_dir<T: for<'a> Arbitrary<'a>>(dir: &std::path::Path) -> Vec<T> {
 ///
 /// Panics if any row has unsorted or duplicate column indices, or if the
 /// global sparse coordinates are unsorted or contain duplicates.
+#[inline]
 pub fn check_sparse_matrix_invariants<M>(csr: &M)
 where
     M: SparseMatrix2D,
@@ -107,6 +110,7 @@ where
 /// # Panics
 ///
 /// Panics if any row has a different count of column indices vs. values.
+#[inline]
 pub fn check_valued_matrix_invariants<M>(csr: &M)
 where
     M: SparseValuedMatrix2D,
@@ -140,6 +144,7 @@ pub type FuzzPaddedDiag =
 /// # Panics
 ///
 /// Panics if any invariant is violated.
+#[inline]
 pub fn check_padded_diagonal_invariants(padded_csr: &FuzzPaddedDiag) {
     assert_eq!(
         padded_csr.number_of_rows(),
@@ -208,6 +213,7 @@ pub fn check_padded_diagonal_invariants(padded_csr: &FuzzPaddedDiag) {
 /// # Panics
 ///
 /// Panics if any invariant is violated.
+#[inline]
 pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
     let Ok(padded_matrix) = PaddedMatrix2D::new(csr, |_| 1) else {
         return;
@@ -263,6 +269,7 @@ pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
 /// # Panics
 ///
 /// Panics if the ordering violates the topological invariant.
+#[inline]
 pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: usize) {
     let number_of_rows: usize = matrix.number_of_rows().as_();
     let number_of_columns: usize = matrix.number_of_columns().as_();
@@ -312,6 +319,7 @@ pub fn check_kahn_ordering(matrix: &SquareCSR2D<CSR2D<u16, u8, u8>>, max_size: u
 /// # Panics
 ///
 /// Panics if any invariant is violated.
+#[inline]
 pub fn check_similarity_invariants<S, N>(similarity: &S, node_ids: &[N], max_outer: usize)
 where
     S: ScalarSimilarity<N, N, Similarity = f64>,
@@ -346,6 +354,7 @@ where
 /// # Panics
 ///
 /// Panics if the assignment is invalid.
+#[inline]
 pub fn validate_lap_assignment(
     csr: &ValuedCSR2D<u16, u8, u8, f64>,
     assignment: &[(u8, u8)],
@@ -383,6 +392,7 @@ pub fn validate_lap_assignment(
 /// Returns `true` when edge weights span a numerically stable range,
 /// avoiding extreme floating-point regimes.
 #[must_use]
+#[inline]
 pub fn lap_values_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) -> bool {
     let mut minimum_value = f64::INFINITY;
     let mut maximum_value = 0.0_f64;
@@ -407,6 +417,7 @@ pub fn lap_values_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) ->
 
 /// Compute the total cost of an assignment.
 #[must_use]
+#[inline]
 pub fn lap_assignment_cost(csr: &ValuedCSR2D<u16, u8, u8, f64>, assignment: &[(u8, u8)]) -> f64 {
     assignment
         .iter()
@@ -428,6 +439,7 @@ pub fn lap_assignment_cost(csr: &ValuedCSR2D<u16, u8, u8, f64>, assignment: &[(u
 /// # Panics
 ///
 /// Panics if the wrappers disagree when they should agree.
+#[inline]
 pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let numerically_stable = lap_values_are_numerically_stable(csr);
     let maximum_value = csr.max_sparse_value().unwrap_or(1000.0);
@@ -513,6 +525,7 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
 /// # Panics
 ///
 /// Panics if results are inconsistent.
+#[inline]
 pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let number_of_rows: usize = csr.number_of_rows().as_();
     let number_of_columns: usize = csr.number_of_columns().as_();
@@ -613,6 +626,7 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 /// Returns `true` when edge weights are in a numerically stable range for
 /// Louvain modularity comparisons.
 #[must_use]
+#[inline]
 pub fn louvain_weights_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) -> bool {
     let mut min_val = f64::INFINITY;
     let mut max_val = 0.0_f64;
@@ -641,6 +655,7 @@ pub fn louvain_weights_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64
 ///
 /// Panics if Louvain fails on valid symmetric input or produces invalid
 /// results.
+#[inline]
 pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     // Louvain must never panic on arbitrary input.
     let _: Result<LouvainResult<usize>, _> = csr.louvain(&LouvainConfig::default());

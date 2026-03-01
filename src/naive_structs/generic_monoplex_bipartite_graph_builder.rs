@@ -20,6 +20,7 @@ pub struct GenericMonoplexBipartiteGraphBuilder<G: MonoplexBipartiteGraph> {
 }
 
 impl<G: MonoplexBipartiteGraph> Default for GenericMonoplexBipartiteGraphBuilder<G> {
+    #[inline]
     fn default() -> Self {
         Self { left_nodes: None, right_nodes: None, edges: None, _graph: PhantomData }
     }
@@ -28,10 +29,12 @@ impl<G: MonoplexBipartiteGraph> Default for GenericMonoplexBipartiteGraphBuilder
 impl<G: MonoplexBipartiteGraph> BipartiteGraphBuilder for GenericMonoplexBipartiteGraphBuilder<G> {
     type BipartiteGraph = G;
 
+    #[inline]
     fn left_nodes(self, left_nodes: <Self::BipartiteGraph as BipartiteGraph>::LeftNodes) -> Self {
         Self { left_nodes: Some(left_nodes), ..self }
     }
 
+    #[inline]
     fn right_nodes(
         self,
         right_nodes: <Self::BipartiteGraph as BipartiteGraph>::RightNodes,
@@ -43,6 +46,7 @@ impl<G: MonoplexBipartiteGraph> BipartiteGraphBuilder for GenericMonoplexBiparti
 impl<G: MonoplexBipartiteGraph> MonoplexGraphBuilder for GenericMonoplexBipartiteGraphBuilder<G> {
     type MonoplexGraph = G;
 
+    #[inline]
     fn edges(self, edges: <Self::MonoplexGraph as crate::prelude::MonoplexGraph>::Edges) -> Self {
         Self { edges: Some(edges), ..self }
     }
@@ -66,6 +70,7 @@ where
     ///
     /// Returns [`MonoplexBipartiteGraphBuilderError`] if the graph cannot be
     /// built.
+    #[inline]
     pub fn build(self) -> Result<G, MonoplexBipartiteGraphBuilderError> {
         G::try_from((
             self.left_nodes

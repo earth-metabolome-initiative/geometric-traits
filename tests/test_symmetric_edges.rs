@@ -6,6 +6,7 @@ use geometric_traits::impls::{CSR2D, SymmetricCSR2D};
 
 #[test]
 /// First simple test for symmetric edges.
+#[inline]
 pub fn test_symmetric_edges() {
     let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 2), (2, 3), (3, 4), (4, 5)];
     let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiEdgesBuilder::default()

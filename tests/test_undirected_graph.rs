@@ -6,6 +6,7 @@ use geometric_traits::impls::{CSR2D, SortedVec, SymmetricCSR2D};
 
 #[test]
 /// First simple test for undirected graph.
+#[inline]
 pub fn test_undirected_graph() {
     let nodes: Vec<usize> = vec![0, 1, 2, 3, 4, 5];
     let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 3), (3, 4), (4, 5)];

@@ -21,6 +21,7 @@ pub struct GenericVocabularyBuilder<Symbols, Vocabulary> {
 }
 
 impl<Symbols, V> Default for GenericVocabularyBuilder<Symbols, V> {
+    #[inline]
     fn default() -> Self {
         Self {
             symbols: None,
@@ -40,24 +41,29 @@ where
     type Symbols = Symbols;
     type Vocabulary = V;
 
+    #[inline]
     fn expected_number_of_symbols(mut self, number_of_symbols: usize) -> Self {
         self.expected_number_of_symbols = Some(number_of_symbols);
         self
     }
 
+    #[inline]
     fn get_expected_number_of_symbols(&self) -> Option<usize> {
         self.expected_number_of_symbols
     }
 
+    #[inline]
     fn ignore_duplicates(mut self) -> Self {
         self.ignore_duplicates = true;
         self
     }
 
+    #[inline]
     fn should_ignore_duplicates(&self) -> bool {
         self.ignore_duplicates
     }
 
+    #[inline]
     fn symbols(mut self, symbols: Self::Symbols) -> Self {
         self.symbols = Some(symbols);
         self
@@ -79,6 +85,7 @@ where
     /// # Errors
     ///
     /// Returns [`VocabularyBuilderError`] if the vocabulary cannot be built.
+    #[inline]
     pub fn build(
         self,
     ) -> Result<
