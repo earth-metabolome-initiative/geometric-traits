@@ -25,6 +25,15 @@ fn build_digraph(node_list: Vec<usize>, edge_list: Vec<(usize, usize)>) -> DiGra
     DiGraph::from((nodes, edges))
 }
 
+fn assert_approx_eq(actual: f64, expected: f64) {
+    let eps = 1e-12;
+    assert!(
+        (actual - expected).abs() <= eps,
+        "expected {expected:.15}, got {actual:.15} (diff {:.15})",
+        (actual - expected).abs()
+    );
+}
+
 #[test]
 fn test_wu_palmer_self_similarity() {
     let graph = build_digraph(vec![0, 1, 2], vec![(0, 1), (0, 2), (1, 2)]);
@@ -103,4 +112,36 @@ fn test_wu_palmer_single_edge() {
 
     let sim = wu_palmer.similarity(&0, &1);
     assert!((0.0..=1.0).contains(&sim), "Similarity should be in [0, 1], got {sim}");
+}
+
+#[test]
+fn test_wu_palmer_exact_values_star_graph() {
+    // Star: 0 -> 1, 0 -> 2
+    // Canonical Wu-Palmer with root depth=1:
+    // sim(0,1) = 2*1 / (1+2) = 2/3
+    // sim(1,2) = 2*1 / (2+2) = 1/2
+    let graph = build_digraph(vec![0, 1, 2], vec![(0, 1), (0, 2)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    assert_approx_eq(wu_palmer.similarity(&0, &1), 2.0 / 3.0);
+    assert_approx_eq(wu_palmer.similarity(&1, &2), 1.0 / 2.0);
+}
+
+#[test]
+fn test_wu_palmer_exact_values_chain_graph() {
+    // Chain: 0 -> 1 -> 2 -> 3
+    // Canonical Wu-Palmer with root depth=1:
+    // depth(1)=2, depth(2)=3, depth(3)=4
+    // sim(1,2) = 2*2 / (2+3) = 4/5
+    // sim(1,3) = 2*2 / (2+4) = 2/3
+    let graph = build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (1, 2), (2, 3)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    let sim_1_2 = wu_palmer.similarity(&1, &2);
+    let sim_1_3 = wu_palmer.similarity(&1, &3);
+
+    assert_approx_eq(sim_1_2, 4.0 / 5.0);
+    assert_approx_eq(sim_1_3, 2.0 / 3.0);
+    assert!(sim_1_2 > sim_1_3);
+    assert!(sim_1_3 > 0.0);
 }
