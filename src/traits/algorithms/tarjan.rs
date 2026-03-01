@@ -20,6 +20,8 @@ pub struct TarjanIterator<'matrix, M: SquareMatrix + SparseMatrix2D + ?Sized> {
     stack: Vec<M::Index>,
     /// Mask to mark nodes as on the stack.
     on_stack: Vec<bool>,
+    /// DFS call stack nodes, aligned with `sparse_row_stack`.
+    dfs_stack: Vec<M::Index>,
     /// Sparse row iterator stack.
     sparse_row_stack: Vec<M::SparseRow<'matrix>>,
     /// The number of strongly connected components found.
@@ -38,6 +40,7 @@ impl<'matrix, M: SquareMatrix + SparseMatrix2D + ?Sized> From<&'matrix M>
             indices: vec![None; matrix.order().as_()],
             on_stack: vec![false; matrix.order().as_()],
             stack: Vec::new(),
+            dfs_stack: Vec::new(),
             sparse_row_stack: Vec::new(),
             number_of_strongly_connected_components: M::Index::ZERO,
             row_indices: matrix.row_indices(),
@@ -52,17 +55,17 @@ impl<M: SquareMatrix + SparseMatrix2D + ?Sized> TarjanIterator<'_, M> {
         self.lowlink[row_id.as_()] = Some(self.number_of_strongly_connected_components);
         self.number_of_strongly_connected_components += M::Index::ONE;
         self.stack.push(row_id);
+        self.dfs_stack.push(row_id);
         self.sparse_row_stack.push(self.matrix.sparse_row(row_id));
         self.on_stack[row_id.as_()] = true;
     }
 
     fn last_scc_row_id(&self) -> M::Index {
-        let scc_index = self.sparse_row_stack.len();
-        self.stack[scc_index - 1]
+        *self.dfs_stack.last().unwrap()
     }
 
     fn complete_last_scc_search(&mut self) -> Option<Vec<M::Index>> {
-        let row_id = self.last_scc_row_id();
+        let row_id = self.dfs_stack.pop()?;
         let sparse_row = self.sparse_row_stack.pop()?;
         debug_assert_eq!(
             sparse_row.collect::<Vec<_>>(),
@@ -124,7 +127,7 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
             let column_id = self.last_scc_row_id();
             let maybe_scc = self.complete_last_scc_search();
             // If the rows iterator is exhausted, we no longer have a next row to process.
-            if !self.stack.is_empty() {
+            if !self.dfs_stack.is_empty() {
                 let root_id = self.last_scc_row_id();
                 self.lowlink[root_id.as_()] = self.lowlink[root_id.as_()]
                     .zip(self.lowlink[column_id.as_()])

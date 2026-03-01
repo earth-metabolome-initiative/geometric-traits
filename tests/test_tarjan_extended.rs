@@ -1,6 +1,8 @@
 //! Extended tests for Tarjan's algorithm for strongly connected components.
 #![cfg(feature = "std")]
 
+use std::collections::BTreeSet;
+
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D},
     prelude::*,
@@ -174,4 +176,22 @@ fn test_tarjan_all_nodes_covered() {
     let mut all_nodes: Vec<usize> = sccs.into_iter().flatten().collect();
     all_nodes.sort_unstable();
     assert_eq!(all_nodes, vec![0, 1, 2, 3, 4]);
+}
+
+#[test]
+fn test_tarjan_regression_does_not_split_scc_after_singleton_pop() {
+    // One non-trivial SCC {0,1,2} plus sink singleton {3}.
+    // The DFS reaches 3 from 2 and must return to 2 (not rebind to 1).
+    let m = build_square_csr(4, vec![(0, 1), (0, 2), (1, 0), (2, 0), (2, 1), (2, 3)]);
+
+    let actual: BTreeSet<Vec<usize>> = m
+        .tarjan()
+        .map(|mut scc| {
+            scc.sort_unstable();
+            scc
+        })
+        .collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![0, 1, 2], vec![3]]);
+
+    assert_eq!(actual, expected);
 }
