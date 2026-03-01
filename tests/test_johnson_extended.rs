@@ -3,24 +3,11 @@
 
 use std::collections::BTreeSet;
 
-use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
-    prelude::*,
-    traits::{EdgesBuilder, Johnson},
-};
+use geometric_traits::traits::Johnson;
 
-/// Helper to build a SquareCSR2D from directed edges.
-fn build_square_csr(
-    node_count: usize,
-    edges: Vec<(usize, usize)>,
-) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    DiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(node_count)
-        .edges(edges.into_iter())
-        .build()
-        .unwrap()
-}
+mod common;
+
+use common::build_square_csr;
 
 fn canonical_cycle(cycle: &[usize]) -> Vec<usize> {
     let n = cycle.len();
@@ -146,6 +133,28 @@ fn test_johnson_self_loop_not_detected() {
 
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     assert!(cycles.is_empty(), "Self-loop alone does not form a multi-node SCC");
+}
+
+#[test]
+fn test_johnson_self_loop_inside_multi_node_scc_is_not_emitted() {
+    // 1 has a self-loop and also participates in a 2-cycle with 3.
+    // Johnson should enumerate only cycles with 2+ nodes.
+    let m = build_square_csr(4, vec![(0, 1), (1, 1), (1, 3), (2, 0), (2, 2), (3, 1)]);
+
+    let actual: BTreeSet<Vec<usize>> = m.johnson().map(|cycle| canonical_cycle(&cycle)).collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![1, 3]]);
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_johnson_self_loops_do_not_appear_alongside_multi_node_cycles() {
+    // Triangle plus self-loops inside the same SCC.
+    let m = build_square_csr(4, vec![(0, 0), (0, 1), (1, 1), (1, 2), (2, 0)]);
+    let cycles: Vec<Vec<usize>> = m.johnson().collect();
+
+    assert!(!cycles.is_empty());
+    assert!(cycles.iter().all(|cycle| cycle.len() > 1));
 }
 
 // ============================================================================

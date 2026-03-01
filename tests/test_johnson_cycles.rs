@@ -25,7 +25,6 @@ fn test_johnson_cycles_crash1() {
         SquareCSR2D::from_entries(vec![(0, 0), (0, 1), (1, 0), (1, 1), (1, 2)])
             .expect("Failed to create matrix");
     let cycles: Vec<Vec<usize>> = matrix.johnson().collect();
-    assert_eq!(cycles.len(), 2);
-    assert_eq!(cycles[0], vec![0]);
-    assert_eq!(cycles[1], vec![0, 1]);
+    assert_eq!(cycles.len(), 1);
+    assert_eq!(cycles[0], vec![0, 1]);
 }

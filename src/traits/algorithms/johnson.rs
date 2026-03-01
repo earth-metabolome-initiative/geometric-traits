@@ -74,9 +74,14 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         while !self.row_iterators.is_empty() {
             if let Some(column_id) = self.last_circuit_next_column() {
                 if column_id == self.current_root_id {
-                    *self.found_circuit_stack.last_mut().expect("frame exists while searching") =
-                        true;
-                    return Some(self.data.stack.as_slice());
+                    if self.data.stack.len() > 1 {
+                        *self
+                            .found_circuit_stack
+                            .last_mut()
+                            .expect("frame exists while searching") = true;
+                        return Some(self.data.stack.as_slice());
+                    }
+                    continue;
                 }
 
                 if !self.is_blocked(column_id) {

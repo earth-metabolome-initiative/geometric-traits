@@ -2,24 +2,11 @@
 //! cascading unblock, graph structures that exercise find_path and scan.
 #![cfg(feature = "std")]
 
-use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
-    prelude::*,
-    traits::EdgesBuilder,
-};
+use geometric_traits::traits::Johnson;
 
-fn build_square_csr(
-    n: usize,
-    mut edges: Vec<(usize, usize)>,
-) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    edges.sort_unstable();
-    DiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(n)
-        .edges(edges.into_iter())
-        .build()
-        .unwrap()
-}
+mod common;
+
+use common::build_square_csr;
 
 // ============================================================================
 // DAG: no cycles at all → Johnson should yield nothing
@@ -56,12 +43,11 @@ fn test_johnson_single_triangle() {
 
 #[test]
 fn test_johnson_single_self_loop() {
-    // Self-loop: 0 → 0 forms an SCC {0}, but Tarjan only finds SCCs of size > 1
-    // by default in Johnson's. So self-loops may not be detected.
+    // Self-loop: 0 → 0 forms an SCC {0}. Johnson only enumerates cycles with
+    // 2+ nodes, so this is intentionally ignored.
     let m = build_square_csr(1, vec![(0, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    // Johnson's algorithm may not find self-loops (depends on Tarjan SCC filtering)
-    assert!(cycles.is_empty() || cycles[0] == vec![0]);
+    assert!(cycles.is_empty());
 }
 
 // ============================================================================
