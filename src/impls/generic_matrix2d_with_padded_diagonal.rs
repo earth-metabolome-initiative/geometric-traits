@@ -194,11 +194,6 @@ where
     }
 
     #[inline]
-    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
-        self.sparse_row(row).any(|col| col == column)
-    }
-
-    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         SparseRowsWithPaddedDiagonal::from(self)
     }

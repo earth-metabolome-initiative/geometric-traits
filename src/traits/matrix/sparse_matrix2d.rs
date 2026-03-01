@@ -37,7 +37,10 @@ pub trait SparseMatrix2D: Matrix2D + SparseMatrix {
     ///
     /// * `row`: The row index.
     /// * `column`: The column index.
-    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool;
+    #[inline]
+    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
+        self.sparse_row(row).any(|sparse_column| sparse_column == column)
+    }
 
     /// Returns an iterator over all the columns of the matrix.
     fn sparse_columns(&self) -> Self::SparseColumns<'_>;
