@@ -128,3 +128,27 @@ fn test_randomized_dag_edges_are_forward() {
         }
     }
 }
+
+#[test]
+fn test_randomized_dag_zero_nodes_no_panic_and_empty() {
+    let graph: SimpleDiGraph = SimpleDiGraph::randomized_dag(123, 0);
+    assert_eq!(graph.number_of_nodes(), 0);
+    assert_eq!(graph.number_of_edges(), 0);
+}
+
+#[test]
+fn test_randomized_dag_one_node_no_panic_and_no_edges() {
+    let graph: SimpleDiGraph = SimpleDiGraph::randomized_dag(123, 1);
+    assert_eq!(graph.number_of_nodes(), 1);
+    assert_eq!(graph.number_of_edges(), 0);
+}
+
+#[test]
+fn test_randomized_dag_two_nodes_can_reach_max_edges() {
+    let saw_max = (0u64..1024).any(|seed| {
+        let graph: SimpleDiGraph = SimpleDiGraph::randomized_dag(seed, 2);
+        graph.number_of_edges() == 1
+    });
+
+    assert!(saw_max, "Expected at least one seed to produce the maximal edge count for 2 nodes");
+}

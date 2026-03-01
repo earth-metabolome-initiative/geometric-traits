@@ -145,6 +145,13 @@ fn test_sparse_lapjv_empty_matrix() {
     assert!(result.is_empty());
 }
 
+#[test]
+fn test_sparse_lapjv_padding_too_small() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([[5.0, 2.0], [3.0, 4.0]]).unwrap();
+    let result = csr.sparse_lapjv(1.0, 1000.0);
+    assert_eq!(result, Err(LAPError::PaddingCostTooSmall));
+}
+
 // ============================================================================
 // LAPMOD max_cost validation
 // ============================================================================
