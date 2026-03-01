@@ -24,13 +24,13 @@ fn test_m2d_values_next_back_crosses_to_previous_back_row() {
     let padded = padded_3x3();
     let mut iter = padded.sparse_values();
 
-    // `next_back` consumes the back row from its front in this iterator.
-    assert_eq!(iter.next_back(), Some(7.0));
-    assert_eq!(iter.next_back(), Some(8.0));
+    // `next_back` consumes rows from the true tail.
     assert_eq!(iter.next_back(), Some(9.0));
+    assert_eq!(iter.next_back(), Some(8.0));
+    assert_eq!(iter.next_back(), Some(7.0));
 
     // After exhausting row 2, it steps to row 1.
-    assert_eq!(iter.next_back(), Some(4.0));
+    assert_eq!(iter.next_back(), Some(6.0));
 }
 
 #[test]
@@ -44,10 +44,11 @@ fn test_m2d_values_next_back_falls_back_to_front_iterator_when_rows_meet() {
     assert_eq!(iter.next(), Some(3.0));
     assert_eq!(iter.next(), Some(4.0));
 
-    // Exhaust back row 2, then `next_back` falls back to `next.next()`.
-    assert_eq!(iter.next_back(), Some(7.0));
-    assert_eq!(iter.next_back(), Some(8.0));
+    // Exhaust back row 2, then `next_back` continues from the back of row 1.
     assert_eq!(iter.next_back(), Some(9.0));
+    assert_eq!(iter.next_back(), Some(8.0));
+    assert_eq!(iter.next_back(), Some(7.0));
+    assert_eq!(iter.next_back(), Some(6.0));
     assert_eq!(iter.next_back(), Some(5.0));
 }
 

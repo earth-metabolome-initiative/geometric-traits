@@ -156,8 +156,8 @@ fn test_lower_bounded_sparse_columns_rev_partial() {
 
     // Take exactly the number of entries (4) from reverse
     let cols_rev: Vec<usize> = lb.sparse_columns().rev().take(4).collect();
-    // back(row 2) = [0, 1], then row 1: [2], then falls to next row 0: [1]
-    assert_eq!(cols_rev, vec![0, 1, 2, 1]);
+    // back(row 2) reversed = [1, 0], then row 1: [2], then row 0: [1]
+    assert_eq!(cols_rev, vec![1, 0, 2, 1]);
 }
 
 #[test]

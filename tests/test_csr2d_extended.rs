@@ -99,7 +99,7 @@ fn test_csr2d_sparse_coordinates_reverse() {
     let csr = build_csr(vec![(0, 1), (1, 0), (1, 2)]);
     let coords: Vec<(usize, usize)> = csr.sparse_coordinates().rev().collect();
     // Rev iterates backwards: last entry first
-    assert_eq!(coords, vec![(1, 0), (1, 2), (0, 1)]);
+    assert_eq!(coords, vec![(1, 2), (1, 0), (0, 1)]);
 }
 
 #[test]

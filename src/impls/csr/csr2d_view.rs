@@ -2,7 +2,7 @@
 
 use core::cmp::Ordering;
 
-use num_traits::{AsPrimitive, One, SaturatingSub, Zero};
+use num_traits::{AsPrimitive, One, Zero};
 
 use crate::prelude::*;
 
@@ -24,19 +24,29 @@ impl<CSR: SparseMatrix2D> Iterator for CSR2DView<'_, CSR> {
     type Item = CSR::Coordinates;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next.as_mut()?.next().map(|column_index| (self.next_row, column_index)).or_else(|| {
+        loop {
+            if let Some(column_index) = self.next.as_mut()?.next() {
+                return Some((self.next_row, column_index));
+            }
+
             match self.next_row.cmp(&self.back_row) {
-                Ordering::Equal => None,
                 Ordering::Less => {
                     self.next_row += CSR::RowIndex::one();
-                    self.next = Some(self.csr2d.sparse_row(self.next_row));
-                    self.next()
+                    if self.next_row == self.back_row {
+                        self.next = self.back.take();
+                    } else {
+                        self.next = Some(self.csr2d.sparse_row(self.next_row));
+                    }
                 }
-                Ordering::Greater => {
-                    self.back.as_mut()?.next().map(|column_index| (self.back_row, column_index))
+                Ordering::Equal | Ordering::Greater => {
+                    return self
+                        .back
+                        .as_mut()
+                        .and_then(Iterator::next)
+                        .map(|column_index| (self.back_row, column_index));
                 }
             }
-        })
+        }
     }
 }
 
@@ -45,6 +55,13 @@ where
     CSR::SparseRow<'matrix>: ExactSizeIterator,
 {
     fn len(&self) -> usize {
+        if self.next.is_none() {
+            return 0;
+        }
+        if self.back.is_none() {
+            return self.next.as_ref().map_or(0, ExactSizeIterator::len);
+        }
+
         let next_row_rank = self.csr2d.rank_row(self.next_row).as_();
         let already_observed_in_next_row =
             self.csr2d.number_of_defined_values_in_row(self.next_row).as_()
@@ -59,29 +76,45 @@ where
 
 impl<CSR: SparseMatrix2D> DoubleEndedIterator for CSR2DView<'_, CSR> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.back.as_mut()?.next().map(|column_index| (self.back_row, column_index)).or_else(|| {
-            match self.next_row.cmp(&self.back_row) {
-                Ordering::Equal => None,
-                Ordering::Less => {
-                    self.next.as_mut()?.next().map(|column_index| (self.next_row, column_index))
+        loop {
+            if let Some(back) = self.back.as_mut() {
+                if let Some(column_index) = back.next_back() {
+                    return Some((self.back_row, column_index));
                 }
-                Ordering::Greater => {
-                    self.back_row += CSR::RowIndex::one();
-                    self.back = Some(self.csr2d.sparse_row(self.back_row));
-                    self.next_back()
+
+                if self.back_row > self.next_row {
+                    self.back_row -= CSR::RowIndex::one();
+                    if self.back_row == self.next_row {
+                        self.back = None;
+                    } else {
+                        self.back = Some(self.csr2d.sparse_row(self.back_row));
+                    }
+                } else {
+                    self.back = None;
                 }
+            } else {
+                return self
+                    .next
+                    .as_mut()
+                    .and_then(DoubleEndedIterator::next_back)
+                    .map(|column_index| (self.next_row, column_index));
             }
-        })
+        }
     }
 }
 
 impl<'a, CSR: SparseMatrix2D> From<&'a CSR> for CSR2DView<'a, CSR> {
     fn from(csr2d: &'a CSR) -> Self {
         let next_row = CSR::RowIndex::zero();
-        let back_row = csr2d.number_of_rows().saturating_sub(&CSR::RowIndex::one());
-        let next = (next_row < csr2d.number_of_rows()).then(|| csr2d.sparse_row(next_row));
-        let back = (back_row < csr2d.number_of_rows() && next_row < back_row)
-            .then(|| csr2d.sparse_row(back_row));
+        let mut back_row = CSR::RowIndex::zero();
+        let has_rows = next_row < csr2d.number_of_rows();
+        let next = has_rows.then(|| csr2d.sparse_row(next_row));
+        let back = if has_rows {
+            back_row = csr2d.number_of_rows() - CSR::RowIndex::one();
+            (next_row < back_row).then(|| csr2d.sparse_row(back_row))
+        } else {
+            None
+        };
         Self { csr2d, next_row, back_row, next, back }
     }
 }

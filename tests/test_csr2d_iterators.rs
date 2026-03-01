@@ -100,11 +100,10 @@ fn test_row_sizes_with_empty_rows() {
 
 #[test]
 fn test_row_sizes_rev_take() {
-    // Use take to avoid overflow
     let csr = build_csr_with_shape(4, 4, vec![(0, 0), (0, 1), (3, 0)]);
     let first_back: Vec<usize> = csr.sparse_row_sizes().rev().take(2).collect();
     // Row sizes from back: row 3 has 1, then row 2 has 0
-    assert_eq!(first_back, vec![0, 0]);
+    assert_eq!(first_back, vec![1, 0]);
 }
 
 // ============================================================================
@@ -123,17 +122,14 @@ fn test_empty_row_indices_forward() {
 fn test_empty_row_indices_exact_size() {
     let csr = build_csr_with_shape(4, 4, vec![(0, 0), (2, 1)]);
     let iter = csr.empty_row_indices();
-    // ExactSizeIterator reports total rows
-    assert_eq!(iter.len(), 4);
+    assert_eq!(iter.len(), 2);
 }
 
 #[test]
 fn test_empty_row_indices_rev_take() {
     let csr = build_csr_with_shape(5, 5, vec![(0, 0), (2, 1)]);
     let first_back: Vec<usize> = csr.empty_row_indices().rev().take(2).collect();
-    // Empty rows from the back (CSR2DSizedRowsizes DoubleEndedIterator
-    // is offset by one row relative to the row index range)
-    assert_eq!(first_back, vec![4, 2]);
+    assert_eq!(first_back, vec![4, 3]);
 }
 
 #[test]
@@ -159,15 +155,14 @@ fn test_non_empty_row_indices_forward() {
 fn test_non_empty_row_indices_exact_size() {
     let csr = build_csr_with_shape(4, 4, vec![(0, 0), (2, 1)]);
     let iter = csr.non_empty_row_indices();
-    assert_eq!(iter.len(), 4);
+    assert_eq!(iter.len(), 2);
 }
 
 #[test]
 fn test_non_empty_row_indices_rev_take() {
     let csr = build_csr_with_shape(5, 5, vec![(0, 0), (2, 1), (4, 3)]);
     let first_back: Vec<usize> = csr.non_empty_row_indices().rev().take(2).collect();
-    // Non-empty from back (shifted due to CSR2DSizedRowsizes DoubleEndedIterator)
-    assert_eq!(first_back, vec![3, 1]);
+    assert_eq!(first_back, vec![4, 2]);
 }
 
 #[test]
@@ -344,8 +339,12 @@ fn test_sparse_rows_forward_multi_row() {
     assert_eq!(rows, vec![0, 0, 0, 1, 2, 2]);
 }
 
-// Note: backward iteration on sparse_rows has a known subtraction overflow
-// bug in CSR2DSizedRows when back_row is 0, so we skip the full .rev() test.
+#[test]
+fn test_sparse_rows_backward_multi_row() {
+    let csr = make_3x4();
+    let rows: Vec<usize> = <TestCSR2D as SparseMatrix2D>::sparse_rows(&csr).rev().collect();
+    assert_eq!(rows, vec![2, 2, 1, 0, 0, 0]);
+}
 
 #[test]
 fn test_sparse_rows_len_during_iteration() {
@@ -358,15 +357,29 @@ fn test_sparse_rows_len_during_iteration() {
     assert_eq!(iter.len(), 4);
 }
 
-// Note: mixed direction on sparse_rows also hits the subtraction overflow
-// bug, so we only test forward iteration and len().
+#[test]
+fn test_sparse_rows_mixed_direction() {
+    let csr = make_3x4();
+    let mut iter = <TestCSR2D as SparseMatrix2D>::sparse_rows(&csr);
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next_back(), Some(2));
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next_back(), Some(2));
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next_back(), Some(1));
+    assert_eq!(iter.next(), None);
+}
 
 // ============================================================================
 // CSR2DView: double-ended coordinates iteration
 // ============================================================================
 
-// Note: CSR2DView backward iteration has a known issue with the back row
-// getting a non-existent next_back row. We skip .rev() on multi-row.
+#[test]
+fn test_view_backward_multi_row() {
+    let csr = make_3x4();
+    let coords: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(&csr).rev().collect();
+    assert_eq!(coords, vec![(2, 3), (2, 0), (1, 1), (0, 2), (0, 1), (0, 0)]);
+}
 
 #[test]
 fn test_view_len_mid_iteration() {
@@ -381,7 +394,18 @@ fn test_view_len_mid_iteration() {
     assert_eq!(iter.len(), 3);
 }
 
-// Note: CSR2DView mixed direction has the same back-iteration issue.
+#[test]
+fn test_view_mixed_direction() {
+    let csr = make_3x4();
+    let mut iter = SparseMatrix::sparse_coordinates(&csr);
+    assert_eq!(iter.next(), Some((0, 0)));
+    assert_eq!(iter.next_back(), Some((2, 3)));
+    assert_eq!(iter.next(), Some((0, 1)));
+    assert_eq!(iter.next_back(), Some((2, 0)));
+    assert_eq!(iter.next(), Some((0, 2)));
+    assert_eq!(iter.next_back(), Some((1, 1)));
+    assert_eq!(iter.next(), None);
+}
 
 // ============================================================================
 // M2DValues: multi-row forward, backward, len
@@ -414,18 +438,16 @@ fn test_values_len_during_iteration() {
     assert_eq!(iter.len(), 4);
 }
 
-// Note: M2DValues backward iteration uses next() not next_back() on the back
-// row's iterator (line 57-61), which has quirks. We test what actually works.
 #[test]
 fn test_values_mixed_direction() {
     let m: TestValCSR = ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]).unwrap();
     let mut iter = m.sparse_values();
     assert_eq!(iter.next(), Some(1.0));
+    assert_eq!(iter.next_back(), Some(6.0));
     assert_eq!(iter.next(), Some(2.0));
+    assert_eq!(iter.next_back(), Some(5.0));
     assert_eq!(iter.next(), Some(3.0));
-    assert_eq!(iter.next(), Some(4.0));
-    assert_eq!(iter.next(), Some(5.0));
-    assert_eq!(iter.next(), Some(6.0));
+    assert_eq!(iter.next_back(), Some(4.0));
     assert_eq!(iter.next(), None);
 }
 
@@ -447,5 +469,41 @@ fn test_two_row_columns_falls_to_back() {
     assert_eq!(iter.next(), None);
 }
 
-// Note: backward iteration on sparse_rows has the same subtraction overflow
-// bug.
+// ============================================================================
+// Empty matrix safety across bidirectional CSR iterators
+// ============================================================================
+
+#[test]
+fn test_empty_csr_iterators_are_safe_and_empty() {
+    let csr: TestCSR2D = CSR2D::with_sparse_shaped_capacity((0, 0), 0);
+
+    let mut sparse_rows = csr.sparse_rows();
+    assert_eq!(sparse_rows.len(), 0);
+    assert_eq!(sparse_rows.next(), None);
+    assert_eq!(sparse_rows.next_back(), None);
+
+    let mut sparse_columns = csr.sparse_columns();
+    assert_eq!(sparse_columns.len(), 0);
+    assert_eq!(sparse_columns.next(), None);
+    assert_eq!(sparse_columns.next_back(), None);
+
+    let mut sparse_row_sizes = csr.sparse_row_sizes();
+    assert_eq!(sparse_row_sizes.len(), 0);
+    assert_eq!(sparse_row_sizes.next(), None);
+    assert_eq!(sparse_row_sizes.next_back(), None);
+
+    let mut sparse_coords = SparseMatrix::sparse_coordinates(&csr);
+    assert_eq!(sparse_coords.len(), 0);
+    assert_eq!(sparse_coords.next(), None);
+    assert_eq!(sparse_coords.next_back(), None);
+}
+
+#[test]
+fn test_empty_valued_csr_sparse_values_are_safe_and_empty() {
+    let vcsr: TestValCSR = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
+
+    let mut sparse_values = vcsr.sparse_values();
+    assert_eq!(sparse_values.len(), 0);
+    assert_eq!(sparse_values.next(), None);
+    assert_eq!(sparse_values.next_back(), None);
+}
