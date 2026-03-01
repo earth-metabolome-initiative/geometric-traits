@@ -1,24 +1,11 @@
 //! Manual stepping tests for Johnson's iterator state transitions.
 #![cfg(feature = "std")]
 
-use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
-    prelude::*,
-    traits::{EdgesBuilder, Johnson},
-};
+use geometric_traits::traits::Johnson;
 
-fn build_square_csr(
-    node_count: usize,
-    mut edges: Vec<(usize, usize)>,
-) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    edges.sort_unstable();
-    DiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(node_count)
-        .edges(edges.into_iter())
-        .build()
-        .expect("failed to build square CSR matrix")
-}
+mod common;
+
+use common::build_square_csr;
 
 #[test]
 fn test_johnson_manual_next_on_dag_is_immediately_none() {

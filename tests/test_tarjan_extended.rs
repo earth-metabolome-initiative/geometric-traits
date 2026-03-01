@@ -3,24 +3,11 @@
 
 use std::collections::BTreeSet;
 
-use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
-    prelude::*,
-    traits::{EdgesBuilder, Tarjan},
-};
+use geometric_traits::traits::Tarjan;
 
-/// Helper to build a SquareCSR2D from directed edges.
-fn build_square_csr(
-    node_count: usize,
-    edges: Vec<(usize, usize)>,
-) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    DiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(node_count)
-        .edges(edges.into_iter())
-        .build()
-        .unwrap()
-}
+mod common;
+
+use common::build_square_csr;
 
 // ============================================================================
 // Basic SCC tests

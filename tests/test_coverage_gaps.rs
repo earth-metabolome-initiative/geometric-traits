@@ -12,6 +12,10 @@ use geometric_traits::{
     },
 };
 
+mod common;
+
+use common::build_square_csr;
+
 // ============================================================================
 // Error conversions: From<MutabilityError<SquareCSR2D<M>>> for
 // UpperTriangularCSR2D<M> and other From impls (lines 98-197 of error.rs)
@@ -354,19 +358,6 @@ fn test_cc_all_isolated() {
 // ============================================================================
 // Johnson: more complex cycle structures for deeper algorithm coverage
 // ============================================================================
-
-fn build_square_csr(
-    n: usize,
-    mut edges: Vec<(usize, usize)>,
-) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
-    edges.sort_unstable();
-    DiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(n)
-        .edges(edges.into_iter())
-        .build()
-        .unwrap()
-}
 
 #[test]
 fn test_johnson_figure_eight() {
