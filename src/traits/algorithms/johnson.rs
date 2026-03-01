@@ -68,26 +68,9 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         self.data.blocked[row_id.as_()]
     }
 
-    fn next_circuit(&mut self) -> Option<&[M::Index]> {
-        while let Some(column_id) = self.last_circuit_next_column() {
-            if column_id == self.current_root_id {
-                self.data.found_circuit = true;
-                return Some(self.data.stack.as_slice());
-            }
-
-            if !self.is_blocked(column_id) {
-                self.register_circuit_search(column_id);
-                return self.next_circuit();
-            }
-        }
-
-        self.remove_last_circuit_search();
-        None
-    }
-
     fn search_circuit(&mut self) -> Option<&[M::Index]> {
         while !self.row_iterators.is_empty() {
-            while let Some(column_id) = self.last_circuit_next_column() {
+            if let Some(column_id) = self.last_circuit_next_column() {
                 if column_id == self.current_root_id {
                     self.data.found_circuit = true;
                     return Some(self.data.stack.as_slice());
@@ -95,8 +78,8 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
 
                 if !self.is_blocked(column_id) {
                     self.register_circuit_search(column_id);
-                    return self.next_circuit();
                 }
+                continue;
             }
 
             self.remove_last_circuit_search();
@@ -142,7 +125,7 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
             self.unblock(row_id);
         } else {
             for column_id in self.current_component.sparse_row(row_id) {
-                if self.data.block_map[column_id.as_()].contains(&row_id) {
+                if !self.data.block_map[column_id.as_()].contains(&row_id) {
                     self.data.block_map[column_id.as_()].push(row_id);
                 }
             }

@@ -1,6 +1,8 @@
 //! Extended tests for Johnson's algorithm for finding all cycles.
 #![cfg(feature = "std")]
 
+use std::collections::BTreeSet;
+
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D},
     prelude::*,
@@ -18,6 +20,20 @@ fn build_square_csr(
         .edges(edges.into_iter())
         .build()
         .unwrap()
+}
+
+fn canonical_cycle(cycle: &[usize]) -> Vec<usize> {
+    let n = cycle.len();
+    let mut best = cycle.to_vec();
+    for shift in 1..n {
+        let mut rotated = Vec::with_capacity(n);
+        rotated.extend_from_slice(&cycle[shift..]);
+        rotated.extend_from_slice(&cycle[..shift]);
+        if rotated < best {
+            best = rotated;
+        }
+    }
+    best
 }
 
 // ============================================================================
@@ -90,6 +106,18 @@ fn test_johnson_overlapping_cycles() {
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     // Should find: [0,1,2] and [0,2]
     assert_eq!(cycles.len(), 2);
+}
+
+#[test]
+fn test_johnson_regression_does_not_drop_valid_cycle() {
+    // This graph has three elementary cycles:
+    // [0,1], [1,2], and [0,2,1].
+    let m = build_square_csr(3, vec![(0, 1), (0, 2), (1, 0), (1, 2), (2, 1)]);
+
+    let actual: BTreeSet<Vec<usize>> = m.johnson().map(|cycle| canonical_cycle(&cycle)).collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![0, 1], vec![1, 2], vec![0, 2, 1]]);
+
+    assert_eq!(actual, expected);
 }
 
 // ============================================================================
