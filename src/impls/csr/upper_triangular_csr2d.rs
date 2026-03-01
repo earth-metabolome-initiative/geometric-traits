@@ -327,53 +327,57 @@ where
 {
     #[inline]
     fn symmetrize(&self) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>> {
-        // We initialize the transposed matrix.
-        let number_of_expected_column_indices = (self.number_of_defined_values().as_()
-            - self.number_of_defined_diagonal_values().as_())
-            * 2
-            + self.number_of_defined_diagonal_values().as_();
+        let order = self.order();
+        let order_usize = order.as_();
 
-        let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
-            offsets: vec![SparseIndex::zero(); self.order().as_() + 1],
-            number_of_columns: self.order(),
-            number_of_rows: self.order(),
-            column_indices: vec![Idx::zero(); number_of_expected_column_indices],
-            number_of_non_empty_rows: Idx::zero(),
-        };
-
-        // First, we proceed to compute the number of elements in each column.
+        // Pass 1: compute output row degrees for the symmetric matrix.
+        let mut row_degrees = vec![SparseIndex::zero(); order_usize];
         for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
-            // TODO! IF YOU INITIALIZE OFFSETS WITH THE OUT BOUND DEGREES, THERE IS NO NEED
-            // FOR ALL OF THE SPARSE ROW ACCESSES!
-            symmetric.offsets[row.as_() + 1] += SparseIndex::one();
-            symmetric.offsets[column.as_() + 1] +=
-                if row == column { SparseIndex::zero() } else { SparseIndex::one() };
-        }
-
-        // Then, we compute the prefix sum of the degrees to get the offsets.
-        let mut prefix_sum = SparseIndex::zero();
-        for offset in &mut symmetric.offsets {
-            prefix_sum += *offset;
-            symmetric.number_of_non_empty_rows +=
-                if *offset > SparseIndex::zero() { Idx::one() } else { Idx::zero() };
-            *offset = prefix_sum;
-        }
-
-        // Finally, we fill the column indices.
-        let mut degree = vec![SparseIndex::zero(); self.order().as_()];
-        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
-            let edges: Vec<(Idx, Idx)> = if row == column {
-                vec![(row, column)]
-            } else {
-                vec![(row, column), (column, row)]
-            };
-            for (i, j) in edges {
-                let current_degree: &mut SparseIndex = &mut degree[i.as_()];
-                let index = *current_degree + symmetric.offsets[i.as_()];
-                symmetric.column_indices[index.as_()] = j;
-                *current_degree += SparseIndex::one();
+            row_degrees[row.as_()] += SparseIndex::one();
+            if row != column {
+                row_degrees[column.as_()] += SparseIndex::one();
             }
         }
+
+        // Prefix-sum degrees to build offsets.
+        let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
+        let mut number_of_non_empty_rows = Idx::zero();
+        for row in 0..order_usize {
+            offsets[row + 1] = offsets[row] + row_degrees[row];
+            if row_degrees[row] > SparseIndex::zero() {
+                number_of_non_empty_rows += Idx::one();
+            }
+        }
+        let number_of_expected_column_indices = offsets[order_usize].as_();
+
+        let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
+            offsets,
+            number_of_columns: order,
+            number_of_rows: order,
+            column_indices: vec![Idx::zero(); number_of_expected_column_indices],
+            number_of_non_empty_rows,
+        };
+
+        // Pass 2: fill rows in-place using per-row write cursors.
+        let mut write_offsets = symmetric.offsets[..order_usize].to_vec();
+        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
+            let row_index = row.as_();
+            let row_write_offset = write_offsets[row_index].as_();
+            symmetric.column_indices[row_write_offset] = column;
+            write_offsets[row_index] += SparseIndex::one();
+
+            if row != column {
+                let column_index = column.as_();
+                let column_write_offset = write_offsets[column_index].as_();
+                symmetric.column_indices[column_write_offset] = row;
+                write_offsets[column_index] += SparseIndex::one();
+            }
+        }
+
+        debug_assert!(
+            (0..order_usize).all(|row| write_offsets[row] == symmetric.offsets[row + 1]),
+            "Write cursors must end exactly at the row boundaries after symmetrization"
+        );
 
         debug_assert_eq!(
             symmetric.number_of_defined_values().as_(),

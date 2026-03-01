@@ -5,10 +5,12 @@
 //! SparseSquareMatrix.
 #![cfg(feature = "std")]
 
+use std::collections::BTreeSet;
+
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, UpperTriangularCSR2D},
     traits::{
-        EmptyRows, Matrix, MatrixMut, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
+        EmptyRows, Matrix, Matrix2D, MatrixMut, RankSelectSparseMatrix, SizedRowsSparseMatrix2D,
         SizedSparseMatrix, SizedSparseMatrix2D, SparseMatrix, SparseMatrix2D, SparseMatrixMut,
         SparseSquareMatrix, SquareMatrix, Symmetrize, TransposableMatrix2D,
     },
@@ -240,6 +242,32 @@ fn test_ut_symmetrize_no_diagonal() {
     assert!(sym.has_entry(2, 1));
     // 3 original + 3 symmetric = 6
     assert_eq!(sym.number_of_defined_values(), 6);
+}
+
+#[test]
+fn test_ut_symmetrize_matches_coordinate_mirror_closure() {
+    let ut = build_ut(vec![(0, 0), (0, 2), (0, 4), (1, 1), (1, 3), (2, 2), (2, 4), (3, 4)]);
+    let sym = ut.symmetrize();
+
+    let mut expected = BTreeSet::new();
+    for (row, column) in ut.sparse_coordinates() {
+        expected.insert((row, column));
+        expected.insert((column, row));
+    }
+
+    let actual: BTreeSet<(usize, usize)> = sym.sparse_coordinates().collect();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_ut_symmetrize_rows_remain_sorted_and_unique() {
+    let ut = build_ut(vec![(0, 1), (0, 2), (0, 5), (1, 1), (1, 3), (2, 4), (3, 4), (4, 5), (5, 5)]);
+    let sym = ut.symmetrize();
+
+    for row in sym.row_indices() {
+        let columns: Vec<usize> = sym.sparse_row(row).collect();
+        assert!(columns.windows(2).all(|window| window[0] < window[1]));
+    }
 }
 
 // ============================================================================
