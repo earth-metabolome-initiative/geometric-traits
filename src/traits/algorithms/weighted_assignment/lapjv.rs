@@ -11,7 +11,7 @@ pub use errors::LAPJVError;
 use inner::Inner;
 use num_traits::Zero;
 
-use super::LAPError;
+use super::{LAPError, lap_error::validate_sparse_wrapper_costs};
 use crate::{
     impls::PaddedMatrix2D,
     traits::{DenseValuedMatrix2D, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
@@ -141,16 +141,7 @@ where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
-        if !padding_cost.is_finite() {
-            return Err(LAPError::PaddingValueNotFinite);
-        }
-        if padding_cost <= Self::Value::zero() {
-            return Err(LAPError::PaddingValueNotPositive);
-        }
-
-        if padding_cost >= max_cost {
-            return Err(LAPError::ValueTooLarge);
-        }
+        validate_sparse_wrapper_costs(padding_cost, max_cost)?;
         if self.is_empty() {
             return Ok(vec![]);
         }

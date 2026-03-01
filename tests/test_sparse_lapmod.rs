@@ -109,6 +109,15 @@ fn test_jaqaman_parameter_validation() {
         ValuedCSR2D::with_sparse_shaped_capacity((1, 1), 1);
     non_empty.add((0, 0, 1.0)).expect("Failed to add value");
     assert_eq!(non_empty.jaqaman(900.0, f64::NAN), Err(LAPError::MaximalCostNotFinite));
+    assert_eq!(non_empty.jaqaman(900.0, -1.0), Err(LAPError::MaximalCostNotPositive));
+}
+
+#[test]
+fn test_jaqaman_empty_matrix_invalid_max_cost_still_errors() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
+
+    assert_eq!(csr.jaqaman(900.0, f64::NAN), Err(LAPError::MaximalCostNotFinite));
+    assert_eq!(csr.jaqaman(900.0, 0.0), Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]

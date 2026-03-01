@@ -26,7 +26,7 @@ pub use errors::LAPMODError;
 use inner::LapmodInner;
 use num_traits::{AsPrimitive, One, Zero};
 
-use super::LAPError;
+use super::{LAPError, lap_error::validate_sparse_wrapper_costs};
 use crate::{
     impls::ValuedCSR2D,
     traits::{
@@ -223,15 +223,7 @@ where
         <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
         <Self::RowIndex as TryFrom<usize>>::Error: Debug,
     {
-        if !padding_cost.is_finite() {
-            return Err(LAPError::PaddingValueNotFinite);
-        }
-        if padding_cost <= Self::Value::zero() {
-            return Err(LAPError::PaddingValueNotPositive);
-        }
-        if padding_cost >= max_cost {
-            return Err(LAPError::ValueTooLarge);
-        }
+        validate_sparse_wrapper_costs(padding_cost, max_cost)?;
         if self.is_empty() {
             return Ok(vec![]);
         }

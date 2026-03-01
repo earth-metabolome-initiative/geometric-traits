@@ -1,4 +1,5 @@
 //! Shared error type for sparse LAP wrappers (`SparseLAPJV`, `Jaqaman`).
+use crate::traits::{Finite, Number};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Errors that can occur while executing sparse LAP wrapper algorithms.
@@ -46,4 +47,36 @@ pub enum LAPError {
     /// The sparse structure has no perfect matching.
     #[error("The sparse structure has no perfect matching (infeasible assignment).")]
     InfeasibleAssignment,
+}
+
+/// Validates the common `padding_cost`/`max_cost` contract for sparse wrappers.
+///
+/// Validation order is intentional and shared across wrappers:
+/// 1. `padding_cost` finite/positive
+/// 2. `max_cost` finite/positive
+/// 3. `padding_cost < max_cost`
+pub(crate) fn validate_sparse_wrapper_costs<V>(
+    padding_cost: V,
+    max_cost: V,
+) -> Result<(), LAPError>
+where
+    V: Number + Finite,
+{
+    if !padding_cost.is_finite() {
+        return Err(LAPError::PaddingValueNotFinite);
+    }
+    if padding_cost <= V::zero() {
+        return Err(LAPError::PaddingValueNotPositive);
+    }
+    if !max_cost.is_finite() {
+        return Err(LAPError::MaximalCostNotFinite);
+    }
+    if max_cost <= V::zero() {
+        return Err(LAPError::MaximalCostNotPositive);
+    }
+    if padding_cost >= max_cost {
+        return Err(LAPError::ValueTooLarge);
+    }
+
+    Ok(())
 }

@@ -139,10 +139,41 @@ fn test_sparse_lapjv_padding_ge_max_cost() {
 }
 
 #[test]
+fn test_sparse_lapjv_max_cost_not_finite() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
+    let result = csr.sparse_lapjv(900.0, f64::INFINITY);
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+    let result = csr.sparse_lapjv(900.0, f64::NAN);
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+}
+
+#[test]
+fn test_sparse_lapjv_max_cost_not_positive() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
+    let result = csr.sparse_lapjv(900.0, 0.0);
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
+    let result = csr.sparse_lapjv(900.0, -1.0);
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
+}
+
+#[test]
 fn test_sparse_lapjv_empty_matrix() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
     let result = csr.sparse_lapjv(900.0, 1000.0).unwrap();
     assert!(result.is_empty());
+}
+
+#[test]
+fn test_sparse_lapjv_empty_matrix_invalid_max_cost_still_errors() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
+
+    let result = csr.sparse_lapjv(900.0, f64::NAN);
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+
+    let result = csr.sparse_lapjv(900.0, 0.0);
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]
@@ -208,16 +239,28 @@ fn test_lapmod_empty_matrix() {
 // ============================================================================
 
 #[test]
-fn test_jaqaman_nan_max_cost_triggers_from() {
-    // Build a non-empty sparse matrix so it reaches the inner lapmod() call
+fn test_jaqaman_nan_max_cost_validation() {
+    // Build a non-empty sparse matrix for standard validation behavior.
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     MatrixMut::add(&mut csr, (0, 0, 1.0)).unwrap();
     MatrixMut::add(&mut csr, (1, 1, 1.0)).unwrap();
-    // Use jaqaman with valid padding but NaN max_cost.
-    // NaN passes the `padding_cost >= max_cost` check (NaN comparison = false),
-    // and propagates through the inner lapmod() into From<LAPMODError>
+
     let result = csr.jaqaman(900.0, f64::NAN);
     assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+
+    let result = csr.jaqaman(900.0, -1.0);
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
+}
+
+#[test]
+fn test_jaqaman_empty_matrix_invalid_max_cost_still_errors() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
+
+    let result = csr.jaqaman(900.0, f64::NAN);
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+
+    let result = csr.jaqaman(900.0, 0.0);
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 // ============================================================================
