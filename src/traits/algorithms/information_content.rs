@@ -56,11 +56,11 @@ impl<G: ?Sized + MonoplexMonopartiteGraph> Index<G::NodeId> for InformationConte
 pub trait InformationContent: MonoplexMonopartiteGraph {
     /// Computes per-node information content
     /// # Errors
+    /// - `NotDag` when the graph contains a cycle
     /// - `UnequalOccurrenceSize` when occurrence lengths do not match the
     ///   expected size
-    /// - `NonFiniteOccurrence` if any occurrence is not finite
-    /// - `NegativeOccurrence` if any occurrence is negative
-    /// - `NoOccurrencesAboveZero` if resulting ICs are all zero
+    /// - `SinkNodeZeroOccurrence` when a sink (or singleton) node has zero
+    ///   occurrences
     ///
     /// # Examples
     ///
