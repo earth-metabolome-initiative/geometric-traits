@@ -4,10 +4,9 @@ use crate::traits::{Finite, Number};
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 /// Errors that can occur while executing sparse LAP wrapper algorithms.
 pub enum LAPError {
-    /// The value type is non-fractional, which is not supported by LAP routines.
-    #[error(
-        "The matrix value type is non-fractional and is not supported by LAP algorithms."
-    )]
+    /// The value type is non-fractional, which is not supported by LAP
+    /// routines.
+    #[error("The matrix value type is non-fractional and is not supported by LAP algorithms.")]
     NonFractionalValueTypeUnsupported,
     /// The matrix is not square.
     #[error("The matrix is not square.")]
@@ -60,10 +59,7 @@ pub enum LAPError {
 /// 1. `padding_cost` finite/positive
 /// 2. `max_cost` finite/positive
 /// 3. `padding_cost < max_cost`
-pub(crate) fn validate_sparse_wrapper_costs<V>(
-    padding_cost: V,
-    max_cost: V,
-) -> Result<(), LAPError>
+pub(crate) fn validate_sparse_wrapper_costs<V>(padding_cost: V, max_cost: V) -> Result<(), LAPError>
 where
     V: Number + Finite,
 {

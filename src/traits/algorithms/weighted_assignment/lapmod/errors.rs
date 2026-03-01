@@ -4,9 +4,7 @@
 /// Errors that can occur during the execution of the LAPMOD algorithm.
 pub enum LAPMODError {
     /// The matrix value type is non-fractional and cannot be used by LAPMOD.
-    #[error(
-        "The matrix value type is non-fractional and is not supported by LAP algorithms."
-    )]
+    #[error("The matrix value type is non-fractional and is not supported by LAP algorithms.")]
     NonFractionalValueTypeUnsupported,
     /// The matrix is not square.
     #[error("The matrix is not square.")]

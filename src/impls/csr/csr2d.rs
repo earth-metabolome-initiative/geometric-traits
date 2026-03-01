@@ -507,7 +507,8 @@ where
         // Then, we compute the prefix sum of the degrees to get the offsets.
         let mut prefix_sum = SparseIndex::zero();
         for (row_degree_index, offset) in transposed.offsets.iter_mut().enumerate() {
-            // Before prefix summation, offsets[1..] store row degrees in the transposed matrix.
+            // Before prefix summation, offsets[1..] store row degrees in the transposed
+            // matrix.
             if row_degree_index > 0 && *offset > SparseIndex::zero() {
                 transposed.number_of_non_empty_rows += ColumnIndex::one();
             }

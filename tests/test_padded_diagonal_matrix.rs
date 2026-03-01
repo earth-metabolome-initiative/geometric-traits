@@ -5,8 +5,8 @@ use geometric_traits::{
     impls::{GenericMatrix2DWithPaddedDiagonal, MutabilityError, ValuedCSR2D},
     prelude::*,
     traits::{
-        EdgesBuilder, EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D,
-        SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
+        EdgesBuilder, EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D, SparseMatrixMut,
+        SparseValuedMatrix, SparseValuedMatrix2D,
     },
 };
 

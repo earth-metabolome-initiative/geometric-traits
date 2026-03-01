@@ -5,8 +5,10 @@ use alloc::vec::Vec;
 use num_traits::AsPrimitive;
 
 use super::PaddedMatrix2D;
-use crate::impls::square_padding_utils::padded_square_size;
-use crate::traits::{Matrix, Matrix2D, TryFromUsize};
+use crate::{
+    impls::square_padding_utils::padded_square_size,
+    traits::{Matrix, Matrix2D, TryFromUsize},
+};
 
 impl<M, Map> Matrix for PaddedMatrix2D<M, Map>
 where

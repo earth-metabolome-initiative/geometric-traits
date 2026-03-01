@@ -3,7 +3,7 @@
 
 use geometric_traits::{
     impls::RaggedVector,
-    traits::{MatrixMut, SparseMatrixMut, SizedSparseMatrix, TransposableMatrix2D},
+    traits::{MatrixMut, SizedSparseMatrix, SparseMatrixMut, TransposableMatrix2D},
 };
 
 #[test]

@@ -4,9 +4,7 @@
 /// Errors that can occur during the execution of the LAPJV algorithm.
 pub enum LAPJVError {
     /// The matrix value type is non-fractional and cannot be used by LAPJV.
-    #[error(
-        "The matrix value type is non-fractional and is not supported by LAP algorithms."
-    )]
+    #[error("The matrix value type is non-fractional and is not supported by LAP algorithms.")]
     NonFractionalValueTypeUnsupported,
     /// The matrix is not square.
     #[error("The matrix is not square.")]

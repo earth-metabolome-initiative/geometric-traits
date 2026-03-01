@@ -19,8 +19,8 @@ use multi_ranged::{SimpleRange, Step};
 use sparse_row_values_with_padded_diagonal::SparseRowValuesWithPaddedDiagonal;
 
 use super::{
-    CSR2DColumns, CSR2DView, M2DValues, MutabilityError, square_padding_utils::padded_square_size,
-    square_padding_utils::validate_padded_square_capacity,
+    CSR2DColumns, CSR2DView, M2DValues, MutabilityError,
+    square_padding_utils::{padded_square_size, validate_padded_square_capacity},
 };
 
 #[cfg(feature = "arbitrary")]

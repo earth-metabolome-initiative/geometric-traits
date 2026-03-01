@@ -29,11 +29,11 @@ mod generic_bimatrix;
 #[cfg(feature = "alloc")]
 pub mod generic_implicit_valued_matrix2d;
 #[cfg(feature = "alloc")]
+pub(crate) mod square_padding_utils;
+#[cfg(feature = "alloc")]
 mod squared_csr2d;
 #[cfg(feature = "alloc")]
 mod symmetric_csr;
-#[cfg(feature = "alloc")]
-pub(crate) mod square_padding_utils;
 #[cfg(feature = "alloc")]
 mod upper_triangular_csr;
 #[cfg(feature = "alloc")]
