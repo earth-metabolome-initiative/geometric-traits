@@ -32,6 +32,16 @@ fn test_subset_with_sorted_indices() {
 }
 
 #[test]
+fn test_subset_rows_are_not_filtered_by_subset_membership() {
+    let matrix = build_square_matrix(4, vec![(0, 1), (1, 2)]);
+    let subset = SubsetSquareMatrix::with_sorted_indices(matrix, vec![0, 2]);
+
+    // Row 1 is not in the subset, but it remains visible and contributes any
+    // entries whose column is in the subset.
+    assert!(subset.has_entry(1, 2));
+}
+
+#[test]
 fn test_subset_with_unsorted_indices() {
     let matrix = build_square_matrix(4, vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)]);
     let subset = SubsetSquareMatrix::with_unsorted_indices(matrix, vec![2, 0].into_iter())

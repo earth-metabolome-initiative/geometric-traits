@@ -1,5 +1,6 @@
-//! A subset sparse square matrix, where only the existing coordinates that have
-//! both row and column ids are within a provided subset.
+//! A subset sparse square matrix view, where sparse entries are filtered by
+//! column id membership in a provided subset while preserving the underlying
+//! matrix row domain.
 use alloc::vec::Vec;
 
 use num_traits::Zero;
@@ -10,8 +11,8 @@ use crate::traits::SquareMatrix;
 mod matrix;
 mod sparse_matrix;
 
-/// A sliced sparse square matrix, where only the existing coordinates that have
-/// both row and column ids are within a provided subset.
+/// A sliced sparse square matrix where sparse entries are filtered by column id
+/// membership in a provided subset.
 pub struct SubsetSquareMatrix<M: SquareMatrix, I> {
     /// The matrix to be sliced.
     matrix: M,
