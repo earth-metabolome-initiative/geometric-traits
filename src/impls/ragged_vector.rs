@@ -332,10 +332,7 @@ where
 {
     fn transpose(&self) -> RaggedVector<SparseIndex, ColumnIndex, RowIndex> {
         let mut transposed: RaggedVector<SparseIndex, ColumnIndex, RowIndex> =
-            RaggedVector::with_sparse_shaped_capacity(
-                (self.number_of_columns, self.number_of_rows),
-                self.number_of_defined_values,
-            );
+            RaggedVector::with_sparse_shape((self.number_of_columns, self.number_of_rows));
 
         // We iterate over the rows of the matrix.
         for (row, column) in self.sparse_coordinates() {
@@ -366,11 +363,11 @@ where
 
     fn with_sparse_shaped_capacity(
         (number_of_rows, number_of_columns): Self::MinimalShape,
-        number_of_values: Self::SparseIndex,
+        _number_of_values: Self::SparseIndex,
     ) -> Self {
         Self {
             data: vec![Vec::new(); number_of_rows.as_()],
-            number_of_defined_values: number_of_values,
+            number_of_defined_values: SparseIndex::zero(),
             number_of_columns,
             number_of_rows,
             number_of_non_empty_rows: RowIndex::zero(),
