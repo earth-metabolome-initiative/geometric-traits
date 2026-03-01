@@ -2,11 +2,11 @@
 #![cfg(feature = "std")]
 
 use geometric_traits::{
-    impls::{GenericMatrix2DWithPaddedDiagonal, ValuedCSR2D},
+    impls::{GenericMatrix2DWithPaddedDiagonal, MutabilityError, ValuedCSR2D},
     prelude::*,
     traits::{
         EdgesBuilder, EmptyRows, Matrix, Matrix2D, SparseMatrix, SparseMatrix2D,
-        SparseValuedMatrix, SparseValuedMatrix2D,
+        SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
     },
 };
 
@@ -56,6 +56,30 @@ fn test_padded_diagonal_shape() {
     let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: usize| 0.0).unwrap();
 
     assert_eq!(padded.shape(), vec![3, 3]);
+}
+
+#[test]
+fn test_padded_diagonal_capacity_validation_allows_asymmetric_indices_when_square_fits() {
+    let inner: ValuedCSR2D<usize, u16, u8, f64> =
+        ValuedCSR2D::with_sparse_shaped_capacity((10u16, 200u8), 0);
+    let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u16| 0.0);
+    assert!(padded.is_ok(), "Square size 200 fits both u16 rows and u8 columns");
+}
+
+#[test]
+fn test_padded_diagonal_capacity_rejects_column_count_too_large_for_row_index() {
+    let inner: ValuedCSR2D<usize, u8, u16, f64> =
+        ValuedCSR2D::with_sparse_shaped_capacity((10u8, 256u16), 0);
+    let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u8| 0.0);
+    assert!(matches!(padded, Err(MutabilityError::MaxedOutColumnIndex)));
+}
+
+#[test]
+fn test_padded_diagonal_capacity_rejects_row_count_too_large_for_column_index() {
+    let inner: ValuedCSR2D<usize, u16, u8, f64> =
+        ValuedCSR2D::with_sparse_shaped_capacity((256u16, 10u8), 0);
+    let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u16| 0.0);
+    assert!(matches!(padded, Err(MutabilityError::MaxedOutRowIndex)));
 }
 
 // ============================================================================
