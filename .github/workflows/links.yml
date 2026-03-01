@@ -19,5 +19,10 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@v1.10.0
         with:
-          args: --verbose --no-progress './**/*.md' './**/*.html'
+          args: >-
+            --verbose
+            --no-progress
+            --exclude '^https://codecov\.io/gh/earth-metabolome-initiative/geometric-traits(/.*)?$'
+            './**/*.md'
+            './**/*.html'
           fail: true
