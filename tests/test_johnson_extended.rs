@@ -120,6 +120,20 @@ fn test_johnson_regression_does_not_drop_valid_cycle() {
     assert_eq!(actual, expected);
 }
 
+#[test]
+fn test_johnson_regression_resume_after_yield_keeps_exploring_branch() {
+    // Verified deterministic counterexample from corpus minimization:
+    // cycles are [0,1], [0,2], and [0,2,1].
+    //
+    // Node 3 is a dead-end tail from 2 and should not affect cycle enumeration.
+    let m = build_square_csr(4, vec![(0, 1), (0, 2), (1, 0), (2, 0), (2, 1), (2, 3)]);
+
+    let actual: BTreeSet<Vec<usize>> = m.johnson().map(|cycle| canonical_cycle(&cycle)).collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![0, 1], vec![0, 2], vec![0, 2, 1]]);
+
+    assert_eq!(actual, expected);
+}
+
 // ============================================================================
 // Self-loops
 // ============================================================================

@@ -23,6 +23,8 @@ struct CircuitSearch<'lend, 'matrix, M: SquareMatrix + SparseMatrix2D>
     current_component: &'lend SubsetSquareMatrix<LowerBoundedSquareMatrix<&'matrix M>, Vec<M::Index>>,
     /// The row iterators for the current component.
     row_iterators: Vec<<SubsetSquareMatrix<LowerBoundedSquareMatrix<&'matrix M>, Vec<M::Index>> as SparseMatrix2D>::SparseRow<'lend>>,
+    /// Whether each DFS frame found at least one circuit.
+    found_circuit_stack: Vec<bool>,
 }
 
 impl<'lend, 'matrix, M: SquareMatrix + SparseMatrix2D>
@@ -34,12 +36,12 @@ impl<'lend, 'matrix, M: SquareMatrix + SparseMatrix2D>
             current_root_id: parent.data.current_root_id,
             data: &mut parent.data,
             row_iterators: Vec::new(),
+            found_circuit_stack: Vec::new(),
         };
         debug_assert!(
             circuit_search.data.stack.is_empty(),
             "Stack should be empty at the start of the circuit search"
         );
-        circuit_search.data.found_circuit = false;
         circuit_search.data.current_root_id += M::Index::ONE;
         circuit_search.register_circuit_search(circuit_search.current_root_id);
         circuit_search
@@ -72,7 +74,8 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         while !self.row_iterators.is_empty() {
             if let Some(column_id) = self.last_circuit_next_column() {
                 if column_id == self.current_root_id {
-                    self.data.found_circuit = true;
+                    *self.found_circuit_stack.last_mut().expect("frame exists while searching") =
+                        true;
                     return Some(self.data.stack.as_slice());
                 }
 
@@ -91,6 +94,10 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
         debug_assert!(
             self.row_iterators.is_empty(),
             "Row iterators should be empty after removing last circuit search"
+        );
+        debug_assert!(
+            self.found_circuit_stack.is_empty(),
+            "Found circuit stack should be empty after removing last circuit search"
         );
         None
     }
@@ -112,17 +119,28 @@ impl<M: SquareMatrix + SparseMatrix2D> CircuitSearch<'_, '_, M> {
             self.row_iterators.len(),
             self.data.block_map.len()
         );
+        debug_assert!(
+            self.found_circuit_stack.len() < self.data.block_map.len(),
+            "Found circuit stack length {} should be less than block map length {}",
+            self.found_circuit_stack.len(),
+            self.data.block_map.len()
+        );
         self.data.stack.push(row_id);
         self.row_iterators.push(self.current_component.sparse_row(row_id));
+        self.found_circuit_stack.push(false);
         self.data.blocked[row_id.as_()] = true;
     }
 
     fn remove_last_circuit_search(&mut self) {
         let row_id = self.data.stack.pop().unwrap();
         let mut row_iterator = self.row_iterators.pop().unwrap();
+        let found_circuit = self.found_circuit_stack.pop().unwrap();
         debug_assert!(row_iterator.next().is_none(), "Row iterator should be empty after popping");
-        if self.data.found_circuit {
+        if found_circuit {
             self.unblock(row_id);
+            if let Some(parent_found_circuit) = self.found_circuit_stack.last_mut() {
+                *parent_found_circuit = true;
+            }
         } else {
             for column_id in self.current_component.sparse_row(row_id) {
                 if !self.data.block_map[column_id.as_()].contains(&row_id) {
@@ -150,8 +168,6 @@ struct Data<M: SquareMatrix + SparseMatrix2D> {
     blocked: Vec<bool>,
     /// The stack of nodes in the current circuit.
     stack: Vec<M::Index>,
-    /// Whether a circuit has been found.
-    found_circuit: bool,
     /// The block map for the current component.
     block_map: Vec<Vec<M::Index>>,
 }
@@ -161,13 +177,7 @@ impl<M: SquareMatrix + SparseMatrix2D> From<M> for Data<M> {
         let order = matrix.order();
         let blocked = vec![false; order.as_()];
         let block_map = vec![Vec::new(); order.as_()];
-        Self {
-            current_root_id: M::Index::ZERO,
-            blocked,
-            stack: Vec::new(),
-            found_circuit: false,
-            block_map,
-        }
+        Self { current_root_id: M::Index::ZERO, blocked, stack: Vec::new(), block_map }
     }
 }
 
