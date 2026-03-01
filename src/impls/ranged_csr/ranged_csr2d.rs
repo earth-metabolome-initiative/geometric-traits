@@ -30,6 +30,7 @@ pub struct RangedCSR2D<SparseIndex, RowIndex, R: MultiRanged> {
 impl<SparseIndex: Debug, RowIndex: Debug, R: MultiRanged> Debug
     for RangedCSR2D<SparseIndex, RowIndex, R>
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("RangedCSR2D")
             .field("number_of_defined_values", &self.number_of_defined_values)
@@ -44,6 +45,7 @@ impl<SparseIndex: Debug, RowIndex: Debug, R: MultiRanged> Debug
 impl<SparseIndex: Zero, RowIndex: Zero, R: MultiRanged> Default
     for RangedCSR2D<SparseIndex, RowIndex, R>
 {
+    #[inline]
     fn default() -> Self {
         Self {
             number_of_defined_values: SparseIndex::zero(),
@@ -68,14 +70,17 @@ where
 {
     type MinimalShape = Self::Coordinates;
 
+    #[inline]
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self::with_sparse_shaped_capacity((RowIndex::zero(), R::Step::zero()), number_of_values)
     }
 
+    #[inline]
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
         Self::with_sparse_shaped_capacity(shape, SparseIndex::zero())
     }
 
+    #[inline]
     fn with_sparse_shaped_capacity(
         (number_of_rows, number_of_columns): Self::MinimalShape,
         _number_of_values: Self::SparseIndex,
@@ -166,6 +171,7 @@ where
         self.into()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         if self.is_empty() {
             return None;
@@ -326,6 +332,7 @@ where
     type Entry = Self::Coordinates;
     type Error = MutabilityError<Self>;
 
+    #[inline]
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.as_() >= self.ranges.len() {
             self.ranges.extend(repeat_n(R::default(), row.as_() - self.ranges.len() + 1));
@@ -358,6 +365,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
         if shape.0 < self.number_of_rows || shape.1 < self.number_of_columns {
             return Err(MutabilityError::IncompatibleShape);
@@ -383,6 +391,7 @@ where
     <<R1 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
     <<R2 as MultiRanged>::Step as TryFrom<usize>>::Error: Debug,
 {
+    #[inline]
     fn transpose(&self) -> RangedCSR2D<SparseIndex, R1::Step, R2> {
         // We initialize the transposed matrix.
         let mut transposed: RangedCSR2D<SparseIndex, R1::Step, R2> =

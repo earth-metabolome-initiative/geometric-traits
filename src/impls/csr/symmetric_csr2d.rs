@@ -14,6 +14,7 @@ pub struct SymmetricCSR2D<M: Matrix2D> {
 }
 
 impl<M: Matrix2D + Debug> Debug for SymmetricCSR2D<M> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SymmetricCSR2D").field("matrix", &self.matrix).finish()
     }
@@ -25,6 +26,7 @@ where
 {
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
@@ -37,10 +39,12 @@ where
     type RowIndex = M::RowIndex;
     type ColumnIndex = M::ColumnIndex;
 
+    #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_rows()
     }
 
+    #[inline]
     fn number_of_columns(&self) -> Self::ColumnIndex {
         self.matrix.number_of_columns()
     }
@@ -52,6 +56,7 @@ where
 {
     type Index = M::RowIndex;
 
+    #[inline]
     fn order(&self) -> Self::Index {
         self.matrix.order()
     }
@@ -61,6 +66,7 @@ impl<M> SparseSquareMatrix for SymmetricCSR2D<M>
 where
     M: SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         self.matrix.number_of_defined_diagonal_values()
     }
@@ -70,6 +76,7 @@ impl<M> AsRef<SquareCSR2D<M>> for SymmetricCSR2D<M>
 where
     M: Matrix2D,
 {
+    #[inline]
     fn as_ref(&self) -> &SquareCSR2D<M> {
         &self.matrix
     }
@@ -79,6 +86,7 @@ impl<M> Default for SymmetricCSR2D<M>
 where
     M: Matrix2D + Default,
 {
+    #[inline]
     fn default() -> Self {
         Self { matrix: SquareCSR2D::default() }
     }
@@ -94,14 +102,17 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         self.as_ref().sparse_coordinates()
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.matrix.is_empty()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         self.matrix.last_sparse_coordinates()
     }
@@ -111,6 +122,7 @@ impl<M> SizedSparseMatrix for SymmetricCSR2D<M>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         self.matrix.number_of_defined_values()
     }
@@ -122,10 +134,12 @@ where
         RankSelectSparseMatrix<Coordinates = Self::Coordinates, SparseIndex = Self::SparseIndex>,
     M: SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
         self.matrix.rank(coordinates)
     }
 
+    #[inline]
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
         self.matrix.select(sparse_index)
     }
@@ -148,6 +162,7 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         self.matrix.sparse_row(row)
     }
@@ -157,10 +172,12 @@ where
         self.matrix.has_entry(row, column)
     }
 
+    #[inline]
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
         self.matrix.sparse_columns()
     }
 
+    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         self.matrix.sparse_rows()
     }
@@ -179,18 +196,22 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
         self.matrix.empty_row_indices()
     }
 
+    #[inline]
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         self.matrix.non_empty_row_indices()
     }
 
+    #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_empty_rows()
     }
 
+    #[inline]
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_non_empty_rows()
     }
@@ -204,10 +225,12 @@ where
         = <SquareCSR2D<M> as SizedRowsSparseMatrix2D>::SparseRowSizes<'a>
     where
         Self: 'a;
+    #[inline]
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
         self.matrix.number_of_defined_values_in_row(row)
     }
 
+    #[inline]
     fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
         self.matrix.sparse_row_sizes()
     }
@@ -217,14 +240,17 @@ impl<M> SizedSparseMatrix2D for SymmetricCSR2D<M>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn rank_row(&self, row: M::RowIndex) -> Self::SparseIndex {
         self.matrix.rank_row(row)
     }
 
+    #[inline]
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.matrix.select_column(sparse_index)
     }
 
+    #[inline]
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
         self.matrix.select_row(sparse_index)
     }
@@ -234,6 +260,7 @@ impl<M> TransposableMatrix2D<Self> for SymmetricCSR2D<M>
 where
     M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + Clone,
 {
+    #[inline]
     fn transpose(&self) -> Self {
         self.clone()
     }
@@ -243,6 +270,7 @@ impl<M> Symmetrize<Self> for SymmetricCSR2D<M>
 where
     M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + Clone,
 {
+    #[inline]
     fn symmetrize(&self) -> Self {
         self.clone()
     }
@@ -255,10 +283,12 @@ where
     type Matrix = SquareCSR2D<M>;
     type TransposedMatrix = SquareCSR2D<M>;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         &self.matrix
     }
 
+    #[inline]
     fn transposed(&self) -> &Self::TransposedMatrix {
         &self.matrix
     }

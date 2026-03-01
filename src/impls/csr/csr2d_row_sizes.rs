@@ -19,6 +19,7 @@ pub struct CSR2DSizedRowsizes<'a, CSR: SizedRowsSparseMatrix2D> {
 impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRowsizes<'_, CSR> {
     type Item = CSR::ColumnIndex;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.exhausted || self.next_row > self.back_row {
             self.exhausted = true;
@@ -35,6 +36,7 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRowsizes<'_, CSR> {
         Some(out_degree)
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let remaining = if self.exhausted || self.next_row > self.back_row {
             0
@@ -46,12 +48,14 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRowsizes<'_, CSR> {
 }
 
 impl<CSR: SizedRowsSparseMatrix2D> ExactSizeIterator for CSR2DSizedRowsizes<'_, CSR> {
+    #[inline]
     fn len(&self) -> usize {
         self.size_hint().0
     }
 }
 
 impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRowsizes<'_, CSR> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.exhausted || self.next_row > self.back_row {
             self.exhausted = true;
@@ -71,6 +75,7 @@ impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRowsizes<'_
 }
 
 impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DSizedRowsizes<'a, CSR> {
+    #[inline]
     fn from(csr2d: &'a CSR) -> Self {
         let next_row = CSR::RowIndex::zero();
         let mut back_row = CSR::RowIndex::zero();

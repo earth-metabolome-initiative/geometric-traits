@@ -24,6 +24,7 @@ impl<T: Matrix2D, M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIn
     /// # Arguments
     ///
     /// * `matrix` - The matrix.
+    #[inline]
     pub fn new(matrix: M) -> Self {
         let transposed = matrix.transpose();
         Self { matrix, transposed }
@@ -37,6 +38,7 @@ where
 {
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
@@ -276,6 +278,7 @@ where
 {
     type Index = M::Index;
 
+    #[inline]
     fn order(&self) -> Self::Index {
         self.matrix.order()
     }
@@ -286,6 +289,7 @@ where
     T: SparseSquareMatrix,
     M: SparseSquareMatrix<Index = T::Index> + TransposableMatrix2D<T>,
 {
+    #[inline]
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         self.matrix.number_of_defined_diagonal_values()
     }

@@ -34,6 +34,7 @@ pub struct CompactMatrix<RowIndex, ColumnIndex> {
 /// This is useful for reducing a large sparse matrix (with many empty
 /// rows/cols) down to only the rows and columns that participate in edges,
 /// before feeding it to a dense solver.
+#[inline]
 pub fn compactify<M>(matrix: &M) -> CompactMatrix<M::RowIndex, M::ColumnIndex>
 where
     M: SparseValuedMatrix2D,

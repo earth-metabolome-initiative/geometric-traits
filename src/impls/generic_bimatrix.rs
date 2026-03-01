@@ -38,6 +38,7 @@ where
     type EdgeId = <M as Edges>::EdgeId;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -65,11 +66,13 @@ where
     <M as Matrix2D>::RowIndex: TryFromUsize,
     <M as SparseMatrix>::SparseIndex: TryFromUsize,
 {
+    #[inline]
     fn has_nodes(&self) -> bool {
         self.number_of_rows() > <M as Matrix2D>::RowIndex::zero()
             && self.number_of_columns() > <M as Matrix2D>::RowIndex::zero()
     }
 
+    #[inline]
     fn has_edges(&self) -> bool {
         self.number_of_defined_values() > <M as SparseMatrix>::SparseIndex::zero()
     }
@@ -100,6 +103,7 @@ where
     type Edge = <Self as Matrix>::Coordinates;
     type Edges = Self;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         self
     }

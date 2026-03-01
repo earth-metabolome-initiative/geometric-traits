@@ -30,6 +30,7 @@ where
     type EdgeId = SparseIndex;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -47,18 +48,22 @@ where
     type GrowableMatrix = Self;
     type Error = EdgesBuilderError<Self>;
 
+    #[inline]
     fn matrix_mut(&mut self) -> &mut Self::GrowableMatrix {
         self
     }
 
+    #[inline]
     fn with_capacity(number_of_edges: Self::EdgeId) -> Self {
         <Self as SparseMatrixMut>::with_sparse_capacity(number_of_edges)
     }
 
+    #[inline]
     fn with_shape(shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape) -> Self {
         <Self as SparseMatrixMut>::with_sparse_shape(shape)
     }
 
+    #[inline]
     fn with_shaped_capacity(
         shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape,
         number_of_edges: Self::EdgeId,
@@ -75,11 +80,13 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
+    #[inline]
     fn has_nodes(&self) -> bool {
         self.number_of_rows() > <Self as Matrix2D>::RowIndex::zero()
             && self.number_of_columns() > <Self as Matrix2D>::ColumnIndex::zero()
     }
 
+    #[inline]
     fn has_edges(&self) -> bool {
         self.number_of_defined_values() > <Self as SparseMatrix>::SparseIndex::zero()
     }
@@ -97,6 +104,7 @@ where
     type Edge = (<Self as Matrix2D>::RowIndex, <Self as Matrix2D>::ColumnIndex);
     type Edges = Self;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         self
     }
@@ -132,10 +140,12 @@ where
     type LeftNodes = <Self as Matrix2D>::RowIndex;
     type RightNodes = <Self as Matrix2D>::ColumnIndex;
 
+    #[inline]
     fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
         self.number_of_rows_ref()
     }
 
+    #[inline]
     fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
         self.number_of_columns_ref()
     }

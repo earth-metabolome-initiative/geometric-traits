@@ -52,6 +52,7 @@ where
     ///
     /// * Returns an error if the number of rows or columns exceeds the maximum
     ///   allowed size for the given row and column index types.
+    #[inline]
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
         validate_padded_square_capacity(&matrix)?;
 
@@ -59,6 +60,7 @@ where
     }
 
     /// Returns a reference to the underlying matrix.
+    #[inline]
     pub fn matrix(&self) -> &M {
         &self.matrix
     }
@@ -72,6 +74,7 @@ where
     /// # Panics
     ///
     /// * If the row index is out of bounds.
+    #[inline]
     pub fn is_diagonal_imputed(&self, row: M::RowIndex) -> bool {
         if row >= self.matrix.number_of_rows() {
             return true;
@@ -93,6 +96,7 @@ where
 {
     type Coordinates = M::Coordinates;
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
@@ -107,6 +111,7 @@ where
     type RowIndex = M::RowIndex;
     type ColumnIndex = M::ColumnIndex;
 
+    #[inline]
     fn number_of_columns(&self) -> Self::ColumnIndex {
         let max = padded_square_size(&self.matrix);
         let Ok(number_of_columns) = Self::ColumnIndex::try_from_usize(max) else {
@@ -115,6 +120,7 @@ where
         number_of_columns
     }
 
+    #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         let max = padded_square_size(&self.matrix);
         let Ok(number_of_rows) = Self::RowIndex::try_from_usize(max) else {
@@ -136,10 +142,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         CSR2DView::from(self)
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         // Since the diagonal is padded, the last coordinates are the last
         // row and column of the matrix, unless the matrix is empty.
@@ -152,6 +160,7 @@ where
         ))
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         // The matrix is solely empty when it has no rows and no columns.
         self.number_of_rows() == M::RowIndex::zero()
@@ -179,18 +188,22 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         SparseRowWithPaddedDiagonal::new(&self.matrix, row).unwrap()
     }
 
+    #[inline]
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
         self.sparse_row(row).any(|col| col == column)
     }
 
+    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         SparseRowsWithPaddedDiagonal::from(self)
     }
 
+    #[inline]
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
         CSR2DColumns::from(self)
     }
@@ -210,24 +223,28 @@ where
         = SimpleRange<Self::RowIndex>
     where
         Self: 'a;
+    #[inline]
     fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will never have empty rows.
         core::iter::empty()
     }
 
+    #[inline]
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
         SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap()
     }
 
+    #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         // Since we are artificially always adding rows and columns, we
         // will never have empty rows.
         Self::RowIndex::zero()
     }
 
+    #[inline]
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
@@ -265,6 +282,7 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_values(&self) -> Self::SparseValues<'_> {
         M2DValues::from(self)
     }
@@ -283,6 +301,7 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
         SparseRowValuesWithPaddedDiagonal::new(&self.matrix, row, &self.map).unwrap()
     }

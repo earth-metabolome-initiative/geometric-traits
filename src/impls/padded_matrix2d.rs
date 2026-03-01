@@ -31,6 +31,7 @@ where
     Self: SparseValuedMatrix2D + Matrix2D<RowIndex = M::RowIndex, ColumnIndex = M::ColumnIndex>,
     <Self as ValuedMatrix>::Value: Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let rows: Vec<Vec<String>> = self
             .row_indices()
@@ -73,6 +74,7 @@ where
     ///   matrix exceeds the maximum column index.
     /// * `MutabilityError::MaxedOutRowIndex` - The number of rows in the matrix
     ///   exceeds the maximum row index.
+    #[inline]
     pub fn new(matrix: M, map: Map) -> Result<Self, MutabilityError<M>> {
         validate_padded_square_capacity(&matrix)?;
 

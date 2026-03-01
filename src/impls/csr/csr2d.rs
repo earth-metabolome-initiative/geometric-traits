@@ -32,6 +32,7 @@ pub struct CSR2D<SparseIndex, RowIndex, ColumnIndex> {
 impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug> Debug
     for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("CSR2D")
             .field("offsets", &self.offsets)
@@ -46,6 +47,7 @@ impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug> Debug
 impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero> Default
     for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
+    #[inline]
     fn default() -> Self {
         Self {
             offsets: vec![SparseIndex::zero()],
@@ -67,14 +69,17 @@ where
 {
     type MinimalShape = Self::Coordinates;
 
+    #[inline]
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self::with_sparse_shaped_capacity((RowIndex::zero(), ColumnIndex::zero()), number_of_values)
     }
 
+    #[inline]
     fn with_sparse_shape((number_of_rows, number_of_columns): Self::MinimalShape) -> Self {
         Self::with_sparse_shaped_capacity((number_of_rows, number_of_columns), SparseIndex::zero())
     }
 
+    #[inline]
     fn with_sparse_shaped_capacity(
         (number_of_rows, number_of_columns): Self::MinimalShape,
         number_of_values: Self::SparseIndex,
@@ -99,6 +104,7 @@ impl<
 {
     type Coordinates = (RowIndex, ColumnIndex);
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
     }
@@ -113,6 +119,7 @@ impl<
     type RowIndex = RowIndex;
     type ColumnIndex = ColumnIndex;
 
+    #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         debug_assert!(
             !self.offsets.is_empty(),
@@ -127,6 +134,7 @@ impl<
         self.number_of_rows
     }
 
+    #[inline]
     fn number_of_columns(&self) -> Self::ColumnIndex {
         self.number_of_columns
     }
@@ -138,10 +146,12 @@ impl<
     ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 > Matrix2DRef for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 {
+    #[inline]
     fn number_of_rows_ref(&self) -> &Self::RowIndex {
         &self.number_of_rows
     }
 
+    #[inline]
     fn number_of_columns_ref(&self) -> &Self::ColumnIndex {
         &self.number_of_columns
     }
@@ -161,10 +171,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         self.into()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         if self.is_empty() {
             return None;
@@ -187,6 +199,7 @@ where
         Some((last_row, last_column))
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.number_of_defined_values() == SparseIndex::zero()
     }
@@ -200,6 +213,7 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
+    #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         self.offsets.last().copied().unwrap_or(SparseIndex::zero())
     }
@@ -213,10 +227,12 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
+    #[inline]
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
         (self.select_row(sparse_index), self.select_column(sparse_index))
     }
 
+    #[inline]
     fn rank(&self, &(row_index, column_index): &Self::Coordinates) -> Self::SparseIndex {
         let start = self.rank_row(row_index);
         let end = self.rank_row(row_index + RowIndex::one());
@@ -254,22 +270,26 @@ impl<
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         let start = self.rank_row(row).as_();
         let end = self.rank_row(row + RowIndex::one()).as_();
         self.column_indices[start..end].iter().copied()
     }
 
+    #[inline]
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
         let start = self.rank_row(row).as_();
         let end = self.rank_row(row + RowIndex::one()).as_();
         self.column_indices[start..end].binary_search(&column).is_ok()
     }
 
+    #[inline]
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
         self.column_indices.iter().copied()
     }
 
+    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         self.into()
     }
@@ -289,18 +309,22 @@ impl<
         = CSR2DNonEmptyRowIndices<'a, Self>
     where
         Self: 'a;
+    #[inline]
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {
         self.number_of_non_empty_rows
     }
 
+    #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         self.number_of_rows() - self.number_of_non_empty_rows()
     }
 
+    #[inline]
     fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
         self.into()
     }
 
+    #[inline]
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         self.into()
     }
@@ -314,6 +338,7 @@ impl<
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
+    #[inline]
     fn rank_row(&self, row: RowIndex) -> SparseIndex {
         if self.offsets.len() <= row.as_() && row <= self.number_of_rows() {
             return self.number_of_defined_values();
@@ -328,6 +353,7 @@ where
         self.offsets[row.as_()]
     }
 
+    #[inline]
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
         assert!(
             sparse_index < self.number_of_defined_values(),
@@ -345,6 +371,7 @@ where
         })
     }
 
+    #[inline]
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.column_indices[sparse_index.as_()]
     }
@@ -363,10 +390,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
         self.into()
     }
 
+    #[inline]
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
         if let Ok(out_degree) =
             (self.rank_row(row + RowIndex::one()) - self.rank_row(row)).try_into()
@@ -391,6 +420,7 @@ where
     type Entry = Self::Coordinates;
     type Error = crate::impls::MutabilityError<Self>;
 
+    #[inline]
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if !self.is_empty() && row.as_() == self.offsets.len() - 2 {
             // We check that the provided column is not repeated.
@@ -465,6 +495,7 @@ where
         }
     }
 
+    #[inline]
     fn increase_shape(
         &mut self,
         (number_of_rows, number_of_columns): Self::Coordinates,
@@ -489,6 +520,7 @@ where
     CSR2D<SparseIndex, ColumnIndex, RowIndex>:
         Matrix2D<RowIndex = ColumnIndex, ColumnIndex = RowIndex>,
 {
+    #[inline]
     fn transpose(&self) -> CSR2D<SparseIndex, ColumnIndex, RowIndex> {
         // We initialize the transposed matrix.
         let mut transposed: CSR2D<SparseIndex, ColumnIndex, RowIndex> = CSR2D {

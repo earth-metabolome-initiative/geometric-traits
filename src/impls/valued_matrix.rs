@@ -35,6 +35,7 @@ impl<
 {
     type Error = MutabilityError<Self>;
 
+    #[inline]
     fn try_from(value: [[Value; COLS]; ROWS]) -> Result<Self, Self::Error> {
         let mut valued_csr: ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value> =
             ValuedCSR2D::with_sparse_shaped_capacity(
@@ -60,6 +61,7 @@ impl<
 impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug, Value: Debug> Debug
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.debug_struct("ValuedCSR2D").field("csr", &self.csr).field("values", &self.values).finish()
     }
@@ -68,6 +70,7 @@ impl<SparseIndex: Debug, RowIndex: Debug, ColumnIndex: Debug, Value: Debug> Debu
 impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero, Value> Default
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
+    #[inline]
     fn default() -> Self {
         Self { csr: CSR2D::default(), values: Vec::default() }
     }
@@ -326,6 +329,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
         self.csr.increase_shape(shape)?;
         Ok(())
@@ -357,6 +361,7 @@ where
         }
     }
 
+    #[inline]
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
         Self { csr: CSR2D::with_sparse_shape(shape), values: Vec::new() }
     }

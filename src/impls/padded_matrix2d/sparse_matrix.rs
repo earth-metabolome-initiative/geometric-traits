@@ -30,6 +30,7 @@ where
             && self.number_of_columns() == M::ColumnIndex::zero()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         if self.is_empty() {
             return None;

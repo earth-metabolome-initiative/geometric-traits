@@ -20,6 +20,7 @@ pub struct LowerBoundedSquareMatrix<M: SquareMatrix> {
 }
 
 impl<M: SquareMatrix + Debug> Debug for LowerBoundedSquareMatrix<M> {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("LowerBoundedSquareMatrix")
             .field("matrix", &self.matrix)
@@ -40,6 +41,7 @@ impl<M: SquareMatrix> LowerBoundedSquareMatrix<M> {
     ///
     /// * If the index is greater than or equal to the order of the matrix, an
     ///   `OutOfBounds` error is returned.
+    #[inline]
     pub fn new(matrix: M, index: M::Index) -> Result<Self, MutabilityError<M>> {
         if index >= matrix.order() {
             return Err(MutabilityError::OutOfBounds(

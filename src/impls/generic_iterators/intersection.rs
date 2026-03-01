@@ -23,6 +23,7 @@ where
     I::Item: Ord,
 {
     /// Creates a new `Intersection` iterator.
+    #[inline]
     pub fn new(mut iter1: I, mut iter2: J) -> Self {
         let item1 = iter1.next();
         let item2 = iter2.next();
@@ -38,6 +39,7 @@ where
 {
     type Item = I::Item;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // Ensure front candidates are present
@@ -84,6 +86,7 @@ where
     J: DoubleEndedIterator<Item = I::Item>,
     I::Item: Ord,
 {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             // Ensure back candidates are present
@@ -127,6 +130,7 @@ where
 /// Trait for sorted iterators.
 pub trait SortedIterator: Iterator {
     /// Returns an iterator over the intersection of two sorted iterators.
+    #[inline]
     fn sorted_intersection<J>(self, other: J) -> Intersection<Self, J>
     where
         J: Iterator<Item = Self::Item>,

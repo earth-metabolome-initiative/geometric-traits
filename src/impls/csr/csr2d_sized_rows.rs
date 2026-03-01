@@ -26,6 +26,7 @@ pub struct CSR2DSizedRows<'a, CSR: SizedRowsSparseMatrix2D> {
 impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRows<'_, CSR> {
     type Item = CSR::RowIndex;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(row) = self.next.as_mut()?.next() {
@@ -53,6 +54,7 @@ impl<CSR: SizedRowsSparseMatrix2D> Iterator for CSR2DSizedRows<'_, CSR> {
 }
 
 impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
+    #[inline]
     fn len(&self) -> usize {
         if self.next.is_none() {
             return 0;
@@ -74,6 +76,7 @@ impl<CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DSizedRows<'_, CSR> {
 }
 
 impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRows<'_, CSR> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(back) = self.back.as_mut() {
@@ -102,6 +105,7 @@ impl<CSR: SizedRowsSparseMatrix2D> DoubleEndedIterator for CSR2DSizedRows<'_, CS
 }
 
 impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DSizedRows<'a, CSR> {
+    #[inline]
     fn from(csr2d: &'a CSR) -> Self {
         let next_row = CSR::RowIndex::zero();
         let mut back_row = CSR::RowIndex::zero();

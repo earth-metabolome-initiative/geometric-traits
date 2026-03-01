@@ -19,6 +19,7 @@ where
     M::Value: One,
     M::ColumnIndex: AsPrimitive<usize> + TryFromUsize,
 {
+    #[inline]
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let matrix = M::arbitrary(u)?;
 

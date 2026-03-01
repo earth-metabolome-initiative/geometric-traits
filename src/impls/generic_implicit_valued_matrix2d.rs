@@ -29,6 +29,7 @@ where
     Map: Fn(M::Coordinates) -> Value,
 {
     /// Creates a new [`GenericImplicitValuedMatrix2D`].
+    #[inline]
     pub fn new(matrix: M, map: Map) -> Self {
         Self { matrix, map }
     }
@@ -339,6 +340,7 @@ where
     type EdgeId = M::SparseIndex;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -353,11 +355,13 @@ where
     Value: Number,
     Map: Fn(M::Coordinates) -> Value,
 {
+    #[inline]
     fn has_nodes(&self) -> bool {
         self.number_of_rows() > M::RowIndex::zero()
             && self.number_of_columns() > M::ColumnIndex::zero()
     }
 
+    #[inline]
     fn has_edges(&self) -> bool {
         self.number_of_defined_values() > M::SparseIndex::zero()
     }
@@ -375,6 +379,7 @@ where
     type Edge = (M::RowIndex, M::ColumnIndex, Value);
     type Edges = Self;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         self
     }
@@ -398,10 +403,12 @@ where
     type LeftNodes = M::RowIndex;
     type RightNodes = M::ColumnIndex;
 
+    #[inline]
     fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
         self.number_of_rows_ref()
     }
 
+    #[inline]
     fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
         self.number_of_columns_ref()
     }

@@ -20,6 +20,7 @@ where
     type EdgeId = <Self as SparseMatrix>::SparseIndex;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -32,6 +33,7 @@ where
     M::RowIndex: TryFromUsize,
     M::SparseIndex: TryFromUsize,
 {
+    #[inline]
     fn from_directed_edges(edges: DE) -> Self {
         edges.matrix().symmetrize()
     }

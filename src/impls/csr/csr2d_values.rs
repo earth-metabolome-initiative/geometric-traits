@@ -22,6 +22,7 @@ pub struct M2DValues<'a, M: SparseValuedMatrix2D> {
 impl<M: SparseValuedMatrix2D> Iterator for M2DValues<'_, M> {
     type Item = M::Value;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(value) = self.next.as_mut()?.next() {
@@ -50,6 +51,7 @@ impl<'matrix, M: SizedSparseMatrix2D + SparseValuedMatrix2D> ExactSizeIterator
 where
     M::SparseRowValues<'matrix>: ExactSizeIterator,
 {
+    #[inline]
     fn len(&self) -> usize {
         if self.next.is_none() {
             return 0;
@@ -71,6 +73,7 @@ where
 }
 
 impl<M: SparseValuedMatrix2D> DoubleEndedIterator for M2DValues<'_, M> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(back) = self.back.as_mut() {
@@ -96,6 +99,7 @@ impl<M: SparseValuedMatrix2D> DoubleEndedIterator for M2DValues<'_, M> {
 }
 
 impl<'a, M: SparseValuedMatrix2D> From<&'a M> for M2DValues<'a, M> {
+    #[inline]
     fn from(matrix: &'a M) -> Self {
         let next_row = M::RowIndex::zero();
         let mut back_row = M::RowIndex::zero();

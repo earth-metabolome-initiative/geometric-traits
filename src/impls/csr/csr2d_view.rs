@@ -23,6 +23,7 @@ pub struct CSR2DView<'a, CSR: SparseMatrix2D> {
 impl<CSR: SparseMatrix2D> Iterator for CSR2DView<'_, CSR> {
     type Item = CSR::Coordinates;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(column_index) = self.next.as_mut()?.next() {
@@ -54,6 +55,7 @@ impl<'matrix, CSR: SizedSparseMatrix2D> ExactSizeIterator for CSR2DView<'matrix,
 where
     CSR::SparseRow<'matrix>: ExactSizeIterator,
 {
+    #[inline]
     fn len(&self) -> usize {
         if self.next.is_none() {
             return 0;
@@ -75,6 +77,7 @@ where
 }
 
 impl<CSR: SparseMatrix2D> DoubleEndedIterator for CSR2DView<'_, CSR> {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(back) = self.back.as_mut() {
@@ -104,6 +107,7 @@ impl<CSR: SparseMatrix2D> DoubleEndedIterator for CSR2DView<'_, CSR> {
 }
 
 impl<'a, CSR: SparseMatrix2D> From<&'a CSR> for CSR2DView<'a, CSR> {
+    #[inline]
     fn from(csr2d: &'a CSR) -> Self {
         let next_row = CSR::RowIndex::zero();
         let mut back_row = CSR::RowIndex::zero();

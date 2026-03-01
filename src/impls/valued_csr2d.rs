@@ -27,6 +27,7 @@ impl<
     type EdgeId = SparseIndex;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -42,18 +43,22 @@ impl<
     type GrowableMatrix = Self;
     type Error = EdgesBuilderError<Self>;
 
+    #[inline]
     fn matrix_mut(&mut self) -> &mut Self::GrowableMatrix {
         self
     }
 
+    #[inline]
     fn with_capacity(number_of_edges: Self::EdgeId) -> Self {
         <Self as SparseMatrixMut>::with_sparse_capacity(number_of_edges)
     }
 
+    #[inline]
     fn with_shape(shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape) -> Self {
         <Self as SparseMatrixMut>::with_sparse_shape(shape)
     }
 
+    #[inline]
     fn with_shaped_capacity(
         shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape,
         number_of_edges: Self::EdgeId,
@@ -69,10 +74,12 @@ impl<
     Value: Number,
 > Graph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
+    #[inline]
     fn has_nodes(&self) -> bool {
         self.number_of_rows() > RowIndex::zero() && self.number_of_columns() > ColumnIndex::zero()
     }
 
+    #[inline]
     fn has_edges(&self) -> bool {
         self.number_of_defined_values() > SparseIndex::zero()
     }
@@ -88,6 +95,7 @@ impl<
     type Edge = (RowIndex, ColumnIndex, Value);
     type Edges = Self;
 
+    #[inline]
     fn edges(&self) -> &Self::Edges {
         self
     }
@@ -118,10 +126,12 @@ where
     type LeftNodes = RowIndex;
     type RightNodes = ColumnIndex;
 
+    #[inline]
     fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
         self.number_of_rows_ref()
     }
 
+    #[inline]
     fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
         self.number_of_columns_ref()
     }

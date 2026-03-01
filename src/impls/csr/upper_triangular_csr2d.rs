@@ -23,6 +23,7 @@ where
 {
     type Coordinates = (M::RowIndex, M::ColumnIndex);
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
     }
@@ -35,10 +36,12 @@ where
     type RowIndex = M::RowIndex;
     type ColumnIndex = M::ColumnIndex;
 
+    #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_rows()
     }
 
+    #[inline]
     fn number_of_columns(&self) -> Self::ColumnIndex {
         self.matrix.number_of_columns()
     }
@@ -50,6 +53,7 @@ where
 {
     type Index = M::RowIndex;
 
+    #[inline]
     fn order(&self) -> Self::Index {
         self.matrix.order()
     }
@@ -59,6 +63,7 @@ impl<M> SparseSquareMatrix for UpperTriangularCSR2D<M>
 where
     M: SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         self.matrix.number_of_defined_diagonal_values()
     }
@@ -68,6 +73,7 @@ impl<M> AsRef<M> for UpperTriangularCSR2D<M>
 where
     M: Matrix2D,
 {
+    #[inline]
     fn as_ref(&self) -> &M {
         self.matrix.as_ref()
     }
@@ -77,6 +83,7 @@ impl<M> Default for UpperTriangularCSR2D<M>
 where
     M: Matrix2D + Default,
 {
+    #[inline]
     fn default() -> Self {
         Self { matrix: SquareCSR2D::default() }
     }
@@ -92,14 +99,17 @@ where
 {
     type MinimalShape = M::RowIndex;
 
+    #[inline]
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self { matrix: SquareCSR2D::with_sparse_capacity(number_of_values) }
     }
 
+    #[inline]
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
         Self::with_sparse_shaped_capacity(shape, M::SparseIndex::zero())
     }
 
+    #[inline]
     fn with_sparse_shaped_capacity(
         shape: Self::MinimalShape,
         number_of_values: Self::SparseIndex,
@@ -118,14 +128,17 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         self.matrix.sparse_coordinates()
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.matrix.is_empty()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         self.matrix.last_sparse_coordinates()
     }
@@ -135,6 +148,7 @@ impl<M> SizedSparseMatrix for UpperTriangularCSR2D<M>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         self.matrix.number_of_defined_values()
     }
@@ -144,10 +158,12 @@ impl<M> RankSelectSparseMatrix for UpperTriangularCSR2D<M>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + RankSelectSparseMatrix,
 {
+    #[inline]
     fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
         self.matrix.rank(coordinates)
     }
 
+    #[inline]
     fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
         self.matrix.select(sparse_index)
     }
@@ -170,6 +186,7 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         self.matrix.sparse_row(row)
     }
@@ -179,10 +196,12 @@ where
         self.matrix.has_entry(row, column)
     }
 
+    #[inline]
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
         self.matrix.sparse_columns()
     }
 
+    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         self.matrix.sparse_rows()
     }
@@ -201,18 +220,22 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
         self.matrix.empty_row_indices()
     }
 
+    #[inline]
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         self.matrix.non_empty_row_indices()
     }
 
+    #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_empty_rows()
     }
 
+    #[inline]
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {
         self.matrix.number_of_non_empty_rows()
     }
@@ -227,10 +250,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
         self.matrix.number_of_defined_values_in_row(row)
     }
 
+    #[inline]
     fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
         self.matrix.sparse_row_sizes()
     }
@@ -240,14 +265,17 @@ impl<M> SizedSparseMatrix2D for UpperTriangularCSR2D<M>
 where
     M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn rank_row(&self, row: M::RowIndex) -> Self::SparseIndex {
         self.matrix.rank_row(row)
     }
 
+    #[inline]
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.matrix.select_column(sparse_index)
     }
 
+    #[inline]
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
         self.matrix.select_row(sparse_index)
     }
@@ -261,6 +289,7 @@ where
     type Entry = Self::Coordinates;
     type Error = crate::impls::MutabilityError<Self>;
 
+    #[inline]
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row > column {
             return Err(MutabilityError::OutOfBounds(
@@ -274,6 +303,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
         Ok(self.matrix.increase_shape(shape)?)
     }
@@ -283,6 +313,7 @@ impl<M> TransposableMatrix2D<SquareCSR2D<M>> for UpperTriangularCSR2D<M>
 where
     M: TransposableMatrix2D<M, ColumnIndex = <Self as Matrix2D>::RowIndex>,
 {
+    #[inline]
     fn transpose(&self) -> SquareCSR2D<M> {
         self.matrix.transpose()
     }
@@ -294,6 +325,7 @@ where
     Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
 {
+    #[inline]
     fn symmetrize(&self) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>> {
         // We initialize the transposed matrix.
         let number_of_expected_column_indices = (self.number_of_defined_values().as_()

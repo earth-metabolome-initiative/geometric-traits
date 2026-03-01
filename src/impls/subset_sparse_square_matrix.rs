@@ -23,6 +23,7 @@ impl<M: SquareMatrix + Default, I> Default for SubsetSquareMatrix<M, I>
 where
     I: Default,
 {
+    #[inline]
     fn default() -> Self {
         Self { matrix: M::default(), indices: I::default() }
     }
@@ -40,6 +41,7 @@ impl<M: SquareMatrix, I> SubsetSquareMatrix<M, I> {
     ///
     /// * `MutabilityError::OutOfBounds` - If any of the indices are out of
     ///   bounds.
+    #[inline]
     pub fn with_unsorted_indices(
         matrix: M,
         unsorted_indices: I,
@@ -75,6 +77,7 @@ impl<M: SquareMatrix, I> SubsetSquareMatrix<M, I> {
     ///   of order.
     /// * `MutabilityError::OutOfBounds` - If any of the indices are out of
     ///   bounds.
+    #[inline]
     pub fn with_sorted_indices(matrix: M, sorted_indices: I) -> SubsetSquareMatrix<M, I>
     where
         I: AsRef<[M::Index]>,

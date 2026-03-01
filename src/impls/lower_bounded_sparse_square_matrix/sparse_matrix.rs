@@ -29,6 +29,7 @@ where
         self.last_sparse_coordinates().is_none()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         let (last_row, last_column) = self.matrix.last_sparse_coordinates()?;
         if last_row < self.index || last_column < self.index {

@@ -23,6 +23,7 @@ where
     type EdgeId = <Self as SparseMatrix>::SparseIndex;
     type Matrix = Self;
 
+    #[inline]
     fn matrix(&self) -> &Self::Matrix {
         self
     }
@@ -43,18 +44,22 @@ where
     type GrowableMatrix = Self;
     type Error = EdgesBuilderError<Self>;
 
+    #[inline]
     fn matrix_mut(&mut self) -> &mut Self::GrowableMatrix {
         self
     }
 
+    #[inline]
     fn with_capacity(number_of_edges: Self::EdgeId) -> Self {
         <Self as SparseMatrixMut>::with_sparse_capacity(number_of_edges)
     }
 
+    #[inline]
     fn with_shape(shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape) -> Self {
         <Self as SparseMatrixMut>::with_sparse_shape(shape)
     }
 
+    #[inline]
     fn with_shaped_capacity(
         shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape,
         number_of_edges: Self::EdgeId,

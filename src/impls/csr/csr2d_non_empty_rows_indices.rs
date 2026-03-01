@@ -17,6 +17,7 @@ pub struct CSR2DNonEmptyRowIndices<'a, CSR: SizedRowsSparseMatrix2D + 'a> {
 impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> Iterator for CSR2DNonEmptyRowIndices<'a, CSR> {
     type Item = CSR::RowIndex;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         while let (Some(row_index), Some(row_size)) =
             (self.row_sizes.0.next(), self.row_sizes.1.next())
@@ -31,6 +32,7 @@ impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> Iterator for CSR2DNonEmptyRowIndices
 }
 
 impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> ExactSizeIterator for CSR2DNonEmptyRowIndices<'a, CSR> {
+    #[inline]
     fn len(&self) -> usize {
         self.remaining_non_empty_rows
     }
@@ -39,6 +41,7 @@ impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> ExactSizeIterator for CSR2DNonEmptyR
 impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> DoubleEndedIterator
     for CSR2DNonEmptyRowIndices<'a, CSR>
 {
+    #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         while let (Some(row_index), Some(row_size)) =
             (self.row_sizes.0.next_back(), self.row_sizes.1.next_back())
@@ -53,6 +56,7 @@ impl<'a, CSR: SizedRowsSparseMatrix2D + 'a> DoubleEndedIterator
 }
 
 impl<'a, CSR: SizedRowsSparseMatrix2D> From<&'a CSR> for CSR2DNonEmptyRowIndices<'a, CSR> {
+    #[inline]
     fn from(csr2d: &'a CSR) -> Self {
         let remaining_non_empty_rows = csr2d
             .row_indices()

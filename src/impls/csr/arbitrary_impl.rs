@@ -39,6 +39,7 @@ where
         + num_traits::ConstZero
         + 'static,
 {
+    #[inline]
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let number_of_rows = RowIndex::arbitrary(u)?;
         let number_of_columns = ColumnIndex::arbitrary(u)?;

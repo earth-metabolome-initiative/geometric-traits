@@ -28,6 +28,7 @@ where
         self.last_sparse_coordinates().is_none()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         self.sparse_coordinates().next_back()
     }

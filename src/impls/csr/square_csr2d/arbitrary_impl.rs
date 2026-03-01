@@ -14,6 +14,7 @@ where
     M: Arbitrary<'a> + MatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
     M::RowIndex: TryFromUsize + AsPrimitive<usize> + PositiveInteger,
 {
+    #[inline]
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let mut matrix: M = M::arbitrary(u)?;
         let number_of_diagonal_values = M::RowIndex::try_from_usize(

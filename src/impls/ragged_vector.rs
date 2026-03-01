@@ -35,6 +35,7 @@ where
     RowIndex: Debug,
     ColumnIndex: Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("RaggedVector")
             .field("number_of_defined_values", &self.number_of_defined_values)
@@ -53,6 +54,7 @@ where
     RowIndex: Zero,
     ColumnIndex: Zero,
 {
+    #[inline]
     fn default() -> Self {
         Self {
             data: Vec::new(),
@@ -71,6 +73,7 @@ where
 {
     type Coordinates = (RowIndex, ColumnIndex);
 
+    #[inline]
     fn shape(&self) -> Vec<usize> {
         vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
     }
@@ -85,10 +88,12 @@ where
     type RowIndex = RowIndex;
     type ColumnIndex = ColumnIndex;
 
+    #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         self.number_of_rows
     }
 
+    #[inline]
     fn number_of_columns(&self) -> Self::ColumnIndex {
         self.number_of_columns
     }
@@ -100,10 +105,12 @@ where
     RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
     ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
 {
+    #[inline]
     fn number_of_columns_ref(&self) -> &Self::ColumnIndex {
         &self.number_of_columns
     }
 
+    #[inline]
     fn number_of_rows_ref(&self) -> &Self::RowIndex {
         &self.number_of_rows
     }
@@ -124,10 +131,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
         self.into()
     }
 
+    #[inline]
     fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
         if self.is_empty() {
             return None;
@@ -141,6 +150,7 @@ where
         Some((last_row_index, last_column))
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.number_of_defined_values == SparseIndex::zero()
     }
@@ -155,6 +165,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
+    #[inline]
     fn number_of_defined_values(&self) -> Self::SparseIndex {
         self.number_of_defined_values
     }
@@ -182,12 +193,14 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
         let slice =
             if row.as_() >= self.data.len() { &[] } else { self.data[row.as_()].as_slice() };
         slice.iter().copied()
     }
 
+    #[inline]
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
         if row.as_() >= self.data.len() {
             return false;
@@ -197,10 +210,12 @@ where
         columns_in_row.binary_search(&column).is_ok()
     }
 
+    #[inline]
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
         self.into()
     }
 
+    #[inline]
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         self.into()
     }
@@ -223,18 +238,22 @@ where
         = crate::impls::CSR2DNonEmptyRowIndices<'a, Self>
     where
         Self: 'a;
+    #[inline]
     fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
         self.into()
     }
 
+    #[inline]
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         self.into()
     }
 
+    #[inline]
     fn number_of_empty_rows(&self) -> Self::RowIndex {
         self.number_of_rows() - self.number_of_non_empty_rows()
     }
 
+    #[inline]
     fn number_of_non_empty_rows(&self) -> Self::RowIndex {
         self.number_of_non_empty_rows
     }
@@ -254,10 +273,12 @@ where
     where
         Self: 'a;
 
+    #[inline]
     fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
         self.into()
     }
 
+    #[inline]
     fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
         ColumnIndex::try_from_usize(self.data[row.as_()].len()).expect(
             "The number of defined values in a row must be less than the number of columns.",
@@ -275,6 +296,7 @@ where
     type Entry = Self::Coordinates;
     type Error = MutabilityError<Self>;
 
+    #[inline]
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         if row.as_() >= self.data.len() {
             self.data.extend(repeat_n(Vec::default(), row.as_() - self.data.len() + 1));
@@ -304,6 +326,7 @@ where
         Ok(())
     }
 
+    #[inline]
     fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
         if shape.0 < self.number_of_rows {
             return Err(MutabilityError::IncompatibleShape);
@@ -330,6 +353,7 @@ where
     <RowIndex as TryFrom<usize>>::Error: Debug,
     <ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
+    #[inline]
     fn transpose(&self) -> RaggedVector<SparseIndex, ColumnIndex, RowIndex> {
         let mut transposed: RaggedVector<SparseIndex, ColumnIndex, RowIndex> =
             RaggedVector::with_sparse_shape((self.number_of_columns, self.number_of_rows));
@@ -353,14 +377,17 @@ where
 {
     type MinimalShape = Self::Coordinates;
 
+    #[inline]
     fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
         Self::with_sparse_shaped_capacity((RowIndex::zero(), ColumnIndex::zero()), number_of_values)
     }
 
+    #[inline]
     fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
         Self::with_sparse_shaped_capacity(shape, SparseIndex::zero())
     }
 
+    #[inline]
     fn with_sparse_shaped_capacity(
         (number_of_rows, number_of_columns): Self::MinimalShape,
         _number_of_values: Self::SparseIndex,

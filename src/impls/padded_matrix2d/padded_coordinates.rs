@@ -19,6 +19,7 @@ pub struct PaddedCoordinates<M: Matrix2D> {
 }
 
 impl<M: Matrix2D> From<M> for PaddedCoordinates<M> {
+    #[inline]
     fn from(matrix: M) -> Self {
         Self {
             row_iter: matrix.row_indices(),
@@ -62,6 +63,7 @@ impl<M: Matrix2D> DoubleEndedIterator for PaddedCoordinates<M> {
 }
 
 impl<M: Matrix2D> ExactSizeIterator for PaddedCoordinates<M> {
+    #[inline]
     fn len(&self) -> usize {
         let number_of_columns = self.matrix.number_of_columns().as_();
         number_of_columns * self.row_iter.len() + self.column_iter.len()
