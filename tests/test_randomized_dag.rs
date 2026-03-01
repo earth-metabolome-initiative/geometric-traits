@@ -152,3 +152,21 @@ fn test_randomized_dag_two_nodes_can_reach_max_edges() {
 
     assert!(saw_max, "Expected at least one seed to produce the maximal edge count for 2 nodes");
 }
+
+#[test]
+fn test_randomized_dag_seed_zero_not_always_empty() {
+    let graph: SimpleDiGraph = SimpleDiGraph::randomized_dag(0, 10);
+    let max_edges = 10 * 9 / 2;
+    assert_eq!(graph.number_of_nodes(), 10);
+    assert!(graph.number_of_edges() <= max_edges);
+    assert!(!graph.has_cycle(), "Randomized DAG should be acyclic");
+    assert!(graph.number_of_edges() > 0, "Seed 0 should not collapse to an always-empty DAG");
+}
+
+#[test]
+fn test_randomized_dag_seed_zero_is_deterministic() {
+    let graph1: SimpleDiGraph = SimpleDiGraph::randomized_dag(0, 10);
+    let graph2: SimpleDiGraph = SimpleDiGraph::randomized_dag(0, 10);
+    assert_eq!(graph1.number_of_nodes(), graph2.number_of_nodes());
+    assert_eq!(graph1.number_of_edges(), graph2.number_of_edges());
+}

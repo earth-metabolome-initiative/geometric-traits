@@ -34,7 +34,10 @@ where
             return G::from((nodes, edges));
         }
 
-        let mut xorshift = XorShift64::from(seed);
+        // XorShift64 with a zero state remains zero forever.
+        // Map seed 0 to a fixed non-zero state to avoid degenerate empty DAGs.
+        let normalized_seed = if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed };
+        let mut xorshift = XorShift64::from(normalized_seed);
         let nodes_u64 = nodes as u64;
         let max_number_of_edges = nodes_u64 * (nodes_u64 - 1) / 2;
         let number_of_edges_u64 = xorshift.next().unwrap() % (max_number_of_edges + 1);
