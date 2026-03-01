@@ -3,7 +3,7 @@
 #![cfg(feature = "std")]
 
 use geometric_traits::{
-    impls::CSR2D,
+    impls::{CSR2D, MutabilityError},
     prelude::*,
     traits::{MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut},
 };
@@ -36,7 +36,7 @@ fn test_add_maxed_out_row_index_new_row() {
     let mut csr: SmallCSR = SparseMatrixMut::with_sparse_shape((1, 1));
     MatrixMut::add(&mut csr, (0, 0)).unwrap();
     let result = MatrixMut::add(&mut csr, (255, 0));
-    assert!(result.is_err());
+    assert!(matches!(result, Err(MutabilityError::MaxedOutRowIndex)));
 }
 
 #[test]

@@ -465,7 +465,7 @@ where
                 return Err(MutabilityError::MaxedOutColumnIndex);
             }
             if row == RowIndex::max_value() {
-                return Err(MutabilityError::MaxedOutSparseIndex);
+                return Err(MutabilityError::MaxedOutRowIndex);
             }
             let last_offset = self.offsets.last().copied().unwrap_or(SparseIndex::zero());
             if last_offset == SparseIndex::max_value() {
