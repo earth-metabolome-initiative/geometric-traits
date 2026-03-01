@@ -213,13 +213,12 @@ pub trait ConnectedComponents<Marker: AsPrimitive<usize> + PositiveInteger = usi
                 smallest_component_size = current_component_size;
             }
 
-            number_of_components += Marker::one();
-
-            // If the number of components exceeds the maximum value of the marker type,
-            // return an error.
+            // If incrementing the component counter would overflow the marker
+            // type, return an error.
             if number_of_components == Marker::max_value() {
                 return Err(ConnectedComponentsError::TooManyComponents.into());
             }
+            number_of_components += Marker::one();
         }
 
         Ok(ConnectedComponentsResult {

@@ -5,7 +5,10 @@
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SymmetricCSR2D},
     prelude::{connected_components::ConnectedComponentsResult, *},
-    traits::{ConnectedComponents, VocabularyBuilder},
+    traits::{
+        ConnectedComponents, VocabularyBuilder,
+        algorithms::connected_components::ConnectedComponentsError,
+    },
 };
 
 /// Helper to build an undirected graph.
@@ -199,4 +202,29 @@ fn test_connected_components_u8_marker() {
     let cc: ConnectedComponentsResult<'_, _, u8> = graph.connected_components().unwrap();
 
     assert_eq!(cc.number_of_components(), 2_u8);
+}
+
+#[test]
+fn test_connected_components_u8_marker_exact_capacity() {
+    // 255 isolated nodes => 255 components, which must be representable in u8.
+    let graph = build_undi_graph(255, vec![]);
+    let cc: ConnectedComponentsResult<'_, _, u8> = graph.connected_components().unwrap();
+
+    assert_eq!(cc.number_of_components(), 255_u8);
+}
+
+#[test]
+fn test_connected_components_u8_marker_overflow() {
+    // 256 isolated nodes => 256 components, which cannot be represented in u8.
+    let graph = build_undi_graph(256, vec![]);
+    let result = ConnectedComponents::<u8>::connected_components(&graph);
+
+    assert!(matches!(
+        result,
+        Err(geometric_traits::errors::MonopartiteError::AlgorithmError(
+            geometric_traits::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError::ConnectedComponentsError(
+                ConnectedComponentsError::TooManyComponents
+            )
+        ))
+    ));
 }
