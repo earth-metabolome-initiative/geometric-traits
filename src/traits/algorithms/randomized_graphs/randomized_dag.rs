@@ -29,11 +29,19 @@ where
 {
     #[allow(clippy::cast_possible_truncation)]
     fn randomized_dag(seed: u64, nodes: usize) -> Self {
+        if nodes <= 1 {
+            let edges = G::MonoplexMonopartiteEdges::with_shaped_capacity(nodes, 0);
+            return G::from((nodes, edges));
+        }
+
         let mut xorshift = XorShift64::from(seed);
         let nodes_u64 = nodes as u64;
-        let number_of_edges = xorshift.next().unwrap() % (nodes_u64 * (nodes_u64 - 1) / 2);
-        let mut edge_tuples = HashSet::with_capacity(usize::try_from(number_of_edges).unwrap());
-        while edge_tuples.len() < usize::try_from(number_of_edges).unwrap() {
+        let max_number_of_edges = nodes_u64 * (nodes_u64 - 1) / 2;
+        let number_of_edges_u64 = xorshift.next().unwrap() % (max_number_of_edges + 1);
+        let number_of_edges = usize::try_from(number_of_edges_u64).unwrap();
+
+        let mut edge_tuples = HashSet::with_capacity(number_of_edges);
+        while edge_tuples.len() < number_of_edges {
             let seed1 = xorshift.next().unwrap();
             let seed2 = xorshift.next().unwrap();
             let mut src = (seed1 % nodes_u64) as usize;
@@ -48,8 +56,7 @@ where
         }
         let mut sorted_edge_tuples: Vec<(usize, usize)> = edge_tuples.into_iter().collect();
         sorted_edge_tuples.sort_unstable();
-        let mut edges =
-            G::MonoplexMonopartiteEdges::with_shaped_capacity(nodes, number_of_edges as usize);
+        let mut edges = G::MonoplexMonopartiteEdges::with_shaped_capacity(nodes, number_of_edges);
         for (src, dst) in sorted_edge_tuples {
             edges.add((src, dst)).unwrap();
         }

@@ -155,12 +155,9 @@ where
             return Ok(vec![]);
         }
 
-        debug_assert!(
-            self.max_sparse_value().unwrap() < padding_cost,
-            "The maximum value in the matrix ({:?}) is greater than the padding cost ({:?}).",
-            self.max_sparse_value().unwrap(),
-            padding_cost
-        );
+        if self.max_sparse_value().is_some_and(|value| value >= padding_cost) {
+            return Err(LAPError::PaddingCostTooSmall);
+        }
 
         let padding: PaddedMatrix2D<&'_ Self, _> =
             PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
