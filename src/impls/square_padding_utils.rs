@@ -1,5 +1,4 @@
 //! Shared helpers for square-padding wrappers.
-#![cfg(feature = "alloc")]
 
 use num_traits::{AsPrimitive, Bounded};
 

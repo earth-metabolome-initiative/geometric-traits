@@ -1,5 +1,4 @@
 //! Shared helpers for node classification algorithms.
-#![cfg(feature = "alloc")]
 
 use alloc::vec::Vec;
 
