@@ -145,3 +145,20 @@ fn test_wu_palmer_exact_values_chain_graph() {
     assert!(sim_1_2 > sim_1_3);
     assert!(sim_1_3 > 0.0);
 }
+
+#[test]
+fn test_wu_palmer_regression_multi_path_depth_bounds() {
+    // Regression graph that previously produced sim(2,3)=1.2 because `n1`
+    // propagation used the shallowest path in a multi-parent DAG.
+    let graph =
+        build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    let sim_2_3 = wu_palmer.similarity(&2, &3);
+    assert!(
+        (0.0..=1.0).contains(&sim_2_3),
+        "similarity must remain bounded in [0,1], got {sim_2_3}"
+    );
+    // With deepest-depth propagation the expected score is 2*3/(3+4) = 6/7.
+    assert_approx_eq(sim_2_3, 6.0 / 7.0);
+}

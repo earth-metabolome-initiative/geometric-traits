@@ -115,8 +115,8 @@ struct WuPalmerFrame<NodeId: Copy> {
 /// subtree rooted at `initial_node`.
 ///
 /// Returns `(n1, n2, n3)` where:
-/// - `n1` = minimum depth of `left` in this subtree (`None` if not found)
-/// - `n2` = minimum depth of `right` in this subtree (`None` if not found)
+/// - `n1` = deepest depth of `left` in this subtree (`None` if not found)
+/// - `n2` = deepest depth of `right` in this subtree (`None` if not found)
 /// - `n3` = depth of the deepest common ancestor node that has both `left` and
 ///   `right` in its subtree (equals `initial_depth` when neither or only one
 ///   target is reachable)
@@ -174,14 +174,14 @@ where
             if let Some(parent) = stack.last_mut() {
                 match (child_n1, child_n2) {
                     (Some(rec_n1), None) => {
-                        parent.n1 = Some(
-                            parent.n1.map_or(rec_n1, |n1| if n1 < rec_n1 { n1 } else { rec_n1 }),
-                        );
+                        // In DAGs with multiple paths to the same node, using
+                        // deepest reachable depths keeps 2*n3 <= n1+n2.
+                        parent.n1 = Some(parent.n1.map_or(rec_n1, |n1| n1.max(rec_n1)));
                     }
                     (None, Some(rec_n2)) => {
-                        parent.n2 = Some(
-                            parent.n2.map_or(rec_n2, |n2| if n2 < rec_n2 { n2 } else { rec_n2 }),
-                        );
+                        // In DAGs with multiple paths to the same node, using
+                        // deepest reachable depths keeps 2*n3 <= n1+n2.
+                        parent.n2 = Some(parent.n2.map_or(rec_n2, |n2| n2.max(rec_n2)));
                     }
                     (None, None) => {}
                     // Both Some: the child subtree contains a common ancestor.
