@@ -313,6 +313,32 @@ fn test_arbitrary_wu_palmer() {
     });
 }
 
+#[test]
+fn test_arbitrary_wu_palmer_targeted_dense_patterns() {
+    let dense_like_seeds: [u8; 6] = [11, 37, 73, 109, 149, 193];
+    let mut constructed = 0usize;
+
+    for &seed in &dense_like_seeds {
+        let mut pattern = Vec::with_capacity(128);
+        for offset in 0..128u8 {
+            pattern.push(seed.wrapping_mul(17).wrapping_add(offset.wrapping_mul(29)));
+        }
+
+        if let Some(csr) = from_bytes::<TestGraph>(&pattern) {
+            constructed += 1;
+            if let Ok(wu_palmer) = csr.wu_palmer() {
+                let node_ids: Vec<u8> = csr.node_ids().collect();
+                test_utils::check_similarity_invariants(&wu_palmer, &node_ids, 16);
+            }
+        }
+    }
+
+    assert!(
+        constructed > 0,
+        "No TestGraph instances could be constructed from dense-like patterns"
+    );
+}
+
 // ============================================================================
 // Lin (mirrors fuzz/fuzz_targets/lin.rs)
 // ============================================================================
