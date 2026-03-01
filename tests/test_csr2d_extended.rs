@@ -211,6 +211,38 @@ fn test_csr2d_transpose() {
     assert!(!transposed.has_entry(0, 1));
 }
 
+#[test]
+fn test_csr2d_transpose_empty_non_empty_row_invariants_with_empty_rows() {
+    let csr = build_csr(vec![(0, 1), (0, 2), (1, 2)]);
+    let transposed: TestCSR2D = csr.transpose();
+
+    // Transposed rows:
+    // row 0 -> empty
+    // row 1 -> [0]
+    // row 2 -> [0, 1]
+    assert_eq!(transposed.number_of_rows(), 3);
+    assert_eq!(transposed.number_of_non_empty_rows(), 2);
+    assert_eq!(transposed.number_of_empty_rows(), 1);
+    assert_eq!(
+        transposed.number_of_empty_rows() + transposed.number_of_non_empty_rows(),
+        transposed.number_of_rows()
+    );
+}
+
+#[test]
+fn test_csr2d_transpose_empty_non_empty_row_invariants_fully_populated() {
+    let csr = build_csr(vec![(0, 0), (1, 1), (2, 2)]);
+    let transposed: TestCSR2D = csr.transpose();
+
+    assert_eq!(transposed.number_of_rows(), 3);
+    assert_eq!(transposed.number_of_non_empty_rows(), 3);
+    assert_eq!(transposed.number_of_empty_rows(), 0);
+    assert_eq!(
+        transposed.number_of_empty_rows() + transposed.number_of_non_empty_rows(),
+        transposed.number_of_rows()
+    );
+}
+
 // ============================================================================
 // Sparse rows/columns iterators
 // ============================================================================

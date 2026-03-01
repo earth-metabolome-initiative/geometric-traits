@@ -496,7 +496,7 @@ where
             number_of_columns: self.number_of_rows(),
             number_of_rows: self.number_of_columns(),
             column_indices: vec![RowIndex::zero(); self.number_of_defined_values().as_()],
-            number_of_non_empty_rows: self.number_of_columns(),
+            number_of_non_empty_rows: ColumnIndex::zero(),
         };
 
         // First, we proceed to compute the number of elements in each column.
@@ -506,15 +506,21 @@ where
 
         // Then, we compute the prefix sum of the degrees to get the offsets.
         let mut prefix_sum = SparseIndex::zero();
-        for offset in &mut transposed.offsets {
+        for (row_degree_index, offset) in transposed.offsets.iter_mut().enumerate() {
+            // Before prefix summation, offsets[1..] store row degrees in the transposed matrix.
+            if row_degree_index > 0 && *offset > SparseIndex::zero() {
+                transposed.number_of_non_empty_rows += ColumnIndex::one();
+            }
             prefix_sum += *offset;
-            transposed.number_of_non_empty_rows += if *offset > SparseIndex::zero() {
-                ColumnIndex::one()
-            } else {
-                ColumnIndex::zero()
-            };
             *offset = prefix_sum;
         }
+
+        debug_assert!(
+            transposed.number_of_non_empty_rows <= transposed.number_of_rows,
+            "The transposed matrix has {} non-empty rows but only {} rows.",
+            transposed.number_of_non_empty_rows,
+            transposed.number_of_rows
+        );
 
         // Finally, we fill the column indices.
         let mut degree = vec![SparseIndex::zero(); self.number_of_columns.as_()];
