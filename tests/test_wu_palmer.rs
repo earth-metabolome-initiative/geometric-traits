@@ -147,6 +147,38 @@ fn test_wu_palmer_exact_values_chain_graph() {
 }
 
 #[test]
+fn test_wu_palmer_exact_values_disconnected_roots() {
+    // Two disconnected roots: 0 -> 1 and 2 -> 3
+    // Cross-component similarities should be 0.
+    // Root-child similarity in each component should be 2/3.
+    let graph = build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (2, 3)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    assert_approx_eq(wu_palmer.similarity(&1, &3), 0.0);
+    assert_approx_eq(wu_palmer.similarity(&0, &2), 0.0);
+    assert_approx_eq(wu_palmer.similarity(&0, &1), 2.0 / 3.0);
+    assert_approx_eq(wu_palmer.similarity(&2, &3), 2.0 / 3.0);
+}
+
+#[test]
+fn test_wu_palmer_exact_values_wide_root() {
+    // Wide root: 0 -> 1,2,3,4
+    // root-child similarity = 2/3, sibling-sibling similarity = 1/2.
+    let graph = build_digraph(vec![0, 1, 2, 3, 4], vec![(0, 1), (0, 2), (0, 3), (0, 4)]);
+    let wu_palmer = graph.wu_palmer().unwrap();
+
+    for child in 1..=4usize {
+        assert_approx_eq(wu_palmer.similarity(&0, &child), 2.0 / 3.0);
+    }
+
+    for left in 1..=4usize {
+        for right in (left + 1)..=4usize {
+            assert_approx_eq(wu_palmer.similarity(&left, &right), 1.0 / 2.0);
+        }
+    }
+}
+
+#[test]
 fn test_wu_palmer_regression_multi_path_depth_bounds() {
     // Regression graph that previously produced sim(2,3)=1.2 because `n1`
     // propagation used the shallowest path in a multi-parent DAG.
