@@ -81,11 +81,13 @@ where
         let mut max_similarity = 0.0;
         for root_node in &self.root_nodes {
             let (Some(n1), Some(n2), n3) =
-                wu_palmer_depth(self.graph, 0, *root_node, *left, *right)
+                // Use root depth = 1 to match the canonical Wu-Palmer score:
+                // 2 * depth(LCS) / (depth(left) + depth(right)).
+                wu_palmer_depth(self.graph, 1, *root_node, *left, *right)
             else {
                 continue;
             };
-            let mut denominator = n1 as f64 + n2 as f64 + (2.0 * n3 as f64);
+            let mut denominator = n1 as f64 + n2 as f64;
             if denominator < f64::EPSILON {
                 denominator = f64::EPSILON;
             }
