@@ -52,6 +52,7 @@
 //!   325–340.
 #![cfg(feature = "alloc")]
 use alloc::{vec, vec::Vec};
+
 use num_traits::AsPrimitive;
 
 use super::errors::CrouseError;
