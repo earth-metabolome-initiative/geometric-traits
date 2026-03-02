@@ -380,4 +380,51 @@ mod tests {
         assert!(matches!(crouse_inner(&[-1.0], 1, 1, 100.0), Err(CrouseError::NegativeValues)));
         assert!(matches!(crouse_inner(&[100.0], 1, 1, 100.0), Err(CrouseError::ValueTooLarge)));
     }
+
+    /// Regression test: a 256×256 near-degenerate identity matrix where
+    /// diagonal costs are f64::EPSILON and off-diagonal costs are 1+ε.
+    ///
+    /// This is the pathological case that triggered suboptimal assignments
+    /// before the epsilon-tolerance fix.  The cost matrix mimics what the
+    /// spectral cosine similarity produces with `mz_power=0` and wide m/z
+    /// tolerance: all entries are nearly identical, with the correct
+    /// assignment distinguished by only ~1 ULP.  After ~200 augmentation
+    /// steps without epsilon tolerance, accumulated dual-variable rounding
+    /// errors cause the Dijkstra scan to miss true minimum-distance ties,
+    /// leading to non-diagonal assignments.
+    #[test]
+    fn test_near_degenerate_square_identity() {
+        let n = 256;
+        let diag = f64::EPSILON;
+        let off = 1.0 + f64::EPSILON;
+        let mut data = vec![off; n * n];
+        for i in 0..n {
+            data[i * n + i] = diag;
+        }
+        let mut result = crouse_inner(&data, n, n, 2.0).unwrap();
+        result.sort_unstable();
+        let expected: Vec<(usize, usize)> = (0..n).map(|i| (i, i)).collect();
+        assert_eq!(result, expected);
+    }
+
+    /// Same near-degenerate pattern as [`test_near_degenerate_square_identity`],
+    /// but rectangular (128×256).  The rectangular case is the primary use
+    /// case for this solver (Crouse 2016) and the one most affected, since
+    /// rectangular problems cannot use init phases (Bijsterbosch & Volgenant
+    /// 2010) and thus rely entirely on augmentation-step dual updates.
+    #[test]
+    fn test_near_degenerate_rectangular_identity() {
+        let nr = 128;
+        let nc = 256;
+        let diag = f64::EPSILON;
+        let off = 1.0 + f64::EPSILON;
+        let mut data = vec![off; nr * nc];
+        for i in 0..nr {
+            data[i * nc + i] = diag;
+        }
+        let mut result = crouse_inner(&data, nr, nc, 2.0).unwrap();
+        result.sort_unstable();
+        let expected: Vec<(usize, usize)> = (0..nr).map(|i| (i, i)).collect();
+        assert_eq!(result, expected);
+    }
 }
