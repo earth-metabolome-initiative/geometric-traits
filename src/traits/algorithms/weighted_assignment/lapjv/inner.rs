@@ -354,7 +354,10 @@ where
             }
         };
 
-        let minimum_distance = distances[to_scan[lower_bound].as_()];
+        // Use the sink column's actual Dijkstra distance as reference.
+        // Previous code used `to_scan[lower_bound]`, which is incorrect
+        // when scan() increments lower_bound past the last frontier column.
+        let minimum_distance = distances[column_index.as_()];
         for column_index in to_scan[0..n_ready].iter().copied() {
             self.column_costs[column_index.as_()] +=
                 distances[column_index.as_()] - minimum_distance;

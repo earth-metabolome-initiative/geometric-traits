@@ -107,7 +107,20 @@ pub(crate) fn crouse_inner(
         };
 
         // Update dual variables for settled columns.
-        let min_dist = distances[to_scan[lower_bound]];
+        //
+        // Use the sink column's actual Dijkstra distance as the reference
+        // point.  Previous code used `distances[to_scan[lower_bound]]`,
+        // which is incorrect when scan() finds the sink while processing
+        // the last frontier column: lower_bound gets incremented to equal
+        // upper_bound, so to_scan[lower_bound] points to an unsettled
+        // column with a potentially much larger distance.  The resulting
+        // over-subtraction corrupts dual variables for all settled columns
+        // in that augmentation step, causing cascading suboptimality.
+        //
+        // SciPy uses the sink distance directly (minVal = shortestPath
+        // Costs[sink]); JV 1987 preserves min from find_minimum across
+        // the scan.  Both correctly reference the sink.
+        let min_dist = distances[sink_col];
         for &col in &to_scan[0..n_ready] {
             column_costs[col] += distances[col] - min_dist;
         }
@@ -242,5 +255,41 @@ mod tests {
         assert!(matches!(crouse_inner(&[0.0], 1, 1, 100.0), Err(CrouseError::ZeroValues)));
         assert!(matches!(crouse_inner(&[-1.0], 1, 1, 100.0), Err(CrouseError::NegativeValues)));
         assert!(matches!(crouse_inner(&[100.0], 1, 1, 100.0), Err(CrouseError::ValueTooLarge)));
+    }
+
+    /// Regression test for the min_dist dual-update bug.
+    ///
+    /// 218×218 near-degenerate matrix with block structure mimicking
+    /// spectral cosine similarity (mz_power=0, wide tolerance).
+    /// Diagonal entries are strictly cheapest in each cluster, so the
+    /// optimal assignment is the identity.  Before the fix, corrupted
+    /// dual variables caused non-diagonal assignments.
+    #[test]
+    #[allow(clippy::cast_precision_loss)]
+    fn test_sparse_block_degenerate() {
+        let n = 218;
+        let non_edge = 1.0 + f64::EPSILON;
+        let max_cost = non_edge + 1.0;
+
+        let intensities: Vec<f64> =
+            (0..n).map(|i| 100.0 + (i as f64 * 7.3 % 50.0) * 100.0).collect();
+        let max_int = intensities.iter().copied().fold(0.0_f64, f64::max);
+
+        // Peaks grouped in blocks of ~5, mimicking m/z tolerance clusters.
+        let mut data = vec![non_edge; n * n];
+        for i in 0..n {
+            let cluster_start = (i / 5) * 5;
+            let cluster_end = ((i / 5) + 1) * 5;
+            for j in cluster_start..cluster_end.min(n) {
+                data[i * n + j] =
+                    1.0 + f64::EPSILON - (intensities[i] / max_int) * (intensities[j] / max_int);
+            }
+        }
+
+        let result = crouse_inner(&data, n, n, max_cost).unwrap();
+
+        let non_diagonal: Vec<_> = result.iter().filter(|&&(r, c)| r != c).copied().collect();
+
+        assert!(non_diagonal.is_empty(), "found {} non-diagonal assignments", non_diagonal.len());
     }
 }
