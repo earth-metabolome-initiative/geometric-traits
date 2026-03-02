@@ -55,8 +55,7 @@ use alloc::{vec, vec::Vec};
 
 use super::errors::CrouseError;
 use crate::traits::{
-    AssignmentState,
-    algorithms::weighted_assignment::lapjv::common::augmentation_backtrack,
+    AssignmentState, algorithms::weighted_assignment::lapjv::common::augmentation_backtrack,
 };
 
 /// Finds the minimum distance among columns in `to_scan[lower_bound..]`,
@@ -70,10 +69,11 @@ use crate::traits::{
 /// steps, so exact comparisons miss true ties in near-degenerate matrices.
 ///
 /// The two changes from the generic version:
-/// - `distance <= minimum_distance` becomes `distance <= minimum_distance + epsilon`
-///   (include columns within epsilon of the current minimum)
-/// - `distance < minimum_distance` becomes `distance < minimum_distance - epsilon`
-///   (only reset the frontier when strictly better by more than epsilon)
+/// - `distance <= minimum_distance` becomes `distance <= minimum_distance +
+///   epsilon` (include columns within epsilon of the current minimum)
+/// - `distance < minimum_distance` becomes `distance < minimum_distance -
+///   epsilon` (only reset the frontier when strictly better by more than
+///   epsilon)
 ///
 /// This matches the epsilon-clamping approach used in:
 /// - SciPy's `linear_sum_assignment` (C implementation)
@@ -407,11 +407,12 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    /// Same near-degenerate pattern as [`test_near_degenerate_square_identity`],
-    /// but rectangular (128×256).  The rectangular case is the primary use
-    /// case for this solver (Crouse 2016) and the one most affected, since
-    /// rectangular problems cannot use init phases (Bijsterbosch & Volgenant
-    /// 2010) and thus rely entirely on augmentation-step dual updates.
+    /// Same near-degenerate pattern as
+    /// [`test_near_degenerate_square_identity`], but rectangular (128×256).
+    /// The rectangular case is the primary use case for this solver (Crouse
+    /// 2016) and the one most affected, since rectangular problems cannot
+    /// use init phases (Bijsterbosch & Volgenant 2010) and thus rely
+    /// entirely on augmentation-step dual updates.
     #[test]
     fn test_near_degenerate_rectangular_identity() {
         let nr = 128;
