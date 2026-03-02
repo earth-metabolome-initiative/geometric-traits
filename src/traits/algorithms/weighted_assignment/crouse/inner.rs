@@ -61,7 +61,8 @@ use crate::traits::{
 /// Finds the minimum distance among columns in `to_scan[lower_bound..]`,
 /// grouping all columns within `epsilon` of the minimum into the frontier.
 ///
-/// This is an f64-specific variant of the generic [`find_minimum_distance`]
+/// This is an f64-specific variant of the generic
+/// [`find_minimum_distance`](crate::traits::algorithms::weighted_assignment::lapjv::common::find_minimum_distance)
 /// from `lapjv/common.rs`.  The generic version uses exact `PartialOrd`
 /// comparisons, which works for the square LAPJV where init phases establish
 /// accurate dual variables.  In the rectangular augmentation-only Crouse
