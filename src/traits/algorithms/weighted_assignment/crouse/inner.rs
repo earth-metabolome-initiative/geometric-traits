@@ -52,6 +52,7 @@
 //!   325–340.
 #![cfg(feature = "alloc")]
 use alloc::{vec, vec::Vec};
+use num_traits::AsPrimitive;
 
 use super::errors::CrouseError;
 use crate::traits::{
@@ -165,7 +166,7 @@ pub(crate) fn crouse_inner(
     // The total assignment cost error from this tolerance is bounded by
     // nr × epsilon = nr² × f64::EPSILON ≈ 1e-11 for nr ≤ 512, which is
     // negligible for any practical cost function.
-    let epsilon = nr as f64 * f64::EPSILON;
+    let epsilon = <usize as AsPrimitive<f64>>::as_(nr) * f64::EPSILON;
 
     // Column dual variables (length nc), initialized to zero.
     let mut column_costs = vec![0.0f64; nc];
