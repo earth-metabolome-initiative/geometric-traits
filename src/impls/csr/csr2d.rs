@@ -796,7 +796,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "last row stores in the offsets should always have at least one column")]
+    #[should_panic(
+        expected = "last row stores in the offsets should always have at least one column"
+    )]
     fn test_csr2d_last_sparse_coordinates_panics_for_illegal_state() {
         let csr: TestCSR2D = CSR2D {
             offsets: vec![0, 1, 1],
@@ -818,7 +820,8 @@ mod tests {
             number_of_non_empty_rows: 1,
         };
 
-        let error = MatrixMut::add(&mut csr, (0, 1)).expect_err("must fail when sparse index is maxed");
+        let error =
+            MatrixMut::add(&mut csr, (0, 1)).expect_err("must fail when sparse index is maxed");
         assert!(matches!(error, MutabilityError::MaxedOutSparseIndex));
     }
 
@@ -832,7 +835,8 @@ mod tests {
             number_of_non_empty_rows: u8::MAX,
         };
 
-        let error = MatrixMut::add(&mut csr, (1, 0)).expect_err("must fail when row index is maxed");
+        let error =
+            MatrixMut::add(&mut csr, (1, 0)).expect_err("must fail when row index is maxed");
         assert!(matches!(error, MutabilityError::MaxedOutRowIndex));
     }
 }

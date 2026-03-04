@@ -92,10 +92,7 @@ fn test_ref_sparse_square_matrix_diagonal_count_ufcs() {
     MatrixMut::add(&mut sq, (2, 2)).unwrap();
 
     let r = &sq;
-    assert_eq!(
-        <&TestSquareCSR as SparseSquareMatrix>::number_of_defined_diagonal_values(&r),
-        3
-    );
+    assert_eq!(<&TestSquareCSR as SparseSquareMatrix>::number_of_defined_diagonal_values(&r), 3);
 }
 
 // ============================================================================

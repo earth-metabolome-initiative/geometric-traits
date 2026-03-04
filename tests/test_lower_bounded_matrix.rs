@@ -4,7 +4,9 @@
 
 use geometric_traits::{
     impls::{CSR2D, LowerBoundedSquareMatrix, SquareCSR2D},
-    traits::{Matrix, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SquareMatrix},
+    traits::{
+        Matrix, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SquareMatrix,
+    },
 };
 
 type TestCSR2D = CSR2D<usize, usize, usize>;

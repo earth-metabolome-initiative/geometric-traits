@@ -10,7 +10,8 @@ use geometric_traits::{
 
 #[test]
 fn test_sorted_vec_transmute_from_sorted_input() {
-    let sorted = unsafe { <SortedVec<i32> as TransmuteFrom<Vec<i32>>>::transmute_from(vec![1, 2, 3]) };
+    let sorted =
+        unsafe { <SortedVec<i32> as TransmuteFrom<Vec<i32>>>::transmute_from(vec![1, 2, 3]) };
     assert_eq!(sorted.len(), 3);
 }
 

@@ -15,7 +15,10 @@ use geometric_traits::{
 type TestValue = f64;
 type TestValuedCSR = ValuedCSR2D<usize, usize, usize, TestValue>;
 
-fn build_valued_csr(mut edges: Vec<(usize, usize, TestValue)>, shape: (usize, usize)) -> TestValuedCSR {
+fn build_valued_csr(
+    mut edges: Vec<(usize, usize, TestValue)>,
+    shape: (usize, usize),
+) -> TestValuedCSR {
     edges.sort_unstable_by(|(r1, c1, _), (r2, c2, _)| (r1, c1).cmp(&(r2, c2)));
     GenericEdgesBuilder::<_, TestValuedCSR>::default()
         .expected_number_of_edges(edges.len())
@@ -240,17 +243,17 @@ impl MonoplexGraph for TestWeightedGraph {
 
 #[test]
 fn test_transposed_weighted_edges_and_column_value_helpers() {
-    let matrix = TestWeightedBiMatrix::new(
-        vec![(0, 2, 5.0), (1, 2, 7.0), (1, 3, 2.0), (3, 2, 1.0)],
-        (4, 4),
-    );
+    let matrix =
+        TestWeightedBiMatrix::new(vec![(0, 2, 5.0), (1, 2, 7.0), (1, 3, 2.0), (3, 2, 1.0)], (4, 4));
 
-    let predecessor_weights: Vec<f64> = TransposedWeightedEdges::predecessor_weights(&matrix, 2).collect();
+    let predecessor_weights: Vec<f64> =
+        TransposedWeightedEdges::predecessor_weights(&matrix, 2).collect();
     assert_eq!(predecessor_weights, vec![5.0, 7.0, 1.0]);
     assert_eq!(TransposedWeightedEdges::max_predecessor_weight(&matrix, 2), Some(7.0));
     assert_eq!(TransposedWeightedEdges::min_predecessor_weight(&matrix, 2), Some(1.0));
 
-    let sparse_column_values: Vec<f64> = ValuedSizedSparseBiMatrix2D::sparse_column_values(&matrix, 2).collect();
+    let sparse_column_values: Vec<f64> =
+        ValuedSizedSparseBiMatrix2D::sparse_column_values(&matrix, 2).collect();
     assert_eq!(sparse_column_values, vec![5.0, 7.0, 1.0]);
     assert_eq!(ValuedSizedSparseBiMatrix2D::sparse_column_max_value(&matrix, 2), Some(7.0));
     assert_eq!(ValuedSizedSparseBiMatrix2D::sparse_column_min_value(&matrix, 2), Some(1.0));

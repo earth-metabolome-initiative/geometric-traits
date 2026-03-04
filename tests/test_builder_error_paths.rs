@@ -114,10 +114,7 @@ fn test_edges_builder_error_conversion_number_of_edges() {
 
     let err: EdgesBuilderError<Upper> = EdgesBuilderError::NumberOfEdges { expected: 5, actual: 3 };
     let converted: EdgesBuilderError<Sym> = err.into();
-    assert!(matches!(
-        converted,
-        EdgesBuilderError::NumberOfEdges { expected: 5, actual: 3 }
-    ));
+    assert!(matches!(converted, EdgesBuilderError::NumberOfEdges { expected: 5, actual: 3 }));
 }
 
 // ============================================================================

@@ -78,11 +78,7 @@ impl SparseMatrix2D for FakeSparseMatrix {
     }
 
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
-        self.sparse_coordinates
-            .iter()
-            .map(|(_, column)| *column)
-            .collect::<Vec<_>>()
-            .into_iter()
+        self.sparse_coordinates.iter().map(|(_, column)| *column).collect::<Vec<_>>().into_iter()
     }
 
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
@@ -176,12 +172,7 @@ impl SparseValuedMatrix for FakeSparseValuedMatrix {
         Self: 'a;
 
     fn sparse_values(&self) -> Self::SparseValues<'_> {
-        self.sparse_row_values
-            .iter()
-            .flatten()
-            .copied()
-            .collect::<Vec<_>>()
-            .into_iter()
+        self.sparse_row_values.iter().flatten().copied().collect::<Vec<_>>().into_iter()
     }
 }
 

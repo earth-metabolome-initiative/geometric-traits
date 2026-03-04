@@ -39,14 +39,8 @@ fn test_select_row_panics_when_sparse_index_is_out_of_bounds() {
 fn test_add_reports_maxed_out_row_and_column_indices() {
     let mut csr: TinyCSR = SparseMatrixMut::with_sparse_shape((1, 1));
 
-    assert_eq!(
-        MatrixMut::add(&mut csr, (0, u8::MAX)),
-        Err(MutabilityError::MaxedOutColumnIndex)
-    );
-    assert_eq!(
-        MatrixMut::add(&mut csr, (u8::MAX, 0)),
-        Err(MutabilityError::MaxedOutRowIndex)
-    );
+    assert_eq!(MatrixMut::add(&mut csr, (0, u8::MAX)), Err(MutabilityError::MaxedOutColumnIndex));
+    assert_eq!(MatrixMut::add(&mut csr, (u8::MAX, 0)), Err(MutabilityError::MaxedOutRowIndex));
 }
 
 #[test]
@@ -57,8 +51,5 @@ fn test_add_reports_maxed_out_sparse_index_on_last_row_growth() {
         MatrixMut::add(&mut csr, (row, 0)).expect("fill one entry per row");
     }
 
-    assert_eq!(
-        MatrixMut::add(&mut csr, (254, 1)),
-        Err(MutabilityError::MaxedOutSparseIndex)
-    );
+    assert_eq!(MatrixMut::add(&mut csr, (254, 1)), Err(MutabilityError::MaxedOutSparseIndex));
 }
