@@ -71,18 +71,19 @@ where
     ///
     /// * `row` - The row index of the sparse row.
     ///
-    /// # Panics
+    /// # Returns
     ///
-    /// * If the row index is out of bounds.
+    /// Returns `true` when the diagonal is absent from the underlying row or
+    /// when the row is outside the underlying matrix bounds.
     #[inline]
     pub fn is_diagonal_imputed(&self, row: M::RowIndex) -> bool {
         if row >= self.matrix.number_of_rows() {
             return true;
         }
 
-        let row_as_column = M::ColumnIndex::try_from_usize(row.as_())
-            .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)
-            .unwrap();
+        let Ok(row_as_column) = M::ColumnIndex::try_from_usize(row.as_()) else {
+            return true;
+        };
 
         self.matrix.sparse_row(row).all(|column| column != row_as_column)
     }
@@ -190,7 +191,7 @@ where
 
     #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        SparseRowWithPaddedDiagonal::new(&self.matrix, row).unwrap()
+        SparseRowWithPaddedDiagonal::new(&self.matrix, row)
     }
 
     #[inline]
@@ -229,7 +230,11 @@ where
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
-        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap()
+        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap_or_else(|_| {
+            unreachable!(
+                "Row range must be valid because GenericMatrix2DWithPaddedDiagonal::new validates square padded capacity."
+            )
+        })
     }
 
     #[inline]
@@ -298,6 +303,6 @@ where
 
     #[inline]
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
-        SparseRowValuesWithPaddedDiagonal::new(&self.matrix, row, &self.map).unwrap()
+        SparseRowValuesWithPaddedDiagonal::new(&self.matrix, row, &self.map)
     }
 }

@@ -48,6 +48,14 @@ pub enum LAPError {
         "The padding cost is too small: padding_cost / 2 must be strictly greater than the maximum sparse value."
     )]
     PaddingCostTooSmall,
+    /// The expanded matrix construction failed due malformed sparse structure
+    /// (e.g. duplicate or unsorted coordinates).
+    #[error("Failed to build the expanded sparse matrix from the provided sparse structure.")]
+    ExpandedMatrixBuildFailed,
+    /// Internal index conversion failed while mapping `usize` back to matrix
+    /// row/column index types.
+    #[error("Internal index conversion failed while processing the sparse wrapper.")]
+    IndexConversionFailed,
     /// The sparse structure has no perfect matching.
     #[error("The sparse structure has no perfect matching (infeasible assignment).")]
     InfeasibleAssignment,

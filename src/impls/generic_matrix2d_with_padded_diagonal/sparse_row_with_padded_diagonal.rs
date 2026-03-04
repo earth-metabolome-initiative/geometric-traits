@@ -6,18 +6,16 @@
 
 use num_traits::AsPrimitive;
 
-use crate::{
-    impls::MutabilityError,
-    traits::{SparseMatrix2D, TryFromUsize},
-};
+use crate::traits::{SparseMatrix2D, TryFromUsize};
 
 /// A wrapper iterator over the sparse row which includes the diagonal
 /// if it is not already present in the underlying matrix.
 pub struct SparseRowWithPaddedDiagonal<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> {
     /// The underlying sparse row iterator.
     sparse_row: Option<M::SparseRow<'matrix>>,
-    /// The row index of the sparse row.
-    row: M::ColumnIndex,
+    /// The row index of the sparse row as a column index. This can be absent
+    /// when the provided row cannot be represented as a column index.
+    row: Option<M::ColumnIndex>,
     /// A stored element that might have been saved when the diagonal element
     /// is returned in place of the element in the sparse row, iterating from
     /// the front.
@@ -59,16 +57,16 @@ where
     ///
     /// * `matrix` - The underlying matrix.
     /// * `row` - The row index of the sparse row.
-    pub fn new(matrix: &'matrix M, row: M::RowIndex) -> Result<Self, MutabilityError<M>> {
+    pub fn new(matrix: &'matrix M, row: M::RowIndex) -> Self {
         let sparse_row = (row < matrix.number_of_rows()).then(|| matrix.sparse_row(row));
-        Ok(Self {
+        let row_as_column = M::ColumnIndex::try_from_usize(row.as_()).ok();
+        Self {
             sparse_row,
-            row: M::ColumnIndex::try_from_usize(row.as_())
-                .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)?,
+            row: row_as_column,
             start_element_backup: None,
             end_element_backup: None,
-            diagonal_returned: false,
-        })
+            diagonal_returned: row_as_column.is_none(),
+        }
     }
 }
 
@@ -83,13 +81,17 @@ impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> Iterator
             .or_else(|| {
                 self.sparse_row.as_mut().and_then(|sparse_row| {
                     sparse_row.next().map(|column_index| {
-                        if column_index == self.row && !self.diagonal_returned {
-                            self.diagonal_returned = true;
-                            column_index
-                        } else if column_index > self.row && !self.diagonal_returned {
-                            self.diagonal_returned = true;
-                            self.start_element_backup = Some(column_index);
-                            self.row
+                        if let Some(row_as_column) = self.row {
+                            if column_index == row_as_column && !self.diagonal_returned {
+                                self.diagonal_returned = true;
+                                column_index
+                            } else if column_index > row_as_column && !self.diagonal_returned {
+                                self.diagonal_returned = true;
+                                self.start_element_backup = Some(column_index);
+                                row_as_column
+                            } else {
+                                column_index
+                            }
                         } else {
                             column_index
                         }
@@ -101,10 +103,12 @@ impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> Iterator
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal
                 // element. Otherwise, we return None.
-                (!self.diagonal_returned).then(|| {
+                if self.diagonal_returned {
+                    None
+                } else {
                     self.diagonal_returned = true;
                     self.row
-                })
+                }
             })
     }
 }
@@ -118,13 +122,17 @@ impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> DoubleEndedIterator
             .or_else(|| {
                 self.sparse_row.as_mut().and_then(|sparse_row| {
                     sparse_row.next_back().map(|column_index| {
-                        if column_index == self.row && !self.diagonal_returned {
-                            self.diagonal_returned = true;
-                            column_index
-                        } else if column_index < self.row && !self.diagonal_returned {
-                            self.diagonal_returned = true;
-                            self.end_element_backup = Some(column_index);
-                            self.row
+                        if let Some(row_as_column) = self.row {
+                            if column_index == row_as_column && !self.diagonal_returned {
+                                self.diagonal_returned = true;
+                                column_index
+                            } else if column_index < row_as_column && !self.diagonal_returned {
+                                self.diagonal_returned = true;
+                                self.end_element_backup = Some(column_index);
+                                row_as_column
+                            } else {
+                                column_index
+                            }
                         } else {
                             column_index
                         }
@@ -135,10 +143,12 @@ impl<'matrix, M: SparseMatrix2D + ?Sized + 'matrix> DoubleEndedIterator
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal
                 // element. Otherwise, we return None.
-                (!self.diagonal_returned).then(|| {
+                if self.diagonal_returned {
+                    None
+                } else {
                     self.diagonal_returned = true;
                     self.row
-                })
+                }
             })
             .or_else(|| self.start_element_backup.take())
     }

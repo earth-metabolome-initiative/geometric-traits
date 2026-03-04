@@ -6,10 +6,7 @@
 
 use num_traits::AsPrimitive;
 
-use crate::{
-    impls::MutabilityError,
-    traits::{SparseValuedMatrix2D, TryFromUsize},
-};
+use crate::traits::{SparseValuedMatrix2D, TryFromUsize};
 
 /// A wrapper iterator over the sparse row values which includes the diagonal
 /// if it is not already present in the underlying matrix. The diagonal
@@ -21,7 +18,7 @@ pub struct SparseRowValuesWithPaddedDiagonal<'matrix, M: SparseValuedMatrix2D + 
     /// The row index of the sparse row.
     row: M::RowIndex,
     /// The row index of the sparse row, as a column index.
-    row_as_column: M::ColumnIndex,
+    row_as_column: Option<M::ColumnIndex>,
     /// A stored element that might have been saved when the diagonal element
     /// is returned in place of the element in the sparse row, iterating from
     /// the front.
@@ -70,18 +67,18 @@ where
     ///
     /// * `matrix` - The underlying matrix.
     /// * `row` - The row index of the sparse row.
-    pub fn new(matrix: &'matrix M, row: M::RowIndex, map: Map) -> Result<Self, MutabilityError<M>> {
-        Ok(Self {
+    pub fn new(matrix: &'matrix M, row: M::RowIndex, map: Map) -> Self {
+        let row_as_column = M::ColumnIndex::try_from_usize(row.as_()).ok();
+        Self {
             sparse_row: (row < matrix.number_of_rows())
                 .then(|| (matrix.sparse_row(row), matrix.sparse_row_values(row))),
             row,
-            row_as_column: M::ColumnIndex::try_from_usize(row.as_())
-                .map_err(|_| MutabilityError::<M>::MaxedOutColumnIndex)?,
+            row_as_column,
             start_element_backup: None,
             end_element_backup: None,
-            diagonal_returned: false,
+            diagonal_returned: row_as_column.is_none(),
             map,
-        })
+        }
     }
 }
 
@@ -99,13 +96,17 @@ where
                 self.sparse_row.as_mut().and_then(|sparse_row| {
                     sparse_row.0.next().zip(sparse_row.1.next()).map(
                         |(column_index, column_value)| {
-                            if column_index == self.row_as_column && !self.diagonal_returned {
-                                self.diagonal_returned = true;
-                                column_value
-                            } else if column_index > self.row_as_column && !self.diagonal_returned {
-                                self.diagonal_returned = true;
-                                self.start_element_backup = Some(column_value);
-                                (self.map)(self.row)
+                            if let Some(row_as_column) = self.row_as_column {
+                                if column_index == row_as_column && !self.diagonal_returned {
+                                    self.diagonal_returned = true;
+                                    column_value
+                                } else if column_index > row_as_column && !self.diagonal_returned {
+                                    self.diagonal_returned = true;
+                                    self.start_element_backup = Some(column_value);
+                                    (self.map)(self.row)
+                                } else {
+                                    column_value
+                                }
                             } else {
                                 column_value
                             }
@@ -118,10 +119,12 @@ where
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal
                 // element. Otherwise, we return None.
-                (!self.diagonal_returned).then(|| {
+                if self.diagonal_returned {
+                    None
+                } else {
                     self.diagonal_returned = true;
-                    (self.map)(self.row)
-                })
+                    self.row_as_column.map(|_| (self.map)(self.row))
+                }
             })
     }
 }
@@ -138,13 +141,17 @@ where
                 self.sparse_row.as_mut().and_then(|sparse_row| {
                     sparse_row.0.next_back().zip(sparse_row.1.next_back()).map(
                         |(column_index, column_value)| {
-                            if column_index == self.row_as_column && !self.diagonal_returned {
-                                self.diagonal_returned = true;
-                                column_value
-                            } else if column_index < self.row_as_column && !self.diagonal_returned {
-                                self.diagonal_returned = true;
-                                self.end_element_backup = Some(column_value);
-                                (self.map)(self.row)
+                            if let Some(row_as_column) = self.row_as_column {
+                                if column_index == row_as_column && !self.diagonal_returned {
+                                    self.diagonal_returned = true;
+                                    column_value
+                                } else if column_index < row_as_column && !self.diagonal_returned {
+                                    self.diagonal_returned = true;
+                                    self.end_element_backup = Some(column_value);
+                                    (self.map)(self.row)
+                                } else {
+                                    column_value
+                                }
                             } else {
                                 column_value
                             }
@@ -156,10 +163,12 @@ where
                 // If the diagonal element has not been returned yet, and
                 // we are at the end of the sparse row, we return the diagonal
                 // element. Otherwise, we return None.
-                (!self.diagonal_returned).then(|| {
+                if self.diagonal_returned {
+                    None
+                } else {
                     self.diagonal_returned = true;
-                    (self.map)(self.row)
-                })
+                    self.row_as_column.map(|_| (self.map)(self.row))
+                }
             })
             .or_else(|| self.start_element_backup.take())
     }

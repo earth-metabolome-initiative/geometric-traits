@@ -221,6 +221,10 @@ where
     ///   (`LAPError::ValueTooLarge`)
     /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
     /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
+    /// - The expanded sparse construction fails due malformed sparse input
+    ///   (`LAPError::ExpandedMatrixBuildFailed`)
+    /// - Internal index conversion fails while processing assignments
+    ///   (`LAPError::IndexConversionFailed`)
     /// - The expanded matrix cannot be solved
     ///   (`LAPError::InfeasibleAssignment`)
     /// - Matrix values violate LAPMOD input requirements
@@ -249,7 +253,11 @@ where
         // for the Jaqaman construction to be correct.  This can fail when
         // padding_cost is computed with an additive offset that vanishes in
         // floating point (e.g. (max + 1.0) * 2.0 where max + 1.0 == max).
-        if self.max_sparse_value().unwrap() >= half_eta {
+        let Some(max_sparse_value) = self.max_sparse_value() else {
+            // No real edges: all assignments route through the dummy layer.
+            return Ok(vec![]);
+        };
+        if max_sparse_value >= half_eta {
             return Err(LAPError::PaddingCostTooSmall);
         }
 
@@ -278,9 +286,14 @@ where
         let mut col_to_rows: Vec<Vec<usize>> = vec![Vec::new(); n_cols];
         let mut n_edges: usize = 0;
         for i in 0..n_rows {
-            let row_idx = Self::RowIndex::try_from_usize(i).unwrap();
+            let row_idx =
+                Self::RowIndex::try_from_usize(i).map_err(|_| LAPError::IndexConversionFailed)?;
             for col in self.sparse_row(row_idx) {
-                col_to_rows[col.as_()].push(i);
+                let column = col.as_();
+                let Some(rows) = col_to_rows.get_mut(column) else {
+                    return Err(LAPError::ExpandedMatrixBuildFailed);
+                };
+                rows.push(i);
                 n_edges += 1;
             }
         }
@@ -303,16 +316,17 @@ where
 
         // Real rows (0..L): original edges + diagonal entry to dummy column.
         for i in 0..n_rows {
-            let row_idx = Self::RowIndex::try_from_usize(i).unwrap();
+            let row_idx =
+                Self::RowIndex::try_from_usize(i).map_err(|_| LAPError::IndexConversionFailed)?;
             for (col, value) in self.sparse_row(row_idx).zip(self.sparse_row_values(row_idx)) {
                 expanded
                     .add((i, col.as_(), value))
-                    .expect("Failed to add real edge to expanded matrix");
+                    .map_err(|_| LAPError::ExpandedMatrixBuildFailed)?;
             }
             // Diagonal entry (i, R+i) at cost η/2.
             expanded
                 .add((i, n_cols + i, half_eta))
-                .expect("Failed to add top-right diagonal entry to expanded matrix");
+                .map_err(|_| LAPError::ExpandedMatrixBuildFailed)?;
         }
 
         // Dummy rows (L..L+R): for each j in 0..R:
@@ -323,12 +337,12 @@ where
             // Bottom-left diagonal entry (L+j, j) at cost η/2.
             expanded
                 .add((dummy_row, j, half_eta))
-                .expect("Failed to add bottom-left diagonal entry to expanded matrix");
+                .map_err(|_| LAPError::ExpandedMatrixBuildFailed)?;
             // Bottom-right transpose entries.
             for &i in source_rows {
                 expanded
                     .add((dummy_row, n_cols + i, bottom_right_cost))
-                    .expect("Failed to add bottom-right entry to expanded matrix");
+                    .map_err(|_| LAPError::ExpandedMatrixBuildFailed)?;
             }
         }
 
@@ -336,16 +350,18 @@ where
         let assignment = expanded.lapmod(max_cost).map_err(LAPError::from)?;
 
         // Filter: keep only assignments where row < L and col < R.
-        Ok(assignment
+        assignment
             .into_iter()
             .filter(|&(row, col)| row < n_rows && col < n_cols)
             .map(|(row, col)| {
-                (
-                    Self::RowIndex::try_from_usize(row).unwrap(),
-                    Self::ColumnIndex::try_from_usize(col).unwrap(),
-                )
+                Ok((
+                    Self::RowIndex::try_from_usize(row)
+                        .map_err(|_| LAPError::IndexConversionFailed)?,
+                    Self::ColumnIndex::try_from_usize(col)
+                        .map_err(|_| LAPError::IndexConversionFailed)?,
+                ))
             })
-            .collect())
+            .collect()
     }
 }
 

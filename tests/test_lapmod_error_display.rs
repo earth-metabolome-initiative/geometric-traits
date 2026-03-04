@@ -166,6 +166,21 @@ fn test_lap_error_padding_value_not_positive() {
 }
 
 #[test]
+fn test_lap_error_expanded_matrix_build_failed() {
+    let e = LAPError::ExpandedMatrixBuildFailed;
+    assert_eq!(
+        format!("{e}"),
+        "Failed to build the expanded sparse matrix from the provided sparse structure."
+    );
+}
+
+#[test]
+fn test_lap_error_index_conversion_failed() {
+    let e = LAPError::IndexConversionFailed;
+    assert_eq!(format!("{e}"), "Internal index conversion failed while processing the sparse wrapper.");
+}
+
+#[test]
 fn test_lap_error_infeasible_assignment() {
     let e = LAPError::InfeasibleAssignment;
     assert_eq!(
