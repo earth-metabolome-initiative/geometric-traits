@@ -48,7 +48,9 @@ fn test_sparse_row_sizes_single_row_next_back_sets_exhausted() {
 #[test]
 fn test_implicit_sparse_values_len_and_next_back_paths() {
     let csr = build_csr(vec![(0, 1), (1, 2)], (2, 3));
-    let matrix = GenericImplicitValuedMatrix2D::new(csr, |(row, column)| (row * 10 + column) as f64);
+    let matrix = GenericImplicitValuedMatrix2D::new(csr, |(row, column)| {
+        f64::from(u16::try_from(row * 10 + column).expect("small matrix index should fit in u16"))
+    });
     let mut values = matrix.sparse_implicit_values();
 
     assert_eq!(values.len(), 2);

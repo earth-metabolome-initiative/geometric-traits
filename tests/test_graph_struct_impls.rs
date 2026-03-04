@@ -46,7 +46,7 @@ fn test_generic_graph_debug() {
 #[test]
 fn test_generic_graph_default() {
     type PlainGraph = geometric_traits::naive_structs::GenericGraph<SortedVec<usize>, TestCSR>;
-    let graph: PlainGraph = Default::default();
+    let graph: PlainGraph = PlainGraph::default();
     assert!(!graph.has_nodes());
     assert!(!graph.has_edges());
 }
@@ -128,9 +128,12 @@ fn test_generic_bigraph_debug() {
 
 #[test]
 fn test_generic_bigraph_default() {
-    type PlainBiGraph =
-        geometric_traits::naive_structs::GenericBiGraph<SortedVec<usize>, SortedVec<usize>, TestCSR>;
-    let graph: PlainBiGraph = Default::default();
+    type PlainBiGraph = geometric_traits::naive_structs::GenericBiGraph<
+        SortedVec<usize>,
+        SortedVec<usize>,
+        TestCSR,
+    >;
+    let graph: PlainBiGraph = PlainBiGraph::default();
     assert!(!graph.has_nodes());
     assert!(!graph.has_edges());
 }
