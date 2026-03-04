@@ -5,7 +5,7 @@ use geometric_traits::{
     impls::{SortedVec, ValuedCSR2D},
     naive_structs::GenericGraph,
     prelude::*,
-    traits::{EdgesBuilder, VocabularyBuilder, WeightedEdges},
+    traits::{EdgesBuilder, VocabularyBuilder, WeightedEdge, WeightedEdges},
 };
 
 /// Helper to create a simple weighted graph for testing.
@@ -240,4 +240,17 @@ fn test_integer_weights() {
 
     let min = WeightedEdges::min_successor_weight(&edges, 0);
     assert_eq!(min, Some(10));
+}
+
+#[test]
+fn test_weighted_edge_weight_forwarding() {
+    let edge = (1usize, 2usize, 7.5f64);
+    assert!((WeightedEdge::weight(&edge) - 7.5).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_sparse_weights_on_graph() {
+    let graph = create_weighted_graph();
+    let weights: Vec<f64> = graph.sparse_weights().collect();
+    assert_eq!(weights, vec![1.0, 2.5, 0.5, 3.0, 1.5]);
 }

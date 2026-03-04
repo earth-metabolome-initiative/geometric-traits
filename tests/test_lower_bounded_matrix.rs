@@ -4,7 +4,7 @@
 
 use geometric_traits::{
     impls::{CSR2D, LowerBoundedSquareMatrix, SquareCSR2D},
-    traits::{Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SquareMatrix},
+    traits::{Matrix, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut, SquareMatrix},
 };
 
 type TestCSR2D = CSR2D<usize, usize, usize>;
@@ -44,6 +44,13 @@ fn test_lower_bounded_debug() {
     assert!(debug.contains("LowerBoundedSquareMatrix"));
 }
 
+#[test]
+fn test_lower_bounded_shape_forwarding() {
+    let m = build_square(4, vec![(0, 1), (2, 3)]);
+    let lb = LowerBoundedSquareMatrix::new(m, 1).unwrap();
+    assert_eq!(Matrix::shape(&lb), vec![4, 4]);
+}
+
 // ============================================================================
 // SparseMatrix / SparseMatrix2D
 // ============================================================================
@@ -78,6 +85,16 @@ fn test_lower_bounded_sparse_row_rev() {
 
     let row2_rev: Vec<usize> = lb.sparse_row(2).rev().collect();
     assert_eq!(row2_rev, vec![4, 3, 2]);
+}
+
+#[test]
+fn test_lower_bounded_sparse_row_next_back_stops_below_bound() {
+    let m = build_square(4, vec![(2, 1)]);
+    let lb = LowerBoundedSquareMatrix::new(m, 2).unwrap();
+    let mut iter = lb.sparse_row(2);
+
+    assert_eq!(iter.next_back(), None);
+    assert_eq!(iter.next_back(), None);
 }
 
 #[test]

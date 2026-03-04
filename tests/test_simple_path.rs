@@ -126,3 +126,25 @@ fn test_simple_path_on_tree() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[test]
+fn test_simple_path_on_rooted_cycle_tail() -> Result<(), Box<dyn std::error::Error>> {
+    // Single root (0), then a cycle between 1 and 2.
+    // This exercises the branch where a successor exists after all nodes are
+    // already visited.
+    let nodes: Vec<usize> = vec![0, 1, 2];
+    let edges: Vec<(usize, usize)> = vec![(0, 1), (1, 2), (2, 1)];
+    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(nodes.len())
+        .symbols(nodes.into_iter().enumerate())
+        .build()?;
+    let edges: SquareCSR2D<CSR2D<usize, usize, usize>> = DiEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .expected_shape(nodes.len())
+        .edges(edges.into_iter())
+        .build()?;
+    let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+
+    assert!(!graph.is_simple_path(), "A rooted tail entering a cycle is not a simple path");
+    Ok(())
+}

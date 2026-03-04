@@ -276,3 +276,15 @@ fn test_lapjv_sink_discovered_after_scan_expansion() {
     cols.dedup();
     assert_eq!(cols.len(), 4);
 }
+
+#[test]
+fn test_lapjv_dense_direct_sink_regression_case() {
+    // Dense counterpart of a sparse regression where the optimal assignment is
+    // non-diagonal and requires sink discovery from the starting row frontier.
+    let m: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([[1.0, 2.0], [1.0, 3.0]]).unwrap();
+    let padded = PaddedMatrix2D::new(m, |_: (u8, u8)| 900.0).unwrap();
+
+    let mut assignment = padded.lapjv(1000.0).unwrap();
+    assignment.sort_unstable_by_key(|&(row, _)| row);
+    assert_eq!(assignment, vec![(0, 1), (1, 0)]);
+}

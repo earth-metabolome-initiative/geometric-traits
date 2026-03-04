@@ -3,7 +3,7 @@
 
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SubsetSquareMatrix},
-    traits::{Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut},
+    traits::{Matrix, Matrix2D, MatrixMut, SparseMatrix, SparseMatrix2D, SparseMatrixMut},
 };
 
 type TestCSR2D = CSR2D<usize, usize, usize>;
@@ -114,6 +114,21 @@ fn test_subset_preserves_shape() {
     // Shape comes from the underlying matrix, not the subset
     assert_eq!(subset.number_of_rows(), 5);
     assert_eq!(subset.number_of_columns(), 5);
+    assert_eq!(Matrix::shape(&subset), vec![5, 5]);
+}
+
+#[test]
+#[should_panic(expected = "indices are not sorted")]
+fn test_subset_with_sorted_indices_panics_on_unsorted_indices() {
+    let matrix = build_square_matrix(3, vec![(0, 1), (1, 2)]);
+    let _ = SubsetSquareMatrix::with_sorted_indices(matrix, vec![2, 0]);
+}
+
+#[test]
+#[should_panic(expected = "indices are out of bounds")]
+fn test_subset_with_sorted_indices_panics_on_out_of_bounds_indices() {
+    let matrix = build_square_matrix(3, vec![(0, 1), (1, 2)]);
+    let _ = SubsetSquareMatrix::with_sorted_indices(matrix, vec![0, 3]);
 }
 
 // ============================================================================

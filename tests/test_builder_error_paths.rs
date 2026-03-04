@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 
 use geometric_traits::{
-    impls::{CSR2D, SortedVec},
+    errors::builder::edges::EdgesBuilderError,
+    impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
     prelude::*,
     traits::{EdgesBuilder, VocabularyBuilder},
 };
@@ -94,6 +95,29 @@ fn test_edges_builder_no_expected_count_or_shape() {
         .edges(vec![(0, 1), (1, 2)].into_iter())
         .build();
     assert!(result.is_ok());
+}
+
+#[test]
+fn test_edges_builder_error_conversion_missing_attribute() {
+    type Upper = UpperTriangularCSR2D<TestCSR>;
+    type Sym = SymmetricCSR2D<TestCSR>;
+
+    let err: EdgesBuilderError<Upper> = EdgesBuilderError::MissingAttribute("edges");
+    let converted: EdgesBuilderError<Sym> = err.into();
+    assert!(matches!(converted, EdgesBuilderError::MissingAttribute("edges")));
+}
+
+#[test]
+fn test_edges_builder_error_conversion_number_of_edges() {
+    type Upper = UpperTriangularCSR2D<TestCSR>;
+    type Sym = SymmetricCSR2D<TestCSR>;
+
+    let err: EdgesBuilderError<Upper> = EdgesBuilderError::NumberOfEdges { expected: 5, actual: 3 };
+    let converted: EdgesBuilderError<Sym> = err.into();
+    assert!(matches!(
+        converted,
+        EdgesBuilderError::NumberOfEdges { expected: 5, actual: 3 }
+    ));
 }
 
 // ============================================================================

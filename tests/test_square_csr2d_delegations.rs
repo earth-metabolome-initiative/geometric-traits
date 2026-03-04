@@ -8,7 +8,7 @@ use geometric_traits::{
     prelude::*,
     traits::{
         EdgesBuilder, EmptyRows, MatrixMut, SizedRowsSparseMatrix2D, SparseMatrixMut,
-        SparseValuedMatrix2D,
+        SparseSquareMatrix, SparseValuedMatrix2D,
     },
 };
 
@@ -81,6 +81,21 @@ fn test_square_csr_as_ref() {
     MatrixMut::add(&mut sq, (0, 0)).unwrap();
     let inner: &TestCSR = sq.as_ref();
     assert_eq!(inner.number_of_defined_values(), 1);
+}
+
+#[test]
+fn test_ref_sparse_square_matrix_diagonal_count_ufcs() {
+    let mut sq: TestSquareCSR = SparseMatrixMut::with_sparse_shape(3);
+    MatrixMut::add(&mut sq, (0, 0)).unwrap();
+    MatrixMut::add(&mut sq, (0, 1)).unwrap();
+    MatrixMut::add(&mut sq, (1, 1)).unwrap();
+    MatrixMut::add(&mut sq, (2, 2)).unwrap();
+
+    let r = &sq;
+    assert_eq!(
+        <&TestSquareCSR as SparseSquareMatrix>::number_of_defined_diagonal_values(&r),
+        3
+    );
 }
 
 // ============================================================================

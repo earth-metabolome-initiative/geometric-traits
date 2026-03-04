@@ -198,3 +198,22 @@ fn test_johnson_no_edges() {
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
     assert!(cycles.is_empty());
 }
+
+#[test]
+fn test_johnson_cycle_then_acyclic_component_stops_cleanly() {
+    // One SCC with a cycle, plus an acyclic disconnected component.
+    let m = build_square_csr(4, vec![(0, 1), (1, 0), (2, 3)]);
+    let actual: BTreeSet<Vec<usize>> = m.johnson().map(|cycle| canonical_cycle(&cycle)).collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![0, 1]]);
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_johnson_branching_cycle_with_dead_end_tail() {
+    // The 1->3->4 tail has no way back, while 0->1->2->0 is a cycle.
+    // This forces exploration of a dead-end branch during cycle search.
+    let m = build_square_csr(5, vec![(0, 1), (1, 2), (2, 0), (1, 3), (3, 4)]);
+    let actual: BTreeSet<Vec<usize>> = m.johnson().map(|cycle| canonical_cycle(&cycle)).collect();
+    let expected: BTreeSet<Vec<usize>> = BTreeSet::from([vec![0, 1, 2]]);
+    assert_eq!(actual, expected);
+}

@@ -96,6 +96,17 @@ fn test_vocabulary_ref_destination_refs_via_ref() {
     assert_eq!(refs, vec![&10, &20, &30]);
 }
 
+#[test]
+fn test_vocabulary_ref_forwarding_on_double_reference() {
+    let sv = build_sorted_vec();
+    let sv_ref: &SortedVec<u32> = &sv;
+    let sv_ref_ref: &&SortedVec<u32> = &sv_ref;
+
+    assert_eq!(VocabularyRef::convert_ref(sv_ref_ref, &1), Some(&20));
+    let refs: Vec<&u32> = VocabularyRef::destination_refs(sv_ref_ref).collect();
+    assert_eq!(refs, vec![&10, &20, &30]);
+}
+
 // ============================================================================
 // &V impl for BidirectionalVocabulary (via SortedVec)
 // ============================================================================
@@ -132,6 +143,18 @@ fn test_bidirectional_vocabulary_ref_source_refs_via_ref() {
     let map_ref: &HashMap<i32, i32> = &map;
 
     let mut refs: Vec<&i32> = map_ref.source_refs().collect();
+    refs.sort_unstable();
+    assert_eq!(refs, vec![&0, &1, &2]);
+}
+
+#[test]
+fn test_bidirectional_vocabulary_ref_forwarding_on_double_reference() {
+    let map = build_hashmap();
+    let map_ref: &HashMap<i32, i32> = &map;
+    let map_ref_ref: &&HashMap<i32, i32> = &map_ref;
+
+    assert_eq!(BidirectionalVocabularyRef::invert_ref(map_ref_ref, &100), Some(&0));
+    let mut refs: Vec<&i32> = BidirectionalVocabularyRef::source_refs(map_ref_ref).collect();
     refs.sort_unstable();
     assert_eq!(refs, vec![&0, &1, &2]);
 }

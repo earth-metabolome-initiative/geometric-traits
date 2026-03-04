@@ -140,3 +140,49 @@ fn test_ref_dense_valued_matrix_value_ufcs() {
     assert!((<&TestPadded as DenseValuedMatrix>::value(&r, (0, 0)) - 5.0).abs() < f64::EPSILON);
     assert!((<&TestPadded as DenseValuedMatrix>::value(&r, (0, 1)) - 1.0).abs() < f64::EPSILON);
 }
+
+#[test]
+fn test_ref_dense_valued_matrix_values_ufcs() {
+    use geometric_traits::{impls::PaddedMatrix2D, traits::DenseValuedMatrix};
+    type TestPadded = PaddedMatrix2D<TestValCSR, Box<dyn Fn((usize, usize)) -> f64>>;
+
+    let inner: TestValCSR = GenericEdgesBuilder::<_, TestValCSR>::default()
+        .expected_number_of_edges(1)
+        .expected_shape((2, 2))
+        .edges(vec![(0, 0, 5.0)].into_iter())
+        .build()
+        .unwrap();
+    let padded = PaddedMatrix2D::new(
+        inner,
+        Box::new(|(r, c): (usize, usize)| usize_to_f64(r * 10 + c))
+            as Box<dyn Fn((usize, usize)) -> f64>,
+    )
+    .unwrap();
+    let r = &padded;
+
+    let values: Vec<f64> = <&TestPadded as DenseValuedMatrix>::values(&r).collect();
+    assert_eq!(values, vec![5.0, 1.0, 10.0, 11.0]);
+}
+
+#[test]
+fn test_ref_dense_valued_matrix2d_row_values_ufcs() {
+    use geometric_traits::{impls::PaddedMatrix2D, traits::DenseValuedMatrix2D};
+    type TestPadded = PaddedMatrix2D<TestValCSR, Box<dyn Fn((usize, usize)) -> f64>>;
+
+    let inner: TestValCSR = GenericEdgesBuilder::<_, TestValCSR>::default()
+        .expected_number_of_edges(2)
+        .expected_shape((2, 2))
+        .edges(vec![(0, 0, 5.0), (1, 1, 7.0)].into_iter())
+        .build()
+        .unwrap();
+    let padded = PaddedMatrix2D::new(
+        inner,
+        Box::new(|(r, c): (usize, usize)| usize_to_f64(r * 10 + c))
+            as Box<dyn Fn((usize, usize)) -> f64>,
+    )
+    .unwrap();
+    let r = &padded;
+
+    let row0: Vec<f64> = <&TestPadded as DenseValuedMatrix2D>::row_values(&r, 0).collect();
+    assert_eq!(row0, vec![5.0, 1.0]);
+}

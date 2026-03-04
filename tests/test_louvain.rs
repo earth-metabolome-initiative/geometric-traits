@@ -287,3 +287,16 @@ fn test_louvain_subnormal_self_loop_does_not_produce_nan() {
     let modularity = result.final_modularity();
     assert!(modularity.is_finite(), "modularity must be finite, got {modularity}");
 }
+
+#[test]
+fn test_louvain_handles_isolated_nodes_in_mixed_graph() {
+    // Nodes 2 and 3 are isolated (zero degree), while 0 and 1 form a
+    // connected undirected component.
+    let graph = build_weighted_graph(4, vec![(0, 1, 3.0), (1, 0, 3.0)]);
+    let result = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap();
+    let partition = result.final_partition();
+
+    assert_eq!(partition.len(), 4);
+    assert_eq!(partition[0], partition[1]);
+    assert!(result.final_modularity().is_finite());
+}
