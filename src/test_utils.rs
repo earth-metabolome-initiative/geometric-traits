@@ -744,3 +744,350 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         "modularity must be deterministic"
     );
 }
+
+#[cfg(all(test, feature = "arbitrary", feature = "std"))]
+mod tests {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        process,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    use arbitrary::Arbitrary;
+
+    use super::*;
+    use crate::traits::{MatrixMut, ScalarSimilarity};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    struct NeedsThreeBytes([u8; 3]);
+
+    impl<'a> Arbitrary<'a> for NeedsThreeBytes {
+        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+            let bytes = u.bytes(3)?;
+            Ok(Self([bytes[0], bytes[1], bytes[2]]))
+        }
+    }
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(label: &str) -> Self {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos();
+            let pid = process::id();
+            let path = std::env::temp_dir().join(format!("geometric_traits_{label}_{pid}_{now}"));
+            fs::create_dir_all(&path).expect("failed to create temp directory");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn sample_sparse_csr() -> CSR2D<u16, u8, u8> {
+        let mut csr: CSR2D<u16, u8, u8> = CSR2D::with_sparse_shaped_capacity((3, 3), 4);
+        MatrixMut::add(&mut csr, (0, 0)).expect("insert (0,0)");
+        MatrixMut::add(&mut csr, (0, 2)).expect("insert (0,2)");
+        MatrixMut::add(&mut csr, (1, 1)).expect("insert (1,1)");
+        MatrixMut::add(&mut csr, (2, 2)).expect("insert (2,2)");
+        csr
+    }
+
+    fn sample_valued_csr_f64() -> ValuedCSR2D<u16, u8, u8, f64> {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 4);
+        MatrixMut::add(&mut csr, (0, 0, 1.0)).expect("insert (0,0)");
+        MatrixMut::add(&mut csr, (0, 1, 2.0)).expect("insert (0,1)");
+        MatrixMut::add(&mut csr, (1, 0, 2.0)).expect("insert (1,0)");
+        MatrixMut::add(&mut csr, (1, 1, 1.0)).expect("insert (1,1)");
+        csr
+    }
+
+    fn sample_valued_csr_u8() -> ValuedCSR2D<u16, u8, u8, u8> {
+        let mut csr: ValuedCSR2D<u16, u8, u8, u8> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 3);
+        MatrixMut::add(&mut csr, (0, 0, 7)).expect("insert (0,0)");
+        MatrixMut::add(&mut csr, (0, 1, 3)).expect("insert (0,1)");
+        MatrixMut::add(&mut csr, (1, 1, 9)).expect("insert (1,1)");
+        csr
+    }
+
+    #[test]
+    fn test_from_bytes_success_and_failure() {
+        assert_eq!(from_bytes::<u8>(&[42]), Some(42));
+        assert_eq!(from_bytes::<NeedsThreeBytes>(&[1, 2, 3]), Some(NeedsThreeBytes([1, 2, 3])));
+        assert!(from_bytes::<NeedsThreeBytes>(&[7, 8]).is_none());
+    }
+
+    #[test]
+    fn test_replay_dir_skips_invalid_files() {
+        let dir = TempDir::new("replay_dir");
+        fs::write(dir.path().join("valid.bin"), [1u8, 2u8, 3u8]).expect("write valid file");
+        fs::write(dir.path().join("invalid.bin"), [7u8, 8u8]).expect("write invalid file");
+        fs::create_dir_all(dir.path().join("nested")).expect("create nested directory");
+
+        let mut decoded: Vec<NeedsThreeBytes> = replay_dir(dir.path());
+        decoded.sort_unstable();
+        assert_eq!(decoded, vec![NeedsThreeBytes([1, 2, 3])]);
+    }
+
+    #[test]
+    fn test_replay_dir_missing_directory_returns_empty() {
+        let dir = TempDir::new("replay_missing");
+        let missing = dir.path().join("does_not_exist");
+        let decoded: Vec<u8> = replay_dir(&missing);
+        assert!(decoded.is_empty());
+    }
+
+    #[test]
+    fn test_check_sparse_matrix_invariants_on_valid_matrix() {
+        let csr = sample_sparse_csr();
+        check_sparse_matrix_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_valued_matrix_invariants_on_valid_matrix() {
+        let csr = sample_valued_csr_f64();
+        check_valued_matrix_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_padded_diagonal_invariants_on_valid_matrix() {
+        fn one(_: u8) -> f64 {
+            1.0
+        }
+
+        let mut base: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 3);
+        MatrixMut::add(&mut base, (0, 1, 4.0)).expect("insert (0,1)");
+        MatrixMut::add(&mut base, (1, 0, 4.0)).expect("insert (1,0)");
+        MatrixMut::add(&mut base, (1, 1, 2.0)).expect("insert (1,1)");
+
+        let padded = GenericMatrix2DWithPaddedDiagonal::new(base, one as fn(u8) -> f64)
+            .expect("padded diagonal construction");
+        check_padded_diagonal_invariants(&padded);
+    }
+
+    #[test]
+    fn test_check_padded_matrix2d_invariants_on_valid_matrix() {
+        let csr = sample_valued_csr_u8();
+        check_padded_matrix2d_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_kahn_ordering_on_simple_dag() {
+        let mut matrix: SquareCSR2D<CSR2D<u16, u8, u8>> =
+            SquareCSR2D::with_sparse_shaped_capacity(3, 2);
+        matrix.extend(vec![(0, 1), (1, 2)]).expect("extend matrix");
+        check_kahn_ordering(&matrix, 10);
+    }
+
+    struct IdentitySimilarity;
+
+    impl ScalarSimilarity<u8, u8> for IdentitySimilarity {
+        type Similarity = f64;
+
+        fn similarity(&self, left: &u8, right: &u8) -> Self::Similarity {
+            if left == right { 1.0 } else { 0.5 }
+        }
+    }
+
+    struct BadSimilarity;
+
+    impl ScalarSimilarity<u8, u8> for BadSimilarity {
+        type Similarity = f64;
+
+        fn similarity(&self, left: &u8, right: &u8) -> Self::Similarity {
+            if left == right { 0.0 } else { 0.4 }
+        }
+    }
+
+    #[test]
+    fn test_check_similarity_invariants_passes_for_valid_similarity() {
+        let nodes = [0u8, 1u8, 2u8];
+        check_similarity_invariants(&IdentitySimilarity, &nodes, 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "self-similarity")]
+    fn test_check_similarity_invariants_panics_for_invalid_similarity() {
+        let nodes = [0u8, 1u8];
+        check_similarity_invariants(&BadSimilarity, &nodes, 2);
+    }
+
+    #[test]
+    fn test_validate_lap_assignment_accepts_valid_assignment() {
+        let csr = sample_valued_csr_f64();
+        validate_lap_assignment(&csr, &[(0, 0), (1, 1)], "valid");
+    }
+
+    #[test]
+    #[should_panic(expected = "duplicate row")]
+    fn test_validate_lap_assignment_panics_on_duplicate_row() {
+        let csr = sample_valued_csr_f64();
+        validate_lap_assignment(&csr, &[(0, 0), (0, 1)], "duplicate_row");
+    }
+
+    #[test]
+    #[should_panic(expected = "non-existing edge")]
+    fn test_validate_lap_assignment_panics_on_missing_edge() {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+        MatrixMut::add(&mut csr, (0, 0, 1.0)).expect("insert (0,0)");
+        MatrixMut::add(&mut csr, (1, 1, 2.0)).expect("insert (1,1)");
+        validate_lap_assignment(&csr, &[(0, 1)], "missing");
+    }
+
+    #[test]
+    fn test_lap_values_are_numerically_stable_true() {
+        let csr = sample_valued_csr_f64();
+        assert!(lap_values_are_numerically_stable(&csr));
+    }
+
+    #[test]
+    fn test_lap_values_are_numerically_stable_false_for_large_ratio() {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+        MatrixMut::add(&mut csr, (0, 0, 1.0e-10)).expect("insert small value");
+        MatrixMut::add(&mut csr, (1, 1, 1.0e10)).expect("insert large value");
+        assert!(!lap_values_are_numerically_stable(&csr));
+    }
+
+    #[test]
+    fn test_lap_assignment_cost_returns_expected_cost() {
+        let csr = sample_valued_csr_f64();
+        let cost = lap_assignment_cost(&csr, &[(0, 0), (1, 1)]);
+        assert!((cost - 2.0).abs() <= f64::EPSILON);
+    }
+
+    #[test]
+    #[should_panic(expected = "non-existing edge")]
+    fn test_lap_assignment_cost_panics_for_missing_edge() {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+        MatrixMut::add(&mut csr, (0, 0, 1.0)).expect("insert (0,0)");
+        MatrixMut::add(&mut csr, (1, 1, 2.0)).expect("insert (1,1)");
+        let _ = lap_assignment_cost(&csr, &[(0, 1)]);
+    }
+
+    #[test]
+    fn test_check_lap_sparse_wrapper_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_lap_sparse_wrapper_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_lap_square_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_lap_square_invariants(&csr);
+    }
+
+    #[test]
+    fn test_louvain_weights_are_numerically_stable_true() {
+        let csr = sample_valued_csr_f64();
+        assert!(louvain_weights_are_numerically_stable(&csr));
+    }
+
+    #[test]
+    fn test_louvain_weights_are_numerically_stable_false_for_large_ratio() {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+        MatrixMut::add(&mut csr, (0, 0, 1.0e-20)).expect("insert small value");
+        MatrixMut::add(&mut csr, (1, 1, 1.0e20)).expect("insert large value");
+        assert!(!louvain_weights_are_numerically_stable(&csr));
+    }
+
+    #[test]
+    fn test_check_louvain_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_louvain_invariants(&csr);
+    }
+
+    mod coverage_submodule {
+        use super::*;
+
+        struct AsymmetricSimilarity;
+
+        impl ScalarSimilarity<u8, u8> for AsymmetricSimilarity {
+            type Similarity = f64;
+
+            fn similarity(&self, left: &u8, right: &u8) -> Self::Similarity {
+                match (*left, *right) {
+                    (0, 1) => 0.2,
+                    (1, 0) => 0.8,
+                    _ if left == right => 1.0,
+                    _ => 0.5,
+                }
+            }
+        }
+
+        #[test]
+        fn test_check_kahn_ordering_returns_for_size_guard() {
+            let mut matrix: SquareCSR2D<CSR2D<u16, u8, u8>> =
+                SquareCSR2D::with_sparse_shaped_capacity(3, 2);
+            matrix.extend(vec![(0, 1), (1, 2)]).expect("extend matrix");
+            check_kahn_ordering(&matrix, 2);
+        }
+
+        #[test]
+        #[should_panic(expected = "sim(0, 1)")]
+        fn test_check_similarity_invariants_panics_for_asymmetry() {
+            check_similarity_invariants(&AsymmetricSimilarity, &[0u8, 1u8], 2);
+        }
+
+        #[test]
+        fn test_asymmetric_similarity_default_arm() {
+            let similarity = AsymmetricSimilarity;
+            assert!((similarity.similarity(&2, &3) - 0.5).abs() <= f64::EPSILON);
+        }
+
+        #[test]
+        #[should_panic(expected = "row index out of bounds")]
+        fn test_validate_lap_assignment_panics_on_row_out_of_bounds() {
+            let csr = sample_valued_csr_f64();
+            validate_lap_assignment(&csr, &[(2, 0)], "row_oob");
+        }
+
+        #[test]
+        #[should_panic(expected = "column index out of bounds")]
+        fn test_validate_lap_assignment_panics_on_column_out_of_bounds() {
+            let csr = sample_valued_csr_f64();
+            validate_lap_assignment(&csr, &[(0, 2)], "column_oob");
+        }
+
+        #[test]
+        fn test_check_louvain_invariants_returns_for_unstable_weights() {
+            let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+                ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+            MatrixMut::add(&mut csr, (0, 0, 1.0e-20)).expect("insert tiny value");
+            MatrixMut::add(&mut csr, (1, 1, 1.0e20)).expect("insert huge value");
+            check_louvain_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_louvain_invariants_returns_when_symmetrized_edge_count_overflows_u8() {
+            let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+                ValuedCSR2D::with_sparse_shaped_capacity((17, 17), 17 * 17);
+
+            for row in 0u8..17 {
+                for column in 0u8..17 {
+                    MatrixMut::add(&mut csr, (row, column, 1.0)).expect("insert dense edge");
+                }
+            }
+
+            check_louvain_invariants(&csr);
+        }
+    }
+}
