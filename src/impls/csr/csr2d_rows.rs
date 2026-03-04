@@ -117,3 +117,85 @@ impl<'a, CSR: SparseMatrix2D> From<&'a CSR> for CSR2DRows<'a, CSR> {
         Self { matrix, next_row, back_row, next, back }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+    use crate::traits::{MatrixMut, SparseMatrixMut};
+
+    type TestCSR2D = CSR2D<usize, usize, usize>;
+
+    fn sample_csr() -> TestCSR2D {
+        let mut csr = TestCSR2D::with_sparse_shape((3, 4));
+        MatrixMut::add(&mut csr, (0, 1)).expect("insert (0,1)");
+        MatrixMut::add(&mut csr, (0, 3)).expect("insert (0,3)");
+        MatrixMut::add(&mut csr, (2, 0)).expect("insert (2,0)");
+        csr
+    }
+
+    #[test]
+    fn test_rows_forward_backward_and_len() {
+        let csr = sample_csr();
+        let mut rows = CSR2DRows::from(&csr);
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.next(), Some(0));
+        assert_eq!(rows.next_back(), Some(2));
+        assert_eq!(rows.next(), Some(0));
+        assert_eq!(rows.next(), None);
+        assert_eq!(rows.next_back(), None);
+    }
+
+    #[test]
+    fn test_rows_single_row_back_falls_through_to_front_iter() {
+        let mut csr = TestCSR2D::with_sparse_shape((1, 5));
+        MatrixMut::add(&mut csr, (0, 2)).expect("insert (0,2)");
+        MatrixMut::add(&mut csr, (0, 4)).expect("insert (0,4)");
+
+        let mut rows = CSR2DRows::from(&csr);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows.next_back(), Some(0));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.next(), Some(0));
+        assert_eq!(rows.next_back(), None);
+    }
+
+    #[test]
+    fn test_rows_empty_matrix() {
+        let csr = TestCSR2D::with_sparse_shape((0, 0));
+        let mut rows = CSR2DRows::from(&csr);
+
+        assert_eq!(rows.len(), 0);
+        assert_eq!(rows.next(), None);
+        assert_eq!(rows.next_back(), None);
+    }
+
+    #[test]
+    fn test_rows_next_on_single_entry_exhausts_via_equal_branch() {
+        let mut csr = TestCSR2D::with_sparse_shape((1, 3));
+        MatrixMut::add(&mut csr, (0, 1)).expect("insert (0,1)");
+
+        let mut rows = CSR2DRows::from(&csr);
+        assert_eq!(rows.next(), Some(0));
+        assert_eq!(rows.next(), None);
+    }
+
+    #[test]
+    fn test_rows_manual_state_hits_back_none_branch() {
+        let mut csr = TestCSR2D::with_sparse_shape((1, 1));
+        MatrixMut::add(&mut csr, (0, 0)).expect("insert (0,0)");
+
+        let mut rows = CSR2DRows {
+            matrix: &csr,
+            next_row: 1,
+            back_row: 0,
+            next: Some(csr.sparse_row(0)),
+            back: Some(csr.sparse_row(0)),
+        };
+        rows.back.as_mut().expect("back iterator exists").next();
+
+        assert_eq!(rows.next_back(), Some(1));
+        assert_eq!(rows.next_back(), None);
+        assert!(rows.back.is_none());
+    }
+}

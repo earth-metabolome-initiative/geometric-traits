@@ -315,4 +315,12 @@ mod tests {
         let debug = alloc::format!("{error:?}");
         assert!(debug.contains("Row index"));
     }
+
+    #[test]
+    fn test_test_matrix_shape_helpers() {
+        let matrix = TestMatrix;
+        assert_eq!(matrix.number_of_rows(), 0);
+        assert_eq!(matrix.number_of_columns(), 0);
+        assert_eq!(crate::traits::Matrix::shape(&matrix), alloc::vec![0, 0]);
+    }
 }

@@ -162,7 +162,7 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::*;
-    use crate::traits::{BidirectionalVocabulary, Vocabulary, VocabularyRef};
+    use crate::traits::{BidirectionalVocabulary, TransmuteFrom, Vocabulary, VocabularyRef};
 
     #[test]
     fn test_sorted_array_try_from_sorted() {
@@ -281,5 +281,19 @@ mod tests {
         assert_eq!(sa.invert(&20), Some(1));
         assert_eq!(sa.invert(&30), Some(2));
         assert_eq!(sa.invert(&25), None);
+    }
+
+    #[test]
+    fn test_sorted_array_transmute_from_sorted_input() {
+        let sorted =
+            unsafe { <SortedArray<i32, 3> as TransmuteFrom<[i32; 3]>>::transmute_from([1, 2, 3]) };
+        assert_eq!(sorted.len(), 3);
+    }
+
+    #[test]
+    #[should_panic(expected = "The source vector is not sorted.")]
+    fn test_sorted_array_transmute_from_unsorted_panics_in_debug() {
+        let _ =
+            unsafe { <SortedArray<i32, 3> as TransmuteFrom<[i32; 3]>>::transmute_from([3, 1, 2]) };
     }
 }

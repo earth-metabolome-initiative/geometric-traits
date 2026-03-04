@@ -245,4 +245,82 @@ mod tests {
         assert_eq!(intersection.next(), None);
         assert_eq!(intersection.next_back(), None);
     }
+
+    #[test]
+    fn test_intersection_next_returns_none_on_crossing_with_back_item1() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: Some(3),
+            item2: Some(3),
+            item1_back: Some(2),
+            item2_back: None,
+        };
+        assert_eq!(intersection.next(), None);
+    }
+
+    #[test]
+    fn test_intersection_next_returns_none_on_crossing_with_back_item2() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: Some(3),
+            item2: Some(3),
+            item1_back: None,
+            item2_back: Some(2),
+        };
+        assert_eq!(intersection.next(), None);
+    }
+
+    #[test]
+    fn test_intersection_next_equal_branch_with_manual_state() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: Some(4),
+            item2: Some(4),
+            item1_back: None,
+            item2_back: None,
+        };
+        assert_eq!(intersection.next(), Some(4));
+    }
+
+    #[test]
+    fn test_intersection_next_back_returns_none_on_crossing_with_front_item1() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: Some(5),
+            item2: Some(1),
+            item1_back: Some(4),
+            item2_back: Some(4),
+        };
+        assert_eq!(intersection.next_back(), None);
+    }
+
+    #[test]
+    fn test_intersection_next_back_returns_none_on_crossing_with_front_item2() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: Some(1),
+            item2: Some(5),
+            item1_back: Some(4),
+            item2_back: Some(4),
+        };
+        assert_eq!(intersection.next_back(), None);
+    }
+
+    #[test]
+    fn test_intersection_next_back_equal_branch_with_manual_state() {
+        let mut intersection = Intersection {
+            iter1: [].into_iter(),
+            iter2: [].into_iter(),
+            item1: None,
+            item2: None,
+            item1_back: Some(7),
+            item2_back: Some(7),
+        };
+        assert_eq!(intersection.next_back(), Some(7));
+    }
 }

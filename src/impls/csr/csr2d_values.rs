@@ -114,3 +114,85 @@ impl<'a, M: SparseValuedMatrix2D> From<&'a M> for M2DValues<'a, M> {
         Self { matrix, next_row, back_row, next, back }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+    use crate::traits::{MatrixMut, SparseMatrixMut};
+
+    type TestValuedCSR2D = ValuedCSR2D<usize, usize, usize, i32>;
+
+    fn sample_matrix() -> TestValuedCSR2D {
+        let mut matrix = TestValuedCSR2D::with_sparse_shape((3, 4));
+        MatrixMut::add(&mut matrix, (0, 1, 10)).expect("insert (0,1)");
+        MatrixMut::add(&mut matrix, (0, 3, 30)).expect("insert (0,3)");
+        MatrixMut::add(&mut matrix, (2, 0, 5)).expect("insert (2,0)");
+        matrix
+    }
+
+    #[test]
+    fn test_values_forward_backward_and_len() {
+        let matrix = sample_matrix();
+        let mut values = M2DValues::from(&matrix);
+
+        assert_eq!(values.len(), 2);
+        assert_eq!(values.next(), Some(10));
+        assert_eq!(values.next_back(), Some(5));
+        assert_eq!(values.next(), Some(30));
+        assert_eq!(values.next(), None);
+        assert_eq!(values.next_back(), None);
+    }
+
+    #[test]
+    fn test_values_single_row_back_falls_through_to_front_iter() {
+        let mut matrix = TestValuedCSR2D::with_sparse_shape((1, 5));
+        MatrixMut::add(&mut matrix, (0, 2, 20)).expect("insert (0,2)");
+        MatrixMut::add(&mut matrix, (0, 4, 40)).expect("insert (0,4)");
+
+        let mut values = M2DValues::from(&matrix);
+        assert_eq!(values.len(), 2);
+        assert_eq!(values.next_back(), Some(40));
+        assert_eq!(values.len(), 1);
+        assert_eq!(values.next(), Some(20));
+        assert_eq!(values.next_back(), None);
+    }
+
+    #[test]
+    fn test_values_empty_matrix() {
+        let matrix = TestValuedCSR2D::with_sparse_shape((0, 0));
+        let mut values = M2DValues::from(&matrix);
+
+        assert_eq!(values.len(), 0);
+        assert_eq!(values.next(), None);
+        assert_eq!(values.next_back(), None);
+    }
+
+    #[test]
+    fn test_values_next_on_single_entry_exhausts_via_equal_branch() {
+        let mut matrix = TestValuedCSR2D::with_sparse_shape((1, 3));
+        MatrixMut::add(&mut matrix, (0, 1, 11)).expect("insert (0,1)");
+
+        let mut values = M2DValues::from(&matrix);
+        assert_eq!(values.next(), Some(11));
+        assert_eq!(values.next(), None);
+    }
+
+    #[test]
+    fn test_values_manual_state_hits_back_none_branch() {
+        let mut matrix = TestValuedCSR2D::with_sparse_shape((1, 1));
+        MatrixMut::add(&mut matrix, (0, 0, 7)).expect("insert (0,0)");
+
+        let mut values = M2DValues {
+            matrix: &matrix,
+            next_row: 1,
+            back_row: 0,
+            next: Some(matrix.sparse_row_values(0)),
+            back: Some(matrix.sparse_row_values(0)),
+        };
+        values.back.as_mut().expect("back iterator exists").next();
+
+        assert_eq!(values.next_back(), Some(7));
+        assert_eq!(values.next_back(), None);
+        assert!(values.back.is_none());
+    }
+}

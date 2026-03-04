@@ -576,6 +576,7 @@ mod tests {
     use crate::traits::MatrixMut;
 
     type TestCSR2D = CSR2D<usize, usize, usize>;
+    type TinyCSR2D = CSR2D<u8, u8, u8>;
 
     #[test]
     fn test_csr2d_default() {
@@ -750,5 +751,88 @@ mod tests {
         MatrixMut::add(&mut csr, (0, 0)).unwrap();
         let cloned = csr.clone();
         assert_eq!(csr, cloned);
+    }
+
+    #[test]
+    #[should_panic(expected = "not present in the row")]
+    fn test_csr2d_rank_panics_for_missing_column() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        let _ = csr.rank(&(0, 1));
+    }
+
+    #[test]
+    #[should_panic(expected = "out of bounds")]
+    fn test_csr2d_select_row_panics_for_out_of_bounds_sparse_index() {
+        let mut csr: TestCSR2D = CSR2D::default();
+        MatrixMut::add(&mut csr, (0, 0)).unwrap();
+        let _ = csr.select_row(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "The offsets should always have at least one element.")]
+    fn test_csr2d_number_of_rows_panics_when_offsets_empty() {
+        let csr: TestCSR2D = CSR2D {
+            offsets: vec![],
+            number_of_rows: 0,
+            number_of_columns: 0,
+            column_indices: vec![],
+            number_of_non_empty_rows: 0,
+        };
+        let _ = csr.number_of_rows();
+    }
+
+    #[test]
+    #[should_panic(expected = "less than the number of rows in the offsets")]
+    fn test_csr2d_number_of_rows_panics_when_offsets_exceed_row_count() {
+        let csr: TestCSR2D = CSR2D {
+            offsets: vec![0, 0, 0],
+            number_of_rows: 1,
+            number_of_columns: 0,
+            column_indices: vec![],
+            number_of_non_empty_rows: 0,
+        };
+        let _ = csr.number_of_rows();
+    }
+
+    #[test]
+    #[should_panic(expected = "last row stores in the offsets should always have at least one column")]
+    fn test_csr2d_last_sparse_coordinates_panics_for_illegal_state() {
+        let csr: TestCSR2D = CSR2D {
+            offsets: vec![0, 1, 1],
+            number_of_rows: 2,
+            number_of_columns: 1,
+            column_indices: vec![0],
+            number_of_non_empty_rows: 1,
+        };
+        let _ = csr.last_sparse_coordinates();
+    }
+
+    #[test]
+    fn test_csr2d_add_returns_maxed_out_sparse_index_for_last_row_path() {
+        let mut csr: TinyCSR2D = CSR2D {
+            offsets: vec![0, u8::MAX],
+            number_of_rows: 1,
+            number_of_columns: 1,
+            column_indices: vec![0; usize::from(u8::MAX)],
+            number_of_non_empty_rows: 1,
+        };
+
+        let error = MatrixMut::add(&mut csr, (0, 1)).expect_err("must fail when sparse index is maxed");
+        assert!(matches!(error, MutabilityError::MaxedOutSparseIndex));
+    }
+
+    #[test]
+    fn test_csr2d_add_returns_maxed_out_row_index_when_non_empty_rows_are_maxed() {
+        let mut csr: TinyCSR2D = CSR2D {
+            offsets: vec![0],
+            number_of_rows: 0,
+            number_of_columns: 0,
+            column_indices: vec![],
+            number_of_non_empty_rows: u8::MAX,
+        };
+
+        let error = MatrixMut::add(&mut csr, (1, 0)).expect_err("must fail when row index is maxed");
+        assert!(matches!(error, MutabilityError::MaxedOutRowIndex));
     }
 }
