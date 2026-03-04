@@ -106,7 +106,7 @@ jobs:
           sleep 5
         done
     - name: Generate coverage
-      run: cargo +nightly tarpaulin --engine=llvm --out xml --workspace --run-types AllTargets --run-types Doctests
+      run: cargo +nightly tarpaulin --engine=llvm --out xml --workspace --all-features --run-types AllTargets --run-types Doctests
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
