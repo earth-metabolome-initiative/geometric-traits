@@ -1,4 +1,4 @@
-//! Tests for error Display impls: LAPJVError, ConnectedComponentsError,
+//! Tests for error Display impls: LAPError, ConnectedComponentsError,
 //! SortedError, BipartiteAlgorithmError, MonopartiteAlgorithmError,
 //! and error From conversions.
 #![cfg(feature = "std")]
@@ -8,16 +8,16 @@ use geometric_traits::{
         bipartite_graph_error::algorithms::BipartiteAlgorithmError,
         monopartite_graph_error::algorithms::MonopartiteAlgorithmError, sorted_error::SortedError,
     },
-    traits::{LAPError, LAPJVError, connected_components::ConnectedComponentsError},
+    traits::{LAPError, connected_components::ConnectedComponentsError},
 };
 
 // ============================================================================
-// LAPJVError Display (11 variants)
+// LAPError Display
 // ============================================================================
 
 #[test]
 fn test_lapjv_non_fractional_value_type_unsupported() {
-    let e = LAPJVError::NonFractionalValueTypeUnsupported;
+    let e = LAPError::NonFractionalValueTypeUnsupported;
     assert_eq!(
         format!("{e}"),
         "The matrix value type is non-fractional and is not supported by LAP algorithms."
@@ -26,74 +26,74 @@ fn test_lapjv_non_fractional_value_type_unsupported() {
 
 #[test]
 fn test_lapjv_non_square_matrix() {
-    let e = LAPJVError::NonSquareMatrix;
+    let e = LAPError::NonSquareMatrix;
     assert_eq!(format!("{e}"), "The matrix is not square.");
 }
 
 #[test]
 fn test_lapjv_empty_matrix() {
-    let e = LAPJVError::EmptyMatrix;
+    let e = LAPError::EmptyMatrix;
     assert_eq!(format!("{e}"), "The matrix is empty.");
 }
 
 #[test]
 fn test_lapjv_zero_values() {
-    let e = LAPJVError::ZeroValues;
+    let e = LAPError::ZeroValues;
     assert_eq!(format!("{e}"), "The matrix contains zero values.");
 }
 
 #[test]
 fn test_lapjv_negative_values() {
-    let e = LAPJVError::NegativeValues;
+    let e = LAPError::NegativeValues;
     assert_eq!(format!("{e}"), "The matrix contains negative values.");
 }
 
 #[test]
 fn test_lapjv_non_finite_values() {
-    let e = LAPJVError::NonFiniteValues;
+    let e = LAPError::NonFiniteValues;
     assert_eq!(format!("{e}"), "The matrix contains non-finite values.");
 }
 
 #[test]
 fn test_lapjv_value_too_large() {
-    let e = LAPJVError::ValueTooLarge;
+    let e = LAPError::ValueTooLarge;
     assert_eq!(format!("{e}"), "The matrix contains a value larger than the maximum cost.");
 }
 
 #[test]
 fn test_lapjv_maximal_cost_not_finite() {
-    let e = LAPJVError::MaximalCostNotFinite;
+    let e = LAPError::MaximalCostNotFinite;
     assert_eq!(format!("{e}"), "The provided maximal cost is not a finite number.");
 }
 
 #[test]
 fn test_lapjv_maximal_cost_not_positive() {
-    let e = LAPJVError::MaximalCostNotPositive;
+    let e = LAPError::MaximalCostNotPositive;
     assert_eq!(format!("{e}"), "The provided maximal cost is not a positive number.");
 }
 
 #[test]
 fn test_lapjv_padding_value_not_finite() {
-    let e = LAPJVError::PaddingValueNotFinite;
+    let e = LAPError::PaddingValueNotFinite;
     assert_eq!(format!("{e}"), "The provided padding value is not a finite number.");
 }
 
 #[test]
 fn test_lapjv_padding_value_not_positive() {
-    let e = LAPJVError::PaddingValueNotPositive;
+    let e = LAPError::PaddingValueNotPositive;
     assert_eq!(format!("{e}"), "The provided padding value is not a positive number.");
 }
 
 #[test]
 fn test_lapjv_debug() {
-    let e = LAPJVError::NonSquareMatrix;
+    let e = LAPError::NonSquareMatrix;
     let debug = format!("{e:?}");
     assert!(debug.contains("NonSquareMatrix"));
 }
 
 #[test]
 fn test_lapjv_clone_eq() {
-    let e = LAPJVError::EmptyMatrix;
+    let e = LAPError::EmptyMatrix;
     let e2 = e.clone();
     assert_eq!(e, e2);
 }

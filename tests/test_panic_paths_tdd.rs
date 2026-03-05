@@ -1,4 +1,5 @@
-//! TDD tests for panic-path hardening in LAP wrappers and padded-diagonal wrapper.
+//! TDD tests for panic-path hardening in LAP wrappers and padded-diagonal
+//! wrapper.
 #![cfg(feature = "std")]
 
 use geometric_traits::{
@@ -28,8 +29,10 @@ fn test_jaqaman_malformed_sparse_input_returns_typed_error() {
 
 #[test]
 fn test_padded_diagonal_sparse_row_when_row_cannot_convert_to_column_returns_empty() {
-    let inner: ValuedCSR2D<usize, u16, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((10u16, 10u8), 0);
-    let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u16| 0.0).expect("construction should succeed");
+    let inner: ValuedCSR2D<usize, u16, u8, f64> =
+        ValuedCSR2D::with_sparse_shaped_capacity((10u16, 10u8), 0);
+    let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u16| 0.0)
+        .expect("construction should succeed");
 
     assert!(padded.sparse_row(300u16).collect::<Vec<u8>>().is_empty());
     assert!(padded.sparse_row_values(300u16).collect::<Vec<f64>>().is_empty());
@@ -96,11 +99,7 @@ impl SparseMatrix2D for DuplicateEdgeSparseValuedMatrix {
         Self: 'a;
 
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        if row == 0 {
-            vec![0, 0].into_iter()
-        } else {
-            Vec::new().into_iter()
-        }
+        if row == 0 { vec![0, 0].into_iter() } else { Vec::new().into_iter() }
     }
 
     fn sparse_columns(&self) -> Self::SparseColumns<'_> {
@@ -136,11 +135,7 @@ impl SparseValuedMatrix2DTrait for DuplicateEdgeSparseValuedMatrix {
         Self: 'a;
 
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
-        if row == 0 {
-            vec![1.0, 2.0].into_iter()
-        } else {
-            Vec::new().into_iter()
-        }
+        if row == 0 { vec![1.0, 2.0].into_iter() } else { Vec::new().into_iter() }
     }
 }
 

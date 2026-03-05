@@ -26,28 +26,28 @@ fn make_padded_2x2() -> TestPadded {
 fn test_lapjv_max_cost_not_finite() {
     let padded = make_padded_2x2();
     let result = padded.lapjv(f64::INFINITY);
-    assert_eq!(result, Err(LAPJVError::MaximalCostNotFinite));
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
 }
 
 #[test]
 fn test_lapjv_max_cost_nan() {
     let padded = make_padded_2x2();
     let result = padded.lapjv(f64::NAN);
-    assert_eq!(result, Err(LAPJVError::MaximalCostNotFinite));
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
 }
 
 #[test]
 fn test_lapjv_max_cost_not_positive() {
     let padded = make_padded_2x2();
     let result = padded.lapjv(0.0);
-    assert_eq!(result, Err(LAPJVError::MaximalCostNotPositive));
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]
 fn test_lapjv_max_cost_negative() {
     let padded = make_padded_2x2();
     let result = padded.lapjv(-10.0);
-    assert_eq!(result, Err(LAPJVError::MaximalCostNotPositive));
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 // ============================================================================
@@ -60,7 +60,7 @@ fn test_lapjv_zero_values_error() {
         ValuedCSR2D::try_from([[0.0, 2.0], [3.0, 4.0]]).unwrap();
     let padded = PaddedMatrix2D::new(csr, |_: (u8, u8)| 900.0).unwrap();
     let result = padded.lapjv(1000.0);
-    assert_eq!(result, Err(LAPJVError::ZeroValues));
+    assert_eq!(result, Err(LAPError::ZeroValues));
 }
 
 #[test]
@@ -69,7 +69,7 @@ fn test_lapjv_negative_values_error() {
         ValuedCSR2D::try_from([[-1.0, 2.0], [3.0, 4.0]]).unwrap();
     let padded = PaddedMatrix2D::new(csr, |_: (u8, u8)| 900.0).unwrap();
     let result = padded.lapjv(1000.0);
-    assert_eq!(result, Err(LAPJVError::NegativeValues));
+    assert_eq!(result, Err(LAPError::NegativeValues));
 }
 
 #[test]
@@ -78,7 +78,16 @@ fn test_lapjv_non_finite_values_error() {
         ValuedCSR2D::try_from([[f64::NAN, 2.0], [3.0, 4.0]]).unwrap();
     let padded = PaddedMatrix2D::new(csr, |_: (u8, u8)| 900.0).unwrap();
     let result = padded.lapjv(1000.0);
-    assert_eq!(result, Err(LAPJVError::NonFiniteValues));
+    assert_eq!(result, Err(LAPError::NonFiniteValues));
+}
+
+#[test]
+fn test_lapjv_infinite_values_error() {
+    let csr: ValuedCSR2D<u8, u8, u8, f64> =
+        ValuedCSR2D::try_from([[f64::INFINITY, 2.0], [3.0, 4.0]]).unwrap();
+    let padded = PaddedMatrix2D::new(csr, |_: (u8, u8)| 900.0).unwrap();
+    let result = padded.lapjv(1000.0);
+    assert_eq!(result, Err(LAPError::NonFiniteValues));
 }
 
 #[test]
@@ -87,7 +96,7 @@ fn test_lapjv_value_too_large_error() {
         ValuedCSR2D::try_from([[1000.0, 2.0], [3.0, 4.0]]).unwrap();
     let padded = PaddedMatrix2D::new(csr, |_: (u8, u8)| 900.0).unwrap();
     let result = padded.lapjv(1000.0);
-    assert_eq!(result, Err(LAPJVError::ValueTooLarge));
+    assert_eq!(result, Err(LAPError::ValueTooLarge));
 }
 
 // ============================================================================
@@ -193,7 +202,7 @@ fn test_lapmod_max_cost_not_finite() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
     let result = csr.lapmod(f64::INFINITY);
-    assert_eq!(result, Err(LAPMODError::MaximalCostNotFinite));
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
 }
 
 #[test]
@@ -201,7 +210,16 @@ fn test_lapmod_max_cost_nan() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
     let result = csr.lapmod(f64::NAN);
-    assert_eq!(result, Err(LAPMODError::MaximalCostNotFinite));
+    assert_eq!(result, Err(LAPError::MaximalCostNotFinite));
+}
+
+#[test]
+fn test_lapmod_infinite_values_error() {
+    let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+    MatrixMut::add(&mut csr, (0, 0, f64::INFINITY)).unwrap();
+    MatrixMut::add(&mut csr, (1, 1, 1.0)).unwrap();
+    let result = csr.lapmod(1000.0);
+    assert_eq!(result, Err(LAPError::NonFiniteValues));
 }
 
 #[test]
@@ -209,7 +227,7 @@ fn test_lapmod_max_cost_not_positive() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
     let result = csr.lapmod(0.0);
-    assert_eq!(result, Err(LAPMODError::MaximalCostNotPositive));
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]
@@ -217,7 +235,7 @@ fn test_lapmod_max_cost_negative() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 2.0], [3.0, 4.0]]).unwrap();
     let result = csr.lapmod(-1.0);
-    assert_eq!(result, Err(LAPMODError::MaximalCostNotPositive));
+    assert_eq!(result, Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]
@@ -225,7 +243,7 @@ fn test_lapmod_non_square() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]).unwrap();
     let result = csr.lapmod(1000.0);
-    assert_eq!(result, Err(LAPMODError::NonSquareMatrix));
+    assert_eq!(result, Err(LAPError::NonSquareMatrix));
 }
 
 #[test]
@@ -236,7 +254,7 @@ fn test_lapmod_empty_matrix() {
 }
 
 // ============================================================================
-// Jaqaman error via From conversion (triggers LAPError::from(LAPMODError))
+// Jaqaman error propagation via unified LAPError
 // ============================================================================
 
 #[test]

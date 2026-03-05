@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::{PaddedMatrix2D, ValuedCSR2D},
     prelude::*,
-    traits::{Jaqaman, LAPJV, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV},
+    traits::{Jaqaman, LAPError, LAPJV, LAPMOD, MatrixMut, SparseLAPJV},
 };
 
 // ============================================================================
@@ -195,7 +195,7 @@ fn test_lapmod_infeasible_hall_violation_no_free_sink() {
     MatrixMut::add(&mut m, (1, 0, 2.0)).unwrap();
     MatrixMut::add(&mut m, (2, 1, 1.0)).unwrap();
 
-    assert_eq!(m.lapmod(1000.0), Err(LAPMODError::InfeasibleAssignment));
+    assert_eq!(m.lapmod(1000.0), Err(LAPError::InfeasibleAssignment));
 }
 
 #[test]

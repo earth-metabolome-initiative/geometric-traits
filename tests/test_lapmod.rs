@@ -14,8 +14,7 @@ use std::{
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::{
-        HopcroftKarp, LAPMOD, LAPMODError, MatrixMut, SparseLAPJV, SparseMatrixMut,
-        SparseValuedMatrix,
+        HopcroftKarp, LAPError, LAPMOD, MatrixMut, SparseLAPJV, SparseMatrixMut, SparseValuedMatrix,
     },
     traits::{Matrix2D, algorithms::randomized_graphs::XorShift64},
 };
@@ -74,7 +73,7 @@ fn test_lapmod_single_edge() {
 /// A non-square matrix should return `NonSquareMatrix`.
 fn test_lapmod_non_square() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 3), 0);
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::NonSquareMatrix));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::NonSquareMatrix));
 }
 
 #[test]
@@ -83,7 +82,7 @@ fn test_lapmod_zero_value() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     csr.add((0, 0, 0.0)).unwrap();
     csr.add((1, 1, 1.0)).unwrap();
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::ZeroValues));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::ZeroValues));
 }
 
 #[test]
@@ -92,7 +91,7 @@ fn test_lapmod_negative_value() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     csr.add((0, 0, -1.0)).unwrap();
     csr.add((1, 1, 1.0)).unwrap();
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::NegativeValues));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::NegativeValues));
 }
 
 #[test]
@@ -101,7 +100,7 @@ fn test_lapmod_nan_value() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     csr.add((0, 0, f64::NAN)).unwrap();
     csr.add((1, 1, 1.0)).unwrap();
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::NonFiniteValues));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::NonFiniteValues));
 }
 
 #[test]
@@ -110,21 +109,21 @@ fn test_lapmod_value_too_large() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
     csr.add((0, 0, 1000.0)).unwrap(); // equal to max_cost
     csr.add((1, 1, 1.0)).unwrap();
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::ValueTooLarge));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::ValueTooLarge));
 }
 
 #[test]
 /// max_cost = f64::INFINITY should return `MaximalCostNotFinite`.
 fn test_lapmod_max_cost_not_finite() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((1, 1), 0);
-    assert_eq!(csr.lapmod(f64::INFINITY), Err(LAPMODError::MaximalCostNotFinite));
+    assert_eq!(csr.lapmod(f64::INFINITY), Err(LAPError::MaximalCostNotFinite));
 }
 
 #[test]
 /// max_cost = -1.0 should return `MaximalCostNotPositive`.
 fn test_lapmod_max_cost_not_positive() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((1, 1), 0);
-    assert_eq!(csr.lapmod(-1.0), Err(LAPMODError::MaximalCostNotPositive));
+    assert_eq!(csr.lapmod(-1.0), Err(LAPError::MaximalCostNotPositive));
 }
 
 #[test]
@@ -134,7 +133,7 @@ fn test_lapmod_no_edges_row() {
     let mut csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((3, 3), 2);
     csr.add((0, 0, 1.0)).unwrap();
     csr.add((2, 2, 1.0)).unwrap();
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::InfeasibleAssignment));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::InfeasibleAssignment));
 }
 
 #[test]
@@ -152,7 +151,7 @@ fn test_lapmod_no_matching() {
     // Actually we need all rows to have at least one entry, but some column
     // must be unreachable.  Force row 1 to have only col 0.
     // A matching can cover rows 0→col0 and row 2→col2, leaving row 1 unmatched.
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::InfeasibleAssignment));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::InfeasibleAssignment));
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +273,7 @@ fn test_lapmod_regression_two_row_sparse() {
     csr.add((2, 0, 4.778_309_726_7e-5)).unwrap();
 
     // row 1 has no edges → infeasible
-    assert_eq!(csr.lapmod(1.0), Err(LAPMODError::InfeasibleAssignment));
+    assert_eq!(csr.lapmod(1.0), Err(LAPError::InfeasibleAssignment));
 }
 
 #[test]
@@ -370,7 +369,7 @@ fn test_lapmod_shared_frontier_matches_sparse_lapjv_cost() {
 /// Wide-rectangular CSR (3 rows × 4 cols) — should produce `NonSquareMatrix`.
 fn test_lapmod_wide_rectangular() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((3, 4), 0);
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::NonSquareMatrix));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::NonSquareMatrix));
 }
 
 #[test]
@@ -380,7 +379,7 @@ fn test_lapmod_matrix_dimensions() {
     assert_eq!(csr.number_of_rows(), 5u8);
     assert_eq!(csr.number_of_columns(), 5u8);
     // 5×5 with no edges → all rows empty → InfeasibleAssignment
-    assert_eq!(csr.lapmod(1000.0), Err(LAPMODError::InfeasibleAssignment));
+    assert_eq!(csr.lapmod(1000.0), Err(LAPError::InfeasibleAssignment));
 }
 
 // ---------------------------------------------------------------------------
@@ -503,7 +502,7 @@ fn test_lapmod_benchmark_n20_seed62_timeout() {
 
     let result = handle.join().expect("thread panicked");
     assert!(
-        result.is_ok() || result == Err(LAPMODError::InfeasibleAssignment),
+        result.is_ok() || result == Err(LAPError::InfeasibleAssignment),
         "LAPMOD returned unexpected error: {result:?}"
     );
 }
@@ -767,7 +766,7 @@ fn test_lapmod_stress_correctness_vs_sparse_lapjv() {
                     );
                 }
             }
-            (Err(LAPMODError::InfeasibleAssignment), Ok(slapjv)) => {
+            (Err(LAPError::InfeasibleAssignment), Ok(slapjv)) => {
                 assert!(
                     hk_len < n,
                     "seed={seed} n={n} d={density}: LAPMOD reported infeasible but Hopcroft-Karp found perfect matching"
@@ -778,7 +777,7 @@ fn test_lapmod_stress_correctness_vs_sparse_lapjv() {
                     "seed={seed} n={n} d={density}: SparseLAPJV cardinality differs from Hopcroft-Karp"
                 );
             }
-            (Err(LAPMODError::InfeasibleAssignment), Err(_)) => {
+            (Err(LAPError::InfeasibleAssignment), Err(_)) => {
                 assert!(
                     hk_len < n,
                     "seed={seed} n={n} d={density}: both algorithms failed but Hopcroft-Karp found perfect matching"
