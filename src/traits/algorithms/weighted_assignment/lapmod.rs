@@ -17,18 +17,16 @@
 //! the O(|E|) advantage.
 use alloc::vec::Vec;
 
-mod errors;
 mod inner;
 
 use core::fmt::Debug;
 
-pub use errors::LAPMODError;
 use inner::LapmodInner;
-use num_traits::{AsPrimitive, One, Zero};
+use num_traits::{AsPrimitive, One};
 
 use super::{
     LAPError,
-    lap_error::{validate_fractional_value_domain, validate_sparse_wrapper_costs},
+    lap_error::{validate_lap_entry_costs, validate_sparse_lap_entry_costs},
 };
 use crate::{
     impls::ValuedCSR2D,
@@ -69,16 +67,16 @@ where
     ///
     /// Returns an error if:
     /// - The value type is non-fractional
-    ///   ([`LAPMODError::NonFractionalValueTypeUnsupported`])
-    /// - `max_cost` is not finite ([`LAPMODError::MaximalCostNotFinite`])
-    /// - `max_cost` is not positive ([`LAPMODError::MaximalCostNotPositive`])
-    /// - The matrix is not square ([`LAPMODError::NonSquareMatrix`])
-    /// - Any edge cost is zero ([`LAPMODError::ZeroValues`])
-    /// - Any edge cost is negative ([`LAPMODError::NegativeValues`])
-    /// - Any edge cost is non-finite ([`LAPMODError::NonFiniteValues`])
-    /// - Any edge cost ≥ `max_cost` ([`LAPMODError::ValueTooLarge`])
+    ///   ([`LAPError::NonFractionalValueTypeUnsupported`])
+    /// - `max_cost` is not finite ([`LAPError::MaximalCostNotFinite`])
+    /// - `max_cost` is not positive ([`LAPError::MaximalCostNotPositive`])
+    /// - The matrix is not square ([`LAPError::NonSquareMatrix`])
+    /// - Any edge cost is zero ([`LAPError::ZeroValues`])
+    /// - Any edge cost is negative ([`LAPError::NegativeValues`])
+    /// - Any edge cost is non-finite ([`LAPError::NonFiniteValues`])
+    /// - Any edge cost ≥ `max_cost` ([`LAPError::ValueTooLarge`])
     /// - The sparse graph has no perfect matching
-    ///   ([`LAPMODError::InfeasibleAssignment`])
+    ///   ([`LAPError::InfeasibleAssignment`])
     ///
     /// # Examples
     ///
@@ -97,27 +95,18 @@ where
     fn lapmod(
         &self,
         max_cost: Self::Value,
-    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPMODError>
+    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPError>
     where
         <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
         <Self::RowIndex as TryFrom<usize>>::Error: Debug,
     {
-        validate_fractional_value_domain::<Self::Value>()
-            .map_err(|_| LAPMODError::NonFractionalValueTypeUnsupported)?;
-
-        if !max_cost.is_finite() {
-            return Err(LAPMODError::MaximalCostNotFinite);
-        }
-
-        if max_cost <= Self::Value::zero() {
-            return Err(LAPMODError::MaximalCostNotPositive);
-        }
+        validate_lap_entry_costs(max_cost)?;
 
         let n_rows = self.number_of_rows().as_();
         let n_cols = self.number_of_columns().as_();
 
         if n_rows != n_cols {
-            return Err(LAPMODError::NonSquareMatrix);
+            return Err(LAPError::NonSquareMatrix);
         }
 
         if n_rows == 0 {
@@ -239,8 +228,7 @@ where
         <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
         <Self::RowIndex as TryFrom<usize>>::Error: Debug,
     {
-        validate_fractional_value_domain::<Self::Value>()?;
-        validate_sparse_wrapper_costs(padding_cost, max_cost)?;
+        validate_sparse_lap_entry_costs(padding_cost, max_cost)?;
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -347,7 +335,7 @@ where
         }
 
         // Solve the (L+R) × (L+R) assignment problem.
-        let assignment = expanded.lapmod(max_cost).map_err(LAPError::from)?;
+        let assignment = expanded.lapmod(max_cost)?;
 
         // Filter: keep only assignments where row < L and col < R.
         assignment
@@ -371,24 +359,4 @@ where
     M::RowIndex: TryFromUsize,
     M::ColumnIndex: TryFromUsize,
 {
-}
-
-impl From<LAPMODError> for LAPError {
-    #[inline]
-    fn from(error: LAPMODError) -> Self {
-        match error {
-            LAPMODError::NonFractionalValueTypeUnsupported => {
-                LAPError::NonFractionalValueTypeUnsupported
-            }
-            LAPMODError::NonSquareMatrix => LAPError::NonSquareMatrix,
-            LAPMODError::EmptyMatrix => LAPError::EmptyMatrix,
-            LAPMODError::ZeroValues => LAPError::ZeroValues,
-            LAPMODError::NegativeValues => LAPError::NegativeValues,
-            LAPMODError::NonFiniteValues => LAPError::NonFiniteValues,
-            LAPMODError::ValueTooLarge => LAPError::ValueTooLarge,
-            LAPMODError::MaximalCostNotFinite => LAPError::MaximalCostNotFinite,
-            LAPMODError::MaximalCostNotPositive => LAPError::MaximalCostNotPositive,
-            LAPMODError::InfeasibleAssignment => LAPError::InfeasibleAssignment,
-        }
-    }
 }

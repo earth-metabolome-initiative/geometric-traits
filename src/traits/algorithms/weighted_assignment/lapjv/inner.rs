@@ -3,13 +3,16 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use num_traits::{AsPrimitive, Bounded, Zero};
+use num_traits::{AsPrimitive, Bounded};
 
 use super::{
-    LAPJVError,
+    LAPError,
     common::{augmentation_backtrack, augmenting_row_reduction_impl, find_minimum_distance},
 };
-use crate::traits::{AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize};
+use crate::traits::{
+    AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize,
+    algorithms::weighted_assignment::lap_error::validate_lap_value_against_max,
+};
 
 /// Support struct for computing the weighted assignment using the LAPJV
 /// algorithm.
@@ -58,10 +61,10 @@ where
     M::RowIndex: Bounded,
     M::ColumnIndex: Bounded,
 {
-    pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPJVError> {
+    pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPError> {
         // Check if the matrix is square
         if matrix.number_of_rows().as_() != matrix.number_of_columns().as_() {
-            return Err(LAPJVError::NonSquareMatrix);
+            return Err(LAPError::NonSquareMatrix);
         }
 
         let column_costs = vec![max_cost; matrix.number_of_columns().as_()];
@@ -82,7 +85,7 @@ where
     M::Value: Number + Finite + TotalOrd,
 {
     #[inline]
-    pub(super) fn column_reduction(&mut self) -> Result<(), LAPJVError> {
+    pub(super) fn column_reduction(&mut self) -> Result<(), LAPError> {
         debug_assert!(
             self.column_costs.iter().all(|&cost| cost == self.max_cost),
             "We expected the column costs to be initialized to the maximum cost",
@@ -101,21 +104,7 @@ where
             for (column_index, value) in
                 self.matrix.column_indices().zip(self.matrix.row_values(row_index))
             {
-                if value >= self.max_cost {
-                    return Err(LAPJVError::ValueTooLarge);
-                }
-
-                if !value.is_finite() {
-                    return Err(LAPJVError::NonFiniteValues);
-                }
-
-                if value == M::Value::zero() {
-                    return Err(LAPJVError::ZeroValues);
-                }
-
-                if value < M::Value::zero() {
-                    return Err(LAPJVError::NegativeValues);
-                }
+                validate_lap_value_against_max(value, self.max_cost)?;
 
                 if value < self.column_costs[column_index.as_()] {
                     self.assigned_rows[column_index.as_()] = AssignmentState::Assigned(row_index);

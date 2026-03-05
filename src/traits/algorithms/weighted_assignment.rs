@@ -3,12 +3,12 @@
 #[cfg(feature = "alloc")]
 mod lapjv;
 #[cfg(feature = "alloc")]
-pub use lapjv::{LAPJV, LAPJVError, SparseLAPJV};
+pub use lapjv::{LAPJV, SparseLAPJV};
 
 #[cfg(feature = "alloc")]
 mod lapmod;
 #[cfg(feature = "alloc")]
-pub use lapmod::{Jaqaman, LAPMOD, LAPMODError};
+pub use lapmod::{Jaqaman, LAPMOD};
 
 #[cfg(feature = "alloc")]
 pub mod crouse;

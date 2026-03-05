@@ -2,18 +2,15 @@
 use alloc::vec::Vec;
 
 pub(crate) mod common;
-mod errors;
 mod inner;
 
 use core::fmt::Debug;
 
-pub use errors::LAPJVError;
 use inner::Inner;
-use num_traits::Zero;
 
 use super::{
     LAPError,
-    lap_error::{validate_fractional_value_domain, validate_sparse_wrapper_costs},
+    lap_error::{validate_lap_entry_costs, validate_sparse_lap_entry_costs},
 };
 use crate::{
     impls::PaddedMatrix2D,
@@ -43,34 +40,25 @@ where
     ///
     /// Returns an error if:
     /// - The value type is non-fractional
-    ///   (`LAPJVError::NonFractionalValueTypeUnsupported`)
-    /// - `max_cost` is not a finite number (`LAPJVError::MaximalCostNotFinite`)
-    /// - `max_cost` is not positive (`LAPJVError::MaximalCostNotPositive`)
-    /// - The matrix is not square (`LAPJVError::NonSquareMatrix`)
-    /// - The matrix is empty (`LAPJVError::EmptyMatrix`)
-    /// - The matrix contains zero values (`LAPJVError::ZeroValues`)
-    /// - The matrix contains negative values (`LAPJVError::NegativeValues`)
-    /// - The matrix contains non-finite values (`LAPJVError::NonFiniteValues`)
+    ///   (`LAPError::NonFractionalValueTypeUnsupported`)
+    /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
+    /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
+    /// - The matrix is not square (`LAPError::NonSquareMatrix`)
+    /// - The matrix is empty (`LAPError::EmptyMatrix`)
+    /// - The matrix contains zero values (`LAPError::ZeroValues`)
+    /// - The matrix contains negative values (`LAPError::NegativeValues`)
+    /// - The matrix contains non-finite values (`LAPError::NonFiniteValues`)
     /// - The matrix contains a value larger than the maximum cost
-    ///   (`LAPJVError::ValueTooLarge`)
+    ///   (`LAPError::ValueTooLarge`)
     #[inline]
     fn lapjv(
         &self,
         max_cost: Self::Value,
-    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPJVError>
+    ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPError>
     where
         <Self::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
-        validate_fractional_value_domain::<Self::Value>()
-            .map_err(|_| LAPJVError::NonFractionalValueTypeUnsupported)?;
-
-        if !max_cost.is_finite() {
-            return Err(LAPJVError::MaximalCostNotFinite);
-        }
-
-        if max_cost <= Self::Value::zero() {
-            return Err(LAPJVError::MaximalCostNotPositive);
-        }
+        validate_lap_entry_costs(max_cost)?;
 
         let mut inner = Inner::new(self, max_cost)?;
         inner.column_reduction()?;
@@ -153,8 +141,7 @@ where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
-        validate_fractional_value_domain::<Self::Value>()?;
-        validate_sparse_wrapper_costs(padding_cost, max_cost)?;
+        validate_sparse_lap_entry_costs(padding_cost, max_cost)?;
         if self.is_empty() {
             return Ok(vec![]);
         }
@@ -165,7 +152,7 @@ where
 
         let padding: PaddedMatrix2D<&'_ Self, _> =
             PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
-        let assignment = padding.lapjv(max_cost).map_err(LAPError::from)?;
+        let assignment = padding.lapjv(max_cost)?;
 
         Ok(assignment
             .into_iter()
@@ -180,25 +167,4 @@ where
     M::RowIndex: TryFromUsize,
     M::ColumnIndex: TryFromUsize,
 {
-}
-
-impl From<LAPJVError> for LAPError {
-    #[inline]
-    fn from(error: LAPJVError) -> Self {
-        match error {
-            LAPJVError::NonFractionalValueTypeUnsupported => {
-                LAPError::NonFractionalValueTypeUnsupported
-            }
-            LAPJVError::NonSquareMatrix => LAPError::NonSquareMatrix,
-            LAPJVError::EmptyMatrix => LAPError::EmptyMatrix,
-            LAPJVError::ZeroValues => LAPError::ZeroValues,
-            LAPJVError::NegativeValues => LAPError::NegativeValues,
-            LAPJVError::NonFiniteValues => LAPError::NonFiniteValues,
-            LAPJVError::ValueTooLarge => LAPError::ValueTooLarge,
-            LAPJVError::MaximalCostNotFinite => LAPError::MaximalCostNotFinite,
-            LAPJVError::MaximalCostNotPositive => LAPError::MaximalCostNotPositive,
-            LAPJVError::PaddingValueNotFinite => LAPError::PaddingValueNotFinite,
-            LAPJVError::PaddingValueNotPositive => LAPError::PaddingValueNotPositive,
-        }
-    }
 }

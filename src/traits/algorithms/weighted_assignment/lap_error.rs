@@ -1,8 +1,9 @@
-//! Shared error type for sparse LAP wrappers (`SparseLAPJV`, `Jaqaman`).
-use crate::traits::{Finite, Number};
+//! Shared error type for LAP algorithms (`LAPJV`, `LAPMOD`, `SparseLAPJV`,
+//! `Jaqaman`).
+use crate::traits::{Finite, Number, TotalOrd};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-/// Errors that can occur while executing sparse LAP wrapper algorithms.
+/// Errors that can occur while executing LAP algorithms.
 pub enum LAPError {
     /// The value type is non-fractional, which is not supported by LAP
     /// routines.
@@ -90,6 +91,24 @@ where
     Ok(())
 }
 
+/// Validates the common `max_cost` contract for LAP entry points.
+///
+/// Validation order is intentional:
+/// 1. `max_cost` finite
+/// 2. `max_cost` positive
+pub(crate) fn validate_max_cost<V>(max_cost: V) -> Result<(), LAPError>
+where
+    V: Number + Finite,
+{
+    if !max_cost.is_finite() {
+        return Err(LAPError::MaximalCostNotFinite);
+    }
+    if max_cost <= V::zero() {
+        return Err(LAPError::MaximalCostNotPositive);
+    }
+    Ok(())
+}
+
 /// Validates that the value domain supports fractional arithmetic needed by
 /// LAP reduced-cost updates and epsilon constructions.
 pub(crate) fn validate_fractional_value_domain<V>() -> Result<(), LAPError>
@@ -101,6 +120,64 @@ where
 
     if two == V::zero() || one / two == V::zero() {
         return Err(LAPError::NonFractionalValueTypeUnsupported);
+    }
+
+    Ok(())
+}
+
+/// Validates the common preflight contract for LAP entry points that only
+/// require `max_cost`.
+///
+/// Validation order:
+/// 1. fractional value domain support
+/// 2. `max_cost` finite/positive
+pub(crate) fn validate_lap_entry_costs<V>(max_cost: V) -> Result<(), LAPError>
+where
+    V: Number + Finite,
+{
+    validate_fractional_value_domain::<V>()?;
+    validate_max_cost(max_cost)
+}
+
+/// Validates the common preflight contract for sparse LAP wrappers with
+/// `padding_cost` and `max_cost`.
+///
+/// Validation order:
+/// 1. fractional value domain support
+/// 2. sparse wrapper cost contract (`padding_cost`, then `max_cost`)
+pub(crate) fn validate_sparse_lap_entry_costs<V>(
+    padding_cost: V,
+    max_cost: V,
+) -> Result<(), LAPError>
+where
+    V: Number + Finite,
+{
+    validate_fractional_value_domain::<V>()?;
+    validate_sparse_wrapper_costs(padding_cost, max_cost)
+}
+
+/// Validates a single matrix value against LAP constraints.
+///
+/// Unified validation order across LAP inner implementations:
+/// 1. finite
+/// 2. non-zero
+/// 3. non-negative
+/// 4. strictly smaller than `max_cost`
+pub(crate) fn validate_lap_value_against_max<V>(value: V, max_cost: V) -> Result<(), LAPError>
+where
+    V: Number + Finite + TotalOrd,
+{
+    if !value.is_finite() {
+        return Err(LAPError::NonFiniteValues);
+    }
+    if value == V::zero() {
+        return Err(LAPError::ZeroValues);
+    }
+    if value < V::zero() {
+        return Err(LAPError::NegativeValues);
+    }
+    if value >= max_cost {
+        return Err(LAPError::ValueTooLarge);
     }
 
     Ok(())

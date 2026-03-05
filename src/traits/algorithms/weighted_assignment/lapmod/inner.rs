@@ -3,13 +3,14 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
-use num_traits::{AsPrimitive, Bounded, Zero};
+use num_traits::{AsPrimitive, Bounded};
 
-use super::LAPMODError;
+use super::LAPError;
 use crate::traits::{
     AssignmentState, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
-    algorithms::weighted_assignment::lapjv::common::{
-        augmentation_backtrack, augmenting_row_reduction_impl,
+    algorithms::weighted_assignment::{
+        lap_error::validate_lap_value_against_max,
+        lapjv::common::{augmentation_backtrack, augmenting_row_reduction_impl},
     },
 };
 
@@ -67,9 +68,9 @@ where
     M::RowIndex: Bounded,
     M::ColumnIndex: Bounded,
 {
-    pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPMODError> {
+    pub(super) fn new(matrix: &'matrix M, max_cost: M::Value) -> Result<Self, LAPError> {
         if matrix.number_of_rows().as_() != matrix.number_of_columns().as_() {
-            return Err(LAPMODError::NonSquareMatrix);
+            return Err(LAPError::NonSquareMatrix);
         }
         let n = matrix.number_of_columns().as_();
         Ok(LapmodInner {
@@ -103,30 +104,18 @@ where
     /// Returns `Err(InfeasibleAssignment)` as soon as a row with no entries is
     /// found.
     #[inline]
-    pub(super) fn column_reduction_sparse(&mut self) -> Result<(), LAPMODError> {
+    pub(super) fn column_reduction_sparse(&mut self) -> Result<(), LAPError> {
         // Check that every row has at least one sparse entry.
         for row in self.matrix.row_indices() {
             if self.matrix.sparse_row(row).next().is_none() {
-                return Err(LAPMODError::InfeasibleAssignment);
+                return Err(LAPError::InfeasibleAssignment);
             }
         }
 
         // Update column_costs and assigned_rows from sparse entries.
         for row in self.matrix.row_indices() {
             for (col, cost) in self.matrix.sparse_row(row).zip(self.matrix.sparse_row_values(row)) {
-                // Validate the entry.
-                if !cost.is_finite() {
-                    return Err(LAPMODError::NonFiniteValues);
-                }
-                if cost == M::Value::zero() {
-                    return Err(LAPMODError::ZeroValues);
-                }
-                if cost < M::Value::zero() {
-                    return Err(LAPMODError::NegativeValues);
-                }
-                if cost >= self.max_cost {
-                    return Err(LAPMODError::ValueTooLarge);
-                }
+                validate_lap_value_against_max(cost, self.max_cost)?;
 
                 if cost < self.column_costs[col.as_()] {
                     self.assigned_rows[col.as_()] = AssignmentState::Assigned(row);
@@ -396,7 +385,7 @@ where
         added: &mut [bool],
         predecessors: &mut [M::RowIndex],
         distances: &mut [M::Value],
-    ) -> Result<M::ColumnIndex, LAPMODError> {
+    ) -> Result<M::ColumnIndex, LAPError> {
         let mut lower_bound = 0usize;
         let mut upper_bound = 0usize;
         let mut n_ready = 0usize;
@@ -433,7 +422,7 @@ where
                     self.find_minimum_distance_sparse(distances, scan, todo, &mut n_todo, done);
 
                 if upper_bound == 0 {
-                    return Err(LAPMODError::InfeasibleAssignment);
+                    return Err(LAPError::InfeasibleAssignment);
                 }
 
                 for &col in &scan[lower_bound..upper_bound] {
@@ -475,7 +464,7 @@ where
     /// the augmenting path to update the assignment.
     /// Distances are reset to `max_cost` before each path search.
     #[inline]
-    pub(super) fn augmentation_sparse(&mut self) -> Result<(), LAPMODError> {
+    pub(super) fn augmentation_sparse(&mut self) -> Result<(), LAPError> {
         if self.unassigned_rows.is_empty() {
             return Ok(());
         }
