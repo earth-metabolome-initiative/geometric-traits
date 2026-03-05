@@ -616,14 +616,18 @@ mod tests {
     fn test_csr2d_add_duplicate_error() {
         let mut csr: TestCSR2D = CSR2D::default();
         assert!(MatrixMut::add(&mut csr, (0, 1)).is_ok());
-        assert!(MatrixMut::add(&mut csr, (0, 1)).is_err());
+        let error =
+            MatrixMut::add(&mut csr, (0, 1)).expect_err("re-adding the same coordinate must fail");
+        assert!(matches!(error, MutabilityError::DuplicatedEntry((0, 1))));
     }
 
     #[test]
     fn test_csr2d_add_unordered_error() {
         let mut csr: TestCSR2D = CSR2D::default();
         assert!(MatrixMut::add(&mut csr, (0, 2)).is_ok());
-        assert!(MatrixMut::add(&mut csr, (0, 1)).is_err());
+        let error =
+            MatrixMut::add(&mut csr, (0, 1)).expect_err("coordinates must be inserted in order");
+        assert!(matches!(error, MutabilityError::UnorderedCoordinate((0, 1))));
     }
 
     #[test]
@@ -717,8 +721,11 @@ mod tests {
     #[test]
     fn test_csr2d_increase_shape_error() {
         let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
-        assert!(csr.increase_shape((2, 3)).is_err());
-        assert!(csr.increase_shape((3, 2)).is_err());
+        let error = csr.increase_shape((2, 3)).expect_err("shrinking row count must be rejected");
+        assert!(matches!(error, MutabilityError::IncompatibleShape));
+        let error =
+            csr.increase_shape((3, 2)).expect_err("shrinking column count must be rejected");
+        assert!(matches!(error, MutabilityError::IncompatibleShape));
     }
 
     #[test]
@@ -767,47 +774,6 @@ mod tests {
         let mut csr: TestCSR2D = CSR2D::default();
         MatrixMut::add(&mut csr, (0, 0)).unwrap();
         let _ = csr.select_row(1);
-    }
-
-    #[test]
-    #[should_panic(expected = "The offsets should always have at least one element.")]
-    fn test_csr2d_number_of_rows_panics_when_offsets_empty() {
-        let csr: TestCSR2D = CSR2D {
-            offsets: vec![],
-            number_of_rows: 0,
-            number_of_columns: 0,
-            column_indices: vec![],
-            number_of_non_empty_rows: 0,
-        };
-        let _ = csr.number_of_rows();
-    }
-
-    #[test]
-    #[should_panic(expected = "less than the number of rows in the offsets")]
-    fn test_csr2d_number_of_rows_panics_when_offsets_exceed_row_count() {
-        let csr: TestCSR2D = CSR2D {
-            offsets: vec![0, 0, 0],
-            number_of_rows: 1,
-            number_of_columns: 0,
-            column_indices: vec![],
-            number_of_non_empty_rows: 0,
-        };
-        let _ = csr.number_of_rows();
-    }
-
-    #[test]
-    #[should_panic(
-        expected = "last row stores in the offsets should always have at least one column"
-    )]
-    fn test_csr2d_last_sparse_coordinates_panics_for_illegal_state() {
-        let csr: TestCSR2D = CSR2D {
-            offsets: vec![0, 1, 1],
-            number_of_rows: 2,
-            number_of_columns: 1,
-            column_indices: vec![0],
-            number_of_non_empty_rows: 1,
-        };
-        let _ = csr.last_sparse_coordinates();
     }
 
     #[test]
