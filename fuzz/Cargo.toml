@@ -122,3 +122,9 @@ name = "jacobi"
 path = "fuzz_targets/jacobi.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "mds"
+path = "fuzz_targets/mds.rs"
+test = false
+doc = false

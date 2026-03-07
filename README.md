@@ -41,6 +41,7 @@ All listed algorithms require the `alloc` feature.
 | **Lin Semantic Similarity** | `Lin` | [`lin.rs`](https://github.com/earth-metabolome-initiative/geometric-traits/blob/main/fuzz/fuzz_targets/lin.rs) | Lin, D. (1998). [An Information-Theoretic Definition of Similarity](https://icml.cc/Conferences/1998/papers/paper37.html). In *Proceedings of ICML 1998*, 296-304. |
 | **Wu-Palmer Semantic Similarity** | `WuPalmer` | [`wu_palmer.rs`](https://github.com/earth-metabolome-initiative/geometric-traits/blob/main/fuzz/fuzz_targets/wu_palmer.rs) | Wu, Z., & Palmer, M. (1994). [Verb Semantics and Lexical Selection](https://aclanthology.org/P94-1019/). In *Proceedings of ACL 1994*, 133-138. DOI: `10.3115/981732.981751`. |
 | **Eigenvalue Decomposition** | `Jacobi` | [`jacobi.rs`](fuzz/fuzz_targets/jacobi.rs) | Jacobi, C. G. J. (1846). Über ein leichtes Verfahren die in der Theorie der Säcularstörungen vorkommenden Gleichungen numerisch aufzulösen. *Journal für die reine und angewandte Mathematik*, 30, 51–94. See Golub & Van Loan (2013), §8.5. |
+| **Classical MDS** | `ClassicalMds` | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02289229). *Psychometrika*, 17(4), 401–419. |
 | **Random DAG Generation** | `RandomizedDAG` | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
 ### Design Philosophy
