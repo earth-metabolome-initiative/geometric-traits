@@ -66,6 +66,14 @@ mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;
 #[cfg(feature = "alloc")]
+mod modularity;
+#[cfg(feature = "alloc")]
+pub use modularity::ModularityError;
+#[cfg(feature = "alloc")]
 mod louvain;
 #[cfg(feature = "alloc")]
 pub use louvain::*;
+#[cfg(feature = "alloc")]
+mod leiden;
+#[cfg(feature = "alloc")]
+pub use leiden::*;

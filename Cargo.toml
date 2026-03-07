@@ -73,6 +73,8 @@ hashbrown = ["dep:hashbrown"]
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 arbitrary = { version = "1" }
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0"
 
 [[bench]]
 name = "wu_palmer"

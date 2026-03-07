@@ -168,7 +168,7 @@ fn test_error_conversion_csr2d_to_valued() {
 
 #[test]
 fn test_louvain_error_display_non_square() {
-    let err = LouvainError::NonSquareMatrix { rows: 3, columns: 5 };
+    let err = ModularityError::NonSquareMatrix { rows: 3, columns: 5 };
     let display = format!("{err}");
     assert!(display.contains("square"));
     assert!(display.contains('3'));
@@ -177,24 +177,26 @@ fn test_louvain_error_display_non_square() {
 
 #[test]
 fn test_louvain_error_display_unrepresentable() {
-    let err = LouvainError::UnrepresentableWeight { source_id: 0, destination_id: 1 };
+    let err = ModularityError::UnrepresentableWeight { source_id: 0, destination_id: 1 };
     let display = format!("{err}");
     assert!(display.contains("cannot be represented"));
 }
 
 #[test]
 fn test_louvain_error_display_all_variants() {
-    let variants: Vec<LouvainError> = vec![
-        LouvainError::InvalidResolution,
-        LouvainError::InvalidModularityThreshold,
-        LouvainError::InvalidMaxLevels,
-        LouvainError::InvalidMaxLocalPasses,
-        LouvainError::NonSquareMatrix { rows: 2, columns: 3 },
-        LouvainError::UnrepresentableWeight { source_id: 0, destination_id: 1 },
-        LouvainError::NonFiniteWeight { source_id: 0, destination_id: 1 },
-        LouvainError::NonPositiveWeight { source_id: 0, destination_id: 1 },
-        LouvainError::NonSymmetricEdge { source_id: 0, destination_id: 1 },
-        LouvainError::TooManyCommunities,
+    let variants: Vec<ModularityError> = vec![
+        ModularityError::InvalidResolution,
+        ModularityError::InvalidModularityThreshold,
+        ModularityError::InvalidMaxLevels,
+        ModularityError::InvalidMaxLocalPasses,
+        ModularityError::InvalidMaxRefinementPasses,
+        ModularityError::InvalidTheta,
+        ModularityError::NonSquareMatrix { rows: 2, columns: 3 },
+        ModularityError::UnrepresentableWeight { source_id: 0, destination_id: 1 },
+        ModularityError::NonFiniteWeight { source_id: 0, destination_id: 1 },
+        ModularityError::NonPositiveWeight { source_id: 0, destination_id: 1 },
+        ModularityError::NonSymmetricEdge { source_id: 0, destination_id: 1 },
+        ModularityError::TooManyCommunities,
     ];
     for err in &variants {
         let display = format!("{err}");

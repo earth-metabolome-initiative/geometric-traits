@@ -1,19 +1,19 @@
-//! Tests for LouvainError Display, From conversions, and validation paths.
+//! Tests for ModularityError Display, From conversions, and validation paths.
 #![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::*,
-    traits::{LouvainConfig, LouvainError},
+    traits::{LouvainConfig, ModularityError},
 };
 
 // ============================================================================
-// LouvainError Display
+// ModularityError Display
 // ============================================================================
 
 #[test]
 fn test_louvain_error_invalid_resolution() {
-    let e = LouvainError::InvalidResolution;
+    let e = ModularityError::InvalidResolution;
     let s = format!("{e}");
     assert!(s.contains("resolution"));
     assert!(s.contains("finite"));
@@ -21,28 +21,28 @@ fn test_louvain_error_invalid_resolution() {
 
 #[test]
 fn test_louvain_error_invalid_modularity_threshold() {
-    let e = LouvainError::InvalidModularityThreshold;
+    let e = ModularityError::InvalidModularityThreshold;
     let s = format!("{e}");
     assert!(s.contains("modularity threshold"));
 }
 
 #[test]
 fn test_louvain_error_invalid_max_levels() {
-    let e = LouvainError::InvalidMaxLevels;
+    let e = ModularityError::InvalidMaxLevels;
     let s = format!("{e}");
     assert!(s.contains("maximum number of levels"));
 }
 
 #[test]
 fn test_louvain_error_invalid_max_local_passes() {
-    let e = LouvainError::InvalidMaxLocalPasses;
+    let e = ModularityError::InvalidMaxLocalPasses;
     let s = format!("{e}");
     assert!(s.contains("maximum number of local passes"));
 }
 
 #[test]
 fn test_louvain_error_non_square_matrix() {
-    let e = LouvainError::NonSquareMatrix { rows: 3, columns: 5 };
+    let e = ModularityError::NonSquareMatrix { rows: 3, columns: 5 };
     let s = format!("{e}");
     assert!(s.contains("square"));
     assert!(s.contains('3'));
@@ -51,7 +51,7 @@ fn test_louvain_error_non_square_matrix() {
 
 #[test]
 fn test_louvain_error_unrepresentable_weight() {
-    let e = LouvainError::UnrepresentableWeight { source_id: 1, destination_id: 2 };
+    let e = ModularityError::UnrepresentableWeight { source_id: 1, destination_id: 2 };
     let s = format!("{e}");
     assert!(s.contains("represented"));
     assert!(s.contains("(1, 2)"));
@@ -59,7 +59,7 @@ fn test_louvain_error_unrepresentable_weight() {
 
 #[test]
 fn test_louvain_error_non_finite_weight() {
-    let e = LouvainError::NonFiniteWeight { source_id: 0, destination_id: 3 };
+    let e = ModularityError::NonFiniteWeight { source_id: 0, destination_id: 3 };
     let s = format!("{e}");
     assert!(s.contains("non-finite"));
     assert!(s.contains("(0, 3)"));
@@ -67,7 +67,7 @@ fn test_louvain_error_non_finite_weight() {
 
 #[test]
 fn test_louvain_error_non_positive_weight() {
-    let e = LouvainError::NonPositiveWeight { source_id: 2, destination_id: 4 };
+    let e = ModularityError::NonPositiveWeight { source_id: 2, destination_id: 4 };
     let s = format!("{e}");
     assert!(s.contains("non-positive"));
     assert!(s.contains("(2, 4)"));
@@ -75,7 +75,7 @@ fn test_louvain_error_non_positive_weight() {
 
 #[test]
 fn test_louvain_error_non_symmetric_edge() {
-    let e = LouvainError::NonSymmetricEdge { source_id: 1, destination_id: 5 };
+    let e = ModularityError::NonSymmetricEdge { source_id: 1, destination_id: 5 };
     let s = format!("{e}");
     assert!(s.contains("symmetric"));
     assert!(s.contains("(1, 5)"));
@@ -83,7 +83,7 @@ fn test_louvain_error_non_symmetric_edge() {
 
 #[test]
 fn test_louvain_error_too_many_communities() {
-    let e = LouvainError::TooManyCommunities;
+    let e = ModularityError::TooManyCommunities;
     let s = format!("{e}");
     assert!(s.contains("community marker type"));
 }
@@ -91,12 +91,12 @@ fn test_louvain_error_too_many_communities() {
 #[test]
 fn test_louvain_error_is_std_error() {
     fn check<E: std::error::Error>(_: E) {}
-    check(LouvainError::InvalidResolution);
+    check(ModularityError::InvalidResolution);
 }
 
 #[test]
 fn test_louvain_error_debug_clone_eq() {
-    let e = LouvainError::InvalidResolution;
+    let e = ModularityError::InvalidResolution;
     let e2 = e.clone();
     assert_eq!(e, e2);
     assert!(format!("{e:?}").contains("InvalidResolution"));

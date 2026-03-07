@@ -15,9 +15,9 @@ use geometric_traits::{
     prelude::*,
     test_utils::{
         self, check_kahn_ordering, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_louvain_invariants, check_padded_diagonal_invariants,
-        check_padded_matrix2d_invariants, check_sparse_matrix_invariants,
-        check_valued_matrix_invariants, from_bytes, replay_dir,
+        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
+        check_sparse_matrix_invariants, check_valued_matrix_invariants, from_bytes, replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -296,6 +296,23 @@ fn test_replay_louvain_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/louvain/input");
     for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
         check_louvain_invariants(&instance);
+    }
+}
+
+// ============================================================================
+// Leiden (mirrors fuzz/fuzz_targets/leiden.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_leiden() {
+    for_each_instance::<TestValuedCSR, _>(check_leiden_invariants);
+}
+
+#[test]
+fn test_replay_leiden_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/leiden/input");
+    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+        check_leiden_invariants(&instance);
     }
 }
 

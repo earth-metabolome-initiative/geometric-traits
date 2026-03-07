@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::*,
-    traits::{LouvainConfig, LouvainError},
+    traits::{LouvainConfig, ModularityError},
 };
 
 type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
@@ -129,7 +129,7 @@ fn test_louvain_rejects_non_positive_weights() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 0.0)]);
 
     let error = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
-    assert!(matches!(error, LouvainError::NonPositiveWeight { .. }));
+    assert!(matches!(error, ModularityError::NonPositiveWeight { .. }));
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn test_louvain_rejects_non_symmetric_matrices() {
     let graph = build_weighted_graph(3, vec![(0, 1, 1.0), (1, 2, 1.0)]);
 
     let error = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
-    assert!(matches!(error, LouvainError::NonSymmetricEdge { .. }));
+    assert!(matches!(error, ModularityError::NonSymmetricEdge { .. }));
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn test_louvain_marker_overflow_returns_error() {
     let graph = build_weighted_graph(300, Vec::new());
     let error = Louvain::<u8>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
 
-    assert!(matches!(error, LouvainError::TooManyCommunities));
+    assert!(matches!(error, ModularityError::TooManyCommunities));
 }
 
 // --- Step 5: New tests ---
@@ -155,7 +155,7 @@ fn test_louvain_rejects_zero_resolution() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { resolution: 0.0, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidResolution));
+    assert!(matches!(error, ModularityError::InvalidResolution));
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn test_louvain_rejects_nan_resolution() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { resolution: f64::NAN, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidResolution));
+    assert!(matches!(error, ModularityError::InvalidResolution));
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn test_louvain_rejects_negative_resolution() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { resolution: -1.0, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidResolution));
+    assert!(matches!(error, ModularityError::InvalidResolution));
 }
 
 #[test]
@@ -179,7 +179,7 @@ fn test_louvain_rejects_negative_modularity_threshold() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { modularity_threshold: -1.0, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidModularityThreshold));
+    assert!(matches!(error, ModularityError::InvalidModularityThreshold));
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn test_louvain_rejects_zero_max_levels() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { max_levels: 0, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidMaxLevels));
+    assert!(matches!(error, ModularityError::InvalidMaxLevels));
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn test_louvain_rejects_zero_max_local_passes() {
     let graph = build_undirected_weighted_graph(2, vec![(0, 1, 1.0)]);
     let config = LouvainConfig { max_local_passes: 0, ..LouvainConfig::default() };
     let error = Louvain::<usize>::louvain(&graph, &config).unwrap_err();
-    assert!(matches!(error, LouvainError::InvalidMaxLocalPasses));
+    assert!(matches!(error, ModularityError::InvalidMaxLocalPasses));
 }
 
 #[test]
@@ -241,14 +241,14 @@ fn test_louvain_non_square_matrix() {
             .build()
             .unwrap();
     let error = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
-    assert!(matches!(error, LouvainError::NonSquareMatrix { rows: 2, columns: 3 }));
+    assert!(matches!(error, ModularityError::NonSquareMatrix { rows: 2, columns: 3 }));
 }
 
 #[test]
 fn test_louvain_non_finite_weight() {
     let graph = build_weighted_graph(2, vec![(0, 1, f64::INFINITY), (1, 0, f64::INFINITY)]);
     let error = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
-    assert!(matches!(error, LouvainError::NonFiniteWeight { .. }));
+    assert!(matches!(error, ModularityError::NonFiniteWeight { .. }));
 }
 
 #[test]
@@ -276,7 +276,7 @@ fn test_louvain_modularity_bounds() {
 fn test_louvain_negative_weight() {
     let graph = build_weighted_graph(2, vec![(0, 1, -1.0), (1, 0, -1.0)]);
     let error = Louvain::<usize>::louvain(&graph, &LouvainConfig::default()).unwrap_err();
-    assert!(matches!(error, LouvainError::NonPositiveWeight { .. }));
+    assert!(matches!(error, ModularityError::NonPositiveWeight { .. }));
 }
 
 #[test]

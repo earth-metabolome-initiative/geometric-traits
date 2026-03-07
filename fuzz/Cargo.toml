@@ -110,3 +110,9 @@ name = "louvain"
 path = "fuzz_targets/louvain.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "leiden"
+path = "fuzz_targets/leiden.rs"
+test = false
+doc = false

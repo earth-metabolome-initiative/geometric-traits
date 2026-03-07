@@ -1,11 +1,15 @@
 //! Submodule providing the `Louvain` trait and its blanket implementation for
 //! weighted monopartite graphs.
-use alloc::{collections::BTreeMap, vec::Vec};
+
+use alloc::vec::Vec;
 
 use num_traits::{AsPrimitive, ToPrimitive};
-use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
-use crate::traits::{Finite, MonopartiteGraph, Number, PositiveInteger, SparseValuedMatrix2D};
+use super::modularity::{
+    LocalMovingConfig, ModularityError, WeightedUndirectedGraph, local_moving, marker_partition,
+    modularity, project_partition, regroup_members, renumber_partition, validate_common_config,
+};
+use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Configuration options for the Louvain community detection algorithm.
@@ -34,86 +38,6 @@ impl Default for LouvainConfig {
             max_local_passes: 100,
             seed: 42,
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-/// Error enumeration for Louvain community detection.
-pub enum LouvainError {
-    /// The resolution parameter must be finite and strictly positive.
-    #[error("The Louvain resolution must be finite and strictly positive.")]
-    InvalidResolution,
-    /// The modularity threshold must be finite and non-negative.
-    #[error("The Louvain modularity threshold must be finite and non-negative.")]
-    InvalidModularityThreshold,
-    /// The maximum number of levels must be strictly positive.
-    #[error("The Louvain maximum number of levels must be strictly positive.")]
-    InvalidMaxLevels,
-    /// The maximum number of local passes must be strictly positive.
-    #[error("The Louvain maximum number of local passes must be strictly positive.")]
-    InvalidMaxLocalPasses,
-    /// The matrix is not square.
-    #[error("The Louvain matrix must be square, but received shape ({rows}, {columns}).")]
-    NonSquareMatrix {
-        /// Number of rows in the matrix.
-        rows: usize,
-        /// Number of columns in the matrix.
-        columns: usize,
-    },
-    /// The edge weight cannot be represented as `f64`.
-    #[error(
-        "Found an edge weight on ({source_id}, {destination_id}) that cannot be represented as f64."
-    )]
-    UnrepresentableWeight {
-        /// Source node identifier.
-        source_id: usize,
-        /// Destination node identifier.
-        destination_id: usize,
-    },
-    /// The edge weight is not finite.
-    #[error("Found a non-finite edge weight on ({source_id}, {destination_id}).")]
-    NonFiniteWeight {
-        /// Source node identifier.
-        source_id: usize,
-        /// Destination node identifier.
-        destination_id: usize,
-    },
-    /// The edge weight must be strictly positive.
-    #[error("Found a non-positive edge weight on ({source_id}, {destination_id}).")]
-    NonPositiveWeight {
-        /// Source node identifier.
-        source_id: usize,
-        /// Destination node identifier.
-        destination_id: usize,
-    },
-    /// The matrix does not represent an undirected graph.
-    #[error(
-        "The matrix is not symmetric: edge ({source_id}, {destination_id}) has no matching reverse edge."
-    )]
-    NonSymmetricEdge {
-        /// Source node identifier.
-        source_id: usize,
-        /// Destination node identifier.
-        destination_id: usize,
-    },
-    /// The selected community marker type is too small.
-    #[error("The selected community marker type is too small for this partition.")]
-    TooManyCommunities,
-}
-
-impl From<LouvainError>
-    for crate::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError
-{
-    #[inline]
-    fn from(error: LouvainError) -> Self {
-        Self::LouvainError(error)
-    }
-}
-
-impl<G: MonopartiteGraph> From<LouvainError> for crate::errors::MonopartiteError<G> {
-    #[inline]
-    fn from(error: LouvainError) -> Self {
-        Self::AlgorithmError(error.into())
     }
 }
 
@@ -237,8 +161,13 @@ where
     /// assert!(!result.levels().is_empty());
     /// ```
     #[inline]
-    fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, LouvainError> {
-        validate_config(config)?;
+    fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, ModularityError> {
+        validate_common_config(
+            config.resolution,
+            config.modularity_threshold,
+            config.max_levels,
+            config.max_local_passes,
+        )?;
 
         let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
 
@@ -250,7 +179,15 @@ where
         let mut previous_modularity: Option<f64> = None;
 
         for level_index in 0..config.max_levels {
-            let (mut partition, moved_nodes) = local_moving(&graph, config, level_index);
+            let (mut partition, moved_nodes) = local_moving(
+                &graph,
+                LocalMovingConfig {
+                    resolution: config.resolution,
+                    max_local_passes: config.max_local_passes,
+                    seed: config.seed,
+                },
+                level_index,
+            );
             let number_of_communities = renumber_partition(&mut partition);
             let modularity = modularity(&graph, &partition, config.resolution);
 
@@ -289,305 +226,14 @@ where
 {
 }
 
-#[derive(Debug, Clone)]
-struct WeightedUndirectedGraph {
-    adjacency: Vec<Vec<(usize, f64)>>,
-    degree: Vec<f64>,
-    total_weight: f64,
-}
+#[cfg(test)]
+mod tests {
+    use super::LouvainLevel;
 
-impl WeightedUndirectedGraph {
-    fn number_of_nodes(&self) -> usize {
-        self.adjacency.len()
+    #[test]
+    fn test_louvain_level_moved_nodes_getter() {
+        let level =
+            LouvainLevel { partition: vec![0usize, 0usize], modularity: 0.5, moved_nodes: 7 };
+        assert_eq!(level.moved_nodes(), 7);
     }
-
-    fn from_matrix<M>(matrix: &M) -> Result<Self, LouvainError>
-    where
-        M: SparseValuedMatrix2D,
-        M::RowIndex: AsPrimitive<usize>,
-        M::ColumnIndex: AsPrimitive<usize>,
-        M::Value: ToPrimitive + Finite,
-    {
-        let rows = matrix.number_of_rows().as_();
-        let columns = matrix.number_of_columns().as_();
-        if rows != columns {
-            return Err(LouvainError::NonSquareMatrix { rows, columns });
-        }
-
-        let mut adjacency: Vec<Vec<(usize, f64)>> = vec![Vec::new(); rows];
-        let mut degree = vec![0.0; rows];
-
-        for row_id in matrix.row_indices() {
-            let source = row_id.as_();
-            for (column_id, weight) in
-                matrix.sparse_row(row_id).zip(matrix.sparse_row_values(row_id))
-            {
-                let destination = column_id.as_();
-                if !weight.is_finite() {
-                    return Err(LouvainError::NonFiniteWeight {
-                        source_id: source,
-                        destination_id: destination,
-                    });
-                }
-                let weight = weight.to_f64().ok_or(LouvainError::UnrepresentableWeight {
-                    source_id: source,
-                    destination_id: destination,
-                })?;
-                if !weight.is_finite() {
-                    return Err(LouvainError::NonFiniteWeight {
-                        source_id: source,
-                        destination_id: destination,
-                    });
-                }
-                if weight <= 0.0 {
-                    return Err(LouvainError::NonPositiveWeight {
-                        source_id: source,
-                        destination_id: destination,
-                    });
-                }
-                adjacency[source].push((destination, weight));
-                degree[source] += weight;
-            }
-        }
-
-        for (source, neighbors) in adjacency.iter().enumerate() {
-            for (destination, weight) in neighbors {
-                if !has_matching_edge(&adjacency[*destination], source, *weight) {
-                    return Err(LouvainError::NonSymmetricEdge {
-                        source_id: source,
-                        destination_id: *destination,
-                    });
-                }
-            }
-        }
-
-        let total_weight = degree.iter().sum();
-        Ok(Self { adjacency, degree, total_weight })
-    }
-
-    fn induced(&self, partition: &[usize], number_of_communities: usize) -> Self {
-        let mut compact_edges: BTreeMap<(usize, usize), f64> = BTreeMap::new();
-        for (source, neighbors) in self.adjacency.iter().enumerate() {
-            let source_community = partition[source];
-            for (destination, weight) in neighbors {
-                let destination_community = partition[*destination];
-                *compact_edges.entry((source_community, destination_community)).or_insert(0.0) +=
-                    *weight;
-            }
-        }
-
-        let mut adjacency: Vec<Vec<(usize, f64)>> = vec![Vec::new(); number_of_communities];
-        let mut degree: Vec<f64> = vec![0.0; number_of_communities];
-
-        for ((source, destination), weight) in compact_edges {
-            adjacency[source].push((destination, weight));
-            degree[source] += weight;
-        }
-
-        let total_weight = degree.iter().sum();
-        Self { adjacency, degree, total_weight }
-    }
-}
-
-fn validate_config(config: &LouvainConfig) -> Result<(), LouvainError> {
-    if !config.resolution.is_finite() || config.resolution <= 0.0 {
-        return Err(LouvainError::InvalidResolution);
-    }
-    if !config.modularity_threshold.is_finite() || config.modularity_threshold < 0.0 {
-        return Err(LouvainError::InvalidModularityThreshold);
-    }
-    if config.max_levels == 0 {
-        return Err(LouvainError::InvalidMaxLevels);
-    }
-    if config.max_local_passes == 0 {
-        return Err(LouvainError::InvalidMaxLocalPasses);
-    }
-    Ok(())
-}
-
-fn local_moving(
-    graph: &WeightedUndirectedGraph,
-    config: &LouvainConfig,
-    level_index: usize,
-) -> (Vec<usize>, usize) {
-    let number_of_nodes = graph.number_of_nodes();
-    let mut partition: Vec<usize> = (0..number_of_nodes).collect();
-
-    if number_of_nodes == 0 || graph.total_weight <= 0.0 || !graph.total_weight.is_normal() {
-        return (partition, 0);
-    }
-
-    let mut community_totals = graph.degree.clone();
-    let mut order: Vec<usize> = (0..number_of_nodes).collect();
-    let mut touched_communities = Vec::new();
-    let mut weights_to_communities = vec![0.0; number_of_nodes];
-    let mut moved_nodes = 0usize;
-
-    for pass_index in 0..config.max_local_passes {
-        let mut rng = SmallRng::seed_from_u64(mix_seed(config.seed, level_index, pass_index));
-        order.shuffle(&mut rng);
-
-        let mut moved_in_pass = 0usize;
-
-        for node in &order {
-            let node = *node;
-            let node_degree = graph.degree[node];
-            if node_degree <= 0.0 {
-                continue;
-            }
-
-            let source_community = partition[node];
-            touched_communities.clear();
-
-            for (neighbor, weight) in &graph.adjacency[node] {
-                let neighbor_community = partition[*neighbor];
-                if weights_to_communities[neighbor_community] == 0.0 {
-                    touched_communities.push(neighbor_community);
-                }
-                weights_to_communities[neighbor_community] += *weight;
-            }
-
-            community_totals[source_community] -= node_degree;
-
-            let mut best_community = source_community;
-            let mut best_gain = weights_to_communities[source_community]
-                - config.resolution * node_degree * community_totals[source_community]
-                    / graph.total_weight;
-
-            for community in &touched_communities {
-                let community = *community;
-                let gain = weights_to_communities[community]
-                    - config.resolution * node_degree * community_totals[community]
-                        / graph.total_weight;
-                if gain > best_gain + f64::EPSILON
-                    || (approx_eq(gain, best_gain) && community < best_community)
-                {
-                    best_gain = gain;
-                    best_community = community;
-                }
-            }
-
-            partition[node] = best_community;
-            community_totals[best_community] += node_degree;
-
-            if best_community != source_community {
-                moved_in_pass += 1;
-                moved_nodes += 1;
-            }
-
-            for community in &touched_communities {
-                weights_to_communities[*community] = 0.0;
-            }
-            weights_to_communities[source_community] = 0.0;
-        }
-
-        if moved_in_pass == 0 {
-            break;
-        }
-    }
-
-    (partition, moved_nodes)
-}
-
-fn modularity(graph: &WeightedUndirectedGraph, partition: &[usize], resolution: f64) -> f64 {
-    if graph.total_weight <= 0.0 || !graph.total_weight.is_normal() {
-        return 0.0;
-    }
-
-    let number_of_communities = partition.iter().copied().max().map_or(0, |max| max + 1);
-    let mut total_weight_per_community = vec![0.0; number_of_communities];
-    let mut internal_weight_per_community = vec![0.0; number_of_communities];
-
-    for (source, source_community) in partition.iter().copied().enumerate() {
-        total_weight_per_community[source_community] += graph.degree[source];
-        for (destination, weight) in &graph.adjacency[source] {
-            if partition[*destination] == source_community {
-                internal_weight_per_community[source_community] += *weight;
-            }
-        }
-    }
-
-    let inverse_total_weight = 1.0 / graph.total_weight;
-    total_weight_per_community.iter().zip(internal_weight_per_community.iter()).fold(
-        0.0,
-        |modularity, (total_weight, internal_weight)| {
-            if *total_weight <= 0.0 {
-                return modularity;
-            }
-            let total_fraction = *total_weight * inverse_total_weight;
-            modularity + (*internal_weight * inverse_total_weight)
-                - resolution * total_fraction * total_fraction
-        },
-    )
-}
-
-fn renumber_partition(partition: &mut [usize]) -> usize {
-    let mut mapping = vec![usize::MAX; partition.len()];
-    let mut next_community_id = 0usize;
-
-    for community in partition {
-        if mapping[*community] == usize::MAX {
-            mapping[*community] = next_community_id;
-            next_community_id += 1;
-        }
-        *community = mapping[*community];
-    }
-
-    next_community_id
-}
-
-fn project_partition(
-    current_members: &[Vec<usize>],
-    partition: &[usize],
-    number_of_original_nodes: usize,
-) -> Vec<usize> {
-    let mut projected_partition = vec![0usize; number_of_original_nodes];
-    for (current_node, member_nodes) in current_members.iter().enumerate() {
-        let community = partition[current_node];
-        for original_node in member_nodes {
-            projected_partition[*original_node] = community;
-        }
-    }
-    projected_partition
-}
-
-fn regroup_members(
-    current_members: Vec<Vec<usize>>,
-    partition: &[usize],
-    number_of_communities: usize,
-) -> Vec<Vec<usize>> {
-    let mut next_members = vec![Vec::new(); number_of_communities];
-    for (current_node, member_nodes) in current_members.into_iter().enumerate() {
-        next_members[partition[current_node]].extend(member_nodes);
-    }
-    next_members
-}
-
-fn marker_partition<Marker: PositiveInteger>(
-    partition: &[usize],
-) -> Result<Vec<Marker>, LouvainError> {
-    partition
-        .iter()
-        .copied()
-        .map(|community| {
-            Marker::try_from_usize(community).map_err(|_| LouvainError::TooManyCommunities)
-        })
-        .collect()
-}
-
-fn mix_seed(seed: u64, level_index: usize, pass_index: usize) -> u64 {
-    let level = level_index as u64;
-    let pass = pass_index as u64;
-    seed ^ level.wrapping_add(1).wrapping_mul(0x9E37_79B9_7F4A_7C15)
-        ^ pass.wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)
-}
-
-fn has_matching_edge(row: &[(usize, f64)], destination: usize, weight: f64) -> bool {
-    row.binary_search_by_key(&destination, |(col, _)| *col)
-        .is_ok_and(|idx| approx_eq(weight, row[idx].1))
-}
-
-fn approx_eq(left: f64, right: f64) -> bool {
-    let tolerance = (left.abs().max(right.abs()).max(1.0)) * 16.0 * f64::EPSILON;
-    (left - right).abs() <= tolerance
 }

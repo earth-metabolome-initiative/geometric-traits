@@ -620,11 +620,11 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 }
 
 // ============================================================================
-// Louvain invariants (from fuzz/fuzz_targets/louvain.rs)
+// Louvain/Leiden invariants (from fuzz/fuzz_targets/{louvain,leiden}.rs)
 // ============================================================================
 
 /// Returns `true` when edge weights are in a numerically stable range for
-/// Louvain modularity comparisons.
+/// modularity comparisons.
 #[must_use]
 #[inline]
 pub fn louvain_weights_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64>) -> bool {
@@ -647,32 +647,17 @@ pub fn louvain_weights_are_numerically_stable(csr: &ValuedCSR2D<u16, u8, u8, f64
     min_val >= f64::MIN_POSITIVE && max_val <= 1e150 && (max_val / min_val) <= 1e12
 }
 
-/// Check Louvain invariants on arbitrary input (should never panic) and,
-/// when possible, on a symmetrized version of the matrix (partition length,
-/// modularity bounds, determinism).
-///
-/// # Panics
-///
-/// Panics if Louvain fails on valid symmetric input or produces invalid
-/// results.
-#[inline]
-pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
-    // Louvain must never panic on arbitrary input.
-    let _: Result<LouvainResult<usize>, _> = csr.louvain(&LouvainConfig::default());
-
-    // Skip symmetric invariant checking for extreme weight ranges.
-    if !louvain_weights_are_numerically_stable(csr) {
-        return;
-    }
-
+fn symmetrized_positive_graph(
+    csr: &ValuedCSR2D<u16, u8, u8, f64>,
+) -> Option<ValuedCSR2D<u8, u8, u8, f64>> {
     let rows: usize = csr.number_of_rows().as_();
     let cols: usize = csr.number_of_columns().as_();
     if rows != cols || rows == 0 || rows > u8::MAX as usize {
-        return;
+        return None;
     }
 
     let Ok(n) = u8::try_from(rows) else {
-        return;
+        return None;
     };
 
     // Extract upper-triangle edges with finite positive weights, then mirror.
@@ -700,31 +685,114 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     }
 
     if edges.is_empty() {
-        return;
+        return None;
     }
 
     edges.sort_unstable_by(|(r1, c1, _), (r2, c2, _)| (r1, c1).cmp(&(r2, c2)));
     edges.dedup_by(|(r1, c1, _), (r2, c2, _)| (*r1, *c1) == (*r2, *c2));
 
     let Ok(edge_count) = u8::try_from(edges.len()) else {
-        return;
+        return None;
     };
 
-    let sym_csr: ValuedCSR2D<u8, u8, u8, f64> = match GenericEdgesBuilder::default()
+    GenericEdgesBuilder::default()
         .expected_number_of_edges(edge_count)
         .expected_shape((n, n))
         .edges(edges.into_iter())
         .build()
-    {
-        Ok(m) => m,
-        Err(_) => return,
+        .ok()
+}
+
+fn partition_communities_are_connected(
+    csr: &ValuedCSR2D<u8, u8, u8, f64>,
+    partition: &[usize],
+) -> bool {
+    let node_count: usize = csr.number_of_rows().as_();
+    if node_count == 0 || partition.len() != node_count {
+        return false;
+    }
+
+    let number_of_communities =
+        partition.iter().copied().max().map_or(0usize, |max| max.saturating_add(1));
+    let mut nodes_per_community: Vec<Vec<usize>> = vec![Vec::new(); number_of_communities];
+    for (node, community) in partition.iter().copied().enumerate() {
+        nodes_per_community[community].push(node);
+    }
+
+    let mut queue: Vec<usize> = Vec::new();
+    let mut is_member = vec![false; node_count];
+    let mut visited = vec![false; node_count];
+
+    for nodes in nodes_per_community {
+        if nodes.len() <= 1 {
+            continue;
+        }
+
+        for node in &nodes {
+            is_member[*node] = true;
+        }
+
+        queue.clear();
+        let start = nodes[0];
+        queue.push(start);
+        visited[start] = true;
+
+        let mut visited_count = 0usize;
+        while let Some(node) = queue.pop() {
+            visited_count += 1;
+
+            let Ok(row) = u8::try_from(node) else {
+                return false;
+            };
+            for destination in csr.sparse_row(row) {
+                let destination: usize = destination.as_();
+                if destination < node_count && is_member[destination] && !visited[destination] {
+                    visited[destination] = true;
+                    queue.push(destination);
+                }
+            }
+        }
+
+        if visited_count != nodes.len() {
+            return false;
+        }
+
+        for node in &nodes {
+            is_member[*node] = false;
+            visited[*node] = false;
+        }
+    }
+
+    true
+}
+
+/// Check Louvain invariants on arbitrary input (should never panic) and,
+/// when possible, on a symmetrized version of the matrix (partition length,
+/// modularity bounds, determinism).
+///
+/// # Panics
+///
+/// Panics if Louvain fails on valid symmetric input or produces invalid
+/// results.
+#[inline]
+pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    // Louvain must never panic on arbitrary input.
+    let _: Result<LouvainResult<usize>, _> = csr.louvain(&LouvainConfig::default());
+
+    // Skip symmetric invariant checking for extreme weight ranges.
+    if !louvain_weights_are_numerically_stable(csr) {
+        return;
+    }
+
+    let Some(sym_csr) = symmetrized_positive_graph(csr) else {
+        return;
     };
 
     let config = LouvainConfig::default();
     let result = Louvain::<usize>::louvain(&sym_csr, &config)
         .expect("Louvain must not fail on a valid symmetric graph");
 
-    let n = n as usize;
+    let n: usize = sym_csr.number_of_rows().as_();
     assert_eq!(result.final_partition().len(), n, "partition length must equal node count");
     let modularity = result.final_modularity();
     assert!(
@@ -738,6 +806,58 @@ pub fn check_louvain_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         result.final_partition(),
         result2.final_partition(),
         "Louvain must be deterministic for the same seed"
+    );
+    assert!(
+        (result.final_modularity() - result2.final_modularity()).abs() <= 1.0e-12,
+        "modularity must be deterministic"
+    );
+}
+
+/// Check Leiden invariants on arbitrary input (should never panic) and,
+/// when possible, on a symmetrized version of the matrix (partition length,
+/// modularity bounds, determinism, community connectedness).
+///
+/// # Panics
+///
+/// Panics if Leiden fails on valid symmetric input or produces invalid
+/// results.
+#[inline]
+pub fn check_leiden_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    // Leiden must never panic on arbitrary input.
+    let _: Result<LeidenResult<usize>, _> = csr.leiden(&LeidenConfig::default());
+
+    // Skip symmetric invariant checking for extreme weight ranges.
+    if !louvain_weights_are_numerically_stable(csr) {
+        return;
+    }
+
+    let Some(sym_csr) = symmetrized_positive_graph(csr) else {
+        return;
+    };
+
+    let config = LeidenConfig::default();
+    let result = Leiden::<usize>::leiden(&sym_csr, &config)
+        .expect("Leiden must not fail on a valid symmetric graph");
+
+    let n: usize = sym_csr.number_of_rows().as_();
+    let final_partition = result.final_partition();
+    assert_eq!(final_partition.len(), n, "partition length must equal node count");
+    let modularity = result.final_modularity();
+    assert!(
+        (-0.5 - 1e-9..=1.0 + 1e-9).contains(&modularity),
+        "modularity {modularity} out of [-0.5, 1.0] (with FP tolerance)"
+    );
+    assert!(
+        partition_communities_are_connected(&sym_csr, final_partition),
+        "Leiden communities must induce connected subgraphs"
+    );
+
+    // Determinism check.
+    let result2 = Leiden::<usize>::leiden(&sym_csr, &config).unwrap();
+    assert_eq!(
+        result.final_partition(),
+        result2.final_partition(),
+        "Leiden must be deterministic for the same seed"
     );
     assert!(
         (result.final_modularity() - result2.final_modularity()).abs() <= 1.0e-12,
