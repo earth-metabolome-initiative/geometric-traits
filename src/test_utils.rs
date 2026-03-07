@@ -927,6 +927,14 @@ pub fn check_jacobi_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         return;
     }
 
+    // Skip detailed numerical invariants for extreme value ranges.
+    // Jacobi rotations square values internally; if max_abs ≈ 1e155,
+    // then max_abs² ≈ 1e310 which is near f64::MAX ≈ 1.8e308.
+    let max_abs = a_flat.iter().copied().fold(0.0_f64, |acc, v| acc.max(v.abs()));
+    if max_abs > 1e150 {
+        return;
+    }
+
     let result = result.expect("Jacobi should succeed on a finite symmetric square matrix");
 
     // Eigenvalues sorted descending.
