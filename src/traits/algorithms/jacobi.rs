@@ -158,7 +158,7 @@ pub enum JacobiError {
 // ============================================================================
 
 /// Validate the user-supplied configuration.
-fn validate_config(config: &JacobiConfig) -> Result<(), JacobiError> {
+pub(crate) fn validate_config(config: &JacobiConfig) -> Result<(), JacobiError> {
     if !config.tolerance.is_finite() || config.tolerance <= 0.0 {
         return Err(JacobiError::InvalidTolerance);
     }
@@ -250,7 +250,7 @@ fn off_diag_norm_sq(matrix: &[f64], order: usize) -> f64 {
 /// towards diagonal form. Returns the eigenvector storage where
 /// `evecs[k * order + i]` is component *i* of eigenvector *k*.
 #[allow(clippy::many_single_char_names)]
-fn jacobi_decompose(
+pub(crate) fn jacobi_decompose(
     matrix: &mut [f64],
     order: usize,
     tol: f64,
@@ -327,7 +327,7 @@ fn jacobi_decompose(
 
 /// Sort eigenvalues in descending order and reorder the eigenvector columns
 /// to match.
-fn sort_eigen(eigenvalues: &mut [f64], eigenvectors: &mut [f64], order: usize) {
+pub(crate) fn sort_eigen(eigenvalues: &mut [f64], eigenvectors: &mut [f64], order: usize) {
     // Build index permutation sorted by descending eigenvalue.
     let mut indices: Vec<usize> = (0..order).collect();
     indices.sort_by(|&idx_a, &idx_b| {

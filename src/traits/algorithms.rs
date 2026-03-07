@@ -81,3 +81,7 @@ pub use leiden::*;
 mod jacobi;
 #[cfg(feature = "alloc")]
 pub use jacobi::*;
+#[cfg(feature = "alloc")]
+mod mds;
+#[cfg(feature = "alloc")]
+pub use mds::*;
