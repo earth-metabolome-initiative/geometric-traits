@@ -983,6 +983,117 @@ pub fn check_jacobi_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+// ============================================================================
+// Classical MDS invariants (from fuzz/fuzz_targets/mds.rs)
+// ============================================================================
+
+/// Check classical MDS invariants on arbitrary input.
+///
+/// Wraps the sparse CSR in a [`PaddedMatrix2D`] (padding with 0.0) and, when
+/// the resulting matrix forms a valid distance matrix (square, finite,
+/// non-negative, zero diagonal, symmetric, and small enough: n ≤ 32), verifies:
+/// - coordinates are all finite
+/// - eigenvalues are all finite and sorted descending
+/// - stress is finite and non-negative
+/// - determinism (same input → same output)
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+#[inline]
+pub fn check_mds_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    let Ok(padded) = PaddedMatrix2D::new(csr, |_| 0.0) else {
+        return;
+    };
+    let rows: usize = padded.number_of_rows().as_();
+    let cols: usize = padded.number_of_columns().as_();
+
+    // Must not panic on any input.
+    let config = MdsConfig::default();
+    let result = padded.classical_mds(&config);
+
+    if rows != cols || rows <= 1 || rows > 32 {
+        return;
+    }
+
+    // Read dense values and check for valid distance matrix properties.
+    let n = rows;
+    let mut d_flat = Vec::with_capacity(n * n);
+    let mut all_valid = true;
+    for row_idx in padded.row_indices() {
+        for val in padded.row_values(row_idx) {
+            if !val.is_finite() || val < 0.0 {
+                all_valid = false;
+            }
+            d_flat.push(val);
+        }
+    }
+    if !all_valid {
+        return;
+    }
+
+    // Check diagonal is zero.
+    for i in 0..n {
+        if d_flat[i * n + i] != 0.0 {
+            return;
+        }
+    }
+
+    // Check symmetry.
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let scale = d_flat[i * n + j].abs().max(d_flat[j * n + i].abs()).max(1.0);
+            if (d_flat[i * n + j] - d_flat[j * n + i]).abs() > 16.0 * f64::EPSILON * scale {
+                return;
+            }
+        }
+    }
+
+    // Skip detailed numerical invariants for extreme value ranges.
+    let max_abs = d_flat.iter().copied().fold(0.0_f64, |acc, v| acc.max(v.abs()));
+    if max_abs > 1e150 {
+        return;
+    }
+
+    let result = result.expect("MDS should succeed on a valid distance matrix");
+
+    // Coordinates are all finite.
+    for &c in result.coordinates_flat() {
+        assert!(c.is_finite(), "non-finite coordinate: {c}");
+    }
+
+    // Eigenvalues are finite.
+    for &ev in result.eigenvalues() {
+        assert!(ev.is_finite(), "non-finite eigenvalue: {ev}");
+    }
+
+    // Eigenvalues sorted descending.
+    for w in result.eigenvalues().windows(2) {
+        assert!(w[0] >= w[1], "eigenvalues not sorted descending: {:?}", result.eigenvalues());
+    }
+
+    // Stress is finite and non-negative.
+    assert!(result.stress().is_finite(), "non-finite stress: {}", result.stress());
+    assert!(result.stress() >= 0.0, "negative stress: {}", result.stress());
+
+    // Determinism.
+    let result2 = padded.classical_mds(&config).unwrap();
+    assert_eq!(
+        result.coordinates_flat(),
+        result2.coordinates_flat(),
+        "MDS must be deterministic for the same input"
+    );
+    assert_eq!(
+        result.eigenvalues(),
+        result2.eigenvalues(),
+        "MDS eigenvalues must be deterministic"
+    );
+    assert!(
+        (result.stress() - result2.stress()).abs() <= f64::EPSILON,
+        "MDS stress must be deterministic"
+    );
+}
+
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]
 mod tests {
     use std::{
@@ -1257,6 +1368,12 @@ mod tests {
     fn test_check_jacobi_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_jacobi_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_mds_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_mds_invariants(&csr);
     }
 
     mod coverage_submodule {
