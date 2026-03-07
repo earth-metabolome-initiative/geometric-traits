@@ -15,7 +15,8 @@ use num_traits::AsPrimitive;
 use crate::{
     prelude::*,
     traits::{
-        EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix, SparseValuedMatrix2D,
+        DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
+        SparseValuedMatrix2D,
     },
 };
 
@@ -865,6 +866,115 @@ pub fn check_leiden_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+// ============================================================================
+// Jacobi eigenvalue decomposition invariants (from fuzz/fuzz_targets/jacobi.rs)
+// ============================================================================
+
+/// Check Jacobi eigenvalue decomposition invariants on arbitrary input.
+///
+/// Wraps the sparse CSR in a [`PaddedMatrix2D`] (padding with 0.0) and, when
+/// the resulting matrix is symmetric, square, finite, and small enough
+/// (n ≤ 32), verifies:
+/// - eigenvalues are sorted descending and all finite
+/// - eigenvectors are orthonormal (VᵀV ≈ I)
+/// - reconstruction (A ≈ VΛVᵀ)
+/// - determinism (same input → same output)
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+#[inline]
+pub fn check_jacobi_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    let Ok(padded) = PaddedMatrix2D::new(csr, |_| 0.0) else {
+        return;
+    };
+    let rows: usize = padded.number_of_rows().as_();
+    let cols: usize = padded.number_of_columns().as_();
+
+    // Must not panic on any input.
+    let result = padded.jacobi(&JacobiConfig::default());
+
+    if rows != cols || rows == 0 || rows > 32 {
+        return;
+    }
+
+    // Read dense values and check for finiteness / symmetry.
+    let n = rows;
+    let mut a_flat = Vec::with_capacity(n * n);
+    let mut all_finite = true;
+    for row_idx in padded.row_indices() {
+        for val in padded.row_values(row_idx) {
+            if !val.is_finite() {
+                all_finite = false;
+            }
+            a_flat.push(val);
+        }
+    }
+    if !all_finite {
+        return;
+    }
+
+    let mut is_symmetric = true;
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let scale = a_flat[i * n + j].abs().max(a_flat[j * n + i].abs()).max(1.0);
+            if (a_flat[i * n + j] - a_flat[j * n + i]).abs() > 16.0 * f64::EPSILON * scale {
+                is_symmetric = false;
+            }
+        }
+    }
+    if !is_symmetric {
+        return;
+    }
+
+    let result = result.expect("Jacobi should succeed on a finite symmetric square matrix");
+
+    // Eigenvalues sorted descending.
+    for w in result.eigenvalues().windows(2) {
+        assert!(w[0] >= w[1], "eigenvalues not sorted descending: {:?}", result.eigenvalues());
+    }
+
+    // All eigenvalues finite.
+    for &ev in result.eigenvalues() {
+        assert!(ev.is_finite(), "non-finite eigenvalue: {ev}");
+    }
+
+    // Orthonormality: VᵀV ≈ I.
+    for k in 0..n {
+        for l in 0..n {
+            let dot: f64 =
+                (0..n).map(|i| result.eigenvector(k)[i] * result.eigenvector(l)[i]).sum();
+            let expected = if k == l { 1.0 } else { 0.0 };
+            assert!((dot - expected).abs() < 1e-6, "VᵀV[{k},{l}] = {dot}, expected {expected}");
+        }
+    }
+
+    // Reconstruction: A ≈ VΛVᵀ.
+    for i in 0..n {
+        for j in 0..n {
+            let mut reconstructed = 0.0;
+            for k in 0..n {
+                reconstructed +=
+                    result.eigenvalues()[k] * result.eigenvector(k)[i] * result.eigenvector(k)[j];
+            }
+            let expected = a_flat[i * n + j];
+            let scale = expected.abs().max(1.0);
+            assert!(
+                (reconstructed - expected).abs() < 1e-6 * scale,
+                "Reconstruction failed at ({i}, {j}): expected {expected}, got {reconstructed}"
+            );
+        }
+    }
+
+    // Determinism.
+    let result2 = padded.jacobi(&JacobiConfig::default()).unwrap();
+    assert_eq!(
+        result.eigenvalues(),
+        result2.eigenvalues(),
+        "Jacobi must be deterministic for the same input"
+    );
+}
+
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]
 mod tests {
     use std::{
@@ -1133,6 +1243,12 @@ mod tests {
     fn test_check_louvain_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_louvain_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_jacobi_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_jacobi_invariants(&csr);
     }
 
     mod coverage_submodule {
