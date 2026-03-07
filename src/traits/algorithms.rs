@@ -77,3 +77,7 @@ pub use louvain::*;
 mod leiden;
 #[cfg(feature = "alloc")]
 pub use leiden::*;
+#[cfg(feature = "alloc")]
+mod jacobi;
+#[cfg(feature = "alloc")]
+pub use jacobi::*;
