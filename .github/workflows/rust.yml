@@ -37,6 +37,8 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     - name: Check with no default features
       run: cargo check --no-default-features
+    - name: Test with no default features
+      run: cargo test --no-default-features
     - name: Test no_std + alloc
       run: cargo test --no-default-features --features alloc
     - name: Test no_std + alloc + hashbrown
