@@ -179,6 +179,8 @@ pub trait WeightedMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, ValuedCSR2D},
     ///     naive_structs::{GenericEdgesBuilder, GenericGraph},
@@ -205,6 +207,7 @@ pub trait WeightedMonoplexGraph:
     ///
     /// let weights: Vec<f64> = graph.successor_weights(0).collect();
     /// assert_eq!(weights, vec![1.0, 2.0]);
+    /// # }
     /// ```
     #[inline]
     fn successor_weights(
@@ -220,6 +223,8 @@ pub trait WeightedMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, ValuedCSR2D},
     ///     naive_structs::{GenericEdgesBuilder, GenericGraph},
@@ -245,6 +250,7 @@ pub trait WeightedMonoplexGraph:
     ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.max_successor_weight(0), Some(2.0));
+    /// # }
     /// ```
     #[inline]
     fn max_successor_weight(
@@ -263,6 +269,8 @@ pub trait WeightedMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, ValuedCSR2D},
     ///     naive_structs::{GenericEdgesBuilder, GenericGraph},
@@ -288,6 +296,7 @@ pub trait WeightedMonoplexGraph:
     ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.max_successor_weight_and_id(0), Some((2.0, 2)));
+    /// # }
     /// ```
     #[inline]
     fn max_successor_weight_and_id(
@@ -305,6 +314,8 @@ pub trait WeightedMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, ValuedCSR2D},
     ///     naive_structs::{GenericEdgesBuilder, GenericGraph},
@@ -330,6 +341,7 @@ pub trait WeightedMonoplexGraph:
     ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.min_successor_weight(0), Some(1.0));
+    /// # }
     /// ```
     #[inline]
     fn min_successor_weight(
@@ -348,6 +360,8 @@ pub trait WeightedMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, ValuedCSR2D},
     ///     naive_structs::{GenericEdgesBuilder, GenericGraph},
@@ -373,6 +387,7 @@ pub trait WeightedMonoplexGraph:
     ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.min_successor_weight_and_id(0), Some((1.0, 1)));
+    /// # }
     /// ```
     #[inline]
     fn min_successor_weight_and_id(

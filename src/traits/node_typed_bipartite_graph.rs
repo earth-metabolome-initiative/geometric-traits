@@ -19,6 +19,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::named_types::BiGraph,
@@ -98,6 +100,7 @@ where
     /// assert_eq!(graph.left_node_type(&0), Some(LeftKind::Entity));
     /// assert_eq!(graph.left_node_type(&1), Some(LeftKind::Action));
     /// assert_eq!(graph.left_node_type(&2), None);
+    /// # }
     /// ```
     #[inline]
     fn left_node_type(

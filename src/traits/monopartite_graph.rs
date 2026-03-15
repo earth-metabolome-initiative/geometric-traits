@@ -27,6 +27,8 @@ pub trait MonopartiteEdges:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -49,6 +51,7 @@ pub trait MonopartiteEdges:
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert!(graph.edges().has_self_loops());
+    /// # }
     /// ```
     #[inline]
     fn has_self_loops(&self) -> bool {
@@ -60,6 +63,8 @@ pub trait MonopartiteEdges:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -82,6 +87,7 @@ pub trait MonopartiteEdges:
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.edges().number_of_self_loops(), 1);
+    /// # }
     /// ```
     fn number_of_self_loops(&self) -> Self::NodeId;
 }
@@ -114,6 +120,8 @@ pub trait MonopartiteGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -136,6 +144,7 @@ pub trait MonopartiteGraph: super::Graph {
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.nodes_vocabulary().len(), 4);
+    /// # }
     /// ```
     fn nodes_vocabulary(&self) -> &Self::Nodes;
 
@@ -144,6 +153,8 @@ pub trait MonopartiteGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -167,6 +178,7 @@ pub trait MonopartiteGraph: super::Graph {
     ///
     /// let node_ids: Vec<usize> = graph.node_ids().collect();
     /// assert_eq!(node_ids, vec![0, 1, 2, 3]);
+    /// # }
     /// ```
     #[inline]
     fn node_ids(&self) -> <Self::Nodes as Vocabulary>::Sources<'_> {
@@ -178,6 +190,8 @@ pub trait MonopartiteGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -201,6 +215,7 @@ pub trait MonopartiteGraph: super::Graph {
     ///
     /// let nodes: Vec<usize> = graph.nodes().collect();
     /// assert_eq!(nodes, vec![0, 1, 2, 3]);
+    /// # }
     /// ```
     #[inline]
     fn nodes(&self) -> <Self::Nodes as Vocabulary>::Destinations<'_> {
@@ -212,6 +227,8 @@ pub trait MonopartiteGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -234,6 +251,7 @@ pub trait MonopartiteGraph: super::Graph {
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.number_of_nodes(), 4);
+    /// # }
     /// ```
     #[inline]
     fn number_of_nodes(&self) -> Self::NodeId {

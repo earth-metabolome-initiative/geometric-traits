@@ -29,6 +29,8 @@ pub trait MonoplexMonopartiteGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -52,6 +54,7 @@ pub trait MonoplexMonopartiteGraph:
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert!(graph.has_self_loops());
+    /// # }
     /// ```
     #[inline]
     fn has_self_loops(&self) -> bool {
@@ -63,6 +66,8 @@ pub trait MonoplexMonopartiteGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -85,6 +90,7 @@ pub trait MonoplexMonopartiteGraph:
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.number_of_self_loops(), 2);
+    /// # }
     /// ```
     #[inline]
     fn number_of_self_loops(&self) -> Self::NodeId {
@@ -98,6 +104,8 @@ pub trait MonoplexMonopartiteGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -120,6 +128,7 @@ pub trait MonoplexMonopartiteGraph:
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert!(graph.is_topologically_sorted());
+    /// # }
     /// ```
     #[inline]
     fn is_topologically_sorted(&self) -> bool {
@@ -159,6 +168,8 @@ pub trait MonoplexMonopartiteGraph:
     /// let paths = graph.unique_paths_from(0);
     /// assert_eq!(paths.len(), 2);
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     #[cfg(feature = "alloc")]
     #[inline]
     fn unique_paths_from(&self, source: Self::NodeId) -> Vec<Vec<Self::NodeId>> {
@@ -197,6 +208,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// # Examples
     ///
+    /// # }
     /// ```
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
@@ -222,6 +234,8 @@ pub trait MonoplexMonopartiteGraph:
     /// let successors = graph.successors_set(0);
     /// assert_eq!(successors, vec![1, 2]);
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     #[cfg(feature = "alloc")]
     #[inline]
     fn successors_set(&self, source: Self::NodeId) -> Vec<Self::NodeId> {
@@ -255,6 +269,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// # Examples
     ///
+    /// # }
     /// ```
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
@@ -280,6 +295,8 @@ pub trait MonoplexMonopartiteGraph:
     /// assert!(graph.has_path(0, 2));
     /// assert!(!graph.has_path(2, 0));
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     #[cfg(feature = "alloc")]
     #[inline]
     fn has_path(&self, source: Self::NodeId, destination: Self::NodeId) -> bool {
@@ -320,6 +337,7 @@ pub trait MonoplexMonopartiteGraph:
     ///
     /// # Examples
     ///
+    /// # }
     /// ```
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},

@@ -25,6 +25,8 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -48,6 +50,7 @@ pub trait MonoplexGraph: super::Graph {
     ///
     /// let successors: Vec<usize> = graph.successors(0).collect();
     /// assert_eq!(successors, vec![1, 2]);
+    /// # }
     /// ```
     #[inline]
     fn successors(
@@ -65,6 +68,8 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -89,6 +94,7 @@ pub trait MonoplexGraph: super::Graph {
     /// assert!(graph.has_successors(0));
     /// assert!(graph.has_successors(1));
     /// assert!(!graph.has_successors(2));
+    /// # }
     /// ```
     #[inline]
     fn has_successors(&self, source_node_id: <Self::Edges as super::Edges>::SourceNodeId) -> bool {
@@ -106,6 +112,8 @@ pub trait MonoplexGraph: super::Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -130,6 +138,7 @@ pub trait MonoplexGraph: super::Graph {
     /// assert!(graph.has_successor(0, 1));
     /// assert!(graph.has_successor(0, 2));
     /// assert!(!graph.has_successor(0, 3));
+    /// # }
     /// ```
     #[inline]
     fn has_successor(

@@ -34,6 +34,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -64,6 +66,7 @@ pub trait BipartiteGraph: Graph {
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.left_nodes_vocabulary().len(), 2);
+    /// # }
     /// ```
     fn left_nodes_vocabulary(&self) -> &Self::LeftNodes;
 
@@ -72,6 +75,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -103,6 +108,7 @@ pub trait BipartiteGraph: Graph {
     ///
     /// let left_node_ids: Vec<usize> = graph.left_node_ids().collect();
     /// assert_eq!(left_node_ids, vec![0, 1]);
+    /// # }
     /// ```
     #[inline]
     fn left_node_ids(&self) -> <Self::LeftNodes as Vocabulary>::Sources<'_> {
@@ -114,6 +120,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -145,6 +153,7 @@ pub trait BipartiteGraph: Graph {
     ///
     /// let left_nodes: Vec<usize> = graph.left_nodes().collect();
     /// assert_eq!(left_nodes, vec![0, 1]);
+    /// # }
     /// ```
     #[inline]
     fn left_nodes(&self) -> <Self::LeftNodes as Vocabulary>::Destinations<'_> {
@@ -156,6 +165,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -188,6 +199,7 @@ pub trait BipartiteGraph: Graph {
     /// assert_eq!(graph.left_node(&0), Some(0));
     /// assert_eq!(graph.left_node(&1), Some(1));
     /// assert_eq!(graph.left_node(&2), None);
+    /// # }
     /// ```
     #[inline]
     fn left_node(&self, left_node_id: &Self::LeftNodeId) -> Option<Self::LeftNodeSymbol> {
@@ -199,6 +211,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -231,6 +245,7 @@ pub trait BipartiteGraph: Graph {
     /// assert_eq!(graph.left_node_id(&0), Some(0));
     /// assert_eq!(graph.left_node_id(&1), Some(1));
     /// assert_eq!(graph.left_node_id(&2), None);
+    /// # }
     /// ```
     #[inline]
     fn left_node_id(&self, symbol: &Self::LeftNodeSymbol) -> Option<Self::LeftNodeId> {
@@ -242,6 +257,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -272,6 +289,7 @@ pub trait BipartiteGraph: Graph {
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.number_of_left_nodes(), 2);
+    /// # }
     /// ```
     #[inline]
     fn number_of_left_nodes(&self) -> usize {
@@ -283,6 +301,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -313,6 +333,7 @@ pub trait BipartiteGraph: Graph {
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.right_nodes_vocabulary().len(), 2);
+    /// # }
     /// ```
     fn right_nodes_vocabulary(&self) -> &Self::RightNodes;
 
@@ -321,6 +342,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -352,6 +375,7 @@ pub trait BipartiteGraph: Graph {
     ///
     /// let right_node_ids: Vec<usize> = graph.right_node_ids().collect();
     /// assert_eq!(right_node_ids, vec![0, 1]);
+    /// # }
     /// ```
     #[inline]
     fn right_node_ids(&self) -> <Self::RightNodes as Vocabulary>::Sources<'_> {
@@ -363,6 +387,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -394,6 +420,7 @@ pub trait BipartiteGraph: Graph {
     ///
     /// let right_nodes: Vec<usize> = graph.right_nodes().collect();
     /// assert_eq!(right_nodes, vec![0, 1]);
+    /// # }
     /// ```
     #[inline]
     fn right_nodes(&self) -> <Self::RightNodes as Vocabulary>::Destinations<'_> {
@@ -405,6 +432,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -437,6 +466,7 @@ pub trait BipartiteGraph: Graph {
     /// assert_eq!(graph.right_node(&0), Some(0));
     /// assert_eq!(graph.right_node(&1), Some(1));
     /// assert_eq!(graph.right_node(&2), None);
+    /// # }
     /// ```
     #[inline]
     fn right_node(&self, right_node_id: &Self::RightNodeId) -> Option<Self::RightNodeSymbol> {
@@ -448,6 +478,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -480,6 +512,7 @@ pub trait BipartiteGraph: Graph {
     /// assert_eq!(graph.right_node_id(&0), Some(0));
     /// assert_eq!(graph.right_node_id(&1), Some(1));
     /// assert_eq!(graph.right_node_id(&2), None);
+    /// # }
     /// ```
     #[inline]
     fn right_node_id(&self, symbol: &Self::RightNodeSymbol) -> Option<Self::RightNodeId> {
@@ -491,6 +524,8 @@ pub trait BipartiteGraph: Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec},
     ///     naive_structs::{GenericEdgesBuilder, named_types::BiGraph},
@@ -521,6 +556,7 @@ pub trait BipartiteGraph: Graph {
     /// let graph: BiGraph<usize, usize> = BiGraph::try_from((left_nodes, right_nodes, edges)).unwrap();
     ///
     /// assert_eq!(graph.number_of_right_nodes(), 2);
+    /// # }
     /// ```
     #[inline]
     fn number_of_right_nodes(&self) -> usize {

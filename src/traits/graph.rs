@@ -7,6 +7,8 @@ pub trait Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -29,6 +31,7 @@ pub trait Graph {
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert!(graph.has_nodes());
+    /// # }
     /// ```
     fn has_nodes(&self) -> bool;
 
@@ -37,6 +40,8 @@ pub trait Graph {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -59,6 +64,7 @@ pub trait Graph {
     /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
     ///
     /// assert!(graph.has_edges());
+    /// # }
     /// ```
     fn has_edges(&self) -> bool;
 }

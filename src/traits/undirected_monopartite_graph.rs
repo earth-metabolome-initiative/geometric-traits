@@ -81,6 +81,8 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
     ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
@@ -111,6 +113,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     ///
     /// let neighbors: Vec<usize> = graph.neighbors(1).collect();
     /// assert_eq!(neighbors, vec![0, 2]);
+    /// # }
     /// ```
     #[inline]
     fn neighbors(
@@ -125,6 +128,8 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
     ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
@@ -154,6 +159,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     ///     GenericGraph::from((nodes, edges));
     ///
     /// assert_eq!(graph.degree(1), 2);
+    /// # }
     /// ```
     #[inline]
     fn degree(&self, node: Self::NodeId) -> Self::NodeId {
@@ -165,6 +171,8 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{CSR2D, SortedVec, SymmetricCSR2D, UpperTriangularCSR2D},
     ///     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
@@ -195,6 +203,7 @@ pub trait UndirectedMonopartiteMonoplexGraph:
     ///
     /// let degrees: Vec<usize> = graph.degrees().collect();
     /// assert_eq!(degrees, vec![1, 2, 1]);
+    /// # }
     /// ```
     #[inline]
     fn degrees(&self) -> <<Self::UndirectedMonopartiteEdges as UndirectedMonopartiteEdges>::SymmetricSquaredMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{

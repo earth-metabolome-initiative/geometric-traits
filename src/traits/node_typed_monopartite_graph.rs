@@ -31,6 +31,8 @@ where
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "alloc")]
+    /// # {
     /// use geometric_traits::{
     ///     impls::{SortedVec, SquareCSR2D},
     ///     prelude::*,
@@ -79,6 +81,7 @@ where
     /// assert_eq!(graph.node_type(&0), Some(Kind::Entity));
     /// assert_eq!(graph.node_type(&1), Some(Kind::Action));
     /// assert_eq!(graph.node_type(&3), None);
+    /// # }
     /// ```
     #[inline]
     fn node_type(
