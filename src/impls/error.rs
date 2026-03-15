@@ -6,7 +6,7 @@ use core::fmt::Debug;
 use super::{CSR2D, SquareCSR2D, SymmetricCSR2D, UpperTriangularCSR2D, ValuedCSR2D};
 use crate::traits::Matrix2D;
 
-#[derive(thiserror::Error)]
+#[derive(Clone, PartialEq, Eq, thiserror::Error)]
 /// Enumeration for the errors associated with the CSR data structure.
 pub enum Error<M: Matrix2D> {
     /// Mutability error.
@@ -21,7 +21,7 @@ impl<M: Matrix2D> Debug for Error<M> {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 /// Enumeration for the errors associated with failed mutable operations.
 pub enum MutabilityError<M: Matrix2D + ?Sized> {
     /// Unexpected coordinate.

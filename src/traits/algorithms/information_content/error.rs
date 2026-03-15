@@ -4,7 +4,7 @@ use crate::traits::KahnError;
 
 /// Information Content Enum for Errors that may occur during IC calculation
 /// process
-#[derive(Debug, PartialEq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum InformationContentError {
     /// Error for when a graph is not a DAG / contains a cycle
     #[error("The graph is not a DAG")]

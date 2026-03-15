@@ -52,7 +52,7 @@ impl<G: MonoplexBipartiteGraph> MonoplexGraphBuilder for GenericMonoplexBipartit
     }
 }
 
-#[derive(Clone, Debug, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 /// Error type for the builder.
 pub enum MonoplexBipartiteGraphBuilderError {
     /// A build error occurred.

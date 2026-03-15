@@ -4,7 +4,7 @@
 //! * `Assigned`
 //! * `Conflict`
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// The LAPMOD assignment state.
 pub enum AssignmentState<T> {
     /// The assignment is unassigned.

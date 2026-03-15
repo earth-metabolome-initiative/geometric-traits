@@ -6,7 +6,7 @@ use crate::impls::{SymmetricCSR2D, UpperTriangularCSR2D};
 use crate::traits::{Matrix2D, SizedSparseMatrix2D, TryFromUsize};
 use crate::{impls::MutabilityError, traits::Edges};
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 /// Enum representing the possible errors that can occur when building a graph.
 pub enum EdgesBuilderError<E: Edges> {
     #[error("Missing builder attribute: {0}")]
