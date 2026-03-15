@@ -1,7 +1,7 @@
 //! Tests for Edge and AttributedEdge implementations on tuples.
 #![cfg(feature = "std")]
 
-use geometric_traits::traits::{AttributedEdge, Edge};
+use geometric_traits::traits::{AttributedEdge, Edge, TypedEdge};
 
 // ============================================================================
 // Edge tests for 2-tuple
@@ -135,5 +135,46 @@ fn test_is_self_loop_weighted() {
     assert!(edge.is_self_loop());
 
     let edge2: (usize, usize, f64) = (3, 4, 1.5);
+    assert!(!edge2.is_self_loop());
+}
+
+// ============================================================================
+// Symbol-attributed edge tests (non-Number attributes)
+// ============================================================================
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Label {
+    A,
+    B,
+}
+
+#[test]
+fn test_edge_tuple_3_enum_attribute() {
+    let edge: (usize, usize, Label) = (1, 2, Label::A);
+    assert_eq!(edge.source(), 1);
+    assert_eq!(edge.destination(), 2);
+    assert_eq!(edge.attribute(), Label::A);
+}
+
+#[test]
+fn test_edge_tuple_3_string_attribute() {
+    let edge: (usize, usize, String) = (3, 4, String::from("relates_to"));
+    assert_eq!(edge.source(), 3);
+    assert_eq!(edge.destination(), 4);
+    assert_eq!(edge.attribute(), "relates_to");
+}
+
+#[test]
+fn test_typed_edge_enum_attribute() {
+    let edge: (usize, usize, Label) = (1, 2, Label::B);
+    assert_eq!(edge.edge_type(), Label::B);
+}
+
+#[test]
+fn test_is_self_loop_symbol_attribute() {
+    let edge: (usize, usize, Label) = (5, 5, Label::A);
+    assert!(edge.is_self_loop());
+
+    let edge2: (usize, usize, Label) = (5, 6, Label::A);
     assert!(!edge2.is_self_loop());
 }

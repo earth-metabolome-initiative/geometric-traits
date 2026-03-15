@@ -1,5 +1,7 @@
 //! Submodule implementing graph-related traits for tuples.
-use crate::traits::{AttributedEdge, Edge, Number, PositiveInteger};
+use core::fmt::Debug;
+
+use crate::traits::{AttributedEdge, Edge, PositiveInteger};
 
 impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger> Edge
     for (SourceNodeId, DestinationNodeId)
@@ -18,8 +20,8 @@ impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger> Edge
     }
 }
 
-impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Weight: Number> Edge
-    for (SourceNodeId, DestinationNodeId, Weight)
+impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Attribute: Clone + Debug>
+    Edge for (SourceNodeId, DestinationNodeId, Attribute)
 {
     type SourceNodeId = SourceNodeId;
     type DestinationNodeId = DestinationNodeId;
@@ -35,14 +37,14 @@ impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Weight: 
     }
 }
 
-impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Weight: Number>
-    AttributedEdge for (SourceNodeId, DestinationNodeId, Weight)
+impl<SourceNodeId: PositiveInteger, DestinationNodeId: PositiveInteger, Attribute: Clone + Debug>
+    AttributedEdge for (SourceNodeId, DestinationNodeId, Attribute)
 {
-    type Attribute = Weight;
+    type Attribute = Attribute;
 
     #[inline]
     fn attribute(&self) -> Self::Attribute {
-        self.2
+        self.2.clone()
     }
 }
 
