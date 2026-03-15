@@ -100,6 +100,7 @@ impl<V: Symbol + Ord> GrowableVocabulary for Vec<V> {
 
 use crate::traits::{Matrix, Matrix2D};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Implementation of a matrix using a vector.
 pub struct VecMatrix2D<V> {
     /// The data of the matrix.

@@ -12,7 +12,7 @@ use crate::{
     traits::{PositiveInteger, TryFromUsize},
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 /// A compressed sparse row matrix.
 pub struct RangedCSR2D<SparseIndex, RowIndex, R: MultiRanged> {
     /// The number of elements in the matrix.

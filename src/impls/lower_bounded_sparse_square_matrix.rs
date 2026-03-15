@@ -11,6 +11,7 @@ mod lower_bounded_sparse_row;
 mod matrix;
 mod sparse_matrix;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 /// A sliced square matrix.
 pub struct LowerBoundedSquareMatrix<M: SquareMatrix> {
     /// The matrix to be sliced.

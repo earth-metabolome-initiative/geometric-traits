@@ -11,6 +11,7 @@ use crate::traits::SquareMatrix;
 mod matrix;
 mod sparse_matrix;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// A sliced sparse square matrix where sparse entries are filtered by column id
 /// membership in a provided subset.
 pub struct SubsetSquareMatrix<M: SquareMatrix, I> {

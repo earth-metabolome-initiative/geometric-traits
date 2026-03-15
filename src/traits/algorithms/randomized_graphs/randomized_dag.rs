@@ -68,6 +68,7 @@ where
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Struct for storing the `XorShift64` state
 pub struct XorShift64(u64);
 

@@ -26,6 +26,7 @@ use super::{
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+#[derive(Clone)]
 /// A 2D matrix which pads the missing elements over the diagonal.
 pub struct GenericMatrix2DWithPaddedDiagonal<M, Map> {
     /// The underlying matrix.

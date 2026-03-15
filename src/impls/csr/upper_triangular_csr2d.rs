@@ -10,7 +10,7 @@ use crate::{
     traits::{PositiveInteger, TryFromUsize},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// A compressed sparse row matrix.
 pub struct UpperTriangularCSR2D<M: Matrix2D> {
     /// The underlying matrix.

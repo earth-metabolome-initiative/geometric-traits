@@ -10,7 +10,7 @@ use crate::{
     traits::{Symbol, TransmuteFrom},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Struct defining a sorted vector and its primary methods.
 pub struct SortedArray<V, const N: usize> {
     array: [V; N],

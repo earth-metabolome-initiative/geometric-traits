@@ -14,7 +14,7 @@ use crate::traits::{
     TryFromUsize,
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 /// Struct representing a ragged vector sparse matrix.
 pub struct RaggedVector<SparseIndex, RowIndex, ColumnIndex> {
     /// The data of the vector.

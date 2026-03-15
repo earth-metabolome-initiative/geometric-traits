@@ -15,6 +15,7 @@ pub mod padded_coordinates;
 mod sparse_matrix;
 mod valued_matrix;
 
+#[derive(Clone)]
 /// A padded matrix that fills all of the values not defined in the
 /// underlying sparse matrix with the value provided by the Map function.
 pub struct PaddedMatrix2D<M, Map> {

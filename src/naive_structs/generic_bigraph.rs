@@ -8,7 +8,7 @@ use crate::traits::{
     TryFromUsize, Vocabulary,
 };
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 /// Struct representing a generic bigraph.
 pub struct GenericBiGraph<LeftNodes, RightNodes, Edges> {
     /// The left nodes of the graph.

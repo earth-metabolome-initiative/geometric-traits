@@ -17,6 +17,7 @@ use crate::traits::{
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
 /// A 2D CSR matrix which stores values in addition to the row and column
 /// indices.
 pub struct ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value> {

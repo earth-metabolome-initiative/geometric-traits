@@ -6,7 +6,7 @@ use crate::{
     traits::{GrowableVocabulary, Vocabulary, VocabularyBuilder},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 /// A generic vocabulary builder that can be used to build a vocabulary for any
 /// type of graph.
 pub struct GenericVocabularyBuilder<Symbols, Vocabulary> {

@@ -9,6 +9,7 @@ use crate::{
     traits::{MatrixMut, SparseMatrixMut, SparseValuedMatrix2D, TryFromUsize},
 };
 
+#[derive(Debug, Clone, PartialEq)]
 /// A sparse matrix whose row/column indices have been compacted to contiguous
 /// 0-based ranges, along with reverse mappings back to the original indices.
 pub struct CompactMatrix<RowIndex, ColumnIndex> {
