@@ -1,4 +1,5 @@
 //! Coverage tests for transposed weighted graph default trait methods.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::ValuedCSR2D,

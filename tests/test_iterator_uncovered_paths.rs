@@ -1,4 +1,5 @@
 //! Targeted coverage tests for iterator edge branches.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::{CSR2D, GenericImplicitValuedMatrix2D},
