@@ -3,7 +3,10 @@
 
 use geometric_traits::{
     impls::ValuedCSR2D,
-    traits::{AttributedEdge, Edge, EdgeType, MatrixMut, SparseMatrixMut, TypedEdge, TypedEdges},
+    traits::{
+        AttributedEdge, BipartiteGraph, Edge, EdgeType, Graph, MatrixMut, MonoplexGraph,
+        SparseMatrixMut, TypedEdge, TypedEdges,
+    },
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -74,10 +77,15 @@ fn test_typed_edge_for_tuple_with_symbolic_attribute() {
 }
 
 #[test]
-fn test_typed_edges_for_valued_csr2d_with_symbolic_values() {
-    let mut edges: ValuedCSR2D<usize, usize, usize, usize> =
+fn test_symbolic_valued_csr2d_exposes_graph_and_typed_edge_traits() {
+    let mut edges: ValuedCSR2D<usize, usize, usize, RelationType> =
         SparseMatrixMut::with_sparse_shape((2, 2));
-    MatrixMut::add(&mut edges, (0, 1, 3)).unwrap();
+    MatrixMut::add(&mut edges, (0, 1, RelationType::DependsOn)).unwrap();
 
     assert_typed_edges(&edges);
+    assert!(edges.has_nodes());
+    assert!(edges.has_edges());
+    assert_eq!(edges.number_of_left_nodes(), 2);
+    assert_eq!(edges.number_of_right_nodes(), 2);
+    assert_eq!(edges.successors(0).collect::<Vec<_>>(), vec![1]);
 }

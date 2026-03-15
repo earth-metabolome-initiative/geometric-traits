@@ -1,6 +1,8 @@
 //! Submodule implementing Edges for
 //! [`ValuedCSR2D`].
 
+use core::fmt::Debug;
+
 use multi_ranged::Step;
 use num_traits::AsPrimitive;
 
@@ -9,7 +11,7 @@ use crate::{
     impls::ValuedCSR2D,
     traits::{
         BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix2D,
-        Matrix2DRef, MonoplexGraph, Number, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
+        Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
         TryFromUsize,
     },
 };
@@ -18,7 +20,7 @@ impl<
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
-    Value: Number,
+    Value: Clone + Debug,
 > Edges for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     type Edge = (RowIndex, ColumnIndex, Value);
@@ -37,7 +39,7 @@ impl<
     SparseIndex: PositiveInteger + 'static,
     RowIndex: Step + PositiveInteger,
     ColumnIndex: Step + PositiveInteger + TryFrom<SparseIndex>,
-    Value: Number + 'static,
+    Value: Clone + Debug + 'static,
 > GrowableEdges for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     type GrowableMatrix = Self;
@@ -71,7 +73,7 @@ impl<
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
-    Value: Number,
+    Value,
 > Graph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     #[inline]
@@ -89,7 +91,7 @@ impl<
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
     RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
-    Value: Number,
+    Value: Clone + Debug,
 > MonoplexGraph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 {
     type Edge = (RowIndex, ColumnIndex, Value);
@@ -114,7 +116,7 @@ impl<
         + TryFrom<SparseIndex>
         + TryFromUsize
         + BidirectionalVocabulary<SourceSymbol = ColumnIndex, DestinationSymbol = ColumnIndex>,
-    Value: Number,
+    Value,
 > BipartiteGraph for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
     Self: Matrix2DRef<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
