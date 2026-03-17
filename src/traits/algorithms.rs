@@ -85,3 +85,7 @@ pub use jacobi::*;
 mod mds;
 #[cfg(feature = "alloc")]
 pub use mds::*;
+#[cfg(feature = "alloc")]
+mod blossom;
+#[cfg(feature = "alloc")]
+pub use blossom::*;
