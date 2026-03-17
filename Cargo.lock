@@ -66,6 +66,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "blossom"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d2a9a3b589aea8a51b1cd3c07e9de3486a13f708ae99a3873863e0edbb1ba65"
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -264,6 +270,7 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "bitvec",
+ "blossom",
  "criterion",
  "hashbrown",
  "lender",
