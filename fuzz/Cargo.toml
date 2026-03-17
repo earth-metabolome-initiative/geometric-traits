@@ -128,3 +128,9 @@ name = "mds"
 path = "fuzz_targets/mds.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "blossom"
+path = "fuzz_targets/blossom.rs"
+test = false
+doc = false
