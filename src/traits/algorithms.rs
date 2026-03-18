@@ -89,3 +89,7 @@ pub use mds::*;
 mod blossom;
 #[cfg(feature = "alloc")]
 pub use blossom::*;
+#[cfg(feature = "alloc")]
+mod micali_vazirani;
+#[cfg(feature = "alloc")]
+pub use micali_vazirani::*;
