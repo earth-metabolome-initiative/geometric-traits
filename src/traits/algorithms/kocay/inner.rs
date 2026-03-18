@@ -4,8 +4,8 @@
 //! - Virtual vertices: source `s=0`, sink `t=1`, plus `x_i = 2(i+1)` and `y_i =
 //!   2(i+1)+1` for each vertex i.
 //! - Complement: `prim(v) = v ^ 1`.
-//! - Edges: `s→x_i` (cap = budget[i]), `y_i→t` (cap = budget[i]), and for each
-//!   {i,j} ∈ E the pair `x_i→y_j`, `x_j→y_i` (cap = edge capacity, with
+//! - Edges: `s→x_i` (cap = `budget[i]`), `y_i→t` (cap = `budget[i]`), and for
+//!   each {i,j} ∈ E the pair `x_i→y_j`, `x_j→y_i` (cap = edge capacity, with
 //!   balanced flow condition: flow on `x_i→y_j` equals flow on `x_j→y_i`).
 //!
 //! A balanced flow of value k corresponds to k units of total flow. Each BNS
@@ -367,7 +367,7 @@ where
     /// The direction of augmentation is determined solely by the edge type
     /// (forward vs backward), not by the `reverse` flag used for path
     /// decomposition. In the balanced network, s→x_i and y_i→t both map to
-    /// the same st_flow[i], and the complement mapping preserves this.
+    /// the same `st_flow[i]`, and the complement mapping preserves this.
     fn augment_edge(&mut self, u: usize, v: usize, eidx: usize, delta: usize) {
         if eidx == NO_EDGE {
             // ST edge: the complement of s→x_i is t→y_i, both correspond to
