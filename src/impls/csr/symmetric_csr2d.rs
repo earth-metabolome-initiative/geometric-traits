@@ -6,6 +6,9 @@ use num_traits::AsPrimitive;
 
 use crate::{impls::SquareCSR2D, prelude::*};
 
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl;
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A symmetric compressed sparse row matrix.
 pub struct SymmetricCSR2D<M: Matrix2D> {
