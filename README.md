@@ -46,6 +46,45 @@ All listed algorithms require the `alloc` feature.
 | **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401–419. |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
+### Undirected Graph Generators
+
+Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.
+
+#### Deterministic Generators
+
+| Generator | Function | Parameters |
+|-----------|----------|------------|
+| **Complete Graph** K_n | `complete_graph(n)` | n = vertices |
+| **Cycle** C_n | `cycle_graph(n)` | n = vertices |
+| **Path** P_n | `path_graph(n)` | n = vertices |
+| **Star** S_n | `star_graph(n)` | n = leaves |
+| **Grid** G_{r×c} | `grid_graph(rows, cols)` | rows, cols |
+| **Torus** T_{r×c} | `torus_graph(rows, cols)` | rows, cols |
+| **Hypercube** Q_d | `hypercube_graph(d)` | d = dimension |
+| **Barbell** B(k, p) | `barbell_graph(clique_size, path_len)` | clique_size, path_len |
+| **Crown** Cr_n | `crown_graph(n)` | n = vertices per side |
+| **Wheel** W_n | `wheel_graph(n)` | n = rim vertices |
+| **Complete Bipartite** K_{m,n} | `complete_bipartite_graph(m, n)` | m, n = partition sizes |
+| **Petersen** | `petersen_graph()` | — |
+| **Turán** T(n, r) | `turan_graph(n, r)` | n = vertices, r = partitions |
+| **Friendship** F_n | `friendship_graph(n)` | n = triangles |
+
+#### Random Generators
+
+Random generators require `std` or `hashbrown` in addition to `alloc` when they use a `HashSet` internally.
+
+| Generator | Function | Parameters | Reference |
+|-----------|----------|------------|-----------|
+| **Erdős–Rényi** G(n, m) | `erdos_renyi_gnm(seed, n, m)` | n = vertices, m = edges | Erdős & Rényi (1959) |
+| **Erdős–Rényi** G(n, p) | `erdos_renyi_gnp(seed, n, p)` | n = vertices, p = edge probability | Gilbert (1959); geometric skip: Batagelj & Brandes (2005) |
+| **Barabási–Albert** | `barabasi_albert(seed, n, m)` | n = vertices, m = edges/step; initial clique size = m + 1 | Barabási & Albert (1999) |
+| **Watts–Strogatz** | `watts_strogatz(seed, n, k, beta)` | n = vertices, k = neighbours, β = rewiring prob. | Watts & Strogatz (1998) |
+| **Random Regular** | `random_regular_graph(seed, n, k)` | n = vertices, k = degree | Configuration model; Wormald (1999) |
+| **Stochastic Block Model** | `stochastic_block_model(seed, sizes, p_intra, p_inter)` | community sizes, within-community p, between-community p | Holland, Laskey & Leinhardt (1983) |
+| **Configuration Model** | `configuration_model(seed, degrees)` | degree sequence | Molloy & Reed (1995) |
+| **Chung–Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
+| **Random Geometric** | `random_geometric_graph(seed, n, radius)` | n = vertices, r = connection radius | Gilbert (1961); Penrose (2003) |
+
 ### Design Philosophy
 
 * **Trait-Based**: Algorithms are implemented generic over traits such as `BipartiteGraph` and `MonopartiteGraph`, allowing them to be used with any backing data structure that implements the required interface (e.g., Matrices, CSR, Adjacency Lists).
