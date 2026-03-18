@@ -134,3 +134,9 @@ name = "blossom"
 path = "fuzz_targets/blossom.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "micali_vazirani"
+path = "fuzz_targets/micali_vazirani.rs"
+test = false
+doc = false
