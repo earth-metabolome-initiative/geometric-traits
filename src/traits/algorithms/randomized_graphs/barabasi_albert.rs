@@ -3,14 +3,14 @@
 
 use alloc::vec::Vec;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates a Barabasi-Albert preferential attachment graph.
 ///
 /// Starts with a clique of `m + 1` vertices, then adds vertices one at a time,
-/// each connecting to `m` existing vertices chosen proportional to their degree.
+/// each connecting to `m` existing vertices chosen proportional to their
+/// degree.
 #[allow(clippy::cast_possible_truncation)]
 #[must_use]
 pub fn barabasi_albert(

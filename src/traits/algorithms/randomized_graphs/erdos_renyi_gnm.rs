@@ -2,16 +2,14 @@
 #![cfg(all(feature = "alloc", any(feature = "std", feature = "hashbrown")))]
 
 use alloc::vec::Vec;
-
 #[cfg(feature = "std")]
 use std::collections::HashSet;
 
 #[cfg(all(feature = "hashbrown", not(feature = "std")))]
 use hashbrown::HashSet;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates an Erdos-Renyi G(n, m) random graph: `n` vertices and exactly `m`
 /// distinct undirected edges chosen uniformly at random (no self-loops).

@@ -3,9 +3,8 @@
 
 use alloc::vec::Vec;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates a Stochastic Block Model graph.
 ///
@@ -39,11 +38,7 @@ pub fn stochastic_block_model(
 
     for u in 0..n {
         for v in (u + 1)..n {
-            let p = if community[u] == community[v] {
-                p_intra
-            } else {
-                p_inter
-            };
+            let p = if community[u] == community[v] { p_intra } else { p_inter };
             let uniform = (rng.next().unwrap() as f64) / (u64::MAX as f64);
             if uniform < p {
                 edges.push((u, v));

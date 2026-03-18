@@ -3,9 +3,8 @@
 
 use alloc::vec::Vec;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates a random geometric graph by placing `n` points uniformly in the
 /// unit square and connecting pairs within Euclidean distance `radius`.

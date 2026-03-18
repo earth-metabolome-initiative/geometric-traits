@@ -3,19 +3,15 @@
 
 use alloc::vec::Vec;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates a Chung-Lu random graph from the given weight sequence.
 ///
 /// Edge `(i, j)` exists with probability `w_i * w_j / sum_w`, capped at 1.0.
 #[allow(clippy::cast_precision_loss)]
 #[must_use]
-pub fn chung_lu(
-    seed: u64,
-    weights: &[f64],
-) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
+pub fn chung_lu(seed: u64, weights: &[f64]) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     let n = weights.len();
 
     if n <= 1 {

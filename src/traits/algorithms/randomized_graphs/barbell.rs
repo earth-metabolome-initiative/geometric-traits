@@ -3,14 +3,15 @@
 
 use alloc::vec::Vec;
 
+use super::builder_utils::build_symmetric;
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
-use super::builder_utils::build_symmetric;
-
-/// Returns the barbell graph: two K_k cliques connected by a path of `p` internal vertices.
+/// Returns the barbell graph: two K_k cliques connected by a path of `p`
+/// internal vertices.
 ///
 /// Total vertices: 2k + p. The first clique uses vertices 0..k, the second uses
-/// vertices k+p..2k+p, and the bridge path uses vertices k-1, k, k+1, ..., k+p-1, k+p.
+/// vertices k+p..2k+p, and the bridge path uses vertices k-1, k, k+1, ...,
+/// k+p-1, k+p.
 #[must_use]
 pub fn barbell_graph(k: usize, p: usize) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     assert!(k >= 1, "barbell_graph requires k >= 1");

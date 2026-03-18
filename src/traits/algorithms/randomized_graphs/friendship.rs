@@ -3,11 +3,11 @@
 
 use alloc::vec::Vec;
 
+use super::builder_utils::build_symmetric;
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
-use super::builder_utils::build_symmetric;
-
-/// Returns the friendship graph F_n: n triangles sharing a universal hub vertex 0.
+/// Returns the friendship graph F_n: n triangles sharing a universal hub vertex
+/// 0.
 ///
 /// 2n+1 vertices, 3n edges.
 #[must_use]

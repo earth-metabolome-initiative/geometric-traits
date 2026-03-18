@@ -151,7 +151,8 @@ fn test_barbell_graph() {
     let g = barbell_graph(3, 2);
     // 2*3 + 2 = 8 vertices
     // K_3 edges: 3 each = 6
-    // Bridge path: 3 edges (k-1 → k, k → k+1, k+1 → k+2 where k+2 is start of second clique)
+    // Bridge path: 3 edges (k-1 → k, k → k+1, k+1 → k+2 where k+2 is start of
+    // second clique)
     assert_eq!(g.order(), 8);
 }
 
@@ -656,13 +657,24 @@ fn test_mv_deeply_nested_blossoms() {
     // Chain of 4 triangles with tails: forces deep blossom nesting and
     // path compression in DSU.
     // tri0: 0-1-2, tri1: 2-3-4, tri2: 4-5-6, tri3: 6-7-8, tail: 8-9
-    let g = build_graph(10, &[
-        (0, 1), (0, 2), (1, 2),
-        (2, 3), (2, 4), (3, 4),
-        (4, 5), (4, 6), (5, 6),
-        (6, 7), (6, 8), (7, 8),
-        (8, 9),
-    ]);
+    let g = build_graph(
+        10,
+        &[
+            (0, 1),
+            (0, 2),
+            (1, 2),
+            (2, 3),
+            (2, 4),
+            (3, 4),
+            (4, 5),
+            (4, 6),
+            (5, 6),
+            (6, 7),
+            (6, 8),
+            (7, 8),
+            (8, 9),
+        ],
+    );
     let blossom = g.blossom();
     let mv = g.micali_vazirani();
     assert_eq!(blossom.len(), mv.len());
@@ -674,11 +686,23 @@ fn test_mv_interlocking_blossoms() {
     // Pentagon 1: 0-1-2-3-4-0
     // Pentagon 2: 3-4-5-6-7-3
     // Plus tail: 7-8, 8-9
-    let g = build_graph(10, &[
-        (0, 1), (1, 2), (2, 3), (3, 4), (0, 4),
-        (3, 5), (4, 5), (5, 6), (6, 7), (3, 7),
-        (7, 8), (8, 9),
-    ]);
+    let g = build_graph(
+        10,
+        &[
+            (0, 1),
+            (1, 2),
+            (2, 3),
+            (3, 4),
+            (0, 4),
+            (3, 5),
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (3, 7),
+            (7, 8),
+            (8, 9),
+        ],
+    );
     let blossom = g.blossom();
     let mv = g.micali_vazirani();
     assert_eq!(blossom.len(), mv.len());
@@ -771,20 +795,36 @@ fn test_mv_blossom_with_tail_variations() {
 fn test_mv_multiple_disjoint_odd_cycles() {
     // Multiple disjoint odd cycles of varying sizes, each needing blossoms.
     // C3 + C5 + C7 with tails
-    let g = build_graph(19, &[
-        // C3: 0-1-2
-        (0, 1), (1, 2), (0, 2),
-        // tail: 2-3
-        (2, 3),
-        // C5: 4-5-6-7-8
-        (4, 5), (5, 6), (6, 7), (7, 8), (4, 8),
-        // tail: 8-9
-        (8, 9),
-        // C7: 10-11-12-13-14-15-16
-        (10, 11), (11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (10, 16),
-        // tails: 16-17, 17-18
-        (16, 17), (17, 18),
-    ]);
+    let g = build_graph(
+        19,
+        &[
+            // C3: 0-1-2
+            (0, 1),
+            (1, 2),
+            (0, 2),
+            // tail: 2-3
+            (2, 3),
+            // C5: 4-5-6-7-8
+            (4, 5),
+            (5, 6),
+            (6, 7),
+            (7, 8),
+            (4, 8),
+            // tail: 8-9
+            (8, 9),
+            // C7: 10-11-12-13-14-15-16
+            (10, 11),
+            (11, 12),
+            (12, 13),
+            (13, 14),
+            (14, 15),
+            (15, 16),
+            (10, 16),
+            // tails: 16-17, 17-18
+            (16, 17),
+            (17, 18),
+        ],
+    );
     let blossom = g.blossom();
     let mv = g.micali_vazirani();
     assert_eq!(blossom.len(), mv.len());

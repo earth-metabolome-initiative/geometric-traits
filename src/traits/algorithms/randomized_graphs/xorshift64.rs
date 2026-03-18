@@ -9,7 +9,8 @@ impl XorShift64 {
     /// Normalizes a seed so that zero maps to a fixed non-zero state.
     ///
     /// `XorShift64` with a zero state remains zero forever.
-    /// This maps seed 0 to a fixed non-zero constant to avoid degenerate output.
+    /// This maps seed 0 to a fixed non-zero constant to avoid degenerate
+    /// output.
     #[inline]
     #[must_use]
     pub fn normalize_seed(seed: u64) -> u64 {

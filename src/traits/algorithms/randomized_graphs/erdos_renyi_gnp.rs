@@ -3,19 +3,19 @@
 
 use alloc::vec::Vec;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
-
-use super::{builder_utils::build_symmetric, XorShift64};
 
 /// Generates an Erdos-Renyi G(n, p) random graph: each possible edge exists
 /// independently with probability `p`.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 #[must_use]
-pub fn erdos_renyi_gnp(
-    seed: u64,
-    n: usize,
-    p: f64,
-) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
+pub fn erdos_renyi_gnp(seed: u64, n: usize, p: f64) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     if n <= 1 || p <= 0.0 {
         return build_symmetric(n, Vec::new());
     }

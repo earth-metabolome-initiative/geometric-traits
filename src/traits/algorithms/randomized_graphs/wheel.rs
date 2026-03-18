@@ -3,11 +3,11 @@
 
 use alloc::vec::Vec;
 
+use super::builder_utils::build_symmetric;
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
-use super::builder_utils::build_symmetric;
-
-/// Returns the wheel graph W_n: a hub vertex 0 connected to a rim cycle of n vertices.
+/// Returns the wheel graph W_n: a hub vertex 0 connected to a rim cycle of n
+/// vertices.
 ///
 /// Total vertices: n+1, total edges: 2n.
 #[must_use]

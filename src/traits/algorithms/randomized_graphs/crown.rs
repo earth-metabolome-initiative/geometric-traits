@@ -3,9 +3,8 @@
 
 use alloc::vec::Vec;
 
-use crate::impls::{CSR2D, SymmetricCSR2D};
-
 use super::builder_utils::build_symmetric;
+use crate::impls::{CSR2D, SymmetricCSR2D};
 
 /// Returns the crown graph on 2n vertices: K_{n,n} minus a perfect matching.
 ///

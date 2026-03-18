@@ -3,9 +3,8 @@
 
 use alloc::vec::Vec;
 
-use crate::impls::{CSR2D, SymmetricCSR2D};
-
 use super::builder_utils::build_symmetric;
+use crate::impls::{CSR2D, SymmetricCSR2D};
 
 /// Returns the hypercube graph Q_d with 2^d vertices.
 #[must_use]

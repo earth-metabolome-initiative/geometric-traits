@@ -3,14 +3,14 @@
 
 use alloc::vec::Vec;
 
+use super::builder_utils::build_symmetric;
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
-use super::builder_utils::build_symmetric;
-
-/// Returns the Turan graph T(n, r): the complete r-partite graph with balanced parts.
+/// Returns the Turan graph T(n, r): the complete r-partite graph with balanced
+/// parts.
 ///
-/// Vertices are partitioned into r groups as evenly as possible, with edges between
-/// all pairs of vertices in different groups.
+/// Vertices are partitioned into r groups as evenly as possible, with edges
+/// between all pairs of vertices in different groups.
 #[must_use]
 pub fn turan_graph(n: usize, r: usize) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     assert!(r >= 1, "turan_graph requires r >= 1");

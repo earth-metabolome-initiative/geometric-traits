@@ -3,9 +3,8 @@
 
 use alloc::vec::Vec;
 
-use crate::impls::{CSR2D, SymmetricCSR2D};
-
 use super::builder_utils::build_symmetric;
+use crate::impls::{CSR2D, SymmetricCSR2D};
 
 /// Returns the star graph on `n` vertices (hub vertex 0, n-1 leaves).
 #[must_use]

@@ -2,18 +2,17 @@
 #![cfg(all(feature = "alloc", any(feature = "std", feature = "hashbrown")))]
 
 use alloc::vec::Vec;
-
 #[cfg(feature = "std")]
 use std::collections::HashSet;
 
 #[cfg(all(feature = "hashbrown", not(feature = "std")))]
 use hashbrown::HashSet;
 
+use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
-use super::{builder_utils::build_symmetric, XorShift64};
-
-/// Generates a graph from the given degree sequence using the configuration model.
+/// Generates a graph from the given degree sequence using the configuration
+/// model.
 ///
 /// Creates stubs according to the degree sequence, shuffles, and pairs them.
 /// Self-loops and multi-edges are silently removed to produce a simple graph.
@@ -28,10 +27,7 @@ pub fn configuration_model(
 ) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     let n = degrees.len();
     let total_stubs: usize = degrees.iter().sum();
-    assert!(
-        total_stubs % 2 == 0,
-        "sum of degrees must be even"
-    );
+    assert!(total_stubs % 2 == 0, "sum of degrees must be even");
 
     if n == 0 || total_stubs == 0 {
         return build_symmetric(n, Vec::new());
