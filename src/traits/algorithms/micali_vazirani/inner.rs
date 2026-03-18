@@ -656,15 +656,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
     // ────────────────────────────────────────────────────────────────────
 
     fn into_pairs(self) -> Vec<(M::Index, M::Index)> {
-        let idx_vec: Vec<M::Index> = self.matrix.row_indices().collect();
-        let mut pairs = Vec::with_capacity(self.n / 2);
-        for (ii, &idx_i) in idx_vec.iter().enumerate() {
-            if let Some(j) = self.mate[ii] {
-                if ii < j {
-                    pairs.push((idx_i, idx_vec[j]));
-                }
-            }
-        }
-        pairs
+        let indices: Vec<M::Index> = self.matrix.row_indices().collect();
+        crate::traits::algorithms::matching_utils::mate_to_pairs(&self.mate, &indices)
     }
 }

@@ -88,8 +88,14 @@ pub use mds::*;
 #[cfg(feature = "alloc")]
 mod blossom;
 #[cfg(feature = "alloc")]
+mod matching_utils;
+#[cfg(feature = "alloc")]
 pub use blossom::*;
 #[cfg(feature = "alloc")]
 mod micali_vazirani;
 #[cfg(feature = "alloc")]
 pub use micali_vazirani::*;
+#[cfg(feature = "alloc")]
+mod kocay;
+#[cfg(feature = "alloc")]
+pub use kocay::*;
