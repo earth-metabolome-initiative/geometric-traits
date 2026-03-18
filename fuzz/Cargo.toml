@@ -140,3 +140,9 @@ name = "micali_vazirani"
 path = "fuzz_targets/micali_vazirani.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "kocay"
+path = "fuzz_targets/kocay.rs"
+test = false
+doc = false

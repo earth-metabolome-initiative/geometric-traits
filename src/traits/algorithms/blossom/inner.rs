@@ -9,8 +9,6 @@ use crate::traits::SparseSquareMatrix;
 pub(super) struct BlossomState<'a, M: SparseSquareMatrix + ?Sized> {
     /// The adjacency matrix representing the graph.
     matrix: &'a M,
-    /// Number of vertices.
-    n: usize,
     /// Matched partner of each vertex, or `None` if exposed.
     mate: Vec<Option<M::Index>>,
     /// BFS tree parent of each vertex during the current augmenting path
@@ -33,7 +31,6 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlossomState<'a, M> {
         let n: usize = matrix.order().as_();
         Self {
             matrix,
-            n,
             mate: vec![None; n],
             parent: vec![None; n],
             base: matrix.row_indices().collect(),
@@ -55,15 +52,10 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlossomState<'a, M> {
 
     /// Converts the mate array into sorted `(u, v)` pairs with `u < v`.
     fn into_pairs(self) -> Vec<(M::Index, M::Index)> {
-        let mut pairs = Vec::with_capacity(self.n / 2);
-        for i in self.matrix.row_indices() {
-            if let Some(j) = self.mate[i.as_()] {
-                if i < j {
-                    pairs.push((i, j));
-                }
-            }
-        }
-        pairs
+        let indices: Vec<M::Index> = self.matrix.row_indices().collect();
+        let usize_mate: Vec<Option<usize>> =
+            self.mate.iter().map(|opt| opt.map(AsPrimitive::as_)).collect();
+        crate::traits::algorithms::matching_utils::mate_to_pairs(&usize_mate, &indices)
     }
 
     /// Searches for an augmenting path from the given exposed root vertex.

@@ -38,9 +38,7 @@ fn main() {
                 }
                 for w in csr.sparse_row(u) {
                     if w != u && !matched[w as usize] {
-                        panic!(
-                            "edge ({u}, {w}) has both endpoints unmatched"
-                        );
+                        panic!("edge ({u}, {w}) has both endpoints unmatched");
                     }
                 }
             }

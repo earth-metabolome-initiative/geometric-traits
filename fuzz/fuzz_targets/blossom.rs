@@ -31,9 +31,7 @@ fn main() {
                 }
                 for w in csr.sparse_row(u) {
                     if w != u && !matched[w as usize] && csr.has_entry(w, u) {
-                        panic!(
-                            "symmetric edge ({u}, {w}) has both endpoints unmatched"
-                        );
+                        panic!("symmetric edge ({u}, {w}) has both endpoints unmatched");
                     }
                 }
             }
