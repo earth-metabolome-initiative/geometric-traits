@@ -8,6 +8,7 @@ use std::collections::HashSet;
 #[cfg(all(feature = "hashbrown", not(feature = "std")))]
 use hashbrown::HashSet;
 
+use super::XorShift64;
 use crate::traits::{GrowableEdges, MonoplexGraph, MonoplexMonopartiteGraph, SparseMatrixMut};
 
 /// Trait providing randomized dag method
@@ -35,10 +36,7 @@ where
             return G::from((nodes, edges));
         }
 
-        // XorShift64 with a zero state remains zero forever.
-        // Map seed 0 to a fixed non-zero state to avoid degenerate empty DAGs.
-        let normalized_seed = if seed == 0 { 0x9E37_79B9_7F4A_7C15 } else { seed };
-        let mut xorshift = XorShift64::from(normalized_seed);
+        let mut xorshift = XorShift64::from(XorShift64::normalize_seed(seed));
         let nodes_u64 = nodes as u64;
         let max_number_of_edges = nodes_u64 * (nodes_u64 - 1) / 2;
         let number_of_edges_u64 = xorshift.next().unwrap() % (max_number_of_edges + 1);
@@ -65,30 +63,5 @@ where
             edges.add((src, dst)).unwrap();
         }
         G::from((nodes, edges))
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-/// Struct for storing the `XorShift64` state
-pub struct XorShift64(u64);
-
-impl From<u64> for XorShift64 {
-    #[inline]
-    fn from(state: u64) -> Self {
-        Self(state)
-    }
-}
-
-impl Iterator for XorShift64 {
-    type Item = u64;
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut x = self.0;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.0 = x;
-        Some(x)
     }
 }
