@@ -48,7 +48,10 @@ fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
         return;
     }
     let mut vcsr: ValuedCSR2D<usize, usize, usize, usize> =
-        SparseMatrixMut::with_sparse_shaped_capacity((n, n), g.number_of_edges());
+        SparseMatrixMut::with_sparse_shaped_capacity(
+            (n, n),
+            geometric_traits::traits::Edges::number_of_edges(g),
+        );
     for row in g.row_indices() {
         for col in g.sparse_row(row) {
             MatrixMut::add(&mut vcsr, (row, col, 1)).unwrap();
