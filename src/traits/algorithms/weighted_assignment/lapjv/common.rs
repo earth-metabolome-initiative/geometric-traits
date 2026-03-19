@@ -1,10 +1,11 @@
 //! Shared helper functions used by both the LAPJV and LAPMOD algorithms.
 #![cfg(feature = "alloc")]
 use alloc::vec::Vec;
+use core::fmt::Debug;
 
 use num_traits::AsPrimitive;
 
-use crate::traits::{AssignmentState, Number, TotalOrd};
+use crate::traits::{AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize};
 
 /// Finds the minimum distance among the columns in `to_scan[lower_bound..]`,
 /// rearranges them so that all minimum-distance columns come immediately after
@@ -187,6 +188,162 @@ pub(crate) fn augmenting_row_reduction_impl<R, C, V>(
     }
 
     unassigned_rows.truncate(updated_number_of_unassigned_rows);
+}
+
+/// Shared Dijkstra-style frontier scan for dense LAP solvers (LAPJV and
+/// Hungarian).
+///
+/// Expands the frontier `to_scan[lower_bound..upper_bound]` by relaxing
+/// distances through each frontier column's assigned row.  Returns
+/// `Some(col)` immediately if an unassigned column is reached at the
+/// current minimum distance.
+#[allow(clippy::too_many_arguments)]
+#[inline]
+pub(crate) fn dense_scan<M: DenseValuedMatrix2D + ?Sized>(
+    lower_bound_ref: &mut usize,
+    upper_bound_ref: &mut usize,
+    to_scan: &mut [M::ColumnIndex],
+    distances: &mut [M::Value],
+    predecessors: &mut [M::RowIndex],
+    assigned_rows: &[AssignmentState<M::RowIndex>],
+    column_costs: &[M::Value],
+    matrix: &M,
+) -> Option<M::ColumnIndex>
+where
+    M::Value: Number + Finite + TotalOrd,
+{
+    let mut lower_bound = *lower_bound_ref;
+    let mut upper_bound = *upper_bound_ref;
+
+    while lower_bound != upper_bound {
+        let column_index = to_scan[lower_bound];
+        lower_bound += 1;
+        let AssignmentState::Assigned(row_index) = assigned_rows[column_index.as_()] else {
+            unreachable!("Frontier column must be assigned during scan");
+        };
+        let minimum_distance = distances[column_index.as_()];
+        let initial_reduced_cost = matrix.value((row_index, column_index))
+            - column_costs[column_index.as_()]
+            - minimum_distance;
+
+        let current_upper_bound = upper_bound;
+        for k in current_upper_bound..to_scan.len() {
+            let col = to_scan[k];
+            let reduced_cost =
+                matrix.value((row_index, col)) - column_costs[col.as_()] - initial_reduced_cost;
+            if reduced_cost < distances[col.as_()] {
+                distances[col.as_()] = reduced_cost;
+                predecessors[col.as_()] = row_index;
+                if reduced_cost == minimum_distance {
+                    if assigned_rows[col.as_()].is_unassigned() {
+                        *lower_bound_ref = lower_bound;
+                        *upper_bound_ref = upper_bound;
+                        return Some(col);
+                    }
+                    to_scan[k] = to_scan[upper_bound];
+                    to_scan[upper_bound] = col;
+                    upper_bound += 1;
+                }
+            }
+        }
+    }
+
+    *lower_bound_ref = lower_bound;
+    *upper_bound_ref = upper_bound;
+
+    None
+}
+
+/// Shared Dijkstra-style shortest-path search for dense LAP solvers
+/// (LAPJV and Hungarian).
+///
+/// Initialises distances from `start_row_index`, then alternates between
+/// `find_minimum_distance` and `dense_scan` until an unassigned column is
+/// reached.  Finally updates dual variables (`column_costs`) for all
+/// settled columns.  Returns the sink column.
+#[inline]
+pub(crate) fn dense_find_path<M: DenseValuedMatrix2D + ?Sized>(
+    start_row_index: M::RowIndex,
+    to_scan: &mut [M::ColumnIndex],
+    predecessors: &mut [M::RowIndex],
+    distances: &mut [M::Value],
+    assigned_rows: &[AssignmentState<M::RowIndex>],
+    column_costs: &mut [M::Value],
+    matrix: &M,
+) -> M::ColumnIndex
+where
+    M::Value: Number + Finite + TotalOrd,
+{
+    let mut lower_bound: usize = 0;
+    let mut upper_bound: usize = 0;
+    let mut n_ready: usize = 0;
+
+    for (column_index, (col_to_scan, (predecessor, distance))) in matrix
+        .column_indices()
+        .zip(to_scan.iter_mut().zip(predecessors.iter_mut().zip(distances.iter_mut())))
+    {
+        *predecessor = start_row_index;
+        *col_to_scan = column_index;
+        *distance =
+            matrix.value((start_row_index, column_index)) - column_costs[column_index.as_()];
+    }
+
+    let column_index = 'outer: loop {
+        if lower_bound == upper_bound {
+            n_ready = lower_bound;
+            upper_bound = find_minimum_distance(lower_bound, distances, to_scan);
+
+            for &col in &to_scan[lower_bound..upper_bound] {
+                if assigned_rows[col.as_()].is_unassigned() {
+                    break 'outer col;
+                }
+            }
+        }
+
+        if let Some(col) = dense_scan::<M>(
+            &mut lower_bound,
+            &mut upper_bound,
+            to_scan,
+            distances,
+            predecessors,
+            assigned_rows,
+            column_costs,
+            matrix,
+        ) {
+            break 'outer col;
+        }
+    };
+
+    // Use the sink column's actual Dijkstra distance as reference.
+    let minimum_distance = distances[column_index.as_()];
+    for &col in &to_scan[0..n_ready] {
+        column_costs[col.as_()] += distances[col.as_()] - minimum_distance;
+    }
+
+    column_index
+}
+
+/// Converts the column→row assignment vector into a `Vec<(R, C)>` of
+/// `(row, column)` pairs.
+///
+/// Shared by LAPJV, Hungarian, and LAPMOD inner structs.
+pub(crate) fn assignments_from_assigned_rows<R, C>(
+    assigned_rows: Vec<AssignmentState<R>>,
+    capacity: usize,
+) -> Vec<(R, C)>
+where
+    R: Copy,
+    C: TryFromUsize,
+    <C as TryFrom<usize>>::Error: Debug,
+{
+    let mut assignments: Vec<(R, C)> = Vec::with_capacity(capacity);
+    for (col_usize, state) in assigned_rows.into_iter().enumerate() {
+        let AssignmentState::Assigned(row) = state else {
+            unreachable!("Every column should be assigned after augmentation");
+        };
+        assignments.push((row, C::try_from_usize(col_usize).unwrap()));
+    }
+    assignments
 }
 
 #[cfg(all(test, feature = "alloc"))]

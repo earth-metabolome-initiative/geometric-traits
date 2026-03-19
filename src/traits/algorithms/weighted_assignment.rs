@@ -16,6 +16,11 @@ pub mod crouse;
 pub use crouse::{Crouse, CrouseError};
 
 #[cfg(feature = "alloc")]
+mod hungarian;
+#[cfg(feature = "alloc")]
+pub use hungarian::{Hungarian, SparseHungarian};
+
+#[cfg(feature = "alloc")]
 mod lap_error;
 #[cfg(feature = "alloc")]
 pub use lap_error::LAPError;

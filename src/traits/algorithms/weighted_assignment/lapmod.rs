@@ -124,7 +124,7 @@ where
 
         inner.augmentation_sparse()?;
 
-        Ok(inner.into())
+        Ok(inner.into_assignments())
     }
 }
 

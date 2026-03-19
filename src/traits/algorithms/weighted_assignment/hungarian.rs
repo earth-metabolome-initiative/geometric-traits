@@ -1,12 +1,15 @@
-//! Submodule providing an implementation of the LAPJV algorithm.
-use alloc::vec::Vec;
+//! Hungarian (Kuhn-Munkres) algorithm for the linear assignment problem.
+//!
+//! This is the classical O(n³) baseline solver. Unlike LAPJV it has no
+//! heuristic initialization phases — column duals start at zero and every
+//! row is augmented via Dijkstra-style shortest-path search.
+use alloc::{vec, vec::Vec};
 
-pub(crate) mod common;
 mod inner;
 
 use core::fmt::Debug;
 
-use inner::Inner;
+use inner::HungarianInner;
 
 use super::{
     LAPError,
@@ -19,15 +22,15 @@ use crate::{
     traits::{DenseValuedMatrix2D, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize},
 };
 
-/// Trait defining the LAPJV algorithm for solving the Weighted Assignment
-/// Problem.
-pub trait LAPJV: DenseValuedMatrix2D + Sized
+/// Trait defining the Hungarian algorithm for solving the Weighted Assignment
+/// Problem on dense square matrices.
+pub trait Hungarian: DenseValuedMatrix2D + Sized
 where
     Self::Value: Number + Finite + TotalOrd,
     Self::ColumnIndex: TryFromUsize,
 {
     #[allow(clippy::type_complexity)]
-    /// Computes the weighted assignment using the LAPJV algorithm.
+    /// Computes the weighted assignment using the Hungarian algorithm.
     ///
     /// # Arguments
     ///
@@ -46,14 +49,13 @@ where
     /// - `max_cost` is not a finite number (`LAPError::MaximalCostNotFinite`)
     /// - `max_cost` is not positive (`LAPError::MaximalCostNotPositive`)
     /// - The matrix is not square (`LAPError::NonSquareMatrix`)
-    /// - The matrix is empty (`LAPError::EmptyMatrix`)
     /// - The matrix contains zero values (`LAPError::ZeroValues`)
     /// - The matrix contains negative values (`LAPError::NegativeValues`)
     /// - The matrix contains non-finite values (`LAPError::NonFiniteValues`)
     /// - The matrix contains a value larger than the maximum cost
     ///   (`LAPError::ValueTooLarge`)
     #[inline]
-    fn lapjv(
+    fn hungarian(
         &self,
         max_cost: Self::Value,
     ) -> Result<Vec<(Self::RowIndex, Self::ColumnIndex)>, LAPError>
@@ -62,37 +64,31 @@ where
     {
         validate_lap_entry_costs(max_cost)?;
 
-        let mut inner = Inner::new(self, max_cost)?;
-        inner.column_reduction()?;
-        inner.reduction_transfer();
-
-        // We execute TWICE augmenting row reductions.
-        inner.augmenting_row_reduction();
-        inner.augmenting_row_reduction();
-
+        let mut inner = HungarianInner::new(self, max_cost)?;
         inner.augmentation();
 
         Ok(inner.into_assignments())
     }
 }
 
-impl<M: DenseValuedMatrix2D> LAPJV for M
+impl<M: DenseValuedMatrix2D> Hungarian for M
 where
     M::Value: Number + Finite + TotalOrd,
     M::ColumnIndex: TryFromUsize,
 {
 }
 
-/// Trait defining the LAPJV algorithm for solving the Weighted Assignment
+/// Trait defining the Hungarian algorithm for solving the Weighted Assignment
 /// Problem, adapted for the Sparse Matrix type.
-pub trait SparseLAPJV: SparseValuedMatrix2D + Sized
+pub trait SparseHungarian: SparseValuedMatrix2D + Sized
 where
     Self::Value: Number,
     Self::RowIndex: TryFromUsize,
     Self::ColumnIndex: TryFromUsize,
 {
     #[allow(clippy::type_complexity)]
-    /// Computes the weighted assignment using the LAPJV algorithm.
+    /// Computes the weighted assignment using the Hungarian algorithm on a
+    /// sparse matrix.
     ///
     /// # Arguments
     ///
@@ -129,12 +125,12 @@ where
     ///     ValuedCSR2D::try_from([[1.0, 0.5, 10.0], [0.5, 10.0, 20.0], [10.0, 20.0, 0.5]])
     ///         .expect("Failed to create CSR matrix");
     ///
-    /// let mut assignment = csr.sparse_lapjv(900.0, 1000.0).expect("LAPjv failed");
+    /// let mut assignment = csr.sparse_hungarian(900.0, 1000.0).expect("Hungarian failed");
     /// assignment.sort_unstable_by(|a, b| (a.0, a.1).cmp(&(b.0, b.1)));
     /// assert_eq!(assignment, vec![(0, 1), (1, 0), (2, 2)]);
     /// ```
     #[inline]
-    fn sparse_lapjv(
+    fn sparse_hungarian(
         &self,
         padding_cost: Self::Value,
         max_cost: Self::Value,
@@ -143,11 +139,11 @@ where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
-        sparse_padded_lap_impl!(self, padding_cost, max_cost, lapjv)
+        sparse_padded_lap_impl!(self, padding_cost, max_cost, hungarian)
     }
 }
 
-impl<M: SparseValuedMatrix2D> SparseLAPJV for M
+impl<M: SparseValuedMatrix2D> SparseHungarian for M
 where
     M::Value: Number,
     M::RowIndex: TryFromUsize,

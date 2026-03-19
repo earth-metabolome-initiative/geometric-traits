@@ -90,5 +90,9 @@ name = "lapmod"
 harness = false
 
 [[bench]]
+name = "hungarian"
+harness = false
+
+[[bench]]
 name = "matching"
 harness = false
