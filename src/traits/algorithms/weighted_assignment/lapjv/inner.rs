@@ -7,7 +7,10 @@ use num_traits::{AsPrimitive, Bounded};
 
 use super::{
     LAPError,
-    common::{augmentation_backtrack, augmenting_row_reduction_impl, find_minimum_distance},
+    common::{
+        assignments_from_assigned_rows, augmentation_backtrack, augmenting_row_reduction_impl,
+        dense_find_path,
+    },
 };
 use crate::traits::{
     AssignmentState, DenseValuedMatrix2D, Finite, Number, TotalOrd, TryFromUsize,
@@ -31,27 +34,15 @@ pub(super) struct Inner<'matrix, M: DenseValuedMatrix2D + ?Sized> {
     assigned_columns: Vec<AssignmentState<M::ColumnIndex>>,
 }
 
-impl<'matrix, M: DenseValuedMatrix2D + ?Sized> From<Inner<'matrix, M>>
-    for Vec<(M::RowIndex, M::ColumnIndex)>
+impl<M: DenseValuedMatrix2D + ?Sized> Inner<'_, M>
 where
     M::Value: Number,
     M::ColumnIndex: TryFromUsize,
     <M::ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     #[inline]
-    fn from(inner: Inner<'matrix, M>) -> Self {
-        let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
-            Vec::with_capacity(inner.matrix.number_of_rows().as_());
-        for (expected_column_index, maybe_row_index) in inner.assigned_rows.into_iter().enumerate()
-        {
-            let AssignmentState::Assigned(row_index) = maybe_row_index else {
-                unreachable!("We expected the assigned row to be in the assigned state");
-            };
-
-            assignments
-                .push((row_index, M::ColumnIndex::try_from_usize(expected_column_index).unwrap()));
-        }
-        assignments
+    pub(super) fn into_assignments(self) -> Vec<(M::RowIndex, M::ColumnIndex)> {
+        assignments_from_assigned_rows(self.assigned_rows, self.matrix.number_of_rows().as_())
     }
 }
 
@@ -229,133 +220,6 @@ where
     }
 
     #[inline]
-    fn scan(
-        &self,
-        lower_bound_ref: &mut usize,
-        upper_bound_ref: &mut usize,
-        to_scan: &mut [M::ColumnIndex],
-        distances: &mut [M::Value],
-        predecessors: &mut [M::RowIndex],
-    ) -> Option<M::ColumnIndex> {
-        let mut lower_bound = *lower_bound_ref;
-        let mut upper_bound = *upper_bound_ref;
-        let mut number_of_iterations = 0;
-        while lower_bound != upper_bound {
-            number_of_iterations += 1;
-            debug_assert!(
-                number_of_iterations < self.matrix.number_of_columns().as_(),
-                "We expected the number of iterations to be less than the number of columns ({}), with max cost {:?}",
-                self.matrix.number_of_columns(),
-                self.max_cost
-            );
-
-            let column_index = to_scan[lower_bound];
-            lower_bound += 1;
-            let AssignmentState::Assigned(row_index) = self.assigned_rows[column_index.as_()]
-            else {
-                unreachable!("We expected the assigned row to be in the assigned state");
-            };
-            let minimum_distance = distances[column_index.as_()];
-            let initial_reduced_cost = self.matrix.value((row_index, column_index))
-                - self.column_costs[column_index.as_()]
-                - minimum_distance;
-
-            let current_upper_bound = upper_bound;
-            for k in current_upper_bound..to_scan.len() {
-                let column_index = to_scan[k];
-                let reduced_cost = self.matrix.value((row_index, column_index))
-                    - self.column_costs[column_index.as_()]
-                    - initial_reduced_cost;
-                if reduced_cost < distances[column_index.as_()] {
-                    distances[column_index.as_()] = reduced_cost;
-                    predecessors[column_index.as_()] = row_index;
-                    if reduced_cost == minimum_distance {
-                        if self.assigned_rows[column_index.as_()].is_unassigned() {
-                            return Some(column_index);
-                        }
-                        to_scan[k] = to_scan[upper_bound];
-                        to_scan[upper_bound] = column_index;
-                        upper_bound += 1;
-                    }
-                }
-            }
-        }
-
-        debug_assert!(
-            lower_bound < to_scan.len(),
-            "We expected the lower bound to be less than the length of the to scan vector"
-        );
-
-        *lower_bound_ref = lower_bound;
-        *upper_bound_ref = upper_bound;
-
-        None
-    }
-
-    #[inline]
-    fn find_path(
-        &mut self,
-        start_row_index: M::RowIndex,
-        to_scan: &mut [M::ColumnIndex],
-        predecessors: &mut [M::RowIndex],
-        distances: &mut [M::Value],
-    ) -> M::ColumnIndex {
-        let mut lower_bound = 0;
-        let mut upper_bound = 0;
-        let mut n_ready = 0;
-
-        for (column_index, (column_index_to_scan, (predecessor, distance))) in self
-            .matrix
-            .column_indices()
-            .zip(to_scan.iter_mut().zip(predecessors.iter_mut().zip(distances.iter_mut())))
-        {
-            *predecessor = start_row_index;
-            *column_index_to_scan = column_index;
-            *distance = self.matrix.value((start_row_index, column_index))
-                - self.column_costs[column_index.as_()];
-        }
-
-        let mut number_of_iterations = 0;
-        let column_index = 'outer: loop {
-            number_of_iterations += 1;
-            debug_assert!(
-                number_of_iterations < self.matrix.number_of_columns().as_(),
-                "We expected the number of iterations to be less than the number of columns ({}): with max cost {:?}",
-                self.matrix.number_of_columns(),
-                self.max_cost
-            );
-
-            if lower_bound == upper_bound {
-                n_ready = lower_bound;
-                upper_bound = find_minimum_distance(lower_bound, distances, to_scan);
-
-                for column_index in to_scan[lower_bound..upper_bound].iter().copied() {
-                    if self.assigned_rows[column_index.as_()].is_unassigned() {
-                        break 'outer column_index;
-                    }
-                }
-            }
-
-            if let Some(column_index) =
-                self.scan(&mut lower_bound, &mut upper_bound, to_scan, distances, predecessors)
-            {
-                break 'outer column_index;
-            }
-        };
-
-        // Use the sink column's actual Dijkstra distance as reference.
-        // Previous code used `to_scan[lower_bound]`, which is incorrect
-        // when scan() increments lower_bound past the last frontier column.
-        let minimum_distance = distances[column_index.as_()];
-        for column_index in to_scan[0..n_ready].iter().copied() {
-            self.column_costs[column_index.as_()] +=
-                distances[column_index.as_()] - minimum_distance;
-        }
-
-        column_index
-    }
-
-    #[inline]
     pub(super) fn augmentation(&mut self) {
         if self.unassigned_rows.is_empty() {
             return;
@@ -367,11 +231,14 @@ where
         let mut distances = vec![self.max_cost; n];
 
         while let Some(unassigned_row_index) = self.unassigned_rows.pop() {
-            let column_index = self.find_path(
+            let column_index = dense_find_path::<M>(
                 unassigned_row_index,
                 &mut to_scan,
                 &mut predecessors,
                 &mut distances,
+                &self.assigned_rows,
+                &mut self.column_costs,
+                self.matrix,
             );
 
             augmentation_backtrack(

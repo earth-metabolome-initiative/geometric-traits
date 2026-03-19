@@ -156,6 +156,31 @@ where
     validate_sparse_wrapper_costs(padding_cost, max_cost)
 }
 
+/// Macro implementing the sparse padded LAP wrapper body shared by
+/// `SparseLAPJV::sparse_lapjv` and `SparseHungarian::sparse_hungarian`.
+///
+/// The closure type inside `PaddedMatrix2D` is unnameable, so a generic
+/// function cannot abstract over it — a macro is the simplest approach.
+macro_rules! sparse_padded_lap_impl {
+    ($self:expr, $padding_cost:expr, $max_cost:expr, $solve_method:ident) => {{
+        validate_sparse_lap_entry_costs($padding_cost, $max_cost)?;
+        if $self.is_empty() {
+            return Ok(vec![]);
+        }
+        if $self.max_sparse_value().is_some_and(|value| value >= $padding_cost) {
+            return Err(LAPError::PaddingCostTooSmall);
+        }
+        let padding =
+            PaddedMatrix2D::new($self, |_| $padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
+        let assignment = padding.$solve_method($max_cost)?;
+        Ok(assignment
+            .into_iter()
+            .filter(|&(row_index, column_index)| !padding.is_imputed((row_index, column_index)))
+            .collect())
+    }};
+}
+pub(crate) use sparse_padded_lap_impl;
+
 /// Validates a single matrix value against LAP constraints.
 ///
 /// Unified validation order across LAP inner implementations:

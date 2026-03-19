@@ -10,7 +10,9 @@ use crate::traits::{
     AssignmentState, Finite, Number, SparseValuedMatrix2D, TotalOrd, TryFromUsize,
     algorithms::weighted_assignment::{
         lap_error::validate_lap_value_against_max,
-        lapjv::common::{augmentation_backtrack, augmenting_row_reduction_impl},
+        lapjv::common::{
+            assignments_from_assigned_rows, augmentation_backtrack, augmenting_row_reduction_impl,
+        },
     },
 };
 
@@ -31,36 +33,17 @@ pub(super) struct LapmodInner<'matrix, M: SparseValuedMatrix2D + ?Sized> {
     assigned_columns: Vec<AssignmentState<M::ColumnIndex>>,
 }
 
-// ---------------------------------------------------------------------------
-// From<LapmodInner> → Vec of assignments
-// ---------------------------------------------------------------------------
-
-impl<'matrix, M: SparseValuedMatrix2D + ?Sized> From<LapmodInner<'matrix, M>>
-    for Vec<(M::RowIndex, M::ColumnIndex)>
+impl<M: SparseValuedMatrix2D + ?Sized> LapmodInner<'_, M>
 where
     M::Value: Number,
     M::ColumnIndex: TryFromUsize,
     <M::ColumnIndex as TryFrom<usize>>::Error: Debug,
 {
     #[inline]
-    fn from(inner: LapmodInner<'matrix, M>) -> Self {
-        let mut assignments: Vec<(M::RowIndex, M::ColumnIndex)> =
-            Vec::with_capacity(inner.matrix.number_of_rows().as_());
-        for (col_usize, state) in inner.assigned_rows.into_iter().enumerate() {
-            let AssignmentState::Assigned(row) = state else {
-                // Column was not assigned — only happens if we returned an
-                // error, so this branch is unreachable on the Ok path.
-                unreachable!("We expected every column to be assigned in a perfect matching");
-            };
-            assignments.push((row, M::ColumnIndex::try_from_usize(col_usize).unwrap()));
-        }
-        assignments
+    pub(super) fn into_assignments(self) -> Vec<(M::RowIndex, M::ColumnIndex)> {
+        assignments_from_assigned_rows(self.assigned_rows, self.matrix.number_of_rows().as_())
     }
 }
-
-// ---------------------------------------------------------------------------
-// Constructor
-// ---------------------------------------------------------------------------
 
 impl<'matrix, M: SparseValuedMatrix2D + ?Sized> LapmodInner<'matrix, M>
 where

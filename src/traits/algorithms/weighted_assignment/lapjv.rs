@@ -10,7 +10,9 @@ use inner::Inner;
 
 use super::{
     LAPError,
-    lap_error::{validate_lap_entry_costs, validate_sparse_lap_entry_costs},
+    lap_error::{
+        sparse_padded_lap_impl, validate_lap_entry_costs, validate_sparse_lap_entry_costs,
+    },
 };
 use crate::{
     impls::PaddedMatrix2D,
@@ -70,7 +72,7 @@ where
 
         inner.augmentation();
 
-        Ok(inner.into())
+        Ok(inner.into_assignments())
     }
 }
 
@@ -141,23 +143,7 @@ where
         Self::Value: Finite + TotalOrd,
         <<Self as crate::traits::Matrix2D>::ColumnIndex as TryFrom<usize>>::Error: Debug,
     {
-        validate_sparse_lap_entry_costs(padding_cost, max_cost)?;
-        if self.is_empty() {
-            return Ok(vec![]);
-        }
-
-        if self.max_sparse_value().is_some_and(|value| value >= padding_cost) {
-            return Err(LAPError::PaddingCostTooSmall);
-        }
-
-        let padding: PaddedMatrix2D<&'_ Self, _> =
-            PaddedMatrix2D::new(self, |_| padding_cost).map_err(|_| LAPError::NonSquareMatrix)?;
-        let assignment = padding.lapjv(max_cost)?;
-
-        Ok(assignment
-            .into_iter()
-            .filter(|&(row_index, column_index)| !padding.is_imputed((row_index, column_index)))
-            .collect())
+        sparse_padded_lap_impl!(self, padding_cost, max_cost, lapjv)
     }
 }
 
