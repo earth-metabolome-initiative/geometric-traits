@@ -146,3 +146,9 @@ name = "kocay"
 path = "fuzz_targets/kocay.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "line_graph"
+path = "fuzz_targets/line_graph.rs"
+test = false
+doc = false

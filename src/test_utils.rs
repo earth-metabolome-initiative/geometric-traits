@@ -1147,6 +1147,117 @@ pub fn check_mds_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+// ============================================================================
+// Line-graph invariants
+// ============================================================================
+
+/// Check that the line-graph algorithms satisfy structural invariants on an
+/// arbitrary directed graph wrapped in [`GenericGraph`].
+///
+/// Invariants checked:
+/// - **Undirected `line_graph`**: `|E(L(G))| == sum_v C(deg(v), 2)` where
+///   `deg(v)` counts edges with `src < dst` incident to `v`. Every edge in L(G)
+///   corresponds to two original edges sharing a common endpoint.
+/// - **Directed `directed_line_graph`**: `|E(L(G))| == sum_v in_deg(v) *
+///   out_deg(v)`. Every edge `(i, j)` in L(G) satisfies `head(original_edge_i)
+///   == tail(original_edge_j)`.
+/// - **Edge map length** equals the line-graph vertex count.
+/// - **Determinism**: repeated calls produce identical results.
+///
+/// Graphs larger than `max_nodes` are silently skipped to keep fuzzing fast.
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+#[inline]
+pub fn check_line_graph_invariants(
+    graph: &GenericGraph<u8, SquareCSR2D<CSR2D<u16, u8, u8>>>,
+    max_nodes: usize,
+) {
+    let n: usize = graph.number_of_nodes().into();
+    if n > max_nodes {
+        return;
+    }
+
+    // ── Undirected line graph ──────────────────────────────────────────
+    let lg = graph.line_graph();
+    let em = lg.edge_map();
+
+    // edge_map length == number of vertices in L(G)
+    assert_eq!(lg.number_of_vertices(), em.len());
+
+    // Collect undirected edges (src < dst) and compute degrees.
+    let undi_edges: Vec<(u8, u8)> =
+        SparseMatrix::sparse_coordinates(graph.edges()).filter(|&(s, d)| s < d).collect();
+    assert_eq!(lg.number_of_vertices(), undi_edges.len());
+
+    // Degree per vertex for undirected view.
+    let mut deg = vec![0usize; n];
+    for &(s, d) in &undi_edges {
+        deg[usize::from(s)] += 1;
+        deg[usize::from(d)] += 1;
+    }
+    let expected_undi_lg_edges: usize = deg.iter().map(|&d| d * d.saturating_sub(1) / 2).sum();
+    let actual_undi_lg_edges = Edges::number_of_edges(lg.graph()) / 2;
+    assert_eq!(
+        actual_undi_lg_edges, expected_undi_lg_edges,
+        "undirected |E(L(G))| mismatch: got {actual_undi_lg_edges}, expected {expected_undi_lg_edges}"
+    );
+
+    // Every edge in L(G) must correspond to original edges sharing an endpoint.
+    for (i, j) in Edges::sparse_coordinates(lg.graph()) {
+        if i < j {
+            let (a1, a2) = em[i];
+            let (b1, b2) = em[j];
+            assert!(
+                a1 == b1 || a1 == b2 || a2 == b1 || a2 == b2,
+                "undirected L(G) edge ({i},{j}): originals ({a1},{a2}),({b1},{b2}) share no endpoint"
+            );
+        }
+    }
+
+    // Determinism.
+    let lg2 = graph.line_graph();
+    assert_eq!(lg.edge_map(), lg2.edge_map(), "undirected line_graph not deterministic");
+
+    // ── Directed line graph ────────────────────────────────────────────
+    let dlg = graph.directed_line_graph();
+    let dem = dlg.edge_map();
+
+    assert_eq!(dlg.number_of_vertices(), dem.len());
+    let total_edges: usize = SparseMatrix::sparse_coordinates(graph.edges()).count();
+    assert_eq!(dlg.number_of_vertices(), total_edges);
+
+    // |E(L(G))| == sum_v in_deg(v) * out_deg(v).
+    let mut in_deg = vec![0usize; n];
+    let mut out_deg = vec![0usize; n];
+    for (s, d) in SparseMatrix::sparse_coordinates(graph.edges()) {
+        out_deg[usize::from(s)] += 1;
+        in_deg[usize::from(d)] += 1;
+    }
+    let expected_di_lg_edges: usize = (0..n).map(|v| in_deg[v] * out_deg[v]).sum();
+    let actual_di_lg_edges: usize = Edges::number_of_edges(dlg.graph());
+    assert_eq!(
+        actual_di_lg_edges, expected_di_lg_edges,
+        "directed |E(L(G))| mismatch: got {actual_di_lg_edges}, expected {expected_di_lg_edges}"
+    );
+
+    // Every edge (i,j) in directed L(G): head of original edge i == tail of
+    // original edge j.
+    for (i, j) in Edges::sparse_coordinates(dlg.graph()) {
+        let (_src_i, dst_i) = dem[i];
+        let (src_j, _dst_j) = dem[j];
+        assert_eq!(
+            dst_i, src_j,
+            "directed L(G) edge ({i},{j}): head of edge {i} is {dst_i}, tail of edge {j} is {src_j}"
+        );
+    }
+
+    // Determinism.
+    let dlg2 = graph.directed_line_graph();
+    assert_eq!(dlg.edge_map(), dlg2.edge_map(), "directed_line_graph not deterministic");
+}
+
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]
 mod tests {
     use std::{
@@ -1488,6 +1599,23 @@ mod tests {
             MatrixMut::add(&mut csr, (0, 0, 1.0e-20)).expect("insert tiny value");
             MatrixMut::add(&mut csr, (1, 1, 1.0e20)).expect("insert huge value");
             check_louvain_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_line_graph_invariants_smoke() {
+            let mut matrix: SquareCSR2D<CSR2D<u16, u8, u8>> =
+                SquareCSR2D::with_sparse_shaped_capacity(4, 4);
+            matrix.extend(vec![(0, 1), (0, 2), (1, 2), (2, 3)]).expect("extend matrix");
+            let graph: GenericGraph<u8, _> = GenericGraph::from((4u8, matrix));
+            check_line_graph_invariants(&graph, 32);
+        }
+
+        #[test]
+        fn test_check_line_graph_invariants_returns_for_size_guard() {
+            let matrix: SquareCSR2D<CSR2D<u16, u8, u8>> =
+                SquareCSR2D::with_sparse_shaped_capacity(4, 0);
+            let graph: GenericGraph<u8, _> = GenericGraph::from((4u8, matrix));
+            check_line_graph_invariants(&graph, 2);
         }
 
         #[test]
