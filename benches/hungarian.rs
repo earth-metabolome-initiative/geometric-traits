@@ -59,6 +59,9 @@ fn sparse_valued_matrix(
 fn bench_hungarian_vs_lapjv(c: &mut Criterion) {
     let mut group = c.benchmark_group("hungarian_vs_lapjv");
 
+    // Exercise the overflow fallback once outside the measured benchmark loops.
+    let _ = black_box(target_edge_count(usize::MAX, 1.0));
+
     for &n in &[20usize, 50, 100] {
         let density = 0.20;
         let csr = sparse_valued_matrix(
@@ -81,6 +84,14 @@ fn bench_hungarian_vs_lapjv(c: &mut Criterion) {
     }
 
     group.finish();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_target_edge_count_overflow_falls_back_to_usize_max() {
+        assert_eq!(super::target_edge_count(usize::MAX, 1.0), usize::MAX);
+    }
 }
 
 criterion_group!(benches, bench_hungarian_vs_lapjv);

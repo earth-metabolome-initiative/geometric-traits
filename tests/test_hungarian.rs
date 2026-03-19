@@ -2,13 +2,93 @@
 //! implementation.
 #![cfg(feature = "std")]
 
+use std::{iter::Copied, slice::Iter, vec::Vec};
+
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::{
-        MatrixMut, SparseHungarian, SparseLAPJV, SparseMatrix2D, SparseMatrixMut,
-        SparseValuedMatrix2D,
+        DenseMatrix, DenseMatrix2D, DenseValuedMatrix, DenseValuedMatrix2D, Hungarian, LAPError,
+        Matrix, Matrix2D, MatrixMut, SparseHungarian, SparseLAPJV, SparseMatrix2D, SparseMatrixMut,
+        SparseValuedMatrix2D, ValuedMatrix, ValuedMatrix2D,
     },
 };
+
+#[derive(Clone)]
+struct DenseTestMatrix {
+    rows: u8,
+    columns: u8,
+    values: Vec<f64>,
+}
+
+impl DenseTestMatrix {
+    fn new(rows: u8, columns: u8, values: Vec<f64>) -> Self {
+        assert_eq!(usize::from(rows) * usize::from(columns), values.len());
+        Self { rows, columns, values }
+    }
+
+    fn row_bounds(&self, row: u8) -> (usize, usize) {
+        let start = usize::from(row) * usize::from(self.columns);
+        let end = start + usize::from(self.columns);
+        (start, end)
+    }
+}
+
+impl Matrix for DenseTestMatrix {
+    type Coordinates = (u8, u8);
+
+    fn shape(&self) -> Vec<usize> {
+        vec![usize::from(self.rows), usize::from(self.columns)]
+    }
+}
+
+impl ValuedMatrix for DenseTestMatrix {
+    type Value = f64;
+}
+
+impl Matrix2D for DenseTestMatrix {
+    type RowIndex = u8;
+    type ColumnIndex = u8;
+
+    fn number_of_rows(&self) -> Self::RowIndex {
+        self.rows
+    }
+
+    fn number_of_columns(&self) -> Self::ColumnIndex {
+        self.columns
+    }
+}
+
+impl ValuedMatrix2D for DenseTestMatrix {}
+impl DenseMatrix for DenseTestMatrix {}
+impl DenseMatrix2D for DenseTestMatrix {}
+
+impl DenseValuedMatrix for DenseTestMatrix {
+    type Values<'a>
+        = Copied<Iter<'a, f64>>
+    where
+        Self: 'a;
+
+    fn value(&self, coordinates: Self::Coordinates) -> Self::Value {
+        let (row, column) = coordinates;
+        self.values[usize::from(row) * usize::from(self.columns) + usize::from(column)]
+    }
+
+    fn values(&self) -> Self::Values<'_> {
+        self.values.iter().copied()
+    }
+}
+
+impl DenseValuedMatrix2D for DenseTestMatrix {
+    type RowValues<'a>
+        = Copied<Iter<'a, f64>>
+    where
+        Self: 'a;
+
+    fn row_values(&self, row: Self::RowIndex) -> Self::RowValues<'_> {
+        let (start, end) = self.row_bounds(row);
+        self.values[start..end].iter().copied()
+    }
+}
 
 #[test]
 fn test_hungarian_zero_columns() {
@@ -22,6 +102,19 @@ fn test_hungarian_zero_rows() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 10), 0);
     let assignment = csr.sparse_hungarian(900.0, 1000.0).unwrap();
     assert_eq!(assignment, Vec::new());
+}
+
+#[test]
+fn test_dense_hungarian_empty_matrix() {
+    let matrix = DenseTestMatrix::new(0, 0, vec![]);
+    let assignment = matrix.hungarian(1000.0).expect("Dense Hungarian failed");
+    assert!(assignment.is_empty());
+}
+
+#[test]
+fn test_dense_hungarian_rejects_non_square_matrix() {
+    let matrix = DenseTestMatrix::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    assert_eq!(matrix.hungarian(1000.0), Err(LAPError::NonSquareMatrix));
 }
 
 #[test]
