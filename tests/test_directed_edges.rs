@@ -2,7 +2,10 @@
 #![cfg(feature = "std")]
 
 use ::geometric_traits::prelude::*;
-use geometric_traits::impls::{CSR2D, SquareCSR2D, UpperTriangularCSR2D};
+use geometric_traits::{
+    impls::{CSR2D, SquareCSR2D, UpperTriangularCSR2D},
+    traits::Edges,
+};
 
 #[test]
 /// First simple test for directed edges.
@@ -15,45 +18,45 @@ pub fn test_square_directed_edges() {
         .build()
         .unwrap();
 
-    assert_eq!(edges.number_of_edges(), 6);
+    assert_eq!(Edges::number_of_edges(&edges), 6);
     assert_eq!(edges.number_of_self_loops(), 1);
 
-    assert_eq!(edges.out_degree(0), 0, "The node 0 should have no successors.");
-    assert_eq!(edges.out_degree(1), 2, "The node 1 should have 2 successors.");
-    assert_eq!(edges.out_degree(2), 2, "The node 2 should have 2 successors.");
-    assert_eq!(edges.out_degree(3), 1, "The node 3 should have 1 successors.");
-    assert_eq!(edges.out_degree(4), 1, "The node 4 should have 1 successors.");
-    assert_eq!(edges.out_degree(5), 0, "The node 5 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 0), 0, "The node 0 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 1), 2, "The node 1 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 2), 2, "The node 2 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 3), 1, "The node 3 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 4), 1, "The node 4 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 5), 0, "The node 5 should have no successors.");
 
-    assert_eq!(edges.out_degrees().collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
+    assert_eq!(Edges::out_degrees(&edges).collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
 
     assert_eq!(
-        edges.successors(0).collect::<Vec<_>>(),
+        Edges::successors(&edges, 0).collect::<Vec<_>>(),
         vec![],
         "The node 0 should have no successors."
     );
     assert_eq!(
-        edges.successors(1).collect::<Vec<_>>(),
+        Edges::successors(&edges, 1).collect::<Vec<_>>(),
         vec![2, 3],
         "The node 1 should have successors 2 and 3."
     );
     assert_eq!(
-        edges.successors(2).collect::<Vec<_>>(),
+        Edges::successors(&edges, 2).collect::<Vec<_>>(),
         vec![2, 3],
         "The node 2 should have successors 1, 2, and 3."
     );
     assert_eq!(
-        edges.successors(3).collect::<Vec<_>>(),
+        Edges::successors(&edges, 3).collect::<Vec<_>>(),
         vec![4],
         "The node 3 should have successors 1, 2, and 4."
     );
     assert_eq!(
-        edges.successors(4).collect::<Vec<_>>(),
+        Edges::successors(&edges, 4).collect::<Vec<_>>(),
         vec![5],
         "The node 4 should have successors 3 and 5."
     );
     assert_eq!(
-        edges.successors(5).collect::<Vec<_>>(),
+        Edges::successors(&edges, 5).collect::<Vec<_>>(),
         vec![],
         "The node 5 should have successor 4."
     );
@@ -75,45 +78,45 @@ pub fn test_triangular_directed_edges() {
         .build()
         .unwrap();
 
-    assert_eq!(edges.number_of_edges(), 6);
+    assert_eq!(Edges::number_of_edges(&edges), 6);
     assert_eq!(edges.number_of_self_loops(), 1);
 
-    assert_eq!(edges.out_degree(0), 0, "The node 0 should have no successors.");
-    assert_eq!(edges.out_degree(1), 2, "The node 1 should have 2 successors.");
-    assert_eq!(edges.out_degree(2), 2, "The node 2 should have 2 successors.");
-    assert_eq!(edges.out_degree(3), 1, "The node 3 should have 1 successors.");
-    assert_eq!(edges.out_degree(4), 1, "The node 4 should have 1 successors.");
-    assert_eq!(edges.out_degree(5), 0, "The node 5 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 0), 0, "The node 0 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 1), 2, "The node 1 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 2), 2, "The node 2 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 3), 1, "The node 3 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 4), 1, "The node 4 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 5), 0, "The node 5 should have no successors.");
 
-    assert_eq!(edges.out_degrees().collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
+    assert_eq!(Edges::out_degrees(&edges).collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
 
     assert_eq!(
-        edges.successors(0).collect::<Vec<_>>(),
+        Edges::successors(&edges, 0).collect::<Vec<_>>(),
         vec![],
         "The node 0 should have no successors."
     );
     assert_eq!(
-        edges.successors(1).collect::<Vec<_>>(),
+        Edges::successors(&edges, 1).collect::<Vec<_>>(),
         vec![2, 3],
         "The node 1 should have successors 2 and 3."
     );
     assert_eq!(
-        edges.successors(2).collect::<Vec<_>>(),
+        Edges::successors(&edges, 2).collect::<Vec<_>>(),
         vec![2, 3],
         "The node 2 should have successors 1, 2, and 3."
     );
     assert_eq!(
-        edges.successors(3).collect::<Vec<_>>(),
+        Edges::successors(&edges, 3).collect::<Vec<_>>(),
         vec![4],
         "The node 3 should have successors 1, 2, and 4."
     );
     assert_eq!(
-        edges.successors(4).collect::<Vec<_>>(),
+        Edges::successors(&edges, 4).collect::<Vec<_>>(),
         vec![5],
         "The node 4 should have successors 3 and 5."
     );
     assert_eq!(
-        edges.successors(5).collect::<Vec<_>>(),
+        Edges::successors(&edges, 5).collect::<Vec<_>>(),
         vec![],
         "The node 5 should have successor 4."
     );

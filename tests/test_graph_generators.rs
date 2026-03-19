@@ -11,7 +11,7 @@ type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 
 fn edge_count(g: &UndirectedGraph) -> usize {
     // SymmetricCSR2D stores both directions; upper-triangular count = total / 2
-    g.number_of_edges() / 2
+    geometric_traits::traits::Edges::number_of_edges(g) / 2
 }
 
 // ============================================================================
@@ -251,7 +251,10 @@ fn test_erdos_renyi_gnm_deterministic() {
     let g1 = erdos_renyi_gnm(42, 20, 30);
     let g2 = erdos_renyi_gnm(42, 20, 30);
     assert_eq!(g1.order(), g2.order());
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
@@ -294,7 +297,10 @@ fn test_erdos_renyi_gnp_complete() {
 fn test_erdos_renyi_gnp_deterministic() {
     let g1 = erdos_renyi_gnp(99, 20, 0.3);
     let g2 = erdos_renyi_gnp(99, 20, 0.3);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
@@ -309,7 +315,10 @@ fn test_barabasi_albert_basic() {
 fn test_barabasi_albert_deterministic() {
     let g1 = barabasi_albert(42, 30, 3);
     let g2 = barabasi_albert(42, 30, 3);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
@@ -331,7 +340,10 @@ fn test_watts_strogatz_no_rewiring() {
 fn test_watts_strogatz_deterministic() {
     let g1 = watts_strogatz(42, 20, 4, 0.3);
     let g2 = watts_strogatz(42, 20, 4, 0.3);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
@@ -345,14 +357,20 @@ fn test_random_regular_graph_basic() {
 fn test_random_regular_graph_deterministic() {
     let g1 = random_regular_graph(42, 12, 4);
     let g2 = random_regular_graph(42, 12, 4);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
 fn test_stochastic_block_model_deterministic() {
     let g1 = stochastic_block_model(42, &[5, 5], 0.8, 0.1);
     let g2 = stochastic_block_model(42, &[5, 5], 0.8, 0.1);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
@@ -375,14 +393,20 @@ fn test_configuration_model_basic() {
 fn test_chung_lu_deterministic() {
     let g1 = chung_lu(42, &[3.0, 3.0, 3.0, 3.0, 3.0]);
     let g2 = chung_lu(42, &[3.0, 3.0, 3.0, 3.0, 3.0]);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]
 fn test_random_geometric_graph_deterministic() {
     let g1 = random_geometric_graph(42, 20, 0.3);
     let g2 = random_geometric_graph(42, 20, 0.3);
-    assert_eq!(g1.number_of_edges(), g2.number_of_edges());
+    assert_eq!(
+        geometric_traits::traits::Edges::number_of_edges(&g1),
+        geometric_traits::traits::Edges::number_of_edges(&g2)
+    );
 }
 
 #[test]

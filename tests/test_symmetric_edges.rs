@@ -15,7 +15,7 @@ pub fn test_symmetric_edges() {
         .build()
         .unwrap();
 
-    assert_eq!(edges.number_of_edges(), 11);
+    assert_eq!(geometric_traits::traits::Edges::number_of_edges(&edges), 11);
     assert_eq!(edges.number_of_self_loops(), 1);
 
     assert_eq!(edges.degrees().collect::<Vec<_>>(), vec![0, 2, 3, 3, 2, 1]);
