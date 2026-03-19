@@ -460,6 +460,7 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
 
     let jaqaman_result = csr.jaqaman(padding_value, maximal_cost);
     let sparse_lapjv = csr.sparse_lapjv(padding_value, maximal_cost);
+    let sparse_hungarian = csr.sparse_hungarian(padding_value, maximal_cost);
 
     match (&jaqaman_result, &sparse_lapjv) {
         (Ok(jaqaman_assignment), Ok(lapjv_assignment)) => {
@@ -518,6 +519,34 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
             );
         }
     }
+
+    // Cross-validate SparseHungarian against the other solvers.
+    if let Ok(hungarian_assignment) = &sparse_hungarian {
+        validate_lap_assignment(csr, hungarian_assignment, "SparseHungarian");
+
+        if numerically_stable {
+            if let Ok(jaqaman_assignment) = &jaqaman_result {
+                assert_eq!(
+                    hungarian_assignment.len(),
+                    jaqaman_assignment.len(),
+                    "SparseHungarian/Jaqaman cardinality mismatch: {csr:?}"
+                );
+
+                let hungarian_cost = lap_assignment_cost(csr, hungarian_assignment);
+                let jaqaman_cost = lap_assignment_cost(csr, jaqaman_assignment);
+                let denom = hungarian_cost.abs().max(jaqaman_cost.abs()).max(1e-30);
+                assert!(
+                    (hungarian_cost - jaqaman_cost).abs() / denom < 1e-9,
+                    "SparseHungarian/Jaqaman objective mismatch ({hungarian_cost} vs \
+                     {jaqaman_cost}): {csr:?}"
+                );
+            }
+        }
+    } else if numerically_stable && jaqaman_result.is_ok() {
+        panic!(
+            "SparseHungarian failed but Jaqaman succeeded on numerically stable matrix: {csr:?}"
+        );
+    }
 }
 
 /// Check full LAP invariants on square matrices: core `lapmod` should agree
@@ -527,6 +556,7 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
 ///
 /// Panics if results are inconsistent.
 #[inline]
+#[allow(clippy::too_many_lines)]
 pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let number_of_rows: usize = csr.number_of_rows().as_();
     let number_of_columns: usize = csr.number_of_columns().as_();
@@ -564,6 +594,7 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 
     let jaqaman_assignment = csr.jaqaman(padding_value, maximal_cost);
     let sparse_lapjv_assignment = csr.sparse_lapjv(padding_value, maximal_cost);
+    let sparse_hungarian_assignment = csr.sparse_hungarian(padding_value, maximal_cost);
 
     if !numerically_stable {
         if let Ok(assignment) = &jaqaman_assignment {
@@ -571,6 +602,9 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         }
         if let Ok(assignment) = &sparse_lapjv_assignment {
             validate_lap_assignment(csr, assignment, "SparseLAPJV");
+        }
+        if let Ok(assignment) = &sparse_hungarian_assignment {
+            validate_lap_assignment(csr, assignment, "SparseHungarian");
         }
         return;
     }
@@ -587,9 +621,16 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
              {error:?}: {csr:?}"
         )
     });
+    let sparse_hungarian_assignment = sparse_hungarian_assignment.unwrap_or_else(|error| {
+        panic!(
+            "SparseHungarian failed on square matrix that LAPMOD solved with error \
+             {error:?}: {csr:?}"
+        )
+    });
 
     validate_lap_assignment(csr, &jaqaman_assignment, "Jaqaman");
     validate_lap_assignment(csr, &sparse_lapjv_assignment, "SparseLAPJV");
+    validate_lap_assignment(csr, &sparse_hungarian_assignment, "SparseHungarian");
 
     assert_eq!(
         lapmod_assignment.len(),
@@ -601,10 +642,16 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         sparse_lapjv_assignment.len(),
         "LAPMOD/SparseLAPJV cardinality mismatch: {csr:?}"
     );
+    assert_eq!(
+        lapmod_assignment.len(),
+        sparse_hungarian_assignment.len(),
+        "LAPMOD/SparseHungarian cardinality mismatch: {csr:?}"
+    );
 
     let lapmod_cost = lap_assignment_cost(csr, &lapmod_assignment);
     let jaqaman_cost = lap_assignment_cost(csr, &jaqaman_assignment);
     let sparse_lapjv_cost = lap_assignment_cost(csr, &sparse_lapjv_assignment);
+    let sparse_hungarian_cost = lap_assignment_cost(csr, &sparse_hungarian_assignment);
 
     let denom1 = lapmod_cost.abs().max(jaqaman_cost.abs()).max(1e-30);
     assert!(
@@ -617,6 +664,12 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         (lapmod_cost - sparse_lapjv_cost).abs() / denom2 < 1e-9,
         "LAPMOD/SparseLAPJV objective mismatch ({lapmod_cost} vs \
          {sparse_lapjv_cost}): {csr:?}",
+    );
+    let denom3 = lapmod_cost.abs().max(sparse_hungarian_cost.abs()).max(1e-30);
+    assert!(
+        (lapmod_cost - sparse_hungarian_cost).abs() / denom3 < 1e-9,
+        "LAPMOD/SparseHungarian objective mismatch ({lapmod_cost} vs \
+         {sparse_hungarian_cost}): {csr:?}",
     );
 }
 
