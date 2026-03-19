@@ -191,6 +191,14 @@ impl<V: Copy> DenseValuedMatrix2D for VecMatrix2D<V> {
     }
 }
 
+impl<V, const COLS: usize, const ROWS: usize> From<[[V; COLS]; ROWS]> for VecMatrix2D<V> {
+    #[inline]
+    fn from(value: [[V; COLS]; ROWS]) -> Self {
+        let data: Vec<V> = value.into_iter().flat_map(IntoIterator::into_iter).collect();
+        Self { data, number_of_rows: ROWS }
+    }
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::{vec, vec::Vec};
