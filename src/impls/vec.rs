@@ -2,7 +2,10 @@
 
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
-use core::{iter::Cloned, ops::Range};
+use core::{
+    iter::{Cloned, Copied},
+    ops::Range,
+};
 
 use crate::{prelude::*, traits::Symbol};
 
@@ -98,7 +101,10 @@ impl<V: Symbol + Ord> GrowableVocabulary for Vec<V> {
     }
 }
 
-use crate::traits::{Matrix, Matrix2D};
+use crate::traits::{
+    DenseMatrix, DenseMatrix2D, DenseValuedMatrix, DenseValuedMatrix2D, Matrix, Matrix2D,
+    ValuedMatrix, ValuedMatrix2D,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Implementation of a matrix using a vector.
@@ -107,6 +113,19 @@ pub struct VecMatrix2D<V> {
     data: Vec<V>,
     /// The number of rows.
     number_of_rows: usize,
+}
+
+impl<V> VecMatrix2D<V> {
+    /// Creates a new `VecMatrix2D` from the given dimensions and data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `number_of_rows * number_of_columns != data.len()`.
+    #[must_use]
+    pub fn new(number_of_rows: usize, number_of_columns: usize, data: Vec<V>) -> Self {
+        assert_eq!(number_of_rows * number_of_columns, data.len());
+        Self { data, number_of_rows }
+    }
 }
 
 impl<V> Matrix for VecMatrix2D<V> {
@@ -130,6 +149,45 @@ impl<V> Matrix2D for VecMatrix2D<V> {
     #[inline]
     fn number_of_columns(&self) -> usize {
         self.data.len() / self.number_of_rows
+    }
+}
+
+impl<V: Copy> ValuedMatrix for VecMatrix2D<V> {
+    type Value = V;
+}
+
+impl<V: Copy> ValuedMatrix2D for VecMatrix2D<V> {}
+impl<V: Copy> DenseMatrix for VecMatrix2D<V> {}
+impl<V: Copy> DenseMatrix2D for VecMatrix2D<V> {}
+
+impl<V: Copy> DenseValuedMatrix for VecMatrix2D<V> {
+    type Values<'a>
+        = Copied<core::slice::Iter<'a, V>>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn value(&self, (row, col): Self::Coordinates) -> Self::Value {
+        self.data[row * self.number_of_columns() + col]
+    }
+
+    #[inline]
+    fn values(&self) -> Self::Values<'_> {
+        self.data.iter().copied()
+    }
+}
+
+impl<V: Copy> DenseValuedMatrix2D for VecMatrix2D<V> {
+    type RowValues<'a>
+        = Copied<core::slice::Iter<'a, V>>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn row_values(&self, row: Self::RowIndex) -> Self::RowValues<'_> {
+        let cols = self.number_of_columns();
+        let start = row * cols;
+        self.data[start..start + cols].iter().copied()
     }
 }
 
