@@ -99,3 +99,7 @@ pub use micali_vazirani::*;
 mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;
+#[cfg(feature = "alloc")]
+pub mod line_graph;
+#[cfg(feature = "alloc")]
+pub use line_graph::{LineGraph, LineGraphResult};
