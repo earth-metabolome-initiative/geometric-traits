@@ -62,6 +62,14 @@ mod johnson;
 #[cfg(feature = "alloc")]
 pub use johnson::*;
 #[cfg(feature = "alloc")]
+mod floyd_warshall;
+#[cfg(feature = "alloc")]
+pub use floyd_warshall::*;
+#[cfg(feature = "alloc")]
+mod pairwise_bfs;
+#[cfg(feature = "alloc")]
+pub use pairwise_bfs::*;
+#[cfg(feature = "alloc")]
 mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;

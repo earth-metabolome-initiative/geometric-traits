@@ -1149,6 +1149,240 @@ pub fn check_mds_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 }
 
 // ============================================================================
+// Floyd-Warshall invariants (from fuzz/fuzz_targets/floyd_warshall.rs)
+// ============================================================================
+
+fn bellman_ford_all_pairs(
+    order: usize,
+    edges: &[(usize, usize, f64)],
+) -> Result<Vec<Option<f64>>, usize> {
+    let mut all_pairs = vec![None; order * order];
+
+    for source_id in 0..order {
+        let mut distances = vec![f64::INFINITY; order];
+        distances[source_id] = 0.0;
+
+        for _ in 0..order.saturating_sub(1) {
+            let mut updated = false;
+            for &(from, to, weight) in edges {
+                if !distances[from].is_finite() {
+                    continue;
+                }
+                let candidate = distances[from] + weight;
+                if candidate < distances[to] {
+                    distances[to] = candidate;
+                    updated = true;
+                }
+            }
+            if !updated {
+                break;
+            }
+        }
+
+        for &(from, to, weight) in edges {
+            if distances[from].is_finite() && distances[from] + weight < distances[to] {
+                return Err(to);
+            }
+        }
+
+        for (destination_id, distance) in distances.into_iter().enumerate() {
+            if distance.is_finite() {
+                all_pairs[source_id * order + destination_id] = Some(distance);
+            }
+        }
+    }
+
+    Ok(all_pairs)
+}
+
+/// Check Floyd-Warshall invariants on arbitrary weighted sparse input.
+///
+/// For arbitrary matrices this helper verifies that the algorithm never
+/// panics. For square matrices with finite weights, order ≤ 24, and a
+/// moderate dynamic range, it cross-checks the result against a slower
+/// Bellman-Ford reference implementation, validates zero diagonal and triangle
+/// inequality, and checks determinism.
+///
+/// # Panics
+///
+/// Panics if any checked invariant is violated.
+#[inline]
+#[allow(clippy::too_many_lines)]
+pub fn check_floyd_warshall_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    let result = csr.floyd_warshall();
+    let rows = csr.number_of_rows().as_();
+    let columns = csr.number_of_columns().as_();
+
+    if rows != columns {
+        assert!(
+            matches!(
+                result,
+                Err(FloydWarshallError::NonSquareMatrix {
+                    rows: found_rows,
+                    columns: found_columns,
+                }) if found_rows == rows && found_columns == columns
+            ),
+            "non-square matrix should return NonSquareMatrix, got {result:?}"
+        );
+        return;
+    }
+
+    if rows == 0 {
+        let distances = result.expect("Floyd-Warshall should succeed on an empty matrix");
+        assert_eq!(distances.shape(), vec![0, 0]);
+        return;
+    }
+
+    let mut edges = Vec::new();
+    let mut max_abs = 0.0_f64;
+    for row_id in csr.row_indices() {
+        let source_id = row_id.as_();
+        for (column_id, weight) in csr.sparse_row(row_id).zip(csr.sparse_row_values(row_id)) {
+            let destination_id = column_id.as_();
+            if !weight.is_finite() {
+                assert!(
+                    matches!(
+                        result,
+                        Err(FloydWarshallError::NonFiniteWeight {
+                            source_id: found_source,
+                            destination_id: found_destination,
+                        }) if found_source == source_id && found_destination == destination_id
+                    ),
+                    "non-finite input weight should return NonFiniteWeight, got {result:?}"
+                );
+                return;
+            }
+            max_abs = max_abs.max(weight.abs());
+            edges.push((source_id, destination_id, weight));
+        }
+    }
+
+    if rows > 24 || max_abs > 1e150 {
+        return;
+    }
+
+    let reference = bellman_ford_all_pairs(rows, &edges);
+    match reference {
+        Err(_) => {
+            assert!(
+                matches!(result, Err(FloydWarshallError::NegativeCycle { .. })),
+                "negative cycle should return NegativeCycle, got {result:?}"
+            );
+        }
+        Ok(expected) => {
+            let distances = result.expect(
+                "Floyd-Warshall should succeed on finite square matrices without negative cycles",
+            );
+
+            assert_eq!(distances.shape(), vec![rows, rows]);
+            for node_id in 0..rows {
+                assert_eq!(
+                    distances.value((node_id, node_id)),
+                    Some(0.0),
+                    "distance from a node to itself must be zero in absence of negative cycles"
+                );
+            }
+
+            for source_id in 0..rows {
+                for destination_id in 0..rows {
+                    let actual = distances.value((source_id, destination_id));
+                    let expected = expected[source_id * rows + destination_id];
+                    match (actual, expected) {
+                        (None, None) => {}
+                        (Some(actual), Some(expected)) => {
+                            let tolerance = expected.abs().max(1.0) * 1e-9;
+                            assert!(
+                                (actual - expected).abs() <= tolerance,
+                                "distance mismatch at ({source_id}, {destination_id}): expected {expected}, got {actual}"
+                            );
+                        }
+                        _ => {
+                            panic!(
+                                "reachability mismatch at ({source_id}, {destination_id}): expected {expected:?}, got {actual:?}"
+                            );
+                        }
+                    }
+                }
+            }
+
+            for source_id in 0..rows {
+                for pivot_id in 0..rows {
+                    let Some(source_to_pivot) = distances.value((source_id, pivot_id)) else {
+                        continue;
+                    };
+                    for destination_id in 0..rows {
+                        let Some(pivot_to_destination) =
+                            distances.value((pivot_id, destination_id))
+                        else {
+                            continue;
+                        };
+                        let Some(source_to_destination) =
+                            distances.value((source_id, destination_id))
+                        else {
+                            continue;
+                        };
+                        let bound = source_to_pivot + pivot_to_destination;
+                        let tolerance =
+                            bound.abs().max(source_to_destination.abs()).max(1.0) * 1e-9;
+                        assert!(
+                            source_to_destination <= bound + tolerance,
+                            "triangle inequality violated for ({source_id}, {pivot_id}, {destination_id}): {source_to_destination} > {bound}"
+                        );
+                    }
+                }
+            }
+
+            let distances2 =
+                csr.floyd_warshall().expect("Floyd-Warshall should be deterministic on replay");
+            assert_eq!(distances, distances2, "Floyd-Warshall must be deterministic");
+        }
+    }
+}
+
+/// Check PairwiseBFS invariants on arbitrary unweighted square sparse input.
+///
+/// This helper verifies that repeated BFS returns a square distance matrix with
+/// zero diagonal, is deterministic, and matches Floyd-Warshall exactly when
+/// the same graph is interpreted as having implicit unit weights.
+///
+/// Large matrices are still exercised for PairwiseBFS itself, but the
+/// cross-check against Floyd-Warshall is capped to keep fuzzing throughput
+/// reasonable.
+///
+/// # Panics
+///
+/// Panics if any checked invariant is violated.
+#[inline]
+pub fn check_pairwise_bfs_matches_unit_floyd_warshall(csr: &SquareCSR2D<CSR2D<u16, u8, u8>>) {
+    let distances = csr.pairwise_bfs();
+    let order = csr.order().as_();
+
+    assert_eq!(distances.shape(), vec![order, order]);
+    for node_id in 0..order {
+        assert_eq!(
+            distances.value((node_id, node_id)),
+            Some(0),
+            "distance from a node to itself must be zero"
+        );
+    }
+
+    let distances2 = csr.pairwise_bfs();
+    assert_eq!(distances, distances2, "PairwiseBFS must be deterministic");
+
+    if order > 64 {
+        return;
+    }
+
+    let floyd_warshall = GenericImplicitValuedMatrix2D::new(csr.clone(), |_| 1usize)
+        .floyd_warshall()
+        .expect("unit-weight Floyd-Warshall should succeed on square unweighted matrices");
+    assert_eq!(
+        distances, floyd_warshall,
+        "PairwiseBFS must match Floyd-Warshall with implicit unit weights"
+    );
+}
+
+// ============================================================================
 // Line-graph invariants
 // ============================================================================
 

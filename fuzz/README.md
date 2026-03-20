@@ -186,3 +186,34 @@ and to run the crash cases:
 ```bash
 cargo hfuzz run-debug johnson_cycle hfuzz_workspace/*/*.fuzz
 ```
+
+### Floyd-Warshall
+
+The Floyd-Warshall algorithm computes all-pairs shortest-path distances for a
+weighted adjacency matrix.
+
+```bash
+cargo hfuzz run floyd_warshall
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug floyd_warshall hfuzz_workspace/*/*.fuzz
+```
+
+### Pairwise BFS
+
+The PairwiseBFS harness computes all-pairs unweighted shortest-path
+distances via repeated BFS and cross-checks them against Floyd-Warshall on the
+same graph with implicit unit weights.
+
+```bash
+cargo hfuzz run pairwise_bfs
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug pairwise_bfs hfuzz_workspace/*/*.fuzz
+```

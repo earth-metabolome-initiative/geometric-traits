@@ -95,6 +95,18 @@ test = false
 doc = false
 
 [[bin]]
+name = "floyd_warshall"
+path = "fuzz_targets/floyd_warshall.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pairwise_bfs"
+path = "fuzz_targets/pairwise_bfs.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "generic_matrix2d_with_padded_diagonal"
 path = "fuzz_targets/generic_matrix2d_with_padded_diagonal.rs"
 test = false
