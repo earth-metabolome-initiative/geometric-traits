@@ -159,3 +159,9 @@ name = "bit_square_matrix"
 path = "fuzz_targets/bit_square_matrix.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "modular_product"
+path = "fuzz_targets/modular_product.rs"
+test = false
+doc = false

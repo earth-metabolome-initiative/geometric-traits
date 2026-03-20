@@ -103,3 +103,7 @@ pub use kocay::*;
 pub mod line_graph;
 #[cfg(feature = "alloc")]
 pub use line_graph::{LineGraph, LineGraphResult};
+#[cfg(feature = "alloc")]
+pub mod modular_product;
+#[cfg(feature = "alloc")]
+pub use modular_product::ModularProduct;
