@@ -1,4 +1,5 @@
 //! Integration tests for [`BitSquareMatrix`].
+#![cfg(feature = "alloc")]
 
 use geometric_traits::{prelude::*, traits::SparseMatrix};
 
