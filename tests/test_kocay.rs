@@ -787,3 +787,137 @@ fn test_wheel6_cap2_budget3() {
     // Total flow ≤ (3 + 5×2) / 2 = 6.
     assert_eq!(total, 6);
 }
+
+// ============================================================================
+// kocay_with_initial_flow — correctness tests
+// ============================================================================
+
+#[test]
+fn test_empty_initial_flow_equals_kocay() {
+    // Verify that kocay_with_initial_flow(b, &[]) == kocay(b) on several graphs.
+    let cases = vec![
+        (2, vec![(0, 1, 1)], vec![1, 1]),
+        (3, vec![(0, 1, 1), (0, 2, 1), (1, 2, 1)], vec![1, 1, 1]),
+        (2, vec![(0, 1, 2)], vec![2, 2]),
+        (4, vec![(0, 1, 2), (1, 2, 2), (2, 3, 2), (0, 3, 2)], vec![2, 2, 2, 2]),
+    ];
+    for (n, edges, budgets) in cases {
+        let vcsr = build_valued_graph(n, &edges);
+        let flow_plain = vcsr.kocay(&budgets);
+        let flow_empty = vcsr.kocay_with_initial_flow(&budgets, &[]);
+        assert_eq!(flow_plain, flow_empty);
+    }
+}
+
+#[test]
+fn test_optimal_initial_flow_preserved() {
+    // Triangle cap=1 budgets=[1,1,1]: only one edge can carry flow.
+    // Start from edge (0,1)=1 → result must be exactly that edge.
+    let edges = [(0, 1, 1), (0, 2, 1), (1, 2, 1)];
+    let vcsr = build_valued_graph(3, &edges);
+    let budgets = [1, 1, 1];
+
+    let flow_01 = vcsr.kocay_with_initial_flow(&budgets, &[(0, 1, 1)]);
+    assert_eq!(flow_01, vec![(0, 1, 1)]);
+
+    // Start from (1,2)=1 → result must be exactly that edge.
+    let flow_12 = vcsr.kocay_with_initial_flow(&budgets, &[(1, 2, 1)]);
+    assert_eq!(flow_12, vec![(1, 2, 1)]);
+}
+
+#[test]
+fn test_suboptimal_initial_flow_augmented() {
+    // Path 0-1-2, cap=1, budgets=[1,2,1]: start from [(0,1,1)].
+    // Vertex 1 has budget 2, so both edges can carry flow=1. Total=2.
+    let edges = [(0, 1, 1), (1, 2, 1)];
+    let vcsr = build_valued_graph(3, &edges);
+    let budgets = [1, 2, 1];
+
+    let flow = vcsr.kocay_with_initial_flow(&budgets, &[(0, 1, 1)]);
+    let total = validate_flow(3, &edges, &budgets, &flow);
+    assert_eq!(total, 2);
+}
+
+#[test]
+fn test_co2_disambiguation() {
+    // C(0), O1(1), O2(2), charge+(3)
+    // edges: 0-1 cap=2, 0-2 cap=2, 1-3 cap=1, 2-3 cap=1
+    // budgets=[2,2,2,2]
+    // initial_flow: single bonds everywhere = [(0,1,1),(0,2,1),(1,3,1),(2,3,1)]
+    // Total initial = 4 = sum of budgets / 2. This is already optimal.
+    let edges = [(0, 1, 2), (0, 2, 2), (1, 3, 1), (2, 3, 1)];
+    let vcsr = build_valued_graph(4, &edges);
+    let budgets = [2, 2, 2, 2];
+    let initial = [(0usize, 1usize, 1usize), (0, 2, 1), (1, 3, 1), (2, 3, 1)];
+
+    let flow = vcsr.kocay_with_initial_flow(&budgets, &initial);
+    assert_eq!(flow, vec![(0, 1, 1), (0, 2, 1), (1, 3, 1), (2, 3, 1)]);
+}
+
+#[test]
+fn test_optimal_is_fixed_point() {
+    // Solve from zero, then use result as initial flow → identical output.
+    let cases = vec![
+        (3, vec![(0, 1, 1), (0, 2, 1), (1, 2, 1)], vec![2, 2, 2]),
+        (4, vec![(0, 1, 2), (1, 2, 2), (2, 3, 2), (0, 3, 2)], vec![2, 2, 2, 2]),
+        (2, vec![(0, 1, 5)], vec![5, 5]),
+        (
+            5,
+            vec![(0, 1, 1), (0, 2, 1), (1, 2, 1), (2, 3, 1), (2, 4, 1), (3, 4, 1)],
+            vec![1, 1, 2, 1, 1],
+        ),
+    ];
+    for (n, edges, budgets) in cases {
+        let vcsr = build_valued_graph(n, &edges);
+        let flow1 = vcsr.kocay(&budgets);
+        let flow2 = vcsr.kocay_with_initial_flow(&budgets, &flow1);
+        assert_eq!(flow1, flow2, "optimal flow must be a fixed point");
+    }
+}
+
+// ============================================================================
+// kocay_with_initial_flow — panic tests
+// ============================================================================
+
+#[test]
+#[should_panic(expected = "exceeds edge capacity")]
+fn test_rejects_flow_exceeding_edge_capacity() {
+    let vcsr = build_valued_graph(2, &[(0, 1, 1)]);
+    vcsr.kocay_with_initial_flow(&[1, 1], &[(0, 1, 2)]);
+}
+
+#[test]
+#[should_panic(expected = "exceeds budget")]
+fn test_rejects_flow_exceeding_vertex_budget() {
+    // Two edges incident on vertex 1 with total flow > budget.
+    let vcsr = build_valued_graph(3, &[(0, 1, 2), (1, 2, 2)]);
+    vcsr.kocay_with_initial_flow(&[2, 2, 2], &[(0, 1, 2), (1, 2, 1)]);
+}
+
+#[test]
+#[should_panic(expected = "non-existent edge")]
+fn test_rejects_nonexistent_edge() {
+    let vcsr = build_valued_graph(3, &[(0, 1, 1)]);
+    vcsr.kocay_with_initial_flow(&[1, 1, 1], &[(0, 2, 1)]);
+}
+
+#[test]
+#[should_panic(expected = "row < col")]
+fn test_rejects_wrong_ordering() {
+    let vcsr = build_valued_graph(2, &[(0, 1, 1)]);
+    vcsr.kocay_with_initial_flow(&[1, 1], &[(1, 0, 1)]);
+}
+
+#[test]
+#[should_panic(expected = "must be > 0")]
+fn test_rejects_zero_flow() {
+    let vcsr = build_valued_graph(2, &[(0, 1, 1)]);
+    vcsr.kocay_with_initial_flow(&[1, 1], &[(0, 1, 0)]);
+}
+
+#[test]
+#[should_panic(expected = "duplicate")]
+fn test_rejects_duplicate_edge() {
+    let vcsr = build_valued_graph(2, &[(0, 1, 2)]);
+    vcsr.kocay_with_initial_flow(&[2, 2], &[(0, 1, 1), (0, 1, 1)]);
+}
