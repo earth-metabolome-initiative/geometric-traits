@@ -189,3 +189,9 @@ name = "maximum_clique"
 path = "fuzz_targets/maximum_clique.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "delta_y_exchange"
+path = "fuzz_targets/delta_y_exchange.rs"
+test = false
+doc = false

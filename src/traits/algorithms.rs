@@ -123,3 +123,7 @@ pub use modular_product::ModularProduct;
 pub mod maximum_clique;
 #[cfg(feature = "alloc")]
 pub use maximum_clique::MaximumClique;
+#[cfg(feature = "alloc")]
+pub mod delta_y_exchange;
+#[cfg(feature = "alloc")]
+pub use delta_y_exchange::DeltaYExchange;
