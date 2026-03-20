@@ -11,6 +11,11 @@ pub mod sorted_vec;
 #[cfg(feature = "alloc")]
 pub use sorted_vec::SortedVec;
 
+#[cfg(feature = "alloc")]
+mod bit_square_matrix;
+#[cfg(feature = "alloc")]
+pub use bit_square_matrix::BitSquareMatrix;
+
 mod array;
 mod implicit_numeric_vocabularies;
 mod slice;
