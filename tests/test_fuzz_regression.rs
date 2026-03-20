@@ -18,7 +18,8 @@ use geometric_traits::{
         check_lap_sparse_wrapper_invariants, check_lap_square_invariants, check_leiden_invariants,
         check_louvain_invariants, check_padded_diagonal_invariants,
         check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
-        check_sparse_matrix_invariants, check_valued_matrix_invariants, from_bytes, replay_dir,
+        check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
+        check_valued_matrix_invariants, from_bytes, replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -327,6 +328,19 @@ fn test_replay_floyd_warshall_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/floyd_warshall/input");
     for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
         check_floyd_warshall_invariants(&instance);
+    }
+}
+
+#[test]
+fn test_arbitrary_pairwise_dijkstra() {
+    for_each_instance::<TestValuedCSR, _>(check_pairwise_dijkstra_matches_floyd_warshall);
+}
+
+#[test]
+fn test_replay_pairwise_dijkstra_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/pairwise_dijkstra/input");
+    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+        check_pairwise_dijkstra_matches_floyd_warshall(&instance);
     }
 }
 

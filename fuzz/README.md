@@ -217,3 +217,20 @@ and to run the crash cases:
 ```bash
 cargo hfuzz run-debug pairwise_bfs hfuzz_workspace/*/*.fuzz
 ```
+
+### Pairwise Dijkstra
+
+The PairwiseDijkstra harness computes all-pairs non-negative weighted
+shortest-path distances via repeated Dijkstra and cross-checks them against
+Floyd-Warshall on the subset of finite square inputs where the two algorithms
+must agree.
+
+```bash
+cargo hfuzz run pairwise_dijkstra
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug pairwise_dijkstra hfuzz_workspace/*/*.fuzz
+```
