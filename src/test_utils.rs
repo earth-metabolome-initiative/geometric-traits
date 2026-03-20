@@ -10,6 +10,7 @@ use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use arbitrary::{Arbitrary, Unstructured};
+use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
@@ -1256,6 +1257,166 @@ pub fn check_line_graph_invariants(
     // Determinism.
     let dlg2 = graph.directed_line_graph();
     assert_eq!(dlg.edge_map(), dlg2.edge_map(), "directed_line_graph not deterministic");
+}
+
+// ============================================================================
+// BitSquareMatrix invariants
+// ============================================================================
+
+/// Comprehensive invariant checks for [`BitSquareMatrix`].
+///
+/// Validates sparse matrix contracts, transpose roundtrip, `ExactSizeIterator`
+/// guarantees, `neighbor_intersection_count`, `row_and_count`, constructor
+/// paths, and iterator consistency.
+///
+/// # Arguments
+///
+/// * `m` – the matrix to check
+/// * `mask_bytes` – arbitrary bytes used to build a `BitVec` mask for
+///   `row_and_count` validation
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]) {
+    let order = m.order();
+    let cap = order.min(16);
+
+    // ── Basic sparse matrix invariants ───────────────────────────────────
+    check_sparse_matrix_invariants(m);
+
+    // ── Edge count matches sum of row counts ─────────────────────────────
+    let actual: usize = (0..order).map(|r| m.sparse_row(r).count()).sum();
+    assert_eq!(m.number_of_defined_values(), actual);
+
+    // ── has_entry consistent with sparse_row ─────────────────────────────
+    for r in 0..cap {
+        let row_cols: Vec<usize> = m.sparse_row(r).collect();
+        for c in 0..order {
+            assert_eq!(m.has_entry(r, c), row_cols.contains(&c));
+        }
+    }
+
+    // ── Forward + reverse coordinate iteration ───────────────────────────
+    let fwd: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(m).collect();
+    let mut rev: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(m).rev().collect();
+    rev.reverse();
+    assert_eq!(fwd, rev);
+
+    // ── Diagonal count consistency ───────────────────────────────────────
+    let diag_count = (0..order).filter(|&i| m.has_entry(i, i)).count();
+    assert_eq!(m.number_of_defined_diagonal_values(), diag_count);
+
+    // ── Row sizes consistency ────────────────────────────────────────────
+    let sizes: Vec<usize> = m.sparse_row_sizes().collect();
+    assert_eq!(sizes.len(), order);
+    for (r, &sz) in sizes.iter().enumerate() {
+        assert_eq!(sz, m.number_of_defined_values_in_row(r));
+    }
+
+    // ── sparse_rows() yields row indices repeated per entry ──────────────
+    let sparse_rows: Vec<usize> = m.sparse_rows().collect();
+    assert_eq!(sparse_rows.len(), actual);
+    let mut expected_rows = Vec::new();
+    for r in 0..order {
+        let count = m.sparse_row(r).count();
+        for _ in 0..count {
+            expected_rows.push(r);
+        }
+    }
+    assert_eq!(sparse_rows, expected_rows);
+
+    // ── ExactSizeIterator contracts ──────────────────────────────────────
+    let coords = SparseMatrix::sparse_coordinates(m);
+    assert_eq!(coords.len(), actual);
+
+    let row_sizes = m.sparse_row_sizes();
+    assert_eq!(row_sizes.len(), order);
+
+    let cols = m.sparse_columns();
+    assert_eq!(cols.len(), actual);
+
+    // ── last_sparse_coordinates ──────────────────────────────────────────
+    let all_coords: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(m).collect();
+    if let Some(last) = m.last_sparse_coordinates() {
+        assert_eq!(all_coords.last().copied(), Some(last));
+    } else {
+        assert!(all_coords.is_empty());
+    }
+
+    // ── sparse_columns consistency ───────────────────────────────────────
+    let from_coords: Vec<usize> = SparseMatrix::sparse_coordinates(m).map(|(_, c)| c).collect();
+    let from_iter: Vec<usize> = m.sparse_columns().collect();
+    assert_eq!(from_coords, from_iter);
+
+    // ── Transpose roundtrip and semantics ────────────────────────────────
+    let t = m.transpose();
+    assert_eq!(t.order(), order);
+    assert_eq!(t.number_of_defined_values(), m.number_of_defined_values());
+    assert_eq!(t.transpose(), *m, "transpose is not involutory");
+    for &(r, c) in &all_coords {
+        assert!(t.has_entry(c, r), "transpose missing ({c},{r}) for original ({r},{c})");
+    }
+
+    // ── neighbor_intersection_count cross-validation (small matrices) ────
+    for i in 0..cap {
+        for j in i..cap {
+            let expected: usize = m.sparse_row(i).filter(|&col| m.has_entry(j, col)).count();
+            assert_eq!(
+                m.neighbor_intersection_count(i, j),
+                expected,
+                "neighbor_intersection_count({i},{j}) mismatch"
+            );
+            // Symmetry: AND + popcount is commutative
+            assert_eq!(
+                m.neighbor_intersection_count(i, j),
+                m.neighbor_intersection_count(j, i),
+                "neighbor_intersection_count not symmetric for ({i},{j})"
+            );
+        }
+    }
+
+    // ── row_and_count cross-validation ───────────────────────────────────
+    let mask = if order > 0 {
+        let mut bv = BitVec::repeat(false, order);
+        for (idx, &byte) in mask_bytes.iter().enumerate() {
+            if idx >= order {
+                break;
+            }
+            bv.set(idx, byte & 1 != 0);
+        }
+        bv
+    } else {
+        BitVec::new()
+    };
+    for r in 0..cap {
+        let expected: usize = m.sparse_row(r).filter(|&col| col < mask.len() && mask[col]).count();
+        assert_eq!(m.row_and_count(r, &mask), expected, "row_and_count({r}) mismatch");
+    }
+
+    // ── row_bitslice consistency ─────────────────────────────────────────
+    for r in 0..cap {
+        let bits = m.row_bitslice(r);
+        assert_eq!(bits.len(), order);
+        for c in 0..order {
+            assert_eq!(bits[c], m.has_entry(r, c));
+        }
+    }
+
+    // ── from_edges constructor roundtrip ─────────────────────────────────
+    let edges: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(m).collect();
+    let rebuilt = BitSquareMatrix::from_edges(order, edges.iter().copied());
+    assert_eq!(rebuilt, *m, "from_edges roundtrip mismatch");
+
+    // ── from_symmetric_edges constructor ─────────────────────────────────
+    // Collect undirected edges (src <= dst) from original, build symmetric, verify
+    let sym_edges: Vec<(usize, usize)> = edges.iter().filter(|&&(r, c)| r <= c).copied().collect();
+    let sym = BitSquareMatrix::from_symmetric_edges(order, sym_edges.iter().copied());
+    // Every original edge that has its mirror should appear in sym
+    for &(r, c) in &sym_edges {
+        assert!(sym.has_entry(r, c));
+        assert!(sym.has_entry(c, r));
+    }
 }
 
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]
