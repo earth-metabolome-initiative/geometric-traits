@@ -14,10 +14,12 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, check_kahn_ordering, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
-        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
-        check_sparse_matrix_invariants, check_valued_matrix_invariants, from_bytes, replay_dir,
+        self, check_floyd_warshall_invariants, check_kahn_ordering,
+        check_lap_sparse_wrapper_invariants, check_lap_square_invariants, check_leiden_invariants,
+        check_louvain_invariants, check_padded_diagonal_invariants,
+        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
+        check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
+        check_valued_matrix_invariants, from_bytes, replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -165,6 +167,11 @@ fn test_arbitrary_square_csr2d_kahn() {
 }
 
 #[test]
+fn test_arbitrary_pairwise_bfs() {
+    for_each_instance::<TestSquareCSR, _>(check_pairwise_bfs_matches_unit_floyd_warshall);
+}
+
+#[test]
 fn test_replay_tarjan_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/tarjan/input");
     for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
@@ -185,6 +192,14 @@ fn test_replay_kahn_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/kahn/input");
     for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
         check_kahn_ordering(&instance, 255);
+    }
+}
+
+#[test]
+fn test_replay_pairwise_bfs_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/pairwise_bfs/input");
+    for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
+        check_pairwise_bfs_matches_unit_floyd_warshall(&instance);
     }
 }
 
@@ -296,6 +311,36 @@ fn test_replay_louvain_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/louvain/input");
     for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
         check_louvain_invariants(&instance);
+    }
+}
+
+// ============================================================================
+// Floyd-Warshall (mirrors fuzz/fuzz_targets/floyd_warshall.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_floyd_warshall() {
+    for_each_instance::<TestValuedCSR, _>(check_floyd_warshall_invariants);
+}
+
+#[test]
+fn test_replay_floyd_warshall_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/floyd_warshall/input");
+    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+        check_floyd_warshall_invariants(&instance);
+    }
+}
+
+#[test]
+fn test_arbitrary_pairwise_dijkstra() {
+    for_each_instance::<TestValuedCSR, _>(check_pairwise_dijkstra_matches_floyd_warshall);
+}
+
+#[test]
+fn test_replay_pairwise_dijkstra_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/pairwise_dijkstra/input");
+    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+        check_pairwise_dijkstra_matches_floyd_warshall(&instance);
     }
 }
 
