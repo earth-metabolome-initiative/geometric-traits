@@ -4,10 +4,7 @@
 //! construction paths, then validates comprehensive invariants including
 //! bitwise operations, transpose roundtrip, and iterator contracts.
 
-use geometric_traits::{
-    prelude::*,
-    test_utils::check_bit_square_matrix_invariants,
-};
+use geometric_traits::{prelude::*, test_utils::check_bit_square_matrix_invariants};
 use honggfuzz::fuzz;
 
 type FuzzInput = (u8, u8, Vec<u8>, Vec<(u8, u8, u8)>);
