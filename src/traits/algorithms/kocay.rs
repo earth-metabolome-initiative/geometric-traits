@@ -66,6 +66,44 @@ where
         &self,
         vertex_budgets: &[Self::Value],
     ) -> Vec<(Self::RowIndex, Self::ColumnIndex, Self::Value)> {
+        self.kocay_with_initial_flow(vertex_budgets, &[])
+    }
+
+    /// Computes a maximum balanced flow starting from a pre-initialized
+    /// feasible flow.
+    ///
+    /// When multiple optimal solutions exist (same total flow, different edge
+    /// assignments), the solver picks one arbitrarily. By accepting a feasible
+    /// starting flow, the solver preserves the desired optimum when it is
+    /// already maximal, only augmenting further if additional flow is
+    /// possible.
+    ///
+    /// # Arguments
+    ///
+    /// * `vertex_budgets` — budget (maximum total flow) per vertex.
+    /// * `initial_flow` — slice of `(row, col, flow)` triples specifying the
+    ///   starting flow. Each triple must satisfy:
+    ///   - `row < col`
+    ///   - `flow > 0`
+    ///   - The edge `(row, col)` must exist in the matrix with `flow <=
+    ///     capacity`.
+    ///   - No duplicate edges.
+    ///   - The sum of incident flows at each vertex must not exceed its budget.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the matrix is not square, `vertex_budgets` length is wrong, or
+    /// any of the above constraints on `initial_flow` are violated.
+    ///
+    /// # Complexity
+    ///
+    /// O(K · (V + E)) time where K is the maximum flow value, O(V + E) space.
+    #[inline]
+    fn kocay_with_initial_flow(
+        &self,
+        vertex_budgets: &[Self::Value],
+        initial_flow: &[(Self::RowIndex, Self::ColumnIndex, Self::Value)],
+    ) -> Vec<(Self::RowIndex, Self::ColumnIndex, Self::Value)> {
         let n_rows: usize = self.number_of_rows().as_();
         let n_cols: usize = self.number_of_columns().as_();
         assert!(n_rows == n_cols, "Kocay requires a square matrix, got {n_rows} x {n_cols}");
@@ -74,7 +112,7 @@ where
             "vertex_budgets length {} != matrix order {n_rows}",
             vertex_budgets.len()
         );
-        KocayState::new(self, vertex_budgets).solve()
+        KocayState::new_with_initial_flow(self, vertex_budgets, initial_flow).solve()
     }
 }
 

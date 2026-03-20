@@ -79,6 +79,17 @@ impl SwitchEdge {
     const NONE: Self = Self { vert1: NO_VERTEX, vert2: NO_VERTEX, edge_idx: NO_EDGE };
 }
 
+/// Look up the edge index for undirected edge (i, j) in a pre-built adjacency
+/// list.
+fn find_edge_idx_in_adj(adj: &[Vec<(usize, usize)>], i: usize, j: usize) -> Option<usize> {
+    for &(neighbor, eidx) in &adj[i] {
+        if neighbor == j {
+            return Some(eidx);
+        }
+    }
+    None
+}
+
 // ── KocayState ───────────────────────────────────────────────────────────────
 
 /// State for a full run of the Kocay-Stone BNS balanced flow algorithm.
@@ -125,7 +136,11 @@ where
     M::RowIndex: PositiveInteger,
     M::ColumnIndex: PositiveInteger,
 {
-    pub(super) fn new(matrix: &'a M, vertex_budgets: &[M::Value]) -> Self {
+    pub(super) fn new_with_initial_flow(
+        matrix: &'a M,
+        vertex_budgets: &[M::Value],
+        initial_flow: &[(M::RowIndex, M::ColumnIndex, M::Value)],
+    ) -> Self {
         let n_rows: usize = matrix.number_of_rows().as_();
         let n = n_rows;
         let nv = 2 * n + 2;
@@ -153,17 +168,47 @@ where
         }
 
         let num_edges = edge_cap.len();
-
         let st_cap: Vec<usize> = vertex_budgets.iter().map(|b| (*b).as_()).collect();
+
+        let mut edge_flow = vec![0usize; num_edges];
+        let mut st_flow = vec![0usize; n];
+
+        for &(row, col, flow) in initial_flow {
+            let r: usize = row.as_();
+            let c: usize = col.as_();
+            let f: usize = flow.as_();
+            assert!(r < c, "initial_flow requires row < col, got ({r}, {c})");
+            assert!(f > 0, "initial_flow values must be > 0, got flow=0 on ({r}, {c})");
+            let eidx = find_edge_idx_in_adj(&adj, r, c)
+                .unwrap_or_else(|| panic!("initial_flow references non-existent edge ({r}, {c})"));
+            assert!(
+                f <= edge_cap[eidx],
+                "initial_flow {f} exceeds edge capacity {} on ({r}, {c})",
+                edge_cap[eidx]
+            );
+            assert!(edge_flow[eidx] == 0, "initial_flow contains duplicate edge ({r}, {c})");
+            edge_flow[eidx] = f;
+            st_flow[r] += f;
+            st_flow[c] += f;
+        }
+
+        for v in 0..n {
+            assert!(
+                st_flow[v] <= st_cap[v],
+                "initial_flow total at vertex {v} ({}) exceeds budget ({})",
+                st_flow[v],
+                st_cap[v]
+            );
+        }
 
         Self {
             _marker: core::marker::PhantomData,
             n,
             adj,
             edge_cap,
-            edge_flow: vec![0; num_edges],
+            edge_flow,
             st_cap,
-            st_flow: vec![0; n],
+            st_flow,
             edge_on_path: vec![false; num_edges],
             st_on_path: vec![false; n],
             base_ptr: vec![NO_VERTEX; nv],

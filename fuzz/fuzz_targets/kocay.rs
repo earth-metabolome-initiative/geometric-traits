@@ -52,6 +52,11 @@ fn main() {
                     budgets[v]
                 );
             }
+
+            // Fixed-point check: optimal flow fed back as initial flow must
+            // produce the identical result.
+            let flow2 = vcsr.kocay_with_initial_flow(&budgets, &flow);
+            assert_eq!(flow, flow2, "optimal flow must be a fixed point");
         });
     }
 }
