@@ -165,3 +165,9 @@ name = "modular_product"
 path = "fuzz_targets/modular_product.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "maximum_clique"
+path = "fuzz_targets/maximum_clique.rs"
+test = false
+doc = false

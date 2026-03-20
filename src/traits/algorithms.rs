@@ -107,3 +107,7 @@ pub use line_graph::{LineGraph, LineGraphResult};
 pub mod modular_product;
 #[cfg(feature = "alloc")]
 pub use modular_product::ModularProduct;
+#[cfg(feature = "alloc")]
+pub mod maximum_clique;
+#[cfg(feature = "alloc")]
+pub use maximum_clique::MaximumClique;
