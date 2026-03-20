@@ -118,6 +118,7 @@ fn test_subset_preserves_shape() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "indices are not sorted")]
 fn test_subset_with_sorted_indices_panics_on_unsorted_indices() {
     let matrix = build_square_matrix(3, vec![(0, 1), (1, 2)]);
@@ -125,6 +126,7 @@ fn test_subset_with_sorted_indices_panics_on_unsorted_indices() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "indices are out of bounds")]
 fn test_subset_with_sorted_indices_panics_on_out_of_bounds_indices() {
     let matrix = build_square_matrix(3, vec![(0, 1), (1, 2)]);
