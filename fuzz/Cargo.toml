@@ -11,6 +11,7 @@ cargo-fuzz = true
 honggfuzz = "0.5.58"
 geometric-traits = { path = "../", features = ["arbitrary"] }
 arbitrary = { version = "1", features = ["derive"] }
+bitvec = { version = "1", default-features = false, features = ["alloc"] }
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -150,5 +151,11 @@ doc = false
 [[bin]]
 name = "line_graph"
 path = "fuzz_targets/line_graph.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bit_square_matrix"
+path = "fuzz_targets/bit_square_matrix.rs"
 test = false
 doc = false

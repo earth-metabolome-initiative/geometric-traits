@@ -90,6 +90,7 @@ name = "graph-fuzz"
 version = "0.0.0"
 dependencies = [
  "arbitrary",
+ "bitvec",
  "geometric-traits",
  "honggfuzz",
 ]
