@@ -1278,6 +1278,7 @@ pub fn check_line_graph_invariants(
 /// # Panics
 ///
 /// Panics if any invariant is violated.
+#[allow(clippy::too_many_lines)]
 pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]) {
     let order = m.order();
     let cap = order.min(16);
