@@ -1382,6 +1382,137 @@ pub fn check_pairwise_bfs_matches_unit_floyd_warshall(csr: &SquareCSR2D<CSR2D<u1
     );
 }
 
+/// Check PairwiseDijkstra invariants on arbitrary weighted sparse input.
+///
+/// This helper verifies that repeated Dijkstra returns a square distance matrix
+/// with zero diagonal, is deterministic, and matches Floyd-Warshall exactly on
+/// finite square matrices with non-negative weights. Large matrices and
+/// extreme magnitudes are still exercised for PairwiseDijkstra itself, but the
+/// cross-check against Floyd-Warshall is capped to keep fuzzing throughput
+/// reasonable.
+///
+/// # Panics
+///
+/// Panics if any checked invariant is violated.
+#[inline]
+#[allow(clippy::too_many_lines)]
+pub fn check_pairwise_dijkstra_matches_floyd_warshall(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    let rows = csr.number_of_rows().as_();
+    let columns = csr.number_of_columns().as_();
+
+    if rows != columns {
+        let result = csr.pairwise_dijkstra();
+        assert!(
+            matches!(
+                result,
+                Err(PairwiseDijkstraError::NonSquareMatrix {
+                    rows: found_rows,
+                    columns: found_columns,
+                }) if found_rows == rows && found_columns == columns
+            ),
+            "non-square matrix should return NonSquareMatrix, got {result:?}"
+        );
+        return;
+    }
+
+    if rows == 0 {
+        let result = csr.pairwise_dijkstra();
+        let distances = result.expect("PairwiseDijkstra should succeed on an empty matrix");
+        assert_eq!(distances.shape(), vec![0, 0]);
+        return;
+    }
+
+    let mut max_abs = 0.0_f64;
+    let mut non_finite_edges = Vec::new();
+    let mut negative_edges = Vec::new();
+    for row_id in csr.row_indices() {
+        let source_id = row_id.as_();
+        for (column_id, weight) in csr.sparse_row(row_id).zip(csr.sparse_row_values(row_id)) {
+            let destination_id = column_id.as_();
+            if !weight.is_finite() {
+                non_finite_edges.push((source_id, destination_id));
+                continue;
+            }
+            if weight < 0.0 {
+                negative_edges.push((source_id, destination_id));
+                continue;
+            }
+            max_abs = max_abs.max(weight.abs());
+        }
+    }
+
+    if !non_finite_edges.is_empty() || !negative_edges.is_empty() {
+        let result = csr.pairwise_dijkstra();
+        match result {
+            Err(PairwiseDijkstraError::NonFiniteWeight { source_id, destination_id }) => {
+                assert!(
+                    non_finite_edges.contains(&(source_id, destination_id)),
+                    "expected a non-finite edge in {non_finite_edges:?}, got ({source_id}, {destination_id})"
+                );
+            }
+            Err(PairwiseDijkstraError::NegativeWeight { source_id, destination_id }) => {
+                assert!(
+                    negative_edges.contains(&(source_id, destination_id)),
+                    "expected a negative edge in {negative_edges:?}, got ({source_id}, {destination_id})"
+                );
+            }
+            _ => {
+                panic!(
+                    "invalid weighted input should return NonFiniteWeight or NegativeWeight, got {result:?}"
+                );
+            }
+        }
+        return;
+    }
+
+    if rows > 32 || max_abs > 1e150 {
+        return;
+    }
+
+    let result = csr.pairwise_dijkstra();
+    let distances = result.expect(
+        "PairwiseDijkstra should succeed on finite square matrices without negative weights",
+    );
+    let floyd_warshall = csr
+        .floyd_warshall()
+        .expect("Floyd-Warshall should succeed on the same non-negative weighted matrix");
+
+    assert_eq!(distances.shape(), vec![rows, rows]);
+    for node_id in 0..rows {
+        assert_eq!(
+            distances.value((node_id, node_id)),
+            Some(0.0),
+            "distance from a node to itself must be zero"
+        );
+    }
+
+    for source_id in 0..rows {
+        for destination_id in 0..rows {
+            let actual = distances.value((source_id, destination_id));
+            let expected = floyd_warshall.value((source_id, destination_id));
+            match (actual, expected) {
+                (None, None) => {}
+                (Some(actual), Some(expected)) => {
+                    let tolerance = expected.abs().max(1.0) * 1e-9;
+                    assert!(
+                        (actual - expected).abs() <= tolerance,
+                        "distance mismatch at ({source_id}, {destination_id}): expected {expected}, got {actual}"
+                    );
+                }
+                _ => {
+                    panic!(
+                        "reachability mismatch at ({source_id}, {destination_id}): expected {expected:?}, got {actual:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    let distances2 =
+        csr.pairwise_dijkstra().expect("PairwiseDijkstra should be deterministic on replay");
+    assert_eq!(distances, distances2, "PairwiseDijkstra must be deterministic");
+}
+
 // ============================================================================
 // Line-graph invariants
 // ============================================================================

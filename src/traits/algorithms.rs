@@ -70,6 +70,10 @@ mod pairwise_bfs;
 #[cfg(feature = "alloc")]
 pub use pairwise_bfs::*;
 #[cfg(feature = "alloc")]
+mod pairwise_dijkstra;
+#[cfg(feature = "alloc")]
+pub use pairwise_dijkstra::*;
+#[cfg(feature = "alloc")]
 mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;
