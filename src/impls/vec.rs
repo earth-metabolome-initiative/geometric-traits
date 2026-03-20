@@ -148,7 +148,7 @@ impl<V> Matrix2D for VecMatrix2D<V> {
 
     #[inline]
     fn number_of_columns(&self) -> usize {
-        self.data.len() / self.number_of_rows
+        self.data.len().checked_div(self.number_of_rows).unwrap_or(0)
     }
 }
 

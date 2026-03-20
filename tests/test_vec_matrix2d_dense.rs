@@ -39,6 +39,13 @@ fn test_matrix2d_dimensions() {
 }
 
 #[test]
+fn test_empty_matrix_dimensions() {
+    let m = VecMatrix2D::<f64>::new(0, 0, vec![]);
+    assert_eq!(m.number_of_rows(), 0);
+    assert_eq!(m.number_of_columns(), 0);
+}
+
+#[test]
 fn test_lapjv_on_vec_matrix2d() {
     let m = VecMatrix2D::new(3, 3, vec![1.0, 0.5, 10.0, 0.5, 10.0, 20.0, 10.0, 20.0, 0.5]);
     let mut assignment = m.lapjv(100.0).expect("LAPJV failed");
