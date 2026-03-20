@@ -110,6 +110,18 @@ impl BitSquareMatrix {
             .sum()
     }
 
+    /// Returns `(row's neighbors) ∩ mask` as a new [`BitVec`].
+    ///
+    /// Used in max-clique branch-and-bound to compute the new candidate
+    /// set `P ∩ N(v)` when branching on vertex `v`.
+    #[inline]
+    #[must_use]
+    pub fn row_and(&self, row: usize, mask: &BitVec) -> BitVec {
+        let mut result = self.rows[row].clone();
+        result &= mask;
+        result
+    }
+
     /// Builds a directed matrix from an iterator of `(row, col)` edges.
     #[inline]
     #[must_use]
@@ -724,6 +736,22 @@ mod tests {
         // In K4, every pair shares 2 common neighbors
         assert_eq!(m.neighbor_intersection_count(0, 1), 2);
         assert_eq!(m.neighbor_intersection_count(1, 2), 2);
+    }
+
+    #[test]
+    fn test_row_and() {
+        let m = BitSquareMatrix::from_symmetric_edges(
+            4,
+            vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
+        );
+        let mut mask = bitvec::vec::BitVec::repeat(true, 4);
+        mask.set(1, false);
+        let result = m.row_and(0, &mask);
+        // N(0) = {1,2,3}, mask = {0,2,3} → result = {2,3}
+        assert!(!result[0]);
+        assert!(!result[1]);
+        assert!(result[2]);
+        assert!(result[3]);
     }
 
     #[test]
