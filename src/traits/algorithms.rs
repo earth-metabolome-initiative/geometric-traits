@@ -127,3 +127,11 @@ pub use maximum_clique::MaximumClique;
 pub mod delta_y_exchange;
 #[cfg(feature = "alloc")]
 pub use delta_y_exchange::DeltaYExchange;
+#[cfg(feature = "alloc")]
+mod labeled_modular_product;
+#[cfg(feature = "alloc")]
+pub use labeled_modular_product::LabeledModularProduct;
+#[cfg(feature = "alloc")]
+mod labeled_line_graph;
+#[cfg(feature = "alloc")]
+pub use labeled_line_graph::LabeledLineGraph;

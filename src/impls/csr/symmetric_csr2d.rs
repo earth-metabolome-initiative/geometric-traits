@@ -259,6 +259,67 @@ where
     }
 }
 
+impl<M: Matrix2D> SymmetricCSR2D<M> {
+    /// Creates a new `SymmetricCSR2D` from a `SquareCSR2D`.
+    ///
+    /// # Safety (logical)
+    /// The caller must guarantee that `matrix` stores a symmetric adjacency
+    /// (i.e. for every `(r, c)` stored there is a matching `(c, r)`).
+    #[inline]
+    pub fn from_parts(matrix: SquareCSR2D<M>) -> Self {
+        Self { matrix }
+    }
+}
+
+impl<M> ValuedMatrix for SymmetricCSR2D<M>
+where
+    M: ValuedMatrix + Matrix2D,
+{
+    type Value = M::Value;
+}
+
+impl<M> ValuedMatrix2D for SymmetricCSR2D<M> where M: ValuedMatrix2D {}
+
+impl<M> SparseValuedMatrix for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValues<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix>::SparseValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_values(&self) -> Self::SparseValues<'_> {
+        self.matrix.sparse_values()
+    }
+}
+
+impl<M> SparseValuedMatrix2D for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValues<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2D>::SparseRowValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
+        self.matrix.sparse_row_values(row)
+    }
+}
+
+impl<M> SizedSparseValuedMatrix for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrix + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
+        self.matrix.select_value(sparse_index)
+    }
+}
+
 impl<M> TransposableMatrix2D<Self> for SymmetricCSR2D<M>
 where
     M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + Clone,

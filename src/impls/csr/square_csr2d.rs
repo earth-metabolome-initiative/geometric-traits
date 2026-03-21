@@ -89,6 +89,21 @@ where
     }
 }
 
+impl<M: Matrix2D> SquareCSR2D<M> {
+    /// Creates a new `SquareCSR2D` from an inner matrix and a precomputed
+    /// diagonal count.
+    ///
+    /// # Safety (logical)
+    /// The caller must guarantee that `matrix` is square
+    /// (`number_of_rows == number_of_columns`) and that
+    /// `number_of_diagonal_values` correctly reflects the number of entries
+    /// `(i, i)` stored in `matrix`.
+    #[inline]
+    pub fn from_parts(matrix: M, number_of_diagonal_values: M::RowIndex) -> Self {
+        Self { matrix, number_of_diagonal_values }
+    }
+}
+
 impl<M: Matrix2D> AsRef<M> for SquareCSR2D<M> {
     #[inline]
     fn as_ref(&self) -> &M {
@@ -358,6 +373,55 @@ where
         }
         self.matrix.increase_shape((number_of_rows, number_of_columns))?;
         Ok(())
+    }
+}
+
+impl<M> ValuedMatrix for SquareCSR2D<M>
+where
+    M: ValuedMatrix + Matrix2D,
+{
+    type Value = M::Value;
+}
+
+impl<M> ValuedMatrix2D for SquareCSR2D<M> where M: ValuedMatrix2D {}
+
+impl<M> SparseValuedMatrix for SquareCSR2D<M>
+where
+    M: SparseValuedMatrix + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValues<'a>
+        = M::SparseValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_values(&self) -> Self::SparseValues<'_> {
+        self.matrix.sparse_values()
+    }
+}
+
+impl<M> SparseValuedMatrix2D for SquareCSR2D<M>
+where
+    M: SparseValuedMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValues<'a>
+        = M::SparseRowValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
+        self.matrix.sparse_row_values(row)
+    }
+}
+
+impl<M> SizedSparseValuedMatrix for SquareCSR2D<M>
+where
+    M: SizedSparseValuedMatrix + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
+        self.matrix.select_value(sparse_index)
     }
 }
 
