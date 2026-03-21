@@ -236,7 +236,7 @@ fn test_end_to_end_labeled_lg_to_labeled_modular_product_to_max_clique() {
     let n2 = lg2.number_of_vertices();
     let pairs: Vec<(usize, usize)> = (0..n1).flat_map(|i| (0..n2).map(move |j| (i, j))).collect();
 
-    let mp = lg1.graph().labeled_modular_product(lg2.graph(), &pairs);
+    let mp = lg1.graph().labeled_modular_product(lg2.graph(), &pairs, |a, b| a == b);
 
     // The result should be a valid BitSquareMatrix.
     assert_eq!(mp.order(), pairs.len());
