@@ -195,3 +195,9 @@ name = "delta_y_exchange"
 path = "fuzz_targets/delta_y_exchange.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "labeled_modular_product"
+path = "fuzz_targets/labeled_modular_product.rs"
+test = false
+doc = false

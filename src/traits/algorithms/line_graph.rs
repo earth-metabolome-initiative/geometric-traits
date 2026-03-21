@@ -22,6 +22,12 @@ pub struct LineGraphResult<M, NodeId> {
 }
 
 impl<M, NodeId: Copy> LineGraphResult<M, NodeId> {
+    /// Creates a new `LineGraphResult`.
+    #[inline]
+    pub fn new(graph: M, edge_map: Vec<(NodeId, NodeId)>) -> Self {
+        Self { graph, edge_map }
+    }
+
     /// Returns a reference to the line graph.
     #[inline]
     pub fn graph(&self) -> &M {
