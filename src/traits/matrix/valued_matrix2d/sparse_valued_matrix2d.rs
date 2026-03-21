@@ -104,6 +104,18 @@ pub trait SparseValuedMatrix2D: SparseMatrix2D + ValuedMatrix2D + SparseValuedMa
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_>;
 
     #[inline]
+    /// Returns the value at the given row and column, if present.
+    fn sparse_value_at(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.sparse_row(row)
+            .zip(self.sparse_row_values(row))
+            .find(|&(col, _)| col == column)
+            .map(|(_, val)| val)
+    }
+
+    #[inline]
     /// Returns an iterator over the maximum values of the rows.
     ///
     /// # Returns
@@ -141,6 +153,14 @@ impl<M: SparseValuedMatrix2D> SparseValuedMatrix2D for &M {
     #[inline]
     fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
         (*self).sparse_row_values(row)
+    }
+
+    #[inline]
+    fn sparse_value_at(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        (*self).sparse_value_at(row, column)
     }
 }
 

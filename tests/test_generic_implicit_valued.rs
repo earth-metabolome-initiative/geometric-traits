@@ -268,6 +268,27 @@ fn test_implicit_bipartite_graph() {
 }
 
 // ============================================================================
+// SquareMatrix / SparseSquareMatrix (delegated to inner)
+// ============================================================================
+
+#[test]
+fn test_implicit_square_matrix() {
+    use geometric_traits::{
+        impls::SquareCSR2D,
+        traits::{SparseSquareMatrix, SquareMatrix},
+    };
+    type SquareCSR = SquareCSR2D<TestCSR>;
+    let mut inner: TestCSR = SparseMatrixMut::with_sparse_shaped_capacity((3, 3), 2);
+    MatrixMut::add(&mut inner, (0, 1)).unwrap();
+    MatrixMut::add(&mut inner, (1, 0)).unwrap();
+    let sq = SquareCSR::from_parts(inner, 0);
+    let m =
+        GenericImplicitValuedMatrix2D::new(sq, |(r, c): (usize, usize)| usize_to_f64(r * 10 + c));
+    assert_eq!(SquareMatrix::order(&m), 3);
+    assert_eq!(SparseSquareMatrix::number_of_defined_diagonal_values(&m), 0);
+}
+
+// ============================================================================
 // Clone / Debug
 // ============================================================================
 

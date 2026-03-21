@@ -256,6 +256,31 @@ where
     }
 }
 
+impl<M, Map, Value> crate::traits::SquareMatrix for GenericImplicitValuedMatrix2D<M, Map, Value>
+where
+    M: crate::traits::SquareMatrix,
+    Map: Fn(M::Coordinates) -> Value,
+{
+    type Index = M::Index;
+
+    #[inline]
+    fn order(&self) -> Self::Index {
+        self.matrix.order()
+    }
+}
+
+impl<M, Map, Value> crate::traits::SparseSquareMatrix
+    for GenericImplicitValuedMatrix2D<M, Map, Value>
+where
+    M: crate::traits::SparseSquareMatrix,
+    Map: Fn(M::Coordinates) -> Value,
+{
+    #[inline]
+    fn number_of_defined_diagonal_values(&self) -> Self::Index {
+        self.matrix.number_of_defined_diagonal_values()
+    }
+}
+
 impl<M, Map, Value> ValuedMatrix for GenericImplicitValuedMatrix2D<M, Map, Value>
 where
     M: Matrix2D,
