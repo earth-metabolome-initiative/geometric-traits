@@ -52,6 +52,21 @@ impl Dsu {
         }
     }
 
+    fn reset(&mut self, n: usize) {
+        if self.link.len() == n {
+            for (i, v) in self.link.iter_mut().enumerate() {
+                *v = i;
+            }
+            self.direct_parent.fill(None);
+            self.size.fill(1);
+            for (i, v) in self.group_root.iter_mut().enumerate() {
+                *v = i;
+            }
+        } else {
+            *self = Self::new(n);
+        }
+    }
+
     /// Iterative find with path compression.
     fn find(&mut self, mut a: usize) -> usize {
         let mut root = a;
@@ -218,21 +233,58 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
         let n = self.n;
 
         for edges in &mut self.adj {
-            for e in edges.iter_mut() {
+            for e in edges {
                 e.edge_type = EdgeType::NotScanned;
             }
         }
 
-        self.predecessors = vec![Vec::new(); n];
-        self.ddfs_pred_ptr = vec![0; n];
-        self.removed = vec![false; n];
-        self.evenlvl = vec![INF; n];
-        self.oddlvl = vec![INF; n];
-        self.bud = Dsu::new(n);
+        // Reuse existing allocations — clear/fill instead of reallocating.
+        if self.predecessors.len() == n {
+            for v in &mut self.predecessors {
+                v.clear();
+            }
+        } else {
+            self.predecessors = vec![Vec::new(); n];
+        }
+        if self.ddfs_pred_ptr.len() == n {
+            self.ddfs_pred_ptr.fill(0);
+        } else {
+            self.ddfs_pred_ptr = vec![0; n];
+        }
+        if self.removed.len() == n {
+            self.removed.fill(false);
+        } else {
+            self.removed = vec![false; n];
+        }
+        if self.evenlvl.len() == n {
+            self.evenlvl.fill(INF);
+        } else {
+            self.evenlvl = vec![INF; n];
+        }
+        if self.oddlvl.len() == n {
+            self.oddlvl.fill(INF);
+        } else {
+            self.oddlvl = vec![INF; n];
+        }
+        self.bud.reset(n);
         self.global_color_counter = 1;
-        self.color = vec![0; n];
-        self.children_in_ddfs_tree = vec![Vec::new(); n];
-        self.my_bridge = vec![((0, 0), (0, 0)); n];
+        if self.color.len() == n {
+            self.color.fill(0);
+        } else {
+            self.color = vec![0; n];
+        }
+        if self.children_in_ddfs_tree.len() == n {
+            for v in &mut self.children_in_ddfs_tree {
+                v.clear();
+            }
+        } else {
+            self.children_in_ddfs_tree = vec![Vec::new(); n];
+        }
+        if self.my_bridge.len() == n {
+            self.my_bridge.fill(((0, 0), (0, 0)));
+        } else {
+            self.my_bridge = vec![((0, 0), (0, 0)); n];
+        }
         self.removed_queue.clear();
     }
 
@@ -633,8 +685,9 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
             return true;
         }
 
-        let children = self.children_in_ddfs_tree[bcur].clone();
-        for (ci, &(a, nd)) in children.iter().enumerate().skip(child_idx) {
+        let len = self.children_in_ddfs_tree[bcur].len();
+        for ci in child_idx..len {
+            let (a, nd) = self.children_in_ddfs_tree[bcur][ci];
             if nd == b || self.color[nd] == self.color[bcur] {
                 stack.push(AugFrame::HandleChildResult {
                     cur,
