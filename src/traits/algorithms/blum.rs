@@ -27,7 +27,13 @@ pub trait Blum: SparseSquareMatrix {
     ///
     /// # Complexity
     ///
-    /// O(V² · E) time, O(V + E) space.
+    /// O(√V · (V + E) · α(V + E, V)) time, O(V + E) space, where α is
+    /// the inverse Ackermann function (at most 4 for all practical inputs).
+    ///
+    /// Blum's Theorem 6 states O(√V · (V + E)) using Gabow-Tarjan
+    /// incremental tree set union.  We use standard union-find instead:
+    /// benchmarks show Gabow-Tarjan is 6-10× slower in practice.  See
+    /// <https://github.com/LucaCappelletti94/incremental-tree-set-union>.
     #[inline]
     fn blum(&self) -> Vec<(Self::Index, Self::Index)> {
         BlumState::new(self).solve()
