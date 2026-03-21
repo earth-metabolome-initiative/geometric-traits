@@ -22,3 +22,6 @@ target
 cobertura.xml
 tarpaulin-report.json
 coverage_output
+
+# Reference papers
+papers/
