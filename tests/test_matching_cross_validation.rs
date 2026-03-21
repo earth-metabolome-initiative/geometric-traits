@@ -1,5 +1,5 @@
 //! Cross-validation tests for matching algorithms (Blossom, Micali-Vazirani,
-//! Kocay) on generated graph families. Ensures all three algorithms agree
+//! Blum, Kocay) on generated graph families. Ensures all four algorithms agree
 //! on matching size across a wide variety of graph structures and sizes.
 #![cfg(feature = "std")]
 
@@ -27,18 +27,39 @@ fn validate_matching(matrix: &impl SparseSquareMatrix<Index = usize>, matching: 
     }
 }
 
-/// Run all three algorithms on the same graph and assert they agree.
+fn build_graph(n: usize, edges: &[(usize, usize)]) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
+    let mut sorted_edges: Vec<(usize, usize)> = edges.to_vec();
+    sorted_edges.sort_unstable();
+    UndiEdgesBuilder::default()
+        .expected_number_of_edges(sorted_edges.len())
+        .expected_shape(n)
+        .edges(sorted_edges.into_iter())
+        .build()
+        .unwrap()
+}
+
+/// Run all four algorithms on the same graph and assert they agree.
 fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let bl = g.blossom();
     let mv = g.micali_vazirani();
+    let blum = g.blum();
     validate_matching(g, &bl);
     validate_matching(g, &mv);
+    validate_matching(g, &blum);
     assert_eq!(
         bl.len(),
         mv.len(),
         "Blossom ({}) != MV ({}) on graph with order {}",
         bl.len(),
         mv.len(),
+        g.order()
+    );
+    assert_eq!(
+        bl.len(),
+        blum.len(),
+        "Blossom ({}) != Blum ({}) on graph with order {}",
+        bl.len(),
+        blum.len(),
         g.order()
     );
 
@@ -73,6 +94,74 @@ fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
 // ============================================================================
 // Deterministic graph generators
 // ============================================================================
+
+#[test]
+fn test_regression_random_counterexample() {
+    let g = build_graph(
+        8,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 4),
+            (0, 5),
+            (1, 2),
+            (1, 4),
+            (1, 5),
+            (1, 6),
+            (1, 7),
+            (2, 3),
+            (2, 5),
+            (2, 6),
+            (3, 6),
+            (4, 5),
+            (6, 7),
+        ],
+    );
+    assert_all_agree(&g);
+}
+
+#[test]
+fn test_regression_random_counterexample_repeated_vertex() {
+    let g = build_graph(
+        10,
+        &[
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 6),
+            (0, 7),
+            (0, 8),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (1, 6),
+            (2, 3),
+            (2, 6),
+            (3, 4),
+            (3, 5),
+            (3, 6),
+            (3, 8),
+            (3, 9),
+            (4, 6),
+            (4, 7),
+            (4, 8),
+            (5, 6),
+            (5, 7),
+            (6, 7),
+            (8, 9),
+        ],
+    );
+    assert_all_agree(&g);
+}
+
+#[test]
+fn test_regression_random_counterexample_size_mismatch() {
+    let g = build_graph(
+        8,
+        &[(0, 2), (0, 3), (0, 4), (0, 7), (1, 2), (1, 3), (3, 7), (4, 5), (4, 6), (4, 7), (5, 7)],
+    );
+    assert_all_agree(&g);
+}
 
 #[test]
 fn test_complete_graphs() {

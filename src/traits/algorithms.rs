@@ -108,6 +108,10 @@ mod micali_vazirani;
 #[cfg(feature = "alloc")]
 pub use micali_vazirani::*;
 #[cfg(feature = "alloc")]
+mod blum;
+#[cfg(feature = "alloc")]
+pub use blum::*;
+#[cfg(feature = "alloc")]
 mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;

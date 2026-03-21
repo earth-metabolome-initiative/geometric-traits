@@ -16,6 +16,7 @@ fn test_sorted_vec_transmute_from_sorted_input() {
 }
 
 #[test]
+#[cfg(debug_assertions)]
 #[should_panic(expected = "source vector is not sorted")]
 fn test_sorted_vec_transmute_from_unsorted_panics_in_debug() {
     let _ = unsafe { <SortedVec<i32> as TransmuteFrom<Vec<i32>>>::transmute_from(vec![2, 1, 3]) };
