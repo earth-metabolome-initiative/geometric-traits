@@ -95,6 +95,23 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 | **Chung–Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
 | **Random Geometric** | `random_geometric_graph(seed, n, radius)` | n = vertices, r = connection radius | Gilbert (1961); Penrose (2003) |
 
+### Graph & Set Similarity Metrics
+
+Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations — any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
+
+| Metric | Function | Formula | Range | Common Uses | Reference |
+|--------|----------|---------|-------|-------------|-----------|
+| **Jaccard / Tanimoto** | `tanimoto_similarity` | \|A∩B\| / \|A∪B\| | [0, 1] | Molecular fingerprint comparison, ecology, information retrieval | Jaccard, P. (1901). Distribution de la flore alpine dans le bassin des Dranses et dans quelques regions voisines. *Bulletin de la Societe Vaudoise des Sciences Naturelles*, 37, 241-272. |
+| **Dice / Sorensen** | `dice_similarity` | 2\|A∩B\| / (\|A\|+\|B\|) | [0, 1] | Medical image segmentation, ecological vegetation surveys, NLP token overlap; equivalent to F1 score | Dice, L. R. (1945). Measures of the amount of ecologic association between species. *Ecology*, 26(3), 297-302. Sorensen, T. (1948). A method of establishing groups of equal amplitude in plant sociology. *Kongelige Danske Videnskabernes Selskab*, 5(4), 1-34. |
+| **Overlap / Szymkiewicz-Simpson** | `overlap_similarity` | \|A∩B\| / min(\|A\|,\|B\|) | [0, 1] | Genomic region overlap, graph link prediction (RAPIDS cuGraph), containment queries | Szymkiewicz, D. (1934). Une contribution statistique a la geographie floristique. *Acta Societatis Botanicorum Poloniae*, 11(3), 249-265. Simpson, G. G. (1943). Mammals and the nature of continents. *American Journal of Science*, 241(1), 1-31. |
+| **Cosine** | `cosine_similarity` | \|A∩B\| / sqrt(\|A\|\|B\|) | [0, 1] | Document/text similarity (NLP), sparse high-dimensional feature comparison, recommendation systems | Salton, G., & McGill, M. J. (1983). *Introduction to Modern Information Retrieval*. McGraw-Hill. |
+| **Tversky** | `tversky_similarity` | \|A∩B\| / (\|A∩B\| + α\|A\\B\| + β\|B\\A\|) | [0, 1] | Asymmetric substructure search, scaffold hopping in drug discovery; generalizes Jaccard (α=β=1) and Dice (α=β=0.5) | Tversky, A. (1977). Features of similarity. *Psychological Review*, 84(4), 327-352. |
+| **Kulczynski** (2nd) | `kulczynski_similarity` | 0.5(\|A∩B\|/\|A\| + \|A∩B\|/\|B\|) | [0, 1] | Botanical community comparison, balanced view when sets differ in size | Kulczynski, S. (1927). Die Pflanzenassoziationen der Pieninen. *Bulletin International de l'Academie Polonaise des Sciences et des Lettres*, Classe des Sciences Mathematiques et Naturelles, Serie B, 57-203. |
+| **Braun-Blanquet** | `braun_blanquet_similarity` | \|A∩B\| / max(\|A\|,\|B\|) | [0, 1] | Phytosociology, conservative containment assessment; counterpart of overlap (uses max instead of min) | Braun-Blanquet, J. (1932). *Plant Sociology: The Study of Plant Communities*. McGraw-Hill. |
+| **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Numerical taxonomy, strict classification with double penalty for mismatches | Sokal, R. R., & Sneath, P. H. A. (1963). *Principles of Numerical Taxonomy*. W. H. Freeman. |
+| **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | Spectral matching in metabolomics, compound identification in mass spectrometry; correlation-like (can detect anti-correlation) | McConnaughey, B. H. (1964). The determination and analysis of plankton communities. *Marine Research in Indonesia*, 1-40. |
+| **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | MCES result scoring (RASCAL algorithm); combines matched edge and vertex counts | Raymond, J. W., Gardiner, E. J., & Willett, P. (2002). RASCAL: Calculation of graph similarity using maximum common edge subgraphs. *The Computer Journal*, 45(6), 631-644. |
+
 ### Design Philosophy
 
 * **Trait-Based**: Algorithms are implemented generic over traits such as `BipartiteGraph` and `MonopartiteGraph`, allowing them to be used with any backing data structure that implements the required interface (e.g., Matrices, CSR, Adjacency Lists).

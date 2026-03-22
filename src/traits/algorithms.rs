@@ -135,3 +135,9 @@ pub use delta_y_exchange::DeltaYExchange;
 mod labeled_line_graph;
 #[cfg(feature = "alloc")]
 pub use labeled_line_graph::LabeledLineGraph;
+pub mod graph_similarities;
+pub use graph_similarities::{
+    GraphSimilarities, braun_blanquet_similarity, cosine_similarity, dice_similarity,
+    johnson_similarity, kulczynski_similarity, mcconnaughey_similarity, overlap_similarity,
+    sokal_sneath_similarity, tanimoto_similarity, tversky_similarity,
+};
