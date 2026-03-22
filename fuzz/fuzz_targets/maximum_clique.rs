@@ -99,8 +99,142 @@ fn main() {
                 sorted_bf.sort();
                 assert_eq!(sorted_all, sorted_bf, "all_maximum_cliques mismatch vs brute force");
             }
+
+            // 7. Partition-aware maximum clique.
+            // Generate a random partition from remaining fuzzer data.
+            if idx < data.len() && n > 0 {
+                let num_groups = (data[idx] % (n as u8).max(1)).max(1) as usize;
+                let partition: Vec<usize> = (0..n)
+                    .map(|i| {
+                        let byte_idx = idx + 1 + i;
+                        if byte_idx < data.len() {
+                            data[byte_idx] as usize % num_groups
+                        } else {
+                            i % num_groups
+                        }
+                    })
+                    .collect();
+
+                let part_all = g.all_maximum_cliques_with_partition(&partition);
+                let part_one = g.maximum_clique_with_partition(&partition);
+
+                // 7a. All partition-aware cliques must be actual cliques.
+                for c in &part_all {
+                    for (i, &u) in c.iter().enumerate() {
+                        for &v in &c[i + 1..] {
+                            assert!(
+                                g.has_entry(u, v),
+                                "partition clique not valid: {u}-{v} not adjacent"
+                            );
+                        }
+                    }
+                }
+
+                // 7b. All partition-aware cliques must respect the partition.
+                for c in &part_all {
+                    let mut groups_used = Vec::new();
+                    for &v in c {
+                        let grp = partition[v];
+                        assert!(
+                            !groups_used.contains(&grp),
+                            "partition violation: group {grp} appears twice in {c:?}"
+                        );
+                        groups_used.push(grp);
+                    }
+                }
+
+                // 7c. Partition-aware max clique size ≤ regular max clique size.
+                if !part_all.is_empty() && !all.is_empty() {
+                    assert!(
+                        part_all[0].len() <= all[0].len(),
+                        "partition clique larger than regular"
+                    );
+                }
+
+                // 7d. Single-mode matches enumerate-mode size.
+                if !part_all.is_empty() {
+                    assert_eq!(
+                        part_one.len(),
+                        part_all[0].len(),
+                        "partition single vs all size mismatch"
+                    );
+                }
+
+                // 7e. For small n, brute-force verify partition-aware cliques.
+                if n <= 8 {
+                    let bf_part = brute_force_partition_cliques(&g, n, &partition);
+                    let omega_p = if part_all.is_empty() { 0 } else { part_all[0].len() };
+                    let omega_bf_p = if bf_part.is_empty() { 0 } else { bf_part[0].len() };
+                    assert_eq!(omega_p, omega_bf_p, "partition omega mismatch vs brute force");
+
+                    let mut sorted_part: Vec<Vec<usize>> = part_all;
+                    sorted_part.sort();
+                    let mut sorted_bf_p = bf_part;
+                    sorted_bf_p.sort();
+                    assert_eq!(
+                        sorted_part, sorted_bf_p,
+                        "partition all_maximum_cliques mismatch vs brute force"
+                    );
+                }
+            }
         });
     }
+}
+
+/// Brute-force enumeration of all maximum cliques respecting a partition
+/// constraint (at most one vertex per group).
+fn brute_force_partition_cliques(
+    g: &BitSquareMatrix,
+    n: usize,
+    partition: &[usize],
+) -> Vec<Vec<usize>> {
+    let mut best_size = if n > 0 { 1 } else { 0 };
+    let mut cliques: Vec<Vec<usize>> = Vec::new();
+
+    for mask in 1u32..(1u32 << n) {
+        let bits: Vec<usize> = (0..n).filter(|&i| mask & (1 << i) != 0).collect();
+        let sz = bits.len();
+        if sz < best_size {
+            continue;
+        }
+        // Check partition constraint.
+        let mut groups_seen = Vec::new();
+        let mut partition_ok = true;
+        for &v in &bits {
+            let g = partition[v];
+            if groups_seen.contains(&g) {
+                partition_ok = false;
+                break;
+            }
+            groups_seen.push(g);
+        }
+        if !partition_ok {
+            continue;
+        }
+        // Check clique.
+        let mut is_clique = true;
+        'outer: for (i, &u) in bits.iter().enumerate() {
+            for &v in &bits[i + 1..] {
+                if !g.has_entry(u, v) {
+                    is_clique = false;
+                    break 'outer;
+                }
+            }
+        }
+        if is_clique {
+            if sz > best_size {
+                best_size = sz;
+                cliques.clear();
+            }
+            cliques.push(bits);
+        }
+    }
+
+    if cliques.is_empty() && n > 0 {
+        cliques = (0..n).map(|v| vec![v]).collect();
+    }
+
+    cliques
 }
 
 /// Brute-force enumeration of all maximum cliques by checking all 2^n subsets.
