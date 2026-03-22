@@ -1,9 +1,6 @@
 //! Fuzzing submodule for the Floyd-Warshall algorithm.
 
-use geometric_traits::{
-    impls::ValuedCSR2D,
-    test_utils::check_floyd_warshall_invariants,
-};
+use geometric_traits::{impls::ValuedCSR2D, test_utils::check_floyd_warshall_invariants};
 use honggfuzz::fuzz;
 
 fn main() {

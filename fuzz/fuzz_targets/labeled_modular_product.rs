@@ -55,14 +55,10 @@ fn main() {
             let g2 = build_valued_sym(n2, &edges2);
 
             // Build unvalued BitSquareMatrix for comparison.
-            let b1 = BitSquareMatrix::from_symmetric_edges(
-                n1,
-                edges1.iter().map(|&(u, v, _)| (u, v)),
-            );
-            let b2 = BitSquareMatrix::from_symmetric_edges(
-                n2,
-                edges2.iter().map(|&(u, v, _)| (u, v)),
-            );
+            let b1 =
+                BitSquareMatrix::from_symmetric_edges(n1, edges1.iter().map(|&(u, v, _)| (u, v)));
+            let b2 =
+                BitSquareMatrix::from_symmetric_edges(n2, edges2.iter().map(|&(u, v, _)| (u, v)));
 
             let pairs: Vec<(usize, usize)> =
                 (0..n1).flat_map(|i| (0..n2).map(move |j| (i, j))).collect();
@@ -77,18 +73,11 @@ fn main() {
                 assert!(!labeled.has_entry(a, a), "self-loop");
                 for b in (a + 1)..p {
                     // Symmetry.
-                    assert_eq!(
-                        labeled.has_entry(a, b),
-                        labeled.has_entry(b, a),
-                        "asymmetric"
-                    );
+                    assert_eq!(labeled.has_entry(a, b), labeled.has_entry(b, a), "asymmetric");
 
                     // Labeled is subset of unlabeled.
                     if labeled.has_entry(a, b) {
-                        assert!(
-                            unlabeled.has_entry(a, b),
-                            "labeled edge not in unlabeled product"
-                        );
+                        assert!(unlabeled.has_entry(a, b), "labeled edge not in unlabeled product");
                     }
 
                     // Verify edge condition.
@@ -97,11 +86,7 @@ fn main() {
                     if u1 != v1 && u2 != v2 {
                         let l1 = g1.sparse_value_at(u1, v1);
                         let l2 = g2.sparse_value_at(u2, v2);
-                        assert_eq!(
-                            labeled.has_entry(a, b),
-                            l1 == l2,
-                            "edge condition violated"
-                        );
+                        assert_eq!(labeled.has_entry(a, b), l1 == l2, "edge condition violated");
                     } else {
                         assert!(!labeled.has_entry(a, b), "invalid edge");
                     }
