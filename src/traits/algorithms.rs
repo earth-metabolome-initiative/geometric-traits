@@ -135,6 +135,10 @@ pub use delta_y_exchange::DeltaYExchange;
 mod labeled_line_graph;
 #[cfg(feature = "alloc")]
 pub use labeled_line_graph::LabeledLineGraph;
+#[cfg(feature = "alloc")]
+mod vertex_match_inference;
+#[cfg(feature = "alloc")]
+pub use vertex_match_inference::{infer_vertex_matches, shared_endpoint};
 pub mod graph_similarities;
 pub use graph_similarities::{
     GraphSimilarities, braun_blanquet_similarity, cosine_similarity, dice_similarity,
