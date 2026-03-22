@@ -35,7 +35,7 @@ fn build_valued(n: usize, edges: &[(usize, usize, u8)]) -> TestValued {
 #[test]
 fn test_empty_pairs() {
     let g = build_valued(3, &[(0, 1, 1), (1, 2, 2)]);
-    let mp = g.labeled_modular_product(&g, &[]);
+    let mp = g.labeled_modular_product(&g, &[], |a, b| a == b);
     assert_eq!(mp.order(), 0);
 }
 
@@ -51,7 +51,7 @@ fn test_uniform_labels_matches_unlabeled() {
 
     let pairs: Vec<(usize, usize)> = (0..3).flat_map(|i| (0..3).map(move |j| (i, j))).collect();
 
-    let labeled = g1.labeled_modular_product(&g2, &pairs);
+    let labeled = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
     let unlabeled = b1.modular_product(&b2, &pairs);
 
     let n = pairs.len();
@@ -78,7 +78,7 @@ fn test_mixed_labels_filters() {
     let g2 = build_valued(3, &[(0, 1, 1), (1, 2, 1)]);
 
     let pairs: Vec<(usize, usize)> = (0..3).flat_map(|i| (0..3).map(move |j| (i, j))).collect();
-    let mp = g1.labeled_modular_product(&g2, &pairs);
+    let mp = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
 
     // (0,0) is pair index 0, (1,1) is pair index 4, (2,2) is pair index 8
     // Pair (0,0)-(1,1): both have edge -> check label match
@@ -97,7 +97,7 @@ fn test_none_none_compatibility() {
     let g2 = build_valued(3, &[]);
 
     let pairs: Vec<(usize, usize)> = (0..3).flat_map(|i| (0..3).map(move |j| (i, j))).collect();
-    let mp = g1.labeled_modular_product(&g2, &pairs);
+    let mp = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
 
     // All pairs with u1!=v1 and u2!=v2 should be connected (None == None).
     for (a, &(u1, u2)) in pairs.iter().enumerate() {
@@ -115,7 +115,7 @@ fn test_some_none_incompatibility() {
     let g2 = build_valued(2, &[]);
 
     let pairs = vec![(0usize, 0usize), (1, 1)];
-    let mp = g1.labeled_modular_product(&g2, &pairs);
+    let mp = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
 
     // (0,0)-(1,1): G1 has edge (0,1)=Some(1), G2 has no edge (0,1)=None -> no match
     assert!(!mp.has_entry(0, 1));
@@ -127,7 +127,7 @@ fn test_symmetry_and_no_self_loops() {
     let g2 = build_valued(3, &[(0, 1, 1), (1, 2, 2)]);
 
     let pairs: Vec<(usize, usize)> = (0..4).flat_map(|i| (0..3).map(move |j| (i, j))).collect();
-    let mp = g1.labeled_modular_product(&g2, &pairs);
+    let mp = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
 
     let n = mp.order();
     for i in 0..n {
@@ -149,7 +149,7 @@ fn test_labeled_subset_of_unlabeled() {
     let b2 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
 
     let pairs: Vec<(usize, usize)> = (0..4).flat_map(|i| (0..3).map(move |j| (i, j))).collect();
-    let labeled = g1.labeled_modular_product(&g2, &pairs);
+    let labeled = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
     let unlabeled = b1.modular_product(&b2, &pairs);
 
     let n = pairs.len();

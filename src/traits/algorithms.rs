@@ -122,7 +122,7 @@ pub use line_graph::{LineGraph, LineGraphResult};
 #[cfg(feature = "alloc")]
 pub mod modular_product;
 #[cfg(feature = "alloc")]
-pub use modular_product::ModularProduct;
+pub use modular_product::{ModularProduct, ModularProductResult};
 #[cfg(feature = "alloc")]
 pub mod maximum_clique;
 #[cfg(feature = "alloc")]
@@ -131,10 +131,6 @@ pub use maximum_clique::MaximumClique;
 pub mod delta_y_exchange;
 #[cfg(feature = "alloc")]
 pub use delta_y_exchange::DeltaYExchange;
-#[cfg(feature = "alloc")]
-mod labeled_modular_product;
-#[cfg(feature = "alloc")]
-pub use labeled_modular_product::LabeledModularProduct;
 #[cfg(feature = "alloc")]
 mod labeled_line_graph;
 #[cfg(feature = "alloc")]

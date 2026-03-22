@@ -67,7 +67,7 @@ fn main() {
             let pairs: Vec<(usize, usize)> =
                 (0..n1).flat_map(|i| (0..n2).map(move |j| (i, j))).collect();
 
-            let labeled = g1.labeled_modular_product(&g2, &pairs);
+            let labeled = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
             let unlabeled = b1.modular_product(&b2, &pairs);
 
             let p = pairs.len();
