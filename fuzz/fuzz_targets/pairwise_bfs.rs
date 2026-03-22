@@ -1,7 +1,7 @@
 //! Fuzzing submodule for PairwiseBFS against unit-weight Floyd-Warshall.
 
 use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
+    impls::{SquareCSR2D, CSR2D},
     test_utils::check_pairwise_bfs_matches_unit_floyd_warshall,
 };
 use honggfuzz::fuzz;

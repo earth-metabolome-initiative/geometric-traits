@@ -1,8 +1,7 @@
 //! Fuzzing submodule for PairwiseDijkstra against Floyd-Warshall.
 
 use geometric_traits::{
-    impls::ValuedCSR2D,
-    test_utils::check_pairwise_dijkstra_matches_floyd_warshall,
+    impls::ValuedCSR2D, test_utils::check_pairwise_dijkstra_matches_floyd_warshall,
 };
 use honggfuzz::fuzz;
 

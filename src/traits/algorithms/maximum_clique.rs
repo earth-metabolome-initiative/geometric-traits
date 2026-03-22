@@ -67,16 +67,46 @@ pub trait MaximumClique {
     /// order. The outer vector contains no duplicates.
     #[must_use]
     fn all_maximum_cliques(&self) -> Vec<Vec<usize>>;
+
+    /// Returns one maximum clique subject to a partition constraint.
+    ///
+    /// `partition[v]` is the group index of vertex `v`. At most one vertex
+    /// per group may appear in the clique. The partition also provides a
+    /// tighter upper bound (number of non-empty groups in candidate set).
+    ///
+    /// `partition.len()` must equal `self.order()`.
+    #[must_use]
+    fn maximum_clique_with_partition(&self, partition: &[usize]) -> Vec<usize>;
+
+    /// Returns all maximum cliques subject to a partition constraint.
+    ///
+    /// `partition[v]` is the group index of vertex `v`. At most one vertex
+    /// per group may appear in any returned clique.
+    ///
+    /// `partition.len()` must equal `self.order()`.
+    #[must_use]
+    fn all_maximum_cliques_with_partition(&self, partition: &[usize]) -> Vec<Vec<usize>>;
 }
 
 impl MaximumClique for BitSquareMatrix {
     fn maximum_clique(&self) -> Vec<usize> {
-        let results = bb_clique_search(self, false);
+        let results = bb_clique_search(self, false, None);
         results.into_iter().next().unwrap_or_default()
     }
 
     fn all_maximum_cliques(&self) -> Vec<Vec<usize>> {
-        bb_clique_search(self, true)
+        bb_clique_search(self, true, None)
+    }
+
+    fn maximum_clique_with_partition(&self, partition: &[usize]) -> Vec<usize> {
+        debug_assert_eq!(partition.len(), self.order(), "partition length must equal graph order");
+        let results = bb_clique_search(self, false, Some(partition));
+        results.into_iter().next().unwrap_or_default()
+    }
+
+    fn all_maximum_cliques_with_partition(&self, partition: &[usize]) -> Vec<Vec<usize>> {
+        debug_assert_eq!(partition.len(), self.order(), "partition length must equal graph order");
+        bb_clique_search(self, true, Some(partition))
     }
 }
 
@@ -97,15 +127,52 @@ struct Frame {
     next_idx: usize,
 }
 
+/// Counts the number of distinct partition groups with at least one vertex
+/// set in `mask`.
+fn partition_upper_bound(partition: &[usize], mask: &BitVec, seen: &mut [bool]) -> usize {
+    seen.fill(false);
+    let mut count = 0;
+    for v in mask.iter_ones() {
+        let g = partition[v];
+        if !seen[g] {
+            seen[g] = true;
+            count += 1;
+        }
+    }
+    count
+}
+
+/// Clears bits in `mask` for vertices that share the same partition group
+/// as `selected_vertex`.
+fn clear_same_group(partition: &[usize], mask: &mut BitVec, selected_vertex: usize) {
+    let group = partition[selected_vertex];
+    let to_clear: Vec<usize> = mask.iter_ones().filter(|&u| partition[u] == group).collect();
+    for u in to_clear {
+        mask.set(u, false);
+    }
+}
+
 /// Performs the branch-and-bound maximum clique search.
 ///
 /// When `enumerate` is true, finds ALL maximum cliques.
 /// When false, finds one maximum clique (prunes ties).
-fn bb_clique_search(adj: &BitSquareMatrix, enumerate: bool) -> Vec<Vec<usize>> {
+///
+/// When `partition` is `Some`, enforces that at most one vertex per
+/// partition group appears in any clique, and uses the partition group
+/// count as an additional (tighter) upper bound.
+fn bb_clique_search(
+    adj: &BitSquareMatrix,
+    enumerate: bool,
+    partition: Option<&[usize]>,
+) -> Vec<Vec<usize>> {
     let n = adj.order();
     if n == 0 {
         return vec![vec![]];
     }
+
+    // Precompute partition metadata.
+    let num_groups = partition.map_or(0, |p| p.iter().copied().max().unwrap_or(0) + 1);
+    let mut seen_buf = vec![false; num_groups];
 
     // Initial vertex ordering by degeneracy (smallest-last).
     let order = degeneracy_ordering(adj);
@@ -143,7 +210,10 @@ fn bb_clique_search(adj: &BitSquareMatrix, enumerate: bool) -> Vec<Vec<usize>> {
         let color = frame.colors[pos];
 
         // Prune: check if this branch can improve on (or match) the best.
-        let upper = depth + color; // color is 1-indexed, so depth + color = max achievable
+        let mut upper = depth + color; // color is 1-indexed, so depth + color = max achievable
+        if let Some(part) = partition {
+            upper = upper.min(depth + partition_upper_bound(part, &frame.p_mask, &mut seen_buf));
+        }
         if enumerate {
             if upper < best_size {
                 // Cannot reach best_size; backtrack.
@@ -168,7 +238,13 @@ fn bb_clique_search(adj: &BitSquareMatrix, enumerate: bool) -> Vec<Vec<usize>> {
         frame.p_mask.set(v, false);
 
         // Compute new candidate set: P ∩ N(v).
-        let new_p = adj.row_and(v, &frame.p_mask);
+        let mut new_p = adj.row_and(v, &frame.p_mask);
+
+        // Partition constraint: remove same-group vertices from candidates.
+        if let Some(part) = partition {
+            clear_same_group(part, &mut new_p, v);
+        }
+
         let new_p_count = new_p.count_ones();
 
         // Add v to the current clique.
@@ -195,8 +271,13 @@ fn bb_clique_search(adj: &BitSquareMatrix, enumerate: bool) -> Vec<Vec<usize>> {
             let (cands, cols) = greedy_color_candidates(adj, &new_verts, &new_p);
             let new_ub = cols.last().copied().unwrap_or(0);
 
-            // Check upper bound before pushing.
-            let achievable = new_depth + new_ub;
+            // Combine coloring bound with partition bound.
+            let mut achievable = new_depth + new_ub;
+            if let Some(part) = partition {
+                achievable =
+                    achievable.min(new_depth + partition_upper_bound(part, &new_p, &mut seen_buf));
+            }
+
             let dominated =
                 if enumerate { achievable < best_size } else { achievable <= best_size };
 
@@ -223,9 +304,7 @@ fn bb_clique_search(adj: &BitSquareMatrix, enumerate: bool) -> Vec<Vec<usize>> {
 /// O(V+E) time, O(V) space.
 fn degeneracy_ordering(adj: &BitSquareMatrix) -> Vec<usize> {
     let n = adj.order();
-    if n == 0 {
-        return Vec::new();
-    }
+    debug_assert!(n > 0, "degeneracy_ordering called on empty graph");
 
     // Compute initial degrees.
     let mut degree: Vec<usize> = (0..n).map(|v| adj.number_of_defined_values_in_row(v)).collect();
@@ -259,9 +338,7 @@ fn degeneracy_ordering(adj: &BitSquareMatrix) -> Vec<usize> {
         for u in adj.sparse_row(v) {
             if !removed[u] {
                 let old_d = degree[u];
-                if old_d == 0 {
-                    continue;
-                }
+                debug_assert!(old_d > 0, "non-removed neighbor has degree 0");
                 let new_d = old_d - 1;
                 degree[u] = new_d;
 
@@ -312,9 +389,7 @@ fn greedy_color_candidates(
 
     // Color each vertex in the given order.
     for &v in vertex_order {
-        if !p_mask[v] {
-            continue;
-        }
+        debug_assert!(p_mask[v], "vertex_order contains vertex not in p_mask");
 
         // Find colors used by neighbors of v that are in p_mask and already colored.
         used.fill(false);
@@ -357,12 +432,6 @@ fn greedy_color_candidates(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_degeneracy_ordering_empty() {
-        let g = BitSquareMatrix::from_symmetric_edges(0, vec![]);
-        assert!(degeneracy_ordering(&g).is_empty());
-    }
 
     #[test]
     fn test_degeneracy_ordering_single_vertex() {

@@ -3,7 +3,8 @@
 //! For two random small graphs with random edge subsets, verifies:
 //! 1. `edge_subgraph_degree_sequence` matches brute-force count.
 //! 2. `has_delta_y_exchange` consistency: result equals `seq1 != seq2`.
-//! 3. Symmetry: `g1.has_delta_y_exchange(e1, &g2, e2) == g2.has_delta_y_exchange(e2, &g1, e1)`.
+//! 3. Symmetry: `g1.has_delta_y_exchange(e1, &g2, e2) ==
+//!    g2.has_delta_y_exchange(e2, &g1, e1)`.
 
 use geometric_traits::{impls::BitSquareMatrix, prelude::*};
 use honggfuzz::fuzz;
@@ -21,7 +22,8 @@ fn main() {
             let max_edges1 = n1 * (n1 - 1) / 2;
             let max_edges2 = n2 * (n2 - 1) / 2;
 
-            // Need: 1 byte header + max_edges1 bytes (g1 edges) + max_edges2 bytes (g2 edges)
+            // Need: 1 byte header + max_edges1 bytes (g1 edges) + max_edges2 bytes (g2
+            // edges)
             //       + max_edges1 bytes (subset1) + max_edges2 bytes (subset2)
             let needed = 1 + max_edges1 + max_edges2 + max_edges1 + max_edges2;
             if data.len() < needed {

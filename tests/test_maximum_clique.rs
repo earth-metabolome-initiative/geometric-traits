@@ -1,6 +1,8 @@
 //! Tests for the maximum clique algorithm.
 #![cfg(feature = "alloc")]
 
+extern crate alloc;
+
 #[cfg(feature = "std")]
 use std::io::Read as _;
 
@@ -400,4 +402,229 @@ fn test_ground_truth_cases() {
             );
         }
     }
+}
+
+// ============================================================================
+// Partition-aware maximum clique
+// ============================================================================
+
+/// Helper: verify all cliques respect the partition constraint (at most one
+/// vertex per group).
+fn verify_partition_respected(cliques: &[Vec<usize>], partition: &[usize]) {
+    for clique in cliques {
+        let mut groups_seen = alloc::vec::Vec::new();
+        for &v in clique {
+            let g = partition[v];
+            assert!(
+                !groups_seen.contains(&g),
+                "partition violation: two vertices in group {g} in clique {clique:?}"
+            );
+            groups_seen.push(g);
+        }
+    }
+}
+
+#[test]
+fn test_partition_identity_matches_regular() {
+    // Each vertex in its own group → no extra constraint.
+    let k4 = BitSquareMatrix::from_symmetric_edges(
+        4,
+        vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
+    );
+    let partition: Vec<usize> = (0..4).collect();
+
+    let regular = k4.all_maximum_cliques();
+    let partitioned = k4.all_maximum_cliques_with_partition(&partition);
+
+    assert_eq!(regular, partitioned);
+}
+
+#[test]
+fn test_partition_k4_two_groups() {
+    // K4 with groups {0,1} → group 0, {2,3} → group 1.
+    // Regular max clique = 4, but partition allows at most 2.
+    let k4 = BitSquareMatrix::from_symmetric_edges(
+        4,
+        vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
+    );
+    let partition = vec![0, 0, 1, 1];
+
+    let clique = k4.maximum_clique_with_partition(&partition);
+    assert_eq!(clique.len(), 2);
+    verify_partition_respected(&[clique], &partition);
+
+    let all = k4.all_maximum_cliques_with_partition(&partition);
+    verify_all_same_size(&all);
+    verify_cliques(&k4, &all);
+    verify_partition_respected(&all, &partition);
+    assert_eq!(all[0].len(), 2);
+    // There should be 4 size-2 cliques: (0,2), (0,3), (1,2), (1,3).
+    assert_eq!(all.len(), 4);
+}
+
+#[test]
+fn test_partition_single_group() {
+    // All vertices in one group → max clique under partition = 1.
+    let k3 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
+    let partition = vec![0, 0, 0];
+
+    let clique = k3.maximum_clique_with_partition(&partition);
+    assert_eq!(clique.len(), 1);
+
+    let all = k3.all_maximum_cliques_with_partition(&partition);
+    assert_eq!(all.len(), 3); // {0}, {1}, {2}
+    for c in &all {
+        assert_eq!(c.len(), 1);
+    }
+}
+
+#[test]
+fn test_partition_no_edges() {
+    // No edges, 4 vertices, each in own group → max clique = 1.
+    let g = BitSquareMatrix::new(4);
+    let partition: Vec<usize> = (0..4).collect();
+
+    let all = g.all_maximum_cliques_with_partition(&partition);
+    for c in &all {
+        assert_eq!(c.len(), 1);
+    }
+    verify_partition_respected(&all, &partition);
+}
+
+#[test]
+fn test_partition_aware_leq_regular() {
+    // Partition-aware max clique size ≤ regular max clique size.
+    let g = BitSquareMatrix::from_symmetric_edges(
+        6,
+        vec![(0, 1), (0, 2), (1, 2), (2, 3), (3, 4), (3, 5), (4, 5)],
+    );
+    // Group vertices into 3 groups of 2.
+    let partition = vec![0, 0, 1, 1, 2, 2];
+
+    let regular = g.maximum_clique();
+    let partitioned = g.maximum_clique_with_partition(&partition);
+
+    assert!(partitioned.len() <= regular.len());
+    verify_cliques(&g, core::slice::from_ref(&partitioned));
+    verify_partition_respected(&[partitioned], &partition);
+}
+
+#[test]
+fn test_partition_modular_product_integration() {
+    // Build a modular product from two small graphs, extract partition,
+    // run partition-aware clique, verify results.
+    let g1 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
+    let g2 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (1, 2)]);
+
+    let result = g1.modular_product_filtered(&g2, |_, _| true);
+    let partition: Vec<usize> = result.vertex_pairs().iter().map(|&(i, _)| i).collect();
+
+    let cliques = result.matrix().all_maximum_cliques_with_partition(&partition);
+    verify_cliques(result.matrix(), &cliques);
+    verify_partition_respected(&cliques, &partition);
+    verify_all_same_size(&cliques);
+    verify_no_duplicates(&cliques);
+
+    // Also verify partition-aware size ≤ regular.
+    let regular = result.matrix().all_maximum_cliques();
+    assert!(cliques[0].len() <= regular[0].len());
+}
+
+#[test]
+fn test_partition_empty_graph() {
+    let g = BitSquareMatrix::new(0);
+    let partition: Vec<usize> = vec![];
+    let cliques = g.all_maximum_cliques_with_partition(&partition);
+    assert_eq!(cliques, vec![Vec::<usize>::new()]);
+}
+
+#[test]
+fn test_partition_three_groups_triangle() {
+    // K3 with each vertex in its own group → regular behavior.
+    let k3 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
+    let partition = vec![0, 1, 2];
+
+    let clique = k3.maximum_clique_with_partition(&partition);
+    assert_eq!(clique.len(), 3);
+    verify_partition_respected(&[clique], &partition);
+}
+
+#[test]
+fn test_partition_uneven_groups() {
+    // K5 with partition: {0,1,2} → group 0, {3} → group 1, {4} → group 2.
+    // Large group severely constrains: max 1 from group 0 + 1 from group 1 + 1 from
+    // group 2 = 3. Regular max clique = 5.
+    let k5 = BitSquareMatrix::from_symmetric_edges(
+        5,
+        vec![(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
+    );
+    let partition = vec![0, 0, 0, 1, 2];
+
+    let all = k5.all_maximum_cliques_with_partition(&partition);
+    verify_cliques(&k5, &all);
+    verify_partition_respected(&all, &partition);
+    verify_all_same_size(&all);
+    assert_eq!(all[0].len(), 3);
+    // Cliques: pick 1 from {0,1,2}, 1 from {3}, 1 from {4} → 3 * 1 * 1 = 3 cliques.
+    assert_eq!(all.len(), 3);
+}
+
+#[test]
+fn test_partition_dense_graph_many_groups() {
+    // K6 with 6 groups (identity partition) → regular max clique = 6.
+    // Then K6 with 3 groups of 2 → max clique = 3.
+    let k6 = BitSquareMatrix::from_symmetric_edges(
+        6,
+        vec![
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (0, 5),
+            (1, 2),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (2, 3),
+            (2, 4),
+            (2, 5),
+            (3, 4),
+            (3, 5),
+            (4, 5),
+        ],
+    );
+
+    // Identity partition: same as regular.
+    let id_part: Vec<usize> = (0..6).collect();
+    let regular = k6.all_maximum_cliques();
+    let id_result = k6.all_maximum_cliques_with_partition(&id_part);
+    assert_eq!(regular, id_result);
+
+    // 3 groups of 2: max 3.
+    let grouped = vec![0, 0, 1, 1, 2, 2];
+    let grouped_result = k6.all_maximum_cliques_with_partition(&grouped);
+    verify_cliques(&k6, &grouped_result);
+    verify_partition_respected(&grouped_result, &grouped);
+    assert_eq!(grouped_result[0].len(), 3);
+    // C(2,1)^3 = 8 cliques of size 3.
+    assert_eq!(grouped_result.len(), 8);
+}
+
+#[test]
+fn test_partition_sparse_graph_constraint_is_deciding() {
+    // Path 0-1-2-3-4: regular max clique = 2 (any edge).
+    // Partition {0,1}→g0, {2,3}→g1, {4}→g2: still max 2 (partition allows up to 3).
+    // Partition {0,1}→g0, {2}→g0, {3,4}→g1: edges (0,1) and (1,2) have same-group
+    // conflicts. Edge (2,3) crosses groups, so clique {2,3} is valid. Max = 2.
+    let path = BitSquareMatrix::from_symmetric_edges(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
+    let partition = vec![0, 0, 0, 1, 1];
+
+    let all = path.all_maximum_cliques_with_partition(&partition);
+    verify_cliques(&path, &all);
+    verify_partition_respected(&all, &partition);
+    // Only cross-group edges: (2,3). Edges (0,1) and (1,2) have both endpoints
+    // in group 0. Edge (3,4) has both in group 1. So only {2,3} is valid size 2.
+    assert_eq!(all[0].len(), 2);
+    assert_eq!(all.len(), 1);
+    assert_eq!(all[0], vec![2, 3]);
 }
