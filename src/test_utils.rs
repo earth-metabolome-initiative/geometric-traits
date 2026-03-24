@@ -302,10 +302,7 @@ where
             continue;
         }
         for w in csr.sparse_row(u) {
-            assert!(
-                w == u || matched[w.as_()],
-                "edge ({u:?}, {w:?}) has both endpoints unmatched"
-            );
+            assert!(w == u || matched[w.as_()], "edge ({u:?}, {w:?}) has both endpoints unmatched");
         }
     }
 }
