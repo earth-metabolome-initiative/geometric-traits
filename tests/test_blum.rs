@@ -591,8 +591,8 @@ fn test_regression_large_fixture_blum_size_mismatch() {
 
     let mut matched = vec![false; n];
     for &(u, v) in &blum_matching {
-        let left = usize::from(u);
-        let right = usize::from(v);
+        let left = u;
+        let right = v;
         assert!(u < v, "pair must have u < v, got ({u}, {v})");
         assert!(!matched[left], "vertex {u} matched twice");
         assert!(!matched[right], "vertex {v} matched twice");
@@ -602,13 +602,11 @@ fn test_regression_large_fixture_blum_size_mismatch() {
     }
 
     for u in g.row_indices() {
-        if matched[usize::from(u)] {
+        if matched[u] {
             continue;
         }
         for w in g.sparse_row(u) {
-            if w != u && !matched[usize::from(w)] {
-                panic!("edge ({u}, {w}) has both endpoints unmatched");
-            }
+            assert!(w == u || matched[w], "edge ({u}, {w}) has both endpoints unmatched");
         }
     }
 }

@@ -55,8 +55,7 @@ fn assert_karp_sipser_kernel_irreducible_usize(
 
 fn check_karp_sipser_invariants_usize(
     graph: &(
-         impl SparseSquareMatrix<Index = usize>
-         + Blossom<Index = usize>
+         impl Blossom<Index = usize>
          + Blum<Index = usize>
          + KarpSipser<Index = usize>
          + MicaliVazirani<Index = usize>
