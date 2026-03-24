@@ -28,14 +28,6 @@ All listed algorithms require the `alloc` feature.
 | **Linear Assignment (Sparse + Padding)** | `SparseLAPJV` | O(n³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Jonker, R., & Volgenant, A. (1987). [A shortest augmenting path algorithm for dense and sparse linear assignment problems](https://doi.org/10.1007/BF02278710). *Computing*, 38(4), 325-340. |
 | **Linear Assignment (Sparse Core)** | `LAPMOD` | O(n³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Volgenant, A. (1996). [Linear and semi-assignment problems: A core oriented approach](https://doi.org/10.1016/0305-0548(96)00010-X). *Computers & Operations Research*, 23(10), 917-932. |
 | **Rectangular Assignment (Diagonal Cost Extension)** | `Jaqaman` | O((L+R)³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Jaqaman, K., et al. (2008). [Robust single-particle tracking in live-cell time-lapse sequences](https://doi.org/10.1038/nmeth.1237). *Nature Methods*, 5(8), 695-702. See also Ramshaw, L., & Tarjan, R. E. (2012). *On minimum-cost assignments in unbalanced bipartite graphs* (Tech. Rep. HPL-2012-40). Related conference paper: [A weight-scaling algorithm for min-cost imperfect matchings in bipartite graphs](https://doi.org/10.1109/FOCS.2012.9). |
-
-Blum note: the papers claim a phased O(√V·(V+E)) bound because MBFS+MDFS is
-an O(√V)-phase Hopcroft-Karp-style algorithm, and Blum uses Gabow-Tarjan
-incremental-tree-set union inside MBFS. With standard union-find, that phased
-path would be O(√V·(V+E)·α). This implementation keeps that fast path, but it
-also adds correctness fallbacks: reconstructed-path validation and per-free-
-vertex single-path MDFS when MBFS or layered MDFS misses an augmenting path.
-Those fallbacks make the documented implementation worst case O(V·(V+E)).
 | **Rectangular Assignment (Crouse LAPJV)** | `Crouse` | O(min(n,m)²·max(n,m)) | - | Crouse, D. F. (2016). *On implementing 2D rectangular assignment algorithms*. *IEEE Transactions on Aerospace and Electronic Systems*, 52(4), 1679-1696. DOI: `10.1109/TAES.2016.140952`. |
 | **Topological Sorting** | `Kahn` | O(V+E) | [`kahn.rs`](fuzz/fuzz_targets/kahn.rs) | Kahn, A. B. (1962). [Topological sorting of large networks](https://doi.org/10.1145/368996.369025). *Communications of the ACM*, 5(11), 558-562. |
 | **Elementary Circuit Enumeration** | `Johnson` | O((V+E)(C+1)) | [`johnson_cycle.rs`](fuzz/fuzz_targets/johnson_cycle.rs) | Johnson, D. B. (1975). [Finding all the elementary circuits of a directed graph](https://doi.org/10.1137/0204007). *SIAM Journal on Computing*, 4(1), 77-84. |
@@ -66,6 +58,8 @@ Those fallbacks make the documented implementation worst case O(V·(V+E)).
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
 `KarpSipser` in this crate is an exact preprocessing layer for maximum matching on general graphs. The ALENEX 2020 paper above is relevant related work, but it is specifically about bipartite graph matching rather than the general-graph wrapper implemented here.
+
+**Blum note:** the papers claim a phased O(√V·(V+E)) bound. This implementation keeps that fast path, but adds correctness fallbacks for three bugs we found in the published algorithm (see [docs/blum-bugs.md](docs/blum-bugs.md) for details, counterexamples, and theorem analysis). The fallbacks make the worst case O(V·(V+E)). Dandeh & Lukovszki (ICTCS 2025) independently found two additional single-path MDFS bugs; their counterexample graphs are in our test suite but do not trigger in our phased architecture.
 
 ### Undirected Graph Generators
 

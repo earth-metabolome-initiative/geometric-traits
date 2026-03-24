@@ -612,6 +612,76 @@ fn test_regression_large_fixture_blum_size_mismatch() {
 }
 
 // ============================================================================
+// Dandeh & Lukovszki (ICTCS 2025) counterexample graphs
+//
+// These graphs are transcribed from Figures 1 and 2 of Dandeh & Lukovszki,
+// "Experimental Evaluation of Blum's Maximum Matching Algorithm in General
+// Graphs," CEUR-WS Vol. 4039, 2025.  They demonstrate the two MDFS bugs
+// (Cases 2.2.i and 2.3.i) that D&L identified and corrected.
+// ============================================================================
+
+/// Figure 1: Case 2.2.i (weak back edge).
+///
+/// 10-vertex graph.  Without the D&L Case 2.2.i R-set fix, the
+/// backward search fails to set P[7_A], causing path reconstruction
+/// to fail and the augmenting path 1-9-8-7-6-4-5-3-2-10 to be missed.
+/// Maximum matching size: 5.
+#[test]
+fn test_dandeh_lukovszki_figure1_case_2_2_i() {
+    let g = build_graph(
+        11,
+        &[
+            (1, 2),
+            (1, 9),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 9),
+            (4, 5),
+            (4, 6),
+            (5, 7),
+            (5, 8),
+            (6, 7),
+            (7, 8),
+            (8, 9),
+        ],
+    );
+    validate_blum(&g, 5);
+}
+
+/// Figure 2: Case 2.3.i (forward/cross edge with L = empty).
+///
+/// 13-vertex graph (vertices 1-12, 0-indexed as 0-12 in our representation
+/// but the paper uses 1-indexed).  Without the D&L Case 2.3.i WC-set fix,
+/// P[9_A] is undefined during reconstruction, causing the augmenting path
+/// 1-11-10-9-8-6-7-5-4-3-2-12 to be missed.
+/// Maximum matching size: 6.
+#[test]
+fn test_dandeh_lukovszki_figure2_case_2_3_i() {
+    let g = build_graph(
+        13,
+        &[
+            (1, 2),
+            (1, 11),
+            (2, 3),
+            (2, 12),
+            (3, 4),
+            (3, 5),
+            (3, 7),
+            (4, 5),
+            (4, 10),
+            (5, 6),
+            (5, 9),
+            (6, 7),
+            (8, 9),
+            (9, 10),
+            (10, 11),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+// ============================================================================
 // Reference comparison (cross-validate with external blossom crate)
 // ============================================================================
 
@@ -804,4 +874,31 @@ fn test_reference_friendship() {
         7,
         &[(0, 1), (0, 2), (1, 2), (0, 3), (0, 4), (3, 4), (0, 5), (0, 6), (5, 6)],
     );
+}
+
+#[test]
+fn test_dandeh_lukovszki_figure1_debug() {
+    let g = build_graph(11, &[
+        (1, 2), (1, 9), (2, 3), (2, 10), (3, 5), (3, 9),
+        (4, 5), (4, 6), (5, 7), (5, 8), (6, 7), (8, 9),
+    ]);
+    let blossom = g.blossom();
+    let blum = g.blum();
+    eprintln!("Blossom ({} pairs): {:?}", blossom.len(), blossom);
+    eprintln!("Blum ({} pairs): {:?}", blum.len(), blum);
+}
+
+#[test]
+fn test_dandeh_lukovszki_figure1_all_matchers() {
+    let g = build_graph(11, &[
+        (1, 2), (1, 9), (2, 3), (2, 10), (3, 5), (3, 9),
+        (4, 5), (4, 6), (5, 7), (5, 8), (6, 7), (8, 9),
+    ]);
+    let blossom = g.blossom();
+    let mv = g.micali_vazirani();
+    let blum = g.blum();
+    eprintln!("Blossom ({} pairs): {:?}", blossom.len(), blossom);
+    eprintln!("MV      ({} pairs): {:?}", mv.len(), mv);
+    eprintln!("Blum    ({} pairs): {:?}", blum.len(), blum);
+    assert_eq!(blossom.len(), mv.len(), "Blossom vs MV disagree");
 }

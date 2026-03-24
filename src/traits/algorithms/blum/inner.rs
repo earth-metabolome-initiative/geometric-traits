@@ -523,11 +523,6 @@ struct Mdfs {
     ink: Vec<bool>,
     /// DFS parent pointer: `par[v]` = the node that pushed v.
     par: Vec<usize>,
-    /// Timestamp of each node's most recent PUSH, for D&L selective
-    /// conditions on Case 2.2.i R-set updates.
-    push_time: Vec<usize>,
-    /// Monotonically increasing counter for push timestamps.
-    time_counter: usize,
 
     /// Label set L: `l[w_A] = Some(u_A)` means the extensible edge
     /// from w_A reaches u_A.  See Blum 2015 Section 2.3.
@@ -600,8 +595,6 @@ impl Mdfs {
             ever: vec![false; sz],
             ink: vec![false; sz],
             par: vec![usize::MAX; sz],
-            push_time: vec![0; sz],
-            time_counter: 0,
             l: vec![None; sz],
             l_rev: vec![Vec::new(); sz],
             l_ever: vec![false; sz],
@@ -772,14 +765,10 @@ impl Mdfs {
             if self.ink[twin(w)] {
                 if self.ever[w] {
                     // Case 2.2.i: w_A was previously pushed.
-                    // D&L fix: add top to R[w] with selective condition.
-                    if w < n2 {
-                        let v_a = twin(top);
-                        let w_b = twin(w);
-                        if !self.ever[v_a] || self.push_time[w_b] < self.push_time[v_a] {
-                            self.r[w].push(top);
-                        }
-                    }
+                    // Blum's original algorithm: do nothing.
+                    // D&L propose adding to R[w] with a selective condition,
+                    // but their bug does not reproduce in our phased
+                    // architecture (tested on their Figure 1 counterexample).
                 } else if w < n2 {
                     // Case 2.2.ii: w_A was never pushed.
                     self.r[w].push(top);
@@ -839,8 +828,6 @@ impl Mdfs {
     /// PUSH(node): adds `node` to the DFS stack K and marks it as
     /// visited (`ever`) and on-stack (`ink`).
     fn do_push(&mut self, node: usize, parent: usize) {
-        self.time_counter += 1;
-        self.push_time[node] = self.time_counter;
         self.ever[node] = true;
         self.ink[node] = true;
         self.par[node] = parent;
