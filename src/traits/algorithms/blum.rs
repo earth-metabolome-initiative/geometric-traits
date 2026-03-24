@@ -27,13 +27,22 @@ pub trait Blum: SparseSquareMatrix {
     ///
     /// # Complexity
     ///
-    /// O(√V · (V + E) · α(V + E, V)) time, O(V + E) space, where α is
-    /// the inverse Ackermann function (at most 4 for all practical inputs).
+    /// O(V · (V + E)) worst-case time, O(V + E) space.
     ///
-    /// Blum's Theorem 6 states O(√V · (V + E)) using Gabow-Tarjan
-    /// incremental tree set union.  We use standard union-find instead:
-    /// benchmarks show Gabow-Tarjan is 6-10× slower in practice.  See
-    /// <https://github.com/LucaCappelletti94/incremental-tree-set-union>.
+    /// Paper claim: Blum's phased algorithm (Theorem 6 in the 1990 paper and
+    /// the 2015 rewrite) claims O(√V · (V + E)) time by finding batches of
+    /// augmenting paths across O(√V) phases and using Gabow-Tarjan
+    /// incremental-tree-set union inside MBFS. Replacing Gabow-Tarjan with
+    /// standard union-find would only add an inverse-Ackermann factor, so the
+    /// phased path alone would be O(√V · (V + E) · α(V + E, V)).
+    ///
+    /// Implementation note: this crate keeps the phased MBFS+MDFS fast path,
+    /// but it also adds stronger correctness safeguards than the published
+    /// algorithm. In particular, it validates reconstructed augmenting paths
+    /// and falls back to per-free-vertex single-path MDFS when MBFS or layered
+    /// MDFS misses an augmenting path. Those fallbacks can require up to O(V)
+    /// single-path searches, which brings the implementation's documented
+    /// worst-case bound back to O(V · (V + E)).
     #[inline]
     fn blum(&self) -> Vec<(Self::Index, Self::Index)> {
         BlumState::new(self).solve()

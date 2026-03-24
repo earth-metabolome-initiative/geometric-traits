@@ -14,8 +14,12 @@
 //! subgraph to find multiple vertex-disjoint augmenting paths.  MBFS
 //! uses a two-part structure: Part 1 assigns first levels via standard
 //! BFS, Part 2 processes bridge pairs via back-path search with
-//! union-find to assign second levels.  A single-path MDFS fallback
-//! on the full G_M is kept as a safety net.
+//! union-find to assign second levels.  We also keep a per-free-vertex
+//! single-path MDFS fallback as a safety net.  Blum's paper claims the
+//! phased bound O(√V · (V + E)) because it assumes the search stays in
+//! that regime. Our implementation keeps the phased fast path, but the
+//! fallback is required for correctness on known counterexamples, so the
+//! implementation's worst-case time is O(V · (V + E)).
 use alloc::{collections::VecDeque, vec::Vec};
 
 use num_traits::AsPrimitive;
