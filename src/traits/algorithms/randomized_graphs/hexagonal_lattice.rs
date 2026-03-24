@@ -9,6 +9,9 @@ use alloc::{
 use super::builder_utils::build_symmetric;
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
+const CORNER_OFFSETS: [(i64, i64, i64); 6] =
+    [(2, -1, -1), (1, 1, -2), (-1, 2, -1), (-2, 1, 1), (-1, -1, 2), (1, -2, 1)];
+
 /// Returns a finite hexagonal lattice patch with `rows * cols` hexagonal faces.
 ///
 /// The hexagons are arranged as an axial `rows x cols` parallelogram. If either
@@ -32,17 +35,14 @@ pub fn hexagonal_lattice_graph(
         return build_symmetric(0, Vec::new());
     }
 
-    const CORNER_OFFSETS: [(i64, i64, i64); 6] =
-        [(2, -1, -1), (1, 1, -2), (-1, 2, -1), (-2, 1, 1), (-1, -1, 2), (1, -2, 1)];
-
     let mut vertex_ids = BTreeMap::new();
     let mut edges = BTreeSet::new();
     let mut next_id = 0;
 
     for row in 0..rows {
         for col in 0..cols {
-            let x = col as i64;
-            let z = row as i64;
+            let x = i64::try_from(col).expect("hexagonal_lattice_graph columns exceed i64");
+            let z = i64::try_from(row).expect("hexagonal_lattice_graph rows exceed i64");
             let y = -x - z;
             let mut corners = [0; 6];
 
