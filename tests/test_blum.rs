@@ -224,7 +224,10 @@ fn test_regression_invalid_non_edge_from_degree1_kernel() {
 
 #[test]
 fn test_regression_small_plain_blum_size_mismatch() {
-    // Bug 3 counterexample: MBFS DOM exclusion gap.
+    // Bug 3 counterexample (only): MBFS DOM exclusion gap.
+    // MBFS leaves level[t] = INF because the DOM node's twin is
+    // excluded from level assignment and no other bridge provides it.
+    // Requires: per-vertex MDFS fallback when level[t] = INF.
     let g = build_graph(
         15,
         &[
@@ -524,6 +527,12 @@ fn test_regression_random_counterexample_size_mismatch() {
 
 #[test]
 fn test_regression_phase_progression_stalls_before_maximum() {
+    // Bug 2 + Bug 3 counterexample: triggers both bugs on the same graph.
+    // Bug 3: MBFS leaves level[t] = INF (DOM exclusion gap).
+    // Bug 2: the per-vertex MDFS fallback is also needed because the
+    //   standard single-source fallback suffers from subtree poisoning.
+    // Requires: per-vertex MDFS fallback for BOTH the level[t]=INF
+    //   path AND the found==0 path.
     let g = build_graph(
         12,
         &[
@@ -553,7 +562,11 @@ fn test_regression_phase_progression_stalls_before_maximum() {
 
 #[test]
 fn test_regression_large_fixture_blum_size_mismatch() {
-    // Bug 2 counterexample: DFS subtree poisoning.
+    // Bug 2 counterexample (only): DFS subtree poisoning.
+    // The single-source MDFS explores from b(10) first, marking a(8)
+    // as visited. When it later tries b(11)->a(8), the label mechanism
+    // fails to bridge across subtrees.
+    // Requires: per-vertex MDFS fallback when layered MDFS finds 0 paths.
     // Minimized from n=119 by renumbering the 13 active vertices.
     // Original mapping: 25→0, 49→1, 50→2, 52→3, 53→4, 54→5, 55→6,
     //                    56→7, 57→8, 58→9, 61→10, 73→11, 118→12.

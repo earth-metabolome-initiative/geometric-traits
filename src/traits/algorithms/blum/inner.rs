@@ -135,7 +135,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 &mut self.mbfs_queue,
             );
             if self.mbfs_level[t] == INF {
-                // MBFS could not reach t — fall back to per-vertex MDFS.
+                // Bug 3 fix restored
                 if !self.fallback_per_vertex(sz) {
                     break;
                 }
