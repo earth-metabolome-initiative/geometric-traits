@@ -131,6 +131,21 @@ It is implemented for all structs implementing `SparseMatrix2D`.
 cargo hfuzz run hopcroft_karp
 ```
 
+### Karp-Sipser
+
+The Karp-Sipser harness validates exact kernelization and recovery against the
+existing general-graph exact matchers.
+
+```bash
+cargo hfuzz run karp_sipser
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug karp_sipser hfuzz_workspace/*/*.fuzz
+```
+
 ### LAP
 
 Unified LAP harness validating sparse wrappers and core LAPMOD invariants.

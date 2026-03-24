@@ -197,6 +197,131 @@ fn test_many_components() {
 }
 
 #[test]
+fn test_regression_invalid_non_edge_from_degree1_kernel() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 6),
+            (2, 10),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_small_plain_blum_size_mismatch() {
+    // Reduced Bug 3 witness.
+    // The previous n=15 fixture had one isolated vertex; removing it and
+    // renumbering the active vertices gives the same size mismatch on the
+    // current Bug-3-disabled branch. Exact subset search over the original
+    // 15 edges found no smaller failing edge set.
+    let g = build_graph(
+        14,
+        &[
+            (0, 9),
+            (0, 13),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (2, 3),
+            (2, 7),
+            (4, 8),
+            (4, 11),
+            (5, 7),
+            (6, 10),
+            (6, 11),
+            (8, 11),
+            (9, 12),
+            (10, 13),
+        ],
+    );
+    let blossom = g.blossom();
+    let blum = g.blum();
+    let mut used = vec![false; g.order()];
+    for &(u, v) in &blum {
+        assert!(u < v, "pair must have u < v, got ({u}, {v})");
+        assert!(g.has_entry(u, v), "edge ({u}, {v}) not in graph");
+        assert!(!used[u], "vertex {u} matched twice");
+        assert!(!used[v], "vertex {v} matched twice");
+        used[u] = true;
+        used[v] = true;
+    }
+    assert_eq!(blum.len(), blossom.len(), "Blum and Blossom disagree on matching size");
+}
+
+#[test]
+fn test_regression_reused_vertex_from_degree1_kernel_corpus() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 3),
+            (1, 6),
+            (2, 3),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 9),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_non_edge_from_degree1_kernel_corpus_two() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 3),
+            (1, 6),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 9),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
 fn test_petersen_graph() {
     let g = build_graph(
         10,
@@ -399,6 +524,166 @@ fn test_regression_random_counterexample_size_mismatch() {
         &[(0, 2), (0, 3), (0, 4), (0, 7), (1, 2), (1, 3), (3, 7), (4, 5), (4, 6), (4, 7), (5, 7)],
     );
     validate_blum(&g, 4);
+}
+
+#[test]
+fn test_regression_phase_progression_stalls_before_maximum() {
+    // Reduced phase-progression witness.
+    // The original graph triggered both the Bug 3 MBFS gap and the Bug 2
+    // shared-source fallback failure. This minimized form is kept only for the
+    // current Bug-2-disabled branch: it still reproduces the 5-vs-6 size
+    // mismatch after dropping three edges from the previous 19-edge fixture.
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 5),
+            (0, 6),
+            (1, 2),
+            (1, 3),
+            (2, 3),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_large_fixture_blum_size_mismatch() {
+    // Bug 2 minimization witness: shared-source fallback still misses one
+    // augmenting path and returns 5 instead of Blossom's 6.
+    // Further reduced from the previous n=13 / e=20 fixture to n=12 / e=15.
+    let g = build_graph(
+        12,
+        &[
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (1, 4),
+            (1, 6),
+            (2, 4),
+            (3, 7),
+            (3, 10),
+            (4, 6),
+            (5, 6),
+            (5, 9),
+            (5, 10),
+            (7, 10),
+            (8, 9),
+            (8, 11),
+        ],
+    );
+
+    let n = g.order();
+    assert!(n <= 128, "fuzz regression should stay within the harness size cap");
+
+    let blum_matching = g.blum();
+    let blossom_matching = g.blossom();
+    assert_eq!(
+        blum_matching.len(),
+        blossom_matching.len(),
+        "Blum and Blossom disagree on matching size (n={n})",
+    );
+
+    let mut matched = vec![false; n];
+    for &(u, v) in &blum_matching {
+        let left = u;
+        let right = v;
+        assert!(u < v, "pair must have u < v, got ({u}, {v})");
+        assert!(!matched[left], "vertex {u} matched twice");
+        assert!(!matched[right], "vertex {v} matched twice");
+        matched[left] = true;
+        matched[right] = true;
+        assert!(g.has_entry(u, v), "matched edge ({u}, {v}) not in graph");
+    }
+
+    for u in g.row_indices() {
+        if matched[u] {
+            continue;
+        }
+        for w in g.sparse_row(u) {
+            assert!(w == u || matched[w], "edge ({u}, {w}) has both endpoints unmatched");
+        }
+    }
+}
+
+// ============================================================================
+// Dandeh & Lukovszki (ICTCS 2025) counterexample graphs
+//
+// These graphs are transcribed from Figures 1 and 2 of Dandeh & Lukovszki,
+// "Experimental Evaluation of Blum's Maximum Matching Algorithm in General
+// Graphs," CEUR-WS Vol. 4039, 2025.  They demonstrate the two MDFS bugs
+// (Cases 2.2.i and 2.3.i) that D&L identified and corrected.
+// ============================================================================
+
+/// Figure 1: Case 2.2.i (weak back edge).
+///
+/// 10-vertex graph.  Without the D&L Case 2.2.i R-set fix, the
+/// backward search fails to set P[7_A], causing path reconstruction
+/// to fail and the augmenting path 1-9-8-7-6-4-5-3-2-10 to be missed.
+/// Maximum matching size: 5.
+#[test]
+fn test_dandeh_lukovszki_figure1_case_2_2_i() {
+    let g = build_graph(
+        11,
+        &[
+            (1, 2),
+            (1, 9),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 9),
+            (4, 5),
+            (4, 6),
+            (5, 7),
+            (5, 8),
+            (6, 7),
+            (7, 8),
+            (8, 9),
+        ],
+    );
+    validate_blum(&g, 5);
+}
+
+/// Figure 2: Case 2.3.i (forward/cross edge with L = empty).
+///
+/// 13-vertex graph (vertices 1-12, 0-indexed as 0-12 in our representation
+/// but the paper uses 1-indexed).  Without the D&L Case 2.3.i WC-set fix,
+/// P[9_A] is undefined during reconstruction, causing the augmenting path
+/// 1-11-10-9-8-6-7-5-4-3-2-12 to be missed.
+/// Maximum matching size: 6.
+#[test]
+fn test_dandeh_lukovszki_figure2_case_2_3_i() {
+    let g = build_graph(
+        13,
+        &[
+            (1, 2),
+            (1, 11),
+            (2, 3),
+            (2, 12),
+            (3, 4),
+            (3, 5),
+            (3, 7),
+            (4, 5),
+            (4, 10),
+            (5, 6),
+            (5, 9),
+            (6, 7),
+            (8, 9),
+            (9, 10),
+            (10, 11),
+        ],
+    );
+    validate_blum(&g, 6);
 }
 
 // ============================================================================

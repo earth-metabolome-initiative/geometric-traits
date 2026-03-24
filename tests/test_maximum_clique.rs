@@ -4,6 +4,9 @@
 extern crate alloc;
 
 #[cfg(feature = "std")]
+mod common;
+
+#[cfg(feature = "std")]
 use std::io::Read as _;
 
 use geometric_traits::{impls::BitSquareMatrix, prelude::*};
@@ -338,9 +341,6 @@ fn test_three_isolated() {
 // ============================================================================
 
 #[cfg(feature = "std")]
-const GROUND_TRUTH_GZ: &[u8] = include_bytes!("fixtures/maximum_clique_ground_truth.json.gz");
-
-#[cfg(feature = "std")]
 #[derive(serde::Deserialize)]
 struct Fixture {
     schema_version: u32,
@@ -358,8 +358,9 @@ struct GroundTruthCase {
 
 #[cfg(feature = "std")]
 fn load_fixture() -> Fixture {
+    let ground_truth_gz = common::read_fixture("maximum_clique_ground_truth.json.gz");
     let mut json = String::new();
-    flate2::read::GzDecoder::new(GROUND_TRUTH_GZ)
+    flate2::read::GzDecoder::new(ground_truth_gz.as_slice())
         .read_to_string(&mut json)
         .expect("gzip decompression failed");
     serde_json::from_str(&json).expect("fixture JSON parse failed")

@@ -27,4 +27,4 @@ pub trait Blossom: SparseSquareMatrix {
     }
 }
 
-impl<M: SparseSquareMatrix> Blossom for M {}
+impl<M: SparseSquareMatrix + ?Sized> Blossom for M {}

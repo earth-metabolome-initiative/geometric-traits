@@ -2,6 +2,9 @@
 //! invariant-checking functions to diagnose assertion failures.
 
 #[cfg(feature = "arbitrary")]
+mod common;
+
+#[cfg(feature = "arbitrary")]
 mod crashes {
     use std::panic::AssertUnwindSafe;
 
@@ -128,12 +131,8 @@ mod crashes {
     }
 
     #[test]
-    fn crash_5_from_file() {
-        let crash_path = "fuzz/hfuzz_workspace/lap/SIGABRT.PC.7ffff7c9eb2c.STACK.c0598fbd4.CODE.-6.ADDR.0.INSTR.mov____%eax,%r14d.fuzz";
-        let Ok(data) = std::fs::read(crash_path) else {
-            eprintln!("[crash_5] Crash file not found at {crash_path}, skipping");
-            return;
-        };
+    fn crash_5_from_fixture() {
+        let data = super::common::read_fixture("fuzz/lap/crash_5.fuzz");
         reproduce_crash("crash_5", &data);
     }
 }

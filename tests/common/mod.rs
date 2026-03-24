@@ -1,4 +1,7 @@
 #![cfg(feature = "std")]
+#![allow(dead_code)]
+
+use std::path::{Path, PathBuf};
 
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D},
@@ -18,4 +21,22 @@ pub fn build_square_csr(
         .edges(edges.into_iter())
         .build()
         .unwrap()
+}
+
+/// Return an absolute path under `tests/fixtures`.
+pub fn fixture_path(relative_path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(relative_path)
+}
+
+/// Read a binary fixture under `tests/fixtures`.
+pub fn read_fixture(relative_path: &str) -> Vec<u8> {
+    let path = fixture_path(relative_path);
+    std::fs::read(&path).unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()))
+}
+
+/// Read a UTF-8 text fixture under `tests/fixtures`.
+pub fn read_fixture_string(relative_path: &str) -> String {
+    let path = fixture_path(relative_path);
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()))
 }

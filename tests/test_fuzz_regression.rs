@@ -1,25 +1,23 @@
 //! Regression tests that exercise the same code paths as fuzz targets.
 //!
 //! These tests construct instances via the `Arbitrary` trait from fixed byte
-//! patterns and from the fuzz corpus, then run the same invariant checks that
-//! the corresponding honggfuzz targets use (via shared functions in
-//! `test_utils`).
+//! patterns and from a stable checked-in raw fixture, then run the same
+//! invariant checks that the corresponding honggfuzz targets use (via shared
+//! functions in `test_utils`).
 #![cfg(feature = "arbitrary")]
-
-use std::path::Path;
 
 use arbitrary::Arbitrary;
 use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D, ValuedCSR2D},
+    impls::{CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, check_floyd_warshall_invariants, check_kahn_ordering,
+        self, check_floyd_warshall_invariants, check_kahn_ordering, check_karp_sipser_invariants,
         check_lap_sparse_wrapper_invariants, check_lap_square_invariants, check_leiden_invariants,
         check_louvain_invariants, check_padded_diagonal_invariants,
         check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
-        check_valued_matrix_invariants, from_bytes, replay_dir,
+        check_valued_matrix_invariants, from_bytes,
     },
     traits::MonopartiteGraph,
 };
@@ -93,6 +91,17 @@ where
     );
 }
 
+fn replay_shared_fixture<T>() -> Vec<T>
+where
+    T: for<'a> Arbitrary<'a>,
+{
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fuzz/sample.bin");
+    let bytes = std::fs::read(&path)
+        .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()));
+    from_bytes::<T>(&bytes).into_iter().collect()
+}
+
 // ============================================================================
 // CSR2D (mirrors fuzz/fuzz_targets/csr2d.rs)
 // ============================================================================
@@ -106,8 +115,7 @@ fn test_arbitrary_csr2d_invariants() {
 
 #[test]
 fn test_replay_csr2d_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/csr2d/input");
-    for instance in replay_dir::<TestCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestCSR>() {
         check_sparse_matrix_invariants(&instance);
     }
 }
@@ -125,8 +133,7 @@ fn test_arbitrary_valued_csr2d_invariants() {
 
 #[test]
 fn test_replay_valued_csr2d_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/valued_csr2d/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_valued_matrix_invariants(&instance);
     }
 }
@@ -173,32 +180,28 @@ fn test_arbitrary_pairwise_bfs() {
 
 #[test]
 fn test_replay_tarjan_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/tarjan/input");
-    for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestSquareCSR>() {
         let _sccs: Vec<_> = instance.tarjan().collect();
     }
 }
 
 #[test]
 fn test_replay_johnson_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/johnson_cycle/input");
-    for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestSquareCSR>() {
         let _cycles: Vec<_> = instance.johnson().collect();
     }
 }
 
 #[test]
 fn test_replay_kahn_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/kahn/input");
-    for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestSquareCSR>() {
         check_kahn_ordering(&instance, 255);
     }
 }
 
 #[test]
 fn test_replay_pairwise_bfs_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/pairwise_bfs/input");
-    for instance in replay_dir::<TestSquareCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestSquareCSR>() {
         check_pairwise_bfs_matches_unit_floyd_warshall(&instance);
     }
 }
@@ -216,12 +219,36 @@ fn test_arbitrary_generic_graph_construction() {
 
 #[test]
 fn test_replay_root_nodes_corpus() {
-    let _: Vec<TestGraph> = replay_dir(Path::new("fuzz/hfuzz_workspace/root_nodes/input"));
+    let _: Vec<TestGraph> = replay_shared_fixture();
+}
+
+// ============================================================================
+// Exact Karp-Sipser preprocessing
+// ============================================================================
+
+type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
+
+#[test]
+fn test_arbitrary_karp_sipser_invariants() {
+    for_each_instance::<TestSymmetricCSR, _>(|graph| {
+        if graph.order() as usize <= 64 {
+            check_karp_sipser_invariants(graph);
+        }
+    });
+}
+
+#[test]
+fn test_replay_karp_sipser_corpus() {
+    for instance in replay_shared_fixture::<TestSymmetricCSR>() {
+        if instance.order() as usize <= 64 {
+            check_karp_sipser_invariants(&instance);
+        }
+    }
 }
 
 #[test]
 fn test_replay_sink_nodes_corpus() {
-    let _: Vec<TestGraph> = replay_dir(Path::new("fuzz/hfuzz_workspace/sink_nodes/input"));
+    let _: Vec<TestGraph> = replay_shared_fixture();
 }
 
 // ============================================================================
@@ -238,8 +265,7 @@ fn test_arbitrary_padded_diagonal_invariants() {
 
 #[test]
 fn test_replay_padded_diagonal_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/generic_matrix2d_with_padded_diagonal/input");
-    for instance in replay_dir::<TestPaddedDiag>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestPaddedDiag>() {
         check_padded_diagonal_invariants(&instance);
     }
 }
@@ -257,8 +283,7 @@ fn test_arbitrary_hopcroft_karp() {
 
 #[test]
 fn test_replay_hopcroft_karp_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/hopcroft_karp/input");
-    for instance in replay_dir::<TestCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestCSR>() {
         let _ = instance.hopcroft_karp();
     }
 }
@@ -277,8 +302,7 @@ fn test_arbitrary_lap_invariants() {
 
 #[test]
 fn test_replay_lap_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/lap/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_lap_sparse_wrapper_invariants(&instance);
         check_lap_square_invariants(&instance);
     }
@@ -308,8 +332,7 @@ fn test_arbitrary_louvain() {
 
 #[test]
 fn test_replay_louvain_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/louvain/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_louvain_invariants(&instance);
     }
 }
@@ -325,8 +348,7 @@ fn test_arbitrary_floyd_warshall() {
 
 #[test]
 fn test_replay_floyd_warshall_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/floyd_warshall/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_floyd_warshall_invariants(&instance);
     }
 }
@@ -338,8 +360,7 @@ fn test_arbitrary_pairwise_dijkstra() {
 
 #[test]
 fn test_replay_pairwise_dijkstra_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/pairwise_dijkstra/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_pairwise_dijkstra_matches_floyd_warshall(&instance);
     }
 }
@@ -355,8 +376,7 @@ fn test_arbitrary_leiden() {
 
 #[test]
 fn test_replay_leiden_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/leiden/input");
-    for instance in replay_dir::<TestValuedCSR>(corpus_dir) {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_leiden_invariants(&instance);
     }
 }

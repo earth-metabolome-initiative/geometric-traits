@@ -104,6 +104,10 @@ mod matching_utils;
 #[cfg(feature = "alloc")]
 pub use blossom::*;
 #[cfg(feature = "alloc")]
+mod karp_sipser;
+#[cfg(feature = "alloc")]
+pub use karp_sipser::*;
+#[cfg(feature = "alloc")]
 mod micali_vazirani;
 #[cfg(feature = "alloc")]
 pub use micali_vazirani::*;

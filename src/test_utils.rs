@@ -16,8 +16,8 @@ use num_traits::AsPrimitive;
 use crate::{
     prelude::*,
     traits::{
-        DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseValuedMatrix,
-        SparseValuedMatrix2D,
+        DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseSquareMatrix,
+        SparseValuedMatrix, SparseValuedMatrix2D,
     },
 };
 
@@ -254,6 +254,119 @@ pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
                 );
             }
         }
+    }
+}
+
+// ============================================================================
+// Karp-Sipser matching invariants
+// ============================================================================
+
+fn check_matching_valid<M>(graph: &M, matching: &[(M::Index, M::Index)])
+where
+    M: SparseSquareMatrix,
+    M::Index: AsPrimitive<usize> + Ord + Copy + Debug,
+{
+    let mut matched = vec![false; graph.order().as_()];
+    for &(left, right) in matching {
+        assert!(left < right, "matching pair must satisfy u < v");
+        assert!(graph.has_entry(left, right), "matching contains a non-edge");
+
+        let left_index = left.as_();
+        let right_index = right.as_();
+        assert!(!matched[left_index], "left endpoint is reused");
+        assert!(!matched[right_index], "right endpoint is reused");
+        matched[left_index] = true;
+        matched[right_index] = true;
+    }
+}
+
+fn assert_karp_sipser_kernel_irreducible<M>(graph: &M, rules: KarpSipserRules)
+where
+    M: SparseSquareMatrix,
+    M::Index: AsPrimitive<usize> + Copy + Debug,
+{
+    for row in graph.row_indices() {
+        let row_index = row.as_();
+        let degree = graph.sparse_row(row).filter(|&column| column.as_() != row_index).count();
+
+        match rules {
+            KarpSipserRules::Degree1 => {
+                assert_ne!(degree, 1, "degree-1 kernel still contains a degree-1 vertex");
+            }
+            KarpSipserRules::Degree1And2 => {
+                assert!(
+                    degree == 0 || degree >= 3,
+                    "degree-1/2 kernel still contains a reducible vertex of degree {degree}",
+                );
+            }
+        }
+    }
+}
+
+/// Check that exact Karp-Sipser preprocessing preserves matching cardinality
+/// and produces valid recovered matchings for all exact wrapper variants.
+///
+/// # Panics
+///
+/// Panics if any Karp-Sipser wrapper returns an invalid matching or if it
+/// disagrees in size with the baseline blossom result.
+#[inline]
+pub fn check_karp_sipser_invariants<M>(graph: &M)
+where
+    M: SparseSquareMatrix + Blossom + Blum + KarpSipser + MicaliVazirani,
+    M::Index: AsPrimitive<usize> + Ord + Copy + Debug,
+{
+    let blossom_matching = graph.blossom();
+    check_matching_valid(graph, &blossom_matching);
+    let expected_size = blossom_matching.len();
+
+    let plain_blum_matching = graph.blum();
+    check_matching_valid(graph, &plain_blum_matching);
+    assert_eq!(
+        plain_blum_matching.len(),
+        expected_size,
+        "plain Blum disagrees with Blossom before Karp-Sipser is applied",
+    );
+
+    for rules in [KarpSipserRules::Degree1, KarpSipserRules::Degree1And2] {
+        let kernel = graph.karp_sipser_kernel(rules);
+        assert_karp_sipser_kernel_irreducible(kernel.graph(), rules);
+
+        let recovered_blossom = kernel.solve_with(Blossom::blossom);
+        check_matching_valid(graph, &recovered_blossom);
+        assert_eq!(
+            recovered_blossom.len(),
+            expected_size,
+            "Karp-Sipser blossom wrapper changed the matching size",
+        );
+
+        let explicit_recover = {
+            let kernel = graph.karp_sipser_kernel(rules);
+            let kernel_matching = kernel.graph().blossom();
+            kernel.recover(kernel_matching)
+        };
+        check_matching_valid(graph, &explicit_recover);
+        assert_eq!(
+            explicit_recover.len(),
+            expected_size,
+            "explicit kernel recover changed the matching size",
+        );
+
+        let mv_matching = graph.micali_vazirani_with_karp_sipser(rules);
+        check_matching_valid(graph, &mv_matching);
+        assert_eq!(
+            mv_matching.len(),
+            expected_size,
+            "Karp-Sipser Micali-Vazirani wrapper changed the matching size",
+        );
+
+        let blum_matching = graph.blum_with_karp_sipser(rules);
+        check_matching_valid(graph, &blum_matching);
+        assert_eq!(
+            blum_matching.len(),
+            expected_size,
+            "Karp-Sipser Blum wrapper changed the matching size",
+        );
     }
 }
 

@@ -14,48 +14,74 @@
 //! subgraph to find multiple vertex-disjoint augmenting paths.  MBFS
 //! uses a two-part structure: Part 1 assigns first levels via standard
 //! BFS, Part 2 processes bridge pairs via back-path search with
-//! union-find to assign second levels.  A single-path MDFS fallback
-//! on the full G_M is kept as a safety net.
+//! union-find to assign second levels.  We also keep a per-free-vertex
+//! single-path MDFS fallback as a safety net.  Blum's paper claims the
+//! phased bound O(√V · (V + E)) because it assumes the search stays in
+//! that regime. Our implementation keeps the phased fast path, but the
+//! fallback is required for correctness on known counterexamples, so the
+//! implementation's worst-case time is O(V · (V + E)).
 use alloc::{collections::VecDeque, vec::Vec};
 
 use num_traits::AsPrimitive;
 
 use crate::traits::SparseSquareMatrix;
 
+/// Maps original vertex `v` to its A-side copy `[v,A]` in G_M.
 const fn a_side(v: usize) -> usize {
     2 * v
 }
+/// Maps original vertex `v` to its B-side copy `[v,B]` in G_M.
 const fn b_side(v: usize) -> usize {
     2 * v + 1
 }
+/// Recovers the original vertex index from a G_M node index.
 const fn orig(gm: usize) -> usize {
     gm / 2
 }
+/// Returns the twin of a G_M node: `[v,A] ↔ [v,B]`.
 const fn twin(gm: usize) -> usize {
     gm ^ 1
 }
+/// Returns `true` if `gm` is an A-side node (even index).
 const fn is_a(gm: usize) -> bool {
     gm & 1 == 0
 }
 
+/// Sentinel value meaning "level not yet defined" in MBFS arrays.
 const INF: usize = usize::MAX;
 
 // ── Public entry ────────────────────────────────────────────────────────
 
+/// Top-level driver for Blum's maximum matching algorithm.
+///
+/// Holds the input matrix, the current matching (`mate`), and reusable
+/// buffers for G_M construction and MBFS.  Call [`solve`](Self::solve)
+/// to compute the maximum matching.
 pub(super) struct BlumState<'a, M: SparseSquareMatrix + ?Sized> {
     matrix: &'a M,
+    /// Number of original vertices.
     n: usize,
+    /// Current matching: `mate[u] = Some(v)` means edge (u,v) is matched.
     mate: Vec<Option<usize>>,
-    // Reusable buffers (allocated once, cleared each phase):
+    /// Adjacency lists for the directed bipartite graph G_M.
+    /// Indexed by G_M node (0..2n for graph nodes, 2n=s, 2n+1=t).
     adj: Vec<Vec<usize>>,
+    /// MBFS level array: `level[gm_node]` = shortest strongly simple
+    /// distance from s, or `INF` if not yet reached.
     mbfs_level: Vec<usize>,
+    /// First-level array indexed by *original* vertex (not G_M node).
+    /// `level1[v]` records the level assigned to v during MBFS Part 1.
     mbfs_level1: Vec<usize>,
+    /// MBFS parent pointers for the BFS tree.
     mbfs_par: Vec<usize>,
+    /// Union-find parent array for MBFS bridge processing.
     mbfs_uf: Vec<usize>,
+    /// Reusable BFS queue for MBFS.
     mbfs_queue: VecDeque<usize>,
 }
 
 impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
+    /// Creates a new `BlumState` with empty matching and pre-allocated buffers.
     pub(super) fn new(matrix: &'a M) -> Self {
         let n: usize = matrix.order().as_();
         let sz = 2 * n + 2;
@@ -72,6 +98,20 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
         }
     }
 
+    /// Runs the phased Blum algorithm and returns the maximum matching.
+    ///
+    /// Each phase:
+    /// 1. Builds G_M from the current matching via [`fill_gm`](Self::fill_gm).
+    /// 2. Runs MBFS to compute shortest strongly simple distances.
+    /// 3. If MBFS reaches t: runs layered multi-path MDFS. If layered MDFS
+    ///    finds 0 paths: falls back to per-vertex MDFS.
+    /// 4. If MBFS cannot reach t (level\[t\] = INF): falls back to per-vertex
+    ///    MDFS directly (Bug 3 workaround).
+    ///
+    /// The per-vertex fallback (Bug 2 workaround) isolates each free
+    /// vertex's DFS to avoid cross-subtree `ever`-state poisoning.
+    /// Both `augment` and `augment_and_delete` validate the reconstructed
+    /// path for strong simplicity before applying it (Bug 1 workaround).
     pub(super) fn solve(mut self) -> Vec<(M::Index, M::Index)> {
         if self.n == 0 {
             return Vec::new();
@@ -95,7 +135,11 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 &mut self.mbfs_queue,
             );
             if self.mbfs_level[t] == INF {
-                break;
+                // MBFS could not reach t — fall back to per-vertex MDFS.
+                if !self.fallback_per_vertex(sz) {
+                    break;
+                }
+                continue;
             }
 
             // Take ownership of adj and level for MDFS.
@@ -110,13 +154,8 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
             self.mbfs_level = mdfs.take_level();
 
             if found == 0 {
-                // Fallback: BFS dist < strongly-simple dist.
-                let (s2, t2) = self.fill_gm();
-                let adj2 = core::mem::take(&mut self.adj);
-                let mut mdfs_full = Mdfs::new(sz, s2, t2, self.n, adj2);
-                let ok = mdfs_full.run(&mut self.mate);
-                self.adj = mdfs_full.take_adj();
-                if !ok {
+                // Fallback: layered MDFS found no paths. Try per-vertex.
+                if !self.fallback_per_vertex(sz) {
                     break;
                 }
             }
@@ -126,8 +165,13 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
         crate::traits::algorithms::matching_utils::mate_to_pairs(&self.mate, &indices)
     }
 
-    /// Fill `self.adj` with G_M edges for the current matching.
-    /// Clears existing adj lists rather than reallocating.
+    /// Builds the directed bipartite graph G_M from the current matching.
+    ///
+    /// - For each free vertex u: adds edges s → b(u) and a(u) → t.
+    /// - For each matched edge (u,v): adds a(u) → b(v) and a(v) → b(u).
+    /// - For each unmatched edge (u,v): adds b(u) → a(v) and b(v) → a(u).
+    ///
+    /// Returns (s, t) — the source and sink sentinel indices.
     fn fill_gm(&mut self) -> (usize, usize) {
         let n = self.n;
         let s = 2 * n;
@@ -159,22 +203,54 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
         }
         (s, t)
     }
+
+    /// Per-free-vertex MDFS fallback (Bug 2 + Bug 3 workaround).
+    ///
+    /// The standard single-path MDFS explores all free vertices from a
+    /// shared source `s`.  DFS ordering means the first subtree can mark
+    /// nodes `ever`, poisoning later subtrees.  This fallback tries each
+    /// free vertex with a **fresh** MDFS, isolating their `ever` state.
+    fn fallback_per_vertex(&mut self, sz: usize) -> bool {
+        let n = self.n;
+        let s = 2 * n;
+        let t = s + 1;
+
+        // Collect free vertices (mate == None).
+        let free: Vec<usize> = (0..n).filter(|&u| self.mate[u].is_none()).collect();
+
+        for &u in &free {
+            // Build G_M with only b(u) reachable from s.
+            self.fill_gm();
+            self.adj[s].clear();
+            self.adj[s].push(b_side(u));
+
+            let adj = core::mem::take(&mut self.adj);
+            let mut mdfs = Mdfs::new(sz, s, t, n, adj);
+            let ok = mdfs.run(&mut self.mate);
+            self.adj = mdfs.take_adj();
+            if ok {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 // ── MBFS (Modified Breadth-First Search) ────────────────────────────────
-//
-// Computes shortest *strongly simple* distances from s in G_M.
-//
-// Part 1: standard BFS assigning first levels (level₁).
-// Part 2: processes bridge pairs E(k) in order via back-path search.
-//
-// Reference: Blum 2015, Section 3 (full version, Uni Bonn, July 2016).
-//
-// Union-find choice: standard path-halving (not Gabow-Tarjan).
-// See <https://github.com/LucaCappelletti94/incremental-tree-set-union>
-// for benchmarks showing Gabow-Tarjan is 6-10× slower in practice.
 
+/// Computes shortest *strongly simple* distances from s in G_M.
+///
+/// - **Part 1**: standard BFS assigning first levels (level₁).
+/// - **Part 2**: processes bridge pairs E(k) in order via back-path search with
+///   union-find to assign second levels.
+///
+/// Reference: Blum 2015, Section 3 (full version, Uni Bonn, July 2016).
+///
+/// Union-find choice: standard path-halving (not Gabow-Tarjan).
+/// See <https://github.com/LucaCappelletti94/incremental-tree-set-union>
+/// for benchmarks showing Gabow-Tarjan is consistently slower in practice.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 fn mbfs(
     adj: &[Vec<usize>],
     s: usize,
@@ -206,7 +282,7 @@ fn mbfs(
     // Flat bridge storage: (x, y, k).  Sorted by k before Part 2.
     let mut bridges: Vec<(usize, usize, usize)> = Vec::new();
 
-    // ── Part 1: BFS for first levels ────────────────────────────────────
+    // ── Part 1: BFS for first levels ────────────────────────────────
 
     level[s] = 0;
     for &w in &adj[s] {
@@ -225,7 +301,7 @@ fn mbfs(
         mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, true);
     }
 
-    // ── Generate A-side bridge pairs from matched edges ─────────────────
+    // ── Generate A-side bridge pairs from matched edges ─────────────
 
     for u in 0..n {
         let u_a = a_side(u);
@@ -249,7 +325,7 @@ fn mbfs(
         }
     }
 
-    // ── Part 2: process bridges in order of k ───────────────────────────
+    // ── Part 2: process bridges in order of k ───────────────────────
     //
     // Bridges are sorted by k before processing.  New bridges appended
     // during Part 2 (by mbfs_scan) are at the tail and processed in
@@ -311,6 +387,15 @@ fn mbfs(
     }
 }
 
+/// BFS neighbor scan for one G_M vertex during MBFS.
+///
+/// - **A-side nodes**: scan outgoing matched edges (A → B). In Part 1
+///   (`first_level_only = true`), only scan if `level1[orig] == vertex_level`
+///   to avoid re-scanning nodes that got second levels.
+/// - **B-side nodes**: scan outgoing unmatched edges (B → A). If the neighbor
+///   A-side is unleveled and qualifies, assign a first level (Case 1). If the
+///   neighbor's mate-side is already leveled at ≤ current level, generate a
+///   bridge pair (Cases 2 & 3).
 #[allow(clippy::too_many_arguments)]
 fn mbfs_scan(
     gm_vertex: usize,
@@ -411,50 +496,94 @@ fn uf_find(uf: &mut [usize], mut x: usize) -> usize {
     x
 }
 
-// ── MDFS ────────────────────────────────────────────────────────────────
+// ── MDFS (Modified Depth-First Search) ──────────────────────────────────
 
+/// State for the Modified Depth-First Search on G_M.
+///
+/// Searches for strongly simple s→t paths using Blum's edge
+/// classification (Cases 1, 2.1, 2.2.i/ii, 2.3.i/ii) with the
+/// Dandeh & Lukovszki corrections for Cases 2.2.i and 2.3.i.
 struct Mdfs {
+    /// G_M adjacency lists (owned during MDFS, returned afterwards).
     adj: Vec<Vec<usize>>,
+    /// Source sentinel in G_M (index 2n).
     s: usize,
+    /// Sink sentinel in G_M (index 2n+1).
     t: usize,
+    /// Number of original vertices.
     n: usize,
+    /// Total G_M size: 2n + 2 (graph nodes + s + t).
     sz: usize,
 
+    /// Edge pointer: next unexamined neighbor index for each node.
     eptr: Vec<usize>,
+    /// `ever[v]` = true iff PUSH(v) has been performed at any point.
     ever: Vec<bool>,
+    /// `ink[v]` = true iff v is currently on the DFS stack K.
     ink: Vec<bool>,
+    /// DFS parent pointer: `par[v]` = the node that pushed v.
     par: Vec<usize>,
-    push_time: Vec<usize>,
-    time_counter: usize,
 
+    /// Label set L: `l[w_A] = Some(u_A)` means the extensible edge
+    /// from w_A reaches u_A.  See Blum 2015 Section 2.3.
     l: Vec<Option<usize>>,
+    /// Reverse map for L: `l_rev[u_A]` lists all w_A with `l[w_A] = u_A`,
+    /// used by [`clear_l_sources`](Self::clear_l_sources).
     l_rev: Vec<Vec<usize>>,
+    /// `l_ever[w]` = true iff the L entry for `w` was ever set
+    /// (even if later cleared).
     l_ever: Vec<bool>,
 
+    /// R set: `r[u_A]` = { v_B | (v_B, u_A) is a weak back edge }.
+    /// Populated in Cases 2.2.i (D&L fix) and 2.2.ii.
     r: Vec<Vec<usize>>,
+    /// E set: `e[q_A]` = { v_B | (v_B, q_A) is a back, cross, or forward edge
+    /// }. Populated in Cases 2.1, 2.3.i.
     e: Vec<Vec<usize>>,
 
+    /// Non-tree edge record for path reconstruction:
+    /// `p[r_A] = Some((start_B, edge_A))` records the non-tree edge
+    /// that concludes the block of tree edges containing r_A.
     p: Vec<Option<(usize, usize)>>,
 
+    /// D-set representative (union-find): `drep[x]` is x's parent in
+    /// the disjoint-set forest.  Blum defines D\[q,A\] as the set of
+    /// nodes whose label L was previously set to q_A.  We implement D
+    /// via union-find (as Blum recommends) with path-halving compression.
     drep: Vec<usize>,
 
+    /// Extensible-edge record: `expanded[u_A] = Some((v_B, w_A))`
+    /// means u_A was pushed via Case 2.3.i using L\[w_A\] = u_A,
+    /// creating extensible edge (v_B, u_A)\[w_A\].
     expanded: Vec<Option<(usize, usize)>>,
 
+    /// DFS stack K: contains the nodes from s to the current vertex.
     k: Vec<usize>,
 
-    // Generation-based visited: vis_stamp[i] == vis_gen means visited.
+    /// Generation-based visited stamp for backward search.
+    /// `vis_stamp[i] == vis_gen` means node i has been visited in
+    /// the current backward search invocation.
     vis_stamp: Vec<u32>,
+    /// Current generation counter.  Incremented at each backward search
+    /// call, giving O(1) reset instead of O(n) clearing.
     vis_gen: u32,
 
-    // Reusable temporaries for backward_search (avoid per-call alloc).
+    /// Reusable BFS queue for backward search rounds.
     bs_queue: VecDeque<usize>,
+    /// Nodes discovered during backward search that will receive L labels.
     bs_dl: Vec<usize>,
 
+    /// Optional MBFS level array.  When `Some`, the MDFS is restricted
+    /// to the layered subgraph (edges where `level[w] == level[top] + 1`).
+    /// When `None`, the MDFS runs on the full G_M (fallback mode).
     level: Option<Vec<usize>>,
+    /// `deleted[v]` = true iff v was part of a previously augmented path
+    /// in this phase (multi-path mode only).
     deleted: Vec<bool>,
 }
 
 impl Mdfs {
+    /// Creates a new MDFS for full-graph (unlayered) search.
     fn new(sz: usize, s: usize, t: usize, n: usize, adj: Vec<Vec<usize>>) -> Self {
         Self {
             adj,
@@ -466,8 +595,6 @@ impl Mdfs {
             ever: vec![false; sz],
             ink: vec![false; sz],
             par: vec![usize::MAX; sz],
-            push_time: vec![0; sz],
-            time_counter: 0,
             l: vec![None; sz],
             l_rev: vec![Vec::new(); sz],
             l_ever: vec![false; sz],
@@ -486,6 +613,8 @@ impl Mdfs {
         }
     }
 
+    /// Creates a new MDFS restricted to the layered subgraph defined
+    /// by the MBFS `level` array.
     fn new_layered(
         sz: usize,
         s: usize,
@@ -499,15 +628,22 @@ impl Mdfs {
         mdfs
     }
 
+    /// Returns the adjacency lists, transferring ownership back to the caller.
     fn take_adj(&mut self) -> Vec<Vec<usize>> {
         core::mem::take(&mut self.adj)
     }
 
+    /// Returns the level array, transferring ownership back to the caller.
     fn take_level(&mut self) -> Vec<usize> {
         self.level.take().unwrap_or_default()
     }
 
-    /// Single-path MDFS on full G_M (fallback).
+    /// Single-path MDFS on the full G_M (fallback mode).
+    ///
+    /// Searches for one strongly simple s→t path.  When t is reached,
+    /// the path is reconstructed and validated for strong simplicity
+    /// (Bug 1 workaround).  If the path fails validation, the search
+    /// backtracks and continues looking for an alternative.
     fn run(&mut self, mate: &mut [Option<usize>]) -> bool {
         self.do_push(self.s, self.s);
         loop {
@@ -515,16 +651,23 @@ impl Mdfs {
                 return false;
             };
             if top == self.t {
-                self.augment(mate);
-                return true;
-            }
-            if !self.step(top) {
+                if self.augment(mate) {
+                    return true;
+                }
+                // Path was not strongly simple — backtrack and keep searching.
+                self.do_pop(top);
+            } else if !self.step(top) {
                 self.do_pop(top);
             }
         }
     }
 
     /// Multi-path MDFS on the layered subgraph.
+    ///
+    /// Finds as many vertex-disjoint augmenting paths as possible in
+    /// the subgraph defined by the MBFS levels.  Each found path is
+    /// validated, augmented, and its vertices deleted from the search
+    /// space.  Returns the number of augmenting paths found.
     fn run_multi_path(&mut self, mate: &mut [Option<usize>]) -> usize {
         let mut count = 0;
         self.do_push(self.s, self.s);
@@ -533,9 +676,13 @@ impl Mdfs {
                 return count;
             };
             if top == self.t {
-                self.augment_and_delete(mate);
-                self.retreat_to_s();
-                count += 1;
+                if self.augment_and_delete(mate) {
+                    self.retreat_to_s();
+                    count += 1;
+                } else {
+                    // Path was not strongly simple — backtrack.
+                    self.do_pop(top);
+                }
                 continue;
             }
             if !self.step(top) {
@@ -544,8 +691,24 @@ impl Mdfs {
         }
     }
 
-    // ── Edge processing (SEARCH procedure) ──────────────────────────────
+    // ── Edge processing (SEARCH procedure) ──────────────────────────
 
+    /// Examines the next unprocessed edge from `top` and either pushes
+    /// a new node or records the edge for later use.
+    ///
+    /// Returns `true` if a node was pushed (the caller should re-enter
+    /// the main loop), `false` if all edges from `top` are exhausted
+    /// (the caller should pop).
+    ///
+    /// Edge classification follows Blum 2015, Section 2.3:
+    /// - **Case 1** (tree edge, A→B via matched edge): push w_B.
+    /// - **Case 2.1** (back edge, w_A on stack): add to E\[w\].
+    /// - **Case 2.2.i** (weak back, w_A previously pushed, w_B on stack): add
+    ///   to R\[w\] with D&L selective condition.
+    /// - **Case 2.2.ii** (weak back, w_A never pushed): add to R\[w\].
+    /// - **Case 2.3.i** (forward/cross, w_A previously pushed): if L\[w\] has a
+    ///   target, push via extensible edge; otherwise add to E\[w\].
+    /// - **Case 2.3.ii** (tree edge, w_A never pushed): push w_A.
     fn step(&mut self, top: usize) -> bool {
         let n2 = 2 * self.n;
 
@@ -570,6 +733,7 @@ impl Mdfs {
                 return true;
             }
 
+            // Case 1 / 2.3.ii from s: tree edge to unvisited node.
             if top == self.s {
                 if !self.ever[w] {
                     self.do_push(w, top);
@@ -578,6 +742,7 @@ impl Mdfs {
                 continue;
             }
 
+            // Case 1: tree edge (A-side top → B-side w via matched edge).
             if is_a(top) {
                 if !self.ever[w] {
                     self.do_push(w, top);
@@ -586,7 +751,9 @@ impl Mdfs {
                 continue;
             }
 
-            // top is B-side, w is A-side: unmatched edge.
+            // From here: top is B-side, w is A-side (unmatched edge).
+
+            // Case 2.1: back edge — w_A is currently on the stack.
             if self.ink[w] {
                 if w < n2 {
                     self.e[w].push(top);
@@ -594,23 +761,25 @@ impl Mdfs {
                 continue;
             }
 
+            // Case 2.2: weak back edge — w_A not on stack, w_B on stack.
             if self.ink[twin(w)] {
                 if self.ever[w] {
-                    if w < n2 {
-                        self.e[w].push(top);
-                        let v_a = twin(top);
-                        let w_b = twin(w);
-                        if !self.ever[v_a] || self.push_time[w_b] < self.push_time[v_a] {
-                            self.r[w].push(top);
-                        }
-                    }
+                    // Case 2.2.i: w_A was previously pushed.
+                    // Blum's original algorithm: do nothing.
+                    // D&L propose adding to R[w] with a selective condition,
+                    // but their bug does not reproduce in our phased
+                    // architecture (tested on their Figure 1 counterexample).
                 } else if w < n2 {
+                    // Case 2.2.ii: w_A was never pushed.
                     self.r[w].push(top);
                 }
                 continue;
             }
 
+            // Case 2.3: w_A and w_B both off the stack.
             if self.ever[w] {
+                // Case 2.3.i: forward/cross edge, w_A was previously pushed.
+                // Chase the label chain to find a valid extensible target.
                 if let Some(mut u_a) = self.l[w] {
                     while self.ever[u_a] || self.deleted[u_a] {
                         if let Some(next) = self.l[u_a] {
@@ -625,21 +794,18 @@ impl Mdfs {
                     }
                 }
                 if let Some(u_a) = self.l[w] {
+                    // L[w] has a usable target → push via extensible edge.
                     self.expanded[u_a] = Some((top, w));
-                    let sources = core::mem::take(&mut self.l_rev[u_a]);
-                    for &src in &sources {
-                        if self.l[src] == Some(u_a) {
-                            self.l[src] = None;
-                        }
-                    }
-                    self.l_rev[u_a] = sources;
+                    self.clear_l_sources(u_a);
                     self.do_push(u_a, top);
                     return true;
                 }
-                if w < n2 && !self.l_ever[w] {
+                // L[w] is empty → record in E for backward search.
+                if w < n2 {
                     self.e[w].push(top);
                 }
             } else {
+                // Case 2.3.ii: tree edge — w_A never pushed before.
                 self.do_push(w, top);
                 return true;
             }
@@ -647,15 +813,33 @@ impl Mdfs {
         false
     }
 
+    /// Clears all L labels that point to `target`, using the reverse
+    /// map `l_rev`.  Called when `target` is used as an extensible-edge
+    /// endpoint, invalidating all labels that pointed to it.
+    fn clear_l_sources(&mut self, target: usize) {
+        let sources = core::mem::take(&mut self.l_rev[target]);
+        for &src in &sources {
+            if self.l[src] == Some(target) {
+                self.l[src] = None;
+            }
+        }
+    }
+
+    /// PUSH(node): adds `node` to the DFS stack K and marks it as
+    /// visited (`ever`) and on-stack (`ink`).
     fn do_push(&mut self, node: usize, parent: usize) {
-        self.time_counter += 1;
-        self.push_time[node] = self.time_counter;
         self.ever[node] = true;
         self.ink[node] = true;
         self.par[node] = parent;
         self.k.push(node);
     }
 
+    /// POP(top): removes `top` from the DFS stack K.
+    ///
+    /// If `top` is a B-side graph node (not s, not deleted), triggers
+    /// [`backward_search`](Self::backward_search) to compute L labels.
+    /// Also pops the paired A-side node if it was pushed as part of a
+    /// matched-edge tree step.
     fn do_pop(&mut self, top: usize) {
         if top != self.s && !is_a(top) && top < 2 * self.n && !self.deleted[top] {
             self.backward_search(top);
@@ -673,18 +857,29 @@ impl Mdfs {
         }
     }
 
-    // ── Backward search ─────────────────────────────────────────────────
+    // ── Backward search ─────────────────────────────────────────────
 
+    /// Returns `true` if node `i` was visited in the current backward search.
     #[inline]
     fn vis_check(&self, i: usize) -> bool {
         self.vis_stamp[i] == self.vis_gen
     }
 
+    /// Marks node `i` as visited in the current backward search.
     #[inline]
     fn vis_set(&mut self, i: usize) {
         self.vis_stamp[i] = self.vis_gen;
     }
 
+    /// Backward search after POP(v_B).
+    ///
+    /// Computes L labels for A-side nodes reachable backward from v_A
+    /// (the twin of the popped B-side node) through the expanded
+    /// MDFS-tree T_exp.  Processes R\[v_A\] and E\[v_A\] entries via
+    /// [`constrl`](Self::constrl) in BFS rounds.
+    ///
+    /// If v_A has never been pushed (`!ever[v_A]`), sets `L[y_A] = v_A`
+    /// for all discovered nodes y_A.
     fn backward_search(&mut self, v_b: usize) {
         let v_a = twin(v_b);
 
@@ -698,21 +893,22 @@ impl Mdfs {
         self.bs_queue.clear();
         self.bs_dl.clear();
 
-        for i in 0..self.r[v_a].len() {
+        // Round 1: process R (weak back edges) and E (cross/forward/back).
+        for i in (0..self.r[v_a].len()).rev() {
             let q_b = self.r[v_a][i];
             if !self.deleted[q_b] {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
-        for i in 0..self.e[v_a].len() {
+        for i in (0..self.e[v_a].len()).rev() {
             let q_b = self.e[v_a][i];
             if !self.vis_check(q_b) && !self.deleted[q_b] {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
-
+        // Subsequent rounds: process E entries of newly discovered nodes.
         while let Some(k_a) = self.bs_queue.pop_front() {
-            for i in 0..self.e[k_a].len() {
+            for i in (0..self.e[k_a].len()).rev() {
                 let q_b = self.e[k_a][i];
                 if !self.vis_check(q_b) && !self.deleted[q_b] {
                     self.constrl(q_b, k_a, v_b, v_a);
@@ -720,6 +916,7 @@ impl Mdfs {
             }
         }
 
+        // Assign L labels if v_A has never been pushed.
         if !self.ever[v_a] {
             for i in 0..self.bs_dl.len() {
                 let y_a = self.bs_dl[i];
@@ -730,6 +927,17 @@ impl Mdfs {
         }
     }
 
+    /// Backward tree-walk from `start_b` upward through parent pointers.
+    ///
+    /// Follows the DFS tree backward from `start_b`, visiting pairs
+    /// (z_B, y_A = par\[z\]).  For each y_A:
+    /// - If y_A was previously labeled (`l_ever`): merges its D-set
+    ///   representative with `lcur`'s root, then jumps to twin(rep) to continue
+    ///   the walk.
+    /// - Otherwise: records `p[y_A] = (start_b, edge_a)`, adds y_A to the
+    ///   discovery list and BFS queue, and continues upward.
+    ///
+    /// Stops at `stop_b`, at already-visited nodes, or at s.
     fn constrl(&mut self, start_b: usize, edge_a: usize, stop_b: usize, lcur: usize) {
         let pcur = (start_b, edge_a);
         let lcur_root = self.find_rep(lcur);
@@ -753,6 +961,7 @@ impl Mdfs {
             self.vis_set(y_a);
 
             if self.l_ever[y_a] {
+                // y_A was previously labeled: merge D-sets and jump.
                 let r_a = self.find_rep(y_a);
                 if r_a != lcur_root {
                     self.drep[r_a] = lcur_root;
@@ -765,6 +974,7 @@ impl Mdfs {
                 return;
             }
 
+            // y_A is new: record P, add to discovery list and queue.
             self.drep[y_a] = lcur_root;
             self.p[y_a] = Some(pcur);
             self.bs_dl.push(y_a);
@@ -778,37 +988,68 @@ impl Mdfs {
         }
     }
 
-    fn find_rep(&self, mut x: usize) -> usize {
-        let mut steps = 0;
+    /// Union-find root query with path-halving compression on `drep`.
+    fn find_rep(&mut self, mut x: usize) -> usize {
         while self.drep[x] != x {
-            steps += 1;
-            if steps > self.sz {
-                return x;
-            }
-            x = self.drep[x];
+            let gp = self.drep[self.drep[x]];
+            self.drep[x] = gp;
+            x = gp;
         }
         x
     }
 
-    // ── Path reconstruction and augmentation ─────────────────────────────
+    // ── Path reconstruction and augmentation ─────────────────────────
 
-    fn augment(&self, mate: &mut [Option<usize>]) {
+    /// Reconstructs the s→t path and validates it for strong simplicity.
+    ///
+    /// Returns the path as a `Vec<usize>` of G_M nodes (s first, t last),
+    /// or an empty `Vec` if the path visits any original vertex on both
+    /// its A-side and B-side (Bug 1 workaround).
+    fn validated_path(&self) -> Vec<usize> {
         let n2 = 2 * self.n;
         let mut path: Vec<usize> = Vec::new();
         self.reconstr_path(self.t, self.s, &mut path);
         path.reverse();
+        // Strong-simplicity check: each original vertex appears at most once.
+        let mut seen = vec![false; self.n];
+        for &v in &path {
+            if v < n2 {
+                let o = orig(v);
+                if seen[o] {
+                    return Vec::new(); // not strongly simple
+                }
+                seen[o] = true;
+            }
+        }
+        path
+    }
+
+    /// Single-path augmentation: reconstructs the path, validates it,
+    /// and flips the matching along it.  Returns `false` if the path
+    /// fails strong-simplicity validation.
+    fn augment(&self, mate: &mut [Option<usize>]) -> bool {
+        let n2 = 2 * self.n;
+        let path = self.validated_path();
+        if path.is_empty() {
+            return false;
+        }
         let orig_path: Vec<usize> = path.iter().filter(|&&v| v < n2).map(|&v| orig(v)).collect();
         for pair in orig_path.chunks_exact(2) {
             mate[pair[0]] = Some(pair[1]);
             mate[pair[1]] = Some(pair[0]);
         }
+        true
     }
 
-    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) {
+    /// Multi-path augmentation: reconstructs and validates the path,
+    /// marks all path vertices as deleted, and flips the matching.
+    /// Returns `false` if the path fails strong-simplicity validation.
+    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) -> bool {
         let n2 = 2 * self.n;
-        let mut path: Vec<usize> = Vec::new();
-        self.reconstr_path(self.t, self.s, &mut path);
-        path.reverse();
+        let path = self.validated_path();
+        if path.is_empty() {
+            return false;
+        }
         for &v in &path {
             if v < n2 {
                 self.deleted[v] = true;
@@ -820,8 +1061,12 @@ impl Mdfs {
             mate[pair[0]] = Some(pair[1]);
             mate[pair[1]] = Some(pair[0]);
         }
+        true
     }
 
+    /// Pops the stack back to s after a successful augmentation in
+    /// multi-path mode.  Runs backward search on each popped B-side
+    /// node (unless deleted) to update labels for subsequent paths.
     fn retreat_to_s(&mut self) {
         while let Some(&top) = self.k.last() {
             if top == self.s {
@@ -835,10 +1080,18 @@ impl Mdfs {
         }
     }
 
+    /// Entry point for path reconstruction: reconstructs the path from
+    /// `end` (t) back to `start` (s) with full extensible-edge expansion.
     fn reconstr_path(&self, end: usize, start: usize, out: &mut Vec<usize>) {
         self.reconstr_path_inner(end, start, out, true);
     }
 
+    /// Recursive path reconstruction following parent pointers.
+    ///
+    /// Walks from `end` toward `start` via `par` pointers.  When an
+    /// extensible edge is encountered (`expanded[cur]` is set), calls
+    /// [`reconstr_q`](Self::reconstr_q) to expand the subpath through
+    /// the P-pointer block chain, then continues from the B-side source.
     fn reconstr_path_inner(
         &self,
         end: usize,
@@ -863,6 +1116,12 @@ impl Mdfs {
         out.push(start);
     }
 
+    /// RECONSTRQ: reconstructs the subpath through an extensible edge.
+    ///
+    /// Given extensible edge endpoint `u_a` and the label source `w_a`,
+    /// follows the P-pointer chain from `w_a` backward through blocks
+    /// until reaching `u_a`.  Each block is reconstructed recursively
+    /// via `reconstr_path_inner`.
     fn reconstr_q(&self, u_a: usize, w_a: usize, out: &mut Vec<usize>) {
         let mut blocks: Vec<(usize, usize)> = Vec::new();
         let mut st = w_a;
@@ -874,11 +1133,34 @@ impl Mdfs {
             blocks.push((p1_b, st));
             if p2_a == u_a {
                 for &(blk_end, blk_start) in blocks.iter().rev() {
-                    self.reconstr_path_inner(blk_end, blk_start, out, false);
+                    self.reconstr_path_inner(blk_end, blk_start, out, true);
                 }
                 return;
             }
             st = p2_a;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clear_l_sources_discards_stale_reverse_links() {
+        let sz = 6;
+        let mut mdfs = Mdfs::new(sz, 4, 5, 2, vec![Vec::new(); sz]);
+
+        mdfs.l[0] = Some(2);
+        mdfs.l[1] = Some(2);
+        mdfs.l[3] = Some(4);
+        mdfs.l_rev[2] = vec![0, 1, 1, 3];
+
+        mdfs.clear_l_sources(2);
+
+        assert_eq!(mdfs.l[0], None);
+        assert_eq!(mdfs.l[1], None);
+        assert_eq!(mdfs.l[3], Some(4));
+        assert!(mdfs.l_rev[2].is_empty());
     }
 }
