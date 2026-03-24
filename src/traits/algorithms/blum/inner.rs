@@ -636,11 +636,7 @@ impl Mdfs {
                 if self.ever[w] {
                     // Case 2.2.i: w_A was previously pushed.
                     // D&L fix: add top to R[w] with selective condition.
-                    // DIVERGENCE (2): we also add to E[w]. The paper and D&L
-                    // only prescribe adding to R. The extra E entry does not
-                    // affect correctness (tested) but is not in any paper.
                     if w < n2 {
-                        self.e[w].push(top);
                         let v_a = twin(top);
                         let w_b = twin(w);
                         if !self.ever[v_a] || self.push_time[w_b] < self.push_time[v_a] {
@@ -669,33 +665,13 @@ impl Mdfs {
                         self.l[w] = None;
                     }
                 }
-                let label_target = if let Some(u_a) = self.l[w] {
-                    Some(u_a)
-                } else if self.l_ever[w] {
-                    // DIVERGENCE (1): this find_rep fallback is not in any
-                    // paper. When L[w] was set previously but has since been
-                    // cleared, we attempt to recover a usable label target
-                    // through the representative chain. Blum and D&L do not
-                    // describe this recovery; they would treat L[w] as empty.
-                    let u_a = self.find_rep(w);
-                    if u_a != w && !self.ever[u_a] && !self.deleted[u_a] { Some(u_a) } else { None }
-                } else {
-                    None
-                };
-                if let Some(u_a) = label_target {
+                if let Some(u_a) = self.l[w] {
                     self.expanded[u_a] = Some((top, w));
                     self.clear_l_sources(u_a);
                     self.do_push(u_a, top);
                     return true;
                 }
-                // DIVERGENCE (3): we only add to E[w] when l_ever[w] is
-                // false (w never had a label). D&L define E[q_A] to include
-                // all forward/cross/back edges regardless of label history.
-                // Removing this gate was tested and does not fix Bug 1 or
-                // Bug 2, so the divergence is not the root cause of those
-                // bugs, but it remains a deviation from the paper's E
-                // definition.
-                if w < n2 && !self.l_ever[w] {
+                if w < n2 {
                     self.e[w].push(top);
                 }
             } else {
