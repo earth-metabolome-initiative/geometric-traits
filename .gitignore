@@ -23,5 +23,9 @@ cobertura.xml
 tarpaulin-report.json
 coverage_output
 
+# Python cache artifacts
+__pycache__/
+*.pyc
+
 # Reference papers
 papers/
