@@ -5,7 +5,7 @@
 //! - Blossom+KS1 / Blossom+KS12
 //! - Micali-Vazirani (O(√V·E))
 //! - Micali-Vazirani+KS1 / Micali-Vazirani+KS12
-//! - Blum (O(√V·(V+E)·α))
+//! - Blum (implementation worst case O(V·(V+E)); paper phased bound O(√V·(V+E)))
 //! - Blum+KS1 / Blum+KS12
 //! - External `blossom` crate (independent verification)
 
