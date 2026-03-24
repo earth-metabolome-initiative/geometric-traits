@@ -1,8 +1,6 @@
 //! Tests for exact Karp-Sipser preprocessing and recovery.
 #![cfg(feature = "std")]
 
-#[cfg(feature = "arbitrary")]
-use geometric_traits::test_utils::from_bytes;
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
@@ -227,27 +225,44 @@ fn test_recover_panics_on_invalid_kernel_matching() {
     assert!(result.is_err());
 }
 
-#[cfg(feature = "arbitrary")]
 #[test]
-fn test_regression_degree1_blum_wrapper_replays_invalid_kernel_corpus() {
-    let bytes = include_bytes!(
-        "../fuzz/hfuzz_workspace/karp_sipser/input/07865582057452d55166215d7d564267.00000209.honggfuzz.cov"
+fn test_regression_degree1_blum_wrapper_replays_invalid_kernel_fixture() {
+    // Former honggfuzz corpus entry
+    // `07865582057452d55166215d7d564267.00000209.honggfuzz.cov`,
+    // converted into a stable graph fixture so the regression no longer
+    // depends on a local honggfuzz workspace.
+    let g = build_graph(
+        58,
+        &[
+            (0, 5),
+            (0, 37),
+            (0, 48),
+            (5, 36),
+            (5, 49),
+            (36, 54),
+            (37, 48),
+            (37, 49),
+            (45, 50),
+            (45, 57),
+            (48, 54),
+            (49, 53),
+            (50, 53),
+            (50, 57),
+            (52, 53),
+            (52, 54),
+        ],
     );
-    let g = from_bytes::<SymmetricCSR2D<CSR2D<u16, u8, u8>>>(bytes)
-        .expect("corpus file should deserialize");
 
     let expected = g.blossom().len();
     let matching = g.blum_with_karp_sipser(KarpSipserRules::Degree1);
-    let mut used = vec![false; usize::from(g.order())];
+    let mut used = vec![false; g.order()];
     for &(u, v) in &matching {
         assert!(u < v, "pair must have u < v, got ({u}, {v})");
         assert!(g.has_entry(u, v), "edge ({u}, {v}) not in graph");
-        let left = usize::from(u);
-        let right = usize::from(v);
-        assert!(!used[left], "vertex {u} matched twice");
-        assert!(!used[right], "vertex {v} matched twice");
-        used[left] = true;
-        used[right] = true;
+        assert!(!used[u], "vertex {u} matched twice");
+        assert!(!used[v], "vertex {v} matched twice");
+        used[u] = true;
+        used[v] = true;
     }
     assert_eq!(matching.len(), expected);
 }

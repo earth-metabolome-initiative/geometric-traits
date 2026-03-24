@@ -103,10 +103,10 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
     /// Each phase:
     /// 1. Builds G_M from the current matching via [`fill_gm`](Self::fill_gm).
     /// 2. Runs MBFS to compute shortest strongly simple distances.
-    /// 3. If MBFS reaches t: runs layered multi-path MDFS.
-    ///    If layered MDFS finds 0 paths: falls back to per-vertex MDFS.
-    /// 4. If MBFS cannot reach t (level\[t\] = INF): falls back to
-    ///    per-vertex MDFS directly (Bug 3 workaround).
+    /// 3. If MBFS reaches t: runs layered multi-path MDFS. If layered MDFS
+    ///    finds 0 paths: falls back to per-vertex MDFS.
+    /// 4. If MBFS cannot reach t (level\[t\] = INF): falls back to per-vertex
+    ///    MDFS directly (Bug 3 workaround).
     ///
     /// The per-vertex fallback (Bug 2 workaround) isolates each free
     /// vertex's DFS to avoid cross-subtree `ever`-state poisoning.
@@ -241,8 +241,8 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
 /// Computes shortest *strongly simple* distances from s in G_M.
 ///
 /// - **Part 1**: standard BFS assigning first levels (level₁).
-/// - **Part 2**: processes bridge pairs E(k) in order via back-path
-///   search with union-find to assign second levels.
+/// - **Part 2**: processes bridge pairs E(k) in order via back-path search with
+///   union-find to assign second levels.
 ///
 /// Reference: Blum 2015, Section 3 (full version, Uni Bonn, July 2016).
 ///
@@ -392,10 +392,10 @@ fn mbfs(
 /// - **A-side nodes**: scan outgoing matched edges (A → B). In Part 1
 ///   (`first_level_only = true`), only scan if `level1[orig] == vertex_level`
 ///   to avoid re-scanning nodes that got second levels.
-/// - **B-side nodes**: scan outgoing unmatched edges (B → A). If the
-///   neighbor A-side is unleveled and qualifies, assign a first level
-///   (Case 1). If the neighbor's mate-side is already leveled at ≤
-///   current level, generate a bridge pair (Cases 2 & 3).
+/// - **B-side nodes**: scan outgoing unmatched edges (B → A). If the neighbor
+///   A-side is unleveled and qualifies, assign a first level (Case 1). If the
+///   neighbor's mate-side is already leveled at ≤ current level, generate a
+///   bridge pair (Cases 2 & 3).
 #[allow(clippy::too_many_arguments)]
 fn mbfs_scan(
     gm_vertex: usize,
@@ -542,8 +542,8 @@ struct Mdfs {
     /// R set: `r[u_A]` = { v_B | (v_B, u_A) is a weak back edge }.
     /// Populated in Cases 2.2.i (D&L fix) and 2.2.ii.
     r: Vec<Vec<usize>>,
-    /// E set: `e[q_A]` = { v_B | (v_B, q_A) is a back, cross, or forward edge }.
-    /// Populated in Cases 2.1, 2.3.i.
+    /// E set: `e[q_A]` = { v_B | (v_B, q_A) is a back, cross, or forward edge
+    /// }. Populated in Cases 2.1, 2.3.i.
     e: Vec<Vec<usize>>,
 
     /// Non-tree edge record for path reconstruction:
@@ -710,12 +710,11 @@ impl Mdfs {
     /// Edge classification follows Blum 2015, Section 2.3:
     /// - **Case 1** (tree edge, A→B via matched edge): push w_B.
     /// - **Case 2.1** (back edge, w_A on stack): add to E\[w\].
-    /// - **Case 2.2.i** (weak back, w_A previously pushed, w_B on stack):
-    ///   add to R\[w\] with D&L selective condition.
+    /// - **Case 2.2.i** (weak back, w_A previously pushed, w_B on stack): add
+    ///   to R\[w\] with D&L selective condition.
     /// - **Case 2.2.ii** (weak back, w_A never pushed): add to R\[w\].
-    /// - **Case 2.3.i** (forward/cross, w_A previously pushed):
-    ///   if L\[w\] has a target, push via extensible edge;
-    ///   otherwise add to E\[w\].
+    /// - **Case 2.3.i** (forward/cross, w_A previously pushed): if L\[w\] has a
+    ///   target, push via extensible edge; otherwise add to E\[w\].
     /// - **Case 2.3.ii** (tree edge, w_A never pushed): push w_A.
     fn step(&mut self, top: usize) -> bool {
         let n2 = 2 * self.n;
@@ -946,10 +945,10 @@ impl Mdfs {
     /// Follows the DFS tree backward from `start_b`, visiting pairs
     /// (z_B, y_A = par\[z\]).  For each y_A:
     /// - If y_A was previously labeled (`l_ever`): merges its D-set
-    ///   representative with `lcur`'s root, then jumps to twin(rep)
-    ///   to continue the walk.
-    /// - Otherwise: records `p[y_A] = (start_b, edge_a)`, adds y_A to
-    ///   the discovery list and BFS queue, and continues upward.
+    ///   representative with `lcur`'s root, then jumps to twin(rep) to continue
+    ///   the walk.
+    /// - Otherwise: records `p[y_A] = (start_b, edge_a)`, adds y_A to the
+    ///   discovery list and BFS queue, and continues upward.
     ///
     /// Stops at `stop_b`, at already-visited nodes, or at s.
     fn constrl(&mut self, start_b: usize, edge_a: usize, stop_b: usize, lcur: usize) {
