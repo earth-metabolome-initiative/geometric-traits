@@ -535,7 +535,8 @@ struct Mdfs {
     /// Reverse map for L: `l_rev[u_A]` lists all w_A with `l[w_A] = u_A`,
     /// used by [`clear_l_sources`](Self::clear_l_sources).
     l_rev: Vec<Vec<usize>>,
-    /// `l_ever[w]` = true iff L[w] was ever set (even if later cleared).
+    /// `l_ever[w]` = true iff the L entry for `w` was ever set
+    /// (even if later cleared).
     l_ever: Vec<bool>,
 
     /// R set: `r[u_A]` = { v_B | (v_B, u_A) is a weak back edge }.
