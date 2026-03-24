@@ -82,7 +82,14 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Complete Bipartite** K_{m,n} | `complete_bipartite_graph(m, n)` | m, n = partition sizes |
 | **Petersen** | `petersen_graph()` | — |
 | **Turán** T(n, r) | `turan_graph(n, r)` | n = vertices, r = partitions |
-| **Friendship** F_n | `friendship_graph(n)` | n = triangles |
+| **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
+| **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
+
+`friendship_graph` is the triangular special case of the shared-hub windmill
+family. For background, see the original friendship-theorem paper by
+[Erdős, Rényi, and Sós (1966)](https://static.renyi.hu/renyi_cikkek/1966_on_a_problem_of_graph_theory.pdf)
+and the follow-up by
+[van Lint and Seidel (1972)](https://doi.org/10.1016/1385-7258(72)90063-7).
 
 #### Random Generators
 

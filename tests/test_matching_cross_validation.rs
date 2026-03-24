@@ -38,6 +38,10 @@ fn build_graph(n: usize, edges: &[(usize, usize)]) -> SymmetricCSR2D<CSR2D<usize
         .unwrap()
 }
 
+fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
+    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
+}
+
 /// Run all four algorithms on the same graph and assert they agree.
 fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let bl = g.blossom();
@@ -304,6 +308,21 @@ fn test_friendship_graphs() {
         assert_all_agree(&g);
         // Friendship graph with n triangles: matching = n
         assert_eq!(g.blossom().len(), n, "friendship({n}) matching size");
+    }
+}
+
+#[test]
+fn test_windmill_graphs() {
+    for num_cliques in 1..=6 {
+        for clique_size in 2..=5 {
+            let g = windmill_graph(num_cliques, clique_size);
+            assert_all_agree(&g);
+            assert_eq!(
+                g.blossom().len(),
+                windmill_matching_size(num_cliques, clique_size),
+                "windmill({num_cliques},{clique_size}) matching size"
+            );
+        }
     }
 }
 
