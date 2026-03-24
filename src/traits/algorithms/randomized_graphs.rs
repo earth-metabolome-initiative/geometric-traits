@@ -41,6 +41,16 @@ mod grid;
 pub use grid::grid_graph;
 
 #[cfg(feature = "alloc")]
+mod hexagonal_lattice;
+#[cfg(feature = "alloc")]
+pub use hexagonal_lattice::hexagonal_lattice_graph;
+
+#[cfg(feature = "alloc")]
+mod triangular_lattice;
+#[cfg(feature = "alloc")]
+pub use triangular_lattice::triangular_lattice_graph;
+
+#[cfg(feature = "alloc")]
 mod torus;
 #[cfg(feature = "alloc")]
 pub use torus::torus_graph;
@@ -79,6 +89,11 @@ pub use petersen::petersen_graph;
 mod turan;
 #[cfg(feature = "alloc")]
 pub use turan::turan_graph;
+
+#[cfg(feature = "alloc")]
+mod windmill;
+#[cfg(feature = "alloc")]
+pub use windmill::windmill_graph;
 
 #[cfg(feature = "alloc")]
 mod friendship;

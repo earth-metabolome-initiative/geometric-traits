@@ -74,6 +74,8 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Path** P_n | `path_graph(n)` | n = vertices |
 | **Star** S_n | `star_graph(n)` | n = leaves |
 | **Grid** G_{r×c} | `grid_graph(rows, cols)` | rows, cols |
+| **Hexagonal / Honeycomb Lattice** | `hexagonal_lattice_graph(rows, cols)` | rows, cols = hexagon rows, cols |
+| **Triangular Lattice** | `triangular_lattice_graph(rows, cols)` | rows, cols = vertex-grid rows, cols |
 | **Torus** T_{r×c} | `torus_graph(rows, cols)` | rows, cols |
 | **Hypercube** Q_d | `hypercube_graph(d)` | d = dimension |
 | **Barbell** B(k, p) | `barbell_graph(clique_size, path_len)` | clique_size, path_len |
@@ -82,7 +84,8 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Complete Bipartite** K_{m,n} | `complete_bipartite_graph(m, n)` | m, n = partition sizes |
 | **Petersen** | `petersen_graph()` | — |
 | **Turán** T(n, r) | `turan_graph(n, r)` | n = vertices, r = partitions |
-| **Friendship** F_n | `friendship_graph(n)` | n = triangles |
+| **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
+| **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
 
 #### Random Generators
 

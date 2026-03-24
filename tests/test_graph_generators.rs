@@ -14,6 +14,17 @@ fn edge_count(g: &UndirectedGraph) -> usize {
     geometric_traits::traits::Edges::number_of_edges(g) / 2
 }
 
+fn same_graph(left: &UndirectedGraph, right: &UndirectedGraph) -> bool {
+    left.order() == right.order()
+        && geometric_traits::traits::Edges::number_of_edges(left)
+            == geometric_traits::traits::Edges::number_of_edges(right)
+        && (0..left.order()).all(|row| left.sparse_row(row).eq(right.sparse_row(row)))
+}
+
+fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
+    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
+}
+
 // ============================================================================
 // Deterministic graph families
 // ============================================================================
@@ -103,6 +114,115 @@ fn test_grid_graph_3x3() {
     // 9 vertices, 12 edges
     assert_eq!(g.order(), 9);
     assert_eq!(edge_count(&g), 12);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_1x1() {
+    let g = hexagonal_lattice_graph(1, 1);
+    // Single hexagon = C6
+    assert_eq!(g.order(), 6);
+    assert_eq!(edge_count(&g), 6);
+    assert_eq!(g.blossom().len(), 3);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_zero_dimension() {
+    let empty_rows = hexagonal_lattice_graph(0, 3);
+    assert_eq!(empty_rows.order(), 0);
+    assert_eq!(edge_count(&empty_rows), 0);
+
+    let empty_cols = hexagonal_lattice_graph(3, 0);
+    assert_eq!(empty_cols.order(), 0);
+    assert_eq!(edge_count(&empty_cols), 0);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_1x2() {
+    let g = hexagonal_lattice_graph(1, 2);
+    // Two fused hexagons
+    assert_eq!(g.order(), 10);
+    assert_eq!(edge_count(&g), 11);
+    assert_eq!(g.blossom().len(), 5);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_2x2() {
+    let g = hexagonal_lattice_graph(2, 2);
+    // 4-cell parallelogram benzenoid patch
+    assert_eq!(g.order(), 16);
+    assert_eq!(edge_count(&g), 19);
+    assert_eq!(g.blossom().len(), 8);
+}
+
+#[test]
+fn test_triangular_lattice_graph_zero_dimension() {
+    let empty = triangular_lattice_graph(0, 0);
+    assert_eq!(empty.order(), 0);
+    assert_eq!(edge_count(&empty), 0);
+
+    let empty_rows = triangular_lattice_graph(0, 3);
+    assert_eq!(empty_rows.order(), 0);
+    assert_eq!(edge_count(&empty_rows), 0);
+
+    let empty_cols = triangular_lattice_graph(3, 0);
+    assert_eq!(empty_cols.order(), 0);
+    assert_eq!(edge_count(&empty_cols), 0);
+}
+
+#[test]
+fn test_triangular_lattice_graph_1x1() {
+    let g = triangular_lattice_graph(1, 1);
+    assert_eq!(g.order(), 1);
+    assert_eq!(edge_count(&g), 0);
+}
+
+#[test]
+fn test_triangular_lattice_graph_1x4_matches_path() {
+    let g = triangular_lattice_graph(1, 4);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 3);
+    assert!(same_graph(&g, &path_graph(4)));
+}
+
+#[test]
+fn test_triangular_lattice_graph_4x1_matches_path() {
+    let g = triangular_lattice_graph(4, 1);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 3);
+    assert!(same_graph(&g, &path_graph(4)));
+}
+
+#[test]
+fn test_triangular_lattice_graph_2x2() {
+    let g = triangular_lattice_graph(2, 2);
+    // 4 vertices with one diagonal added to each unit cell
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 5);
+    assert_eq!(g.sparse_row(0).collect::<Vec<_>>(), vec![1, 2, 3]);
+    assert_eq!(g.sparse_row(1).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(g.sparse_row(2).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(g.sparse_row(3).collect::<Vec<_>>(), vec![0, 1, 2]);
+}
+
+#[test]
+fn test_triangular_lattice_graph_2x3_orientation() {
+    let g = triangular_lattice_graph(2, 3);
+    assert_eq!(g.order(), 6);
+    assert_eq!(edge_count(&g), 9);
+    assert_eq!(g.sparse_row(0).collect::<Vec<_>>(), vec![1, 3, 4]);
+    assert_eq!(g.sparse_row(1).collect::<Vec<_>>(), vec![0, 2, 4, 5]);
+    assert_eq!(g.sparse_row(2).collect::<Vec<_>>(), vec![1, 5]);
+    assert_eq!(g.sparse_row(3).collect::<Vec<_>>(), vec![0, 4]);
+    assert_eq!(g.sparse_row(4).collect::<Vec<_>>(), vec![0, 1, 3, 5]);
+    assert_eq!(g.sparse_row(5).collect::<Vec<_>>(), vec![1, 2, 4]);
+}
+
+#[test]
+fn test_triangular_lattice_graph_3x3() {
+    let g = triangular_lattice_graph(3, 3);
+    assert_eq!(g.order(), 9);
+    assert_eq!(edge_count(&g), 16);
+    assert_eq!(g.sparse_row(4).count(), 6);
 }
 
 #[test]
@@ -240,6 +360,55 @@ fn test_friendship_graph_3() {
     // Max matching = 3 (one per triangle, hub exposed)
     let matching = g.blossom();
     assert_eq!(matching.len(), 3);
+}
+
+#[test]
+fn test_friendship_graph_0() {
+    let g = friendship_graph(0);
+    assert_eq!(g.order(), 1);
+    assert_eq!(edge_count(&g), 0);
+}
+
+#[test]
+fn test_windmill_graph_1_4() {
+    let g = windmill_graph(1, 4);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 6);
+    assert_eq!(g.blossom().len(), windmill_matching_size(1, 4));
+}
+
+#[test]
+fn test_windmill_graph_3_4() {
+    let g = windmill_graph(3, 4);
+    assert_eq!(g.order(), 10);
+    assert_eq!(edge_count(&g), 18);
+    assert_eq!(g.blossom().len(), windmill_matching_size(3, 4));
+}
+
+#[test]
+fn test_windmill_graph_5_2_matches_star() {
+    let g = windmill_graph(5, 2);
+    let star = star_graph(6);
+    assert!(same_graph(&g, &star));
+}
+
+#[test]
+fn test_windmill_graph_4_3_matches_friendship() {
+    let windmill = windmill_graph(4, 3);
+    let friendship = friendship_graph(4);
+    assert!(same_graph(&windmill, &friendship));
+}
+
+#[test]
+#[should_panic(expected = "windmill_graph requires num_cliques >= 1")]
+fn test_windmill_graph_zero_cliques_panics() {
+    let _ = windmill_graph(0, 3);
+}
+
+#[test]
+#[should_panic(expected = "windmill_graph requires clique_size >= 2")]
+fn test_windmill_graph_clique_size_one_panics() {
+    let _ = windmill_graph(2, 1);
 }
 
 // ============================================================================
@@ -788,6 +957,18 @@ fn test_mv_on_friendship_graphs() {
 }
 
 #[test]
+fn test_mv_on_windmill_graphs() {
+    for num_cliques in 1..=6 {
+        for clique_size in 2..=5 {
+            let g = windmill_graph(num_cliques, clique_size);
+            let blossom = g.blossom();
+            let mv = g.micali_vazirani();
+            assert_eq!(blossom.len(), mv.len(), "windmill({num_cliques},{clique_size})");
+        }
+    }
+}
+
+#[test]
 fn test_mv_on_wheel_graphs() {
     // Wheels have mixed even/odd cycles.
     for n in 3..=12 {
@@ -925,6 +1106,18 @@ fn test_mv_on_grid_graphs() {
             let blossom = g.blossom();
             let mv = g.micali_vazirani();
             assert_eq!(blossom.len(), mv.len(), "grid({r},{c})");
+        }
+    }
+}
+
+#[test]
+fn test_mv_on_hexagonal_lattice_graphs() {
+    for rows in 1..=4 {
+        for cols in 1..=4 {
+            let g = hexagonal_lattice_graph(rows, cols);
+            let blossom = g.blossom();
+            let mv = g.micali_vazirani();
+            assert_eq!(blossom.len(), mv.len(), "hexagonal({rows},{cols})");
         }
     }
 }
