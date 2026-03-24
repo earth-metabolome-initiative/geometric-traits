@@ -224,15 +224,16 @@ fn test_regression_invalid_non_edge_from_degree1_kernel() {
 
 #[test]
 fn test_regression_small_plain_blum_size_mismatch() {
-    // Bug 3 counterexample (only): MBFS DOM exclusion gap.
-    // MBFS leaves level[t] = INF because the DOM node's twin is
-    // excluded from level assignment and no other bridge provides it.
-    // Requires: per-vertex MDFS fallback when level[t] = INF.
+    // Reduced Bug 3 witness.
+    // The previous n=15 fixture had one isolated vertex; removing it and
+    // renumbering the active vertices gives the same size mismatch on the
+    // current Bug-3-disabled branch. Exact subset search over the original
+    // 15 edges found no smaller failing edge set.
     let g = build_graph(
-        15,
+        14,
         &[
             (0, 9),
-            (0, 14),
+            (0, 13),
             (1, 3),
             (1, 4),
             (1, 5),
@@ -244,8 +245,8 @@ fn test_regression_small_plain_blum_size_mismatch() {
             (6, 10),
             (6, 11),
             (8, 11),
-            (9, 13),
-            (10, 14),
+            (9, 12),
+            (10, 13),
         ],
     );
     let blossom = g.blossom();
@@ -527,27 +528,23 @@ fn test_regression_random_counterexample_size_mismatch() {
 
 #[test]
 fn test_regression_phase_progression_stalls_before_maximum() {
-    // Bug 2 + Bug 3 counterexample: triggers both bugs on the same graph.
-    // Bug 3: MBFS leaves level[t] = INF (DOM exclusion gap).
-    // Bug 2: the per-vertex MDFS fallback is also needed because the
-    //   standard single-source fallback suffers from subtree poisoning.
-    // Requires: per-vertex MDFS fallback for BOTH the level[t]=INF
-    //   path AND the found==0 path.
+    // Reduced phase-progression witness.
+    // The original graph triggered both the Bug 3 MBFS gap and the Bug 2
+    // shared-source fallback failure. This minimized form is kept only for the
+    // current Bug-2-disabled branch: it still reproduces the 5-vs-6 size
+    // mismatch after dropping three edges from the previous 19-edge fixture.
     let g = build_graph(
         12,
         &[
             (0, 1),
-            (0, 3),
             (0, 5),
             (0, 6),
             (1, 2),
             (1, 3),
             (2, 3),
-            (2, 6),
             (3, 5),
             (3, 6),
             (4, 7),
-            (4, 9),
             (4, 11),
             (5, 10),
             (6, 9),
@@ -562,25 +559,17 @@ fn test_regression_phase_progression_stalls_before_maximum() {
 
 #[test]
 fn test_regression_large_fixture_blum_size_mismatch() {
-    // Bug 2 counterexample (only): DFS subtree poisoning.
-    // The single-source MDFS explores from b(10) first, marking a(8)
-    // as visited. When it later tries b(11)->a(8), the label mechanism
-    // fails to bridge across subtrees.
-    // Requires: per-vertex MDFS fallback when layered MDFS finds 0 paths.
-    // Minimized from n=119 by renumbering the 13 active vertices.
-    // Original mapping: 25→0, 49→1, 50→2, 52→3, 53→4, 54→5, 55→6,
-    //                    56→7, 57→8, 58→9, 61→10, 73→11, 118→12.
+    // Bug 2 minimization witness: shared-source fallback still misses one
+    // augmenting path and returns 5 instead of Blossom's 6.
+    // Further reduced from the previous n=13 / e=20 fixture to n=12 / e=15.
     let g = build_graph(
-        13,
+        12,
         &[
             (0, 2),
             (0, 3),
             (0, 4),
-            (0, 8),
-            (1, 2),
             (1, 4),
             (1, 6),
-            (1, 8),
             (2, 4),
             (3, 7),
             (3, 10),
@@ -590,9 +579,7 @@ fn test_regression_large_fixture_blum_size_mismatch() {
             (5, 10),
             (7, 10),
             (8, 9),
-            (8, 10),
             (8, 11),
-            (8, 12),
         ],
     );
 
