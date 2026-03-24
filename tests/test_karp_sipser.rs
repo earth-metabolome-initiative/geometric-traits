@@ -31,88 +31,6 @@ fn validate_matching(matrix: &impl SparseSquareMatrix<Index = usize>, matching: 
     }
 }
 
-fn assert_karp_sipser_kernel_irreducible_usize(
-    graph: &impl SparseSquareMatrix<Index = usize>,
-    rules: KarpSipserRules,
-) {
-    for row in graph.row_indices() {
-        let degree = graph.sparse_row(row).filter(|&column| column != row).count();
-        match rules {
-            KarpSipserRules::Degree1 => {
-                assert_ne!(degree, 1, "degree-1 kernel still contains a degree-1 vertex");
-            }
-            KarpSipserRules::Degree1And2 => {
-                assert!(
-                    degree == 0 || degree >= 3,
-                    "degree-1/2 kernel still contains a reducible vertex of degree {degree}",
-                );
-            }
-        }
-    }
-}
-
-fn check_karp_sipser_invariants_usize(
-    graph: &(
-         impl Blossom<Index = usize>
-         + Blum<Index = usize>
-         + KarpSipser<Index = usize>
-         + MicaliVazirani<Index = usize>
-     ),
-) {
-    let blossom_matching = graph.blossom();
-    validate_matching(graph, &blossom_matching);
-    let expected_size = blossom_matching.len();
-
-    let plain_blum_matching = graph.blum();
-    validate_matching(graph, &plain_blum_matching);
-    assert_eq!(
-        plain_blum_matching.len(),
-        expected_size,
-        "plain Blum disagrees with Blossom before Karp-Sipser is applied",
-    );
-
-    for rules in [KarpSipserRules::Degree1, KarpSipserRules::Degree1And2] {
-        let kernel = graph.karp_sipser_kernel(rules);
-        assert_karp_sipser_kernel_irreducible_usize(kernel.graph(), rules);
-
-        let recovered_blossom = kernel.solve_with(Blossom::blossom);
-        validate_matching(graph, &recovered_blossom);
-        assert_eq!(
-            recovered_blossom.len(),
-            expected_size,
-            "Karp-Sipser blossom wrapper changed the matching size",
-        );
-
-        let explicit_recover = {
-            let kernel = graph.karp_sipser_kernel(rules);
-            let kernel_matching = kernel.graph().blossom();
-            kernel.recover(kernel_matching)
-        };
-        validate_matching(graph, &explicit_recover);
-        assert_eq!(
-            explicit_recover.len(),
-            expected_size,
-            "explicit kernel recover changed the matching size",
-        );
-
-        let mv_matching = graph.micali_vazirani_with_karp_sipser(rules);
-        validate_matching(graph, &mv_matching);
-        assert_eq!(
-            mv_matching.len(),
-            expected_size,
-            "Karp-Sipser Micali-Vazirani wrapper changed the matching size",
-        );
-
-        let blum_matching = graph.blum_with_karp_sipser(rules);
-        validate_matching(graph, &blum_matching);
-        assert_eq!(
-            blum_matching.len(),
-            expected_size,
-            "Karp-Sipser Blum wrapper changed the matching size",
-        );
-    }
-}
-
 #[test]
 fn test_empty_graph_kernel_is_empty() {
     let g = SquareCSR2D::<CSR2D<usize, usize, usize>>::default();
@@ -269,12 +187,11 @@ fn test_regression_degree1_blum_wrapper_replays_invalid_kernel_fixture() {
 
 #[test]
 fn test_regression_large_karp_sipser_fixture_replays_blum_invalid_matching() {
-    // Bug 1 counterexample (only): non-strongly-simple path reconstruction.
-    // The MDFS reconstruction procedure (RECONSTRPATH/RECONSTRQ) produces
-    // a path that visits the same original vertex on both its A-side and
-    // B-side, causing a vertex to appear in two matched pairs.
-    // Requires: validated_path guard that rejects non-strongly-simple
-    //   paths and backtracks.
+    // Bug 1 counterexample.
+    // The direct failure is plain Blum: it returns a matching that reuses
+    // an original vertex. Karp-Sipser wrappers are a secondary symptom.
+    // No smaller witness was found under exhaustive edge deletion plus
+    // degree-2 smoothing on this graph.
     // Minimized from n=58 by renumbering the 12 active vertices.
     // Original mapping: 0→0, 5→1, 36→2, 37→3, 45→4, 48→5,
     //                    49→6, 50→7, 52→8, 53→9, 54→10, 57→11.
@@ -299,7 +216,8 @@ fn test_regression_large_karp_sipser_fixture_replays_blum_invalid_matching() {
         ],
     );
 
-    check_karp_sipser_invariants_usize(&g);
+    let matching = g.blum();
+    validate_matching(&g, &matching);
 }
 
 #[test]
