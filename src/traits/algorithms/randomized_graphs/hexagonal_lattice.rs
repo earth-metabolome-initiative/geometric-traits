@@ -17,6 +17,12 @@ use crate::impls::{CSR2D, SymmetricCSR2D};
 ///
 /// This family is also called the honeycomb lattice; in chemical graph theory,
 /// finite connected patches are benzenoid / polyhex graphs.
+/// For benzenoid and matching-polynomial context, see
+/// [Gutman (1983)](https://doi.org/10.1039/F29837900337),
+/// [Gutman, Vukičević, Graovac, and Randić (2004)](https://doi.org/10.1021/ci030417z),
+/// and [Zhao et al. (2014)](https://doi.org/10.1371/journal.pone.0102043).
+/// For a materials-facing honeycomb-lattice reference, see
+/// [Lee et al. (2015)](https://doi.org/10.1038/srep11512).
 #[must_use]
 pub fn hexagonal_lattice_graph(
     rows: usize,

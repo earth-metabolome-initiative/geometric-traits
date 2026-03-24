@@ -155,6 +155,77 @@ fn test_hexagonal_lattice_graph_2x2() {
 }
 
 #[test]
+fn test_triangular_lattice_graph_zero_dimension() {
+    let empty = triangular_lattice_graph(0, 0);
+    assert_eq!(empty.order(), 0);
+    assert_eq!(edge_count(&empty), 0);
+
+    let empty_rows = triangular_lattice_graph(0, 3);
+    assert_eq!(empty_rows.order(), 0);
+    assert_eq!(edge_count(&empty_rows), 0);
+
+    let empty_cols = triangular_lattice_graph(3, 0);
+    assert_eq!(empty_cols.order(), 0);
+    assert_eq!(edge_count(&empty_cols), 0);
+}
+
+#[test]
+fn test_triangular_lattice_graph_1x1() {
+    let g = triangular_lattice_graph(1, 1);
+    assert_eq!(g.order(), 1);
+    assert_eq!(edge_count(&g), 0);
+}
+
+#[test]
+fn test_triangular_lattice_graph_1x4_matches_path() {
+    let g = triangular_lattice_graph(1, 4);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 3);
+    assert!(same_graph(&g, &path_graph(4)));
+}
+
+#[test]
+fn test_triangular_lattice_graph_4x1_matches_path() {
+    let g = triangular_lattice_graph(4, 1);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 3);
+    assert!(same_graph(&g, &path_graph(4)));
+}
+
+#[test]
+fn test_triangular_lattice_graph_2x2() {
+    let g = triangular_lattice_graph(2, 2);
+    // 4 vertices with one diagonal added to each unit cell
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 5);
+    assert_eq!(g.sparse_row(0).collect::<Vec<_>>(), vec![1, 2, 3]);
+    assert_eq!(g.sparse_row(1).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(g.sparse_row(2).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(g.sparse_row(3).collect::<Vec<_>>(), vec![0, 1, 2]);
+}
+
+#[test]
+fn test_triangular_lattice_graph_2x3_orientation() {
+    let g = triangular_lattice_graph(2, 3);
+    assert_eq!(g.order(), 6);
+    assert_eq!(edge_count(&g), 9);
+    assert_eq!(g.sparse_row(0).collect::<Vec<_>>(), vec![1, 3, 4]);
+    assert_eq!(g.sparse_row(1).collect::<Vec<_>>(), vec![0, 2, 4, 5]);
+    assert_eq!(g.sparse_row(2).collect::<Vec<_>>(), vec![1, 5]);
+    assert_eq!(g.sparse_row(3).collect::<Vec<_>>(), vec![0, 4]);
+    assert_eq!(g.sparse_row(4).collect::<Vec<_>>(), vec![0, 1, 3, 5]);
+    assert_eq!(g.sparse_row(5).collect::<Vec<_>>(), vec![1, 2, 4]);
+}
+
+#[test]
+fn test_triangular_lattice_graph_3x3() {
+    let g = triangular_lattice_graph(3, 3);
+    assert_eq!(g.order(), 9);
+    assert_eq!(edge_count(&g), 16);
+    assert_eq!(g.sparse_row(4).count(), 6);
+}
+
+#[test]
 fn test_torus_graph_3x3() {
     let g = torus_graph(3, 3);
     // 9 vertices, 4-regular → 9*4/2 = 18 edges
