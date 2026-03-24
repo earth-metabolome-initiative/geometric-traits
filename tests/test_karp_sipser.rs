@@ -269,7 +269,12 @@ fn test_regression_degree1_blum_wrapper_replays_invalid_kernel_fixture() {
 
 #[test]
 fn test_regression_large_karp_sipser_fixture_replays_blum_invalid_matching() {
-    // Bug 1 counterexample: non-strongly-simple path reconstruction.
+    // Bug 1 counterexample (only): non-strongly-simple path reconstruction.
+    // The MDFS reconstruction procedure (RECONSTRPATH/RECONSTRQ) produces
+    // a path that visits the same original vertex on both its A-side and
+    // B-side, causing a vertex to appear in two matched pairs.
+    // Requires: validated_path guard that rejects non-strongly-simple
+    //   paths and backtracks.
     // Minimized from n=58 by renumbering the 12 active vertices.
     // Original mapping: 0→0, 5→1, 36→2, 37→3, 45→4, 48→5,
     //                    49→6, 50→7, 52→8, 53→9, 54→10, 57→11.
@@ -277,11 +282,8 @@ fn test_regression_large_karp_sipser_fixture_replays_blum_invalid_matching() {
         12,
         &[
             (0, 1),
-            (0, 3),
             (0, 4),
             (0, 5),
-            (1, 2),
-            (1, 3),
             (1, 6),
             (2, 3),
             (2, 6),
@@ -291,7 +293,6 @@ fn test_regression_large_karp_sipser_fixture_replays_blum_invalid_matching() {
             (4, 11),
             (5, 10),
             (6, 9),
-            (7, 10),
             (7, 11),
             (8, 9),
             (8, 10),
