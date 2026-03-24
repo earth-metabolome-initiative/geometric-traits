@@ -258,6 +258,58 @@ pub fn check_padded_matrix2d_invariants(csr: &ValuedCSR2D<u16, u8, u8, u8>) {
 }
 
 // ============================================================================
+// Gabow 1976 invariants (from fuzz/fuzz_targets/gabow_1976.rs)
+// ============================================================================
+
+/// Check structural validity and exact-size agreement for Gabow's 1976
+/// maximum matching implementation against the existing blossom solver.
+///
+/// # Panics
+///
+/// Panics if Gabow 1976 returns an invalid matching, violates maximality, or
+/// disagrees with `blossom()` on matching size.
+#[inline]
+pub fn check_gabow_1976_invariants<M>(csr: &M)
+where
+    M: SparseSquareMatrix + Blossom + Gabow1976,
+    M::Index: Debug,
+{
+    let n = csr.order().as_();
+    let gabow_matching = csr.gabow_1976();
+    let blossom_matching = csr.blossom();
+
+    assert_eq!(
+        gabow_matching.len(),
+        blossom_matching.len(),
+        "Gabow1976 and Blossom disagree on matching size (n={n})"
+    );
+    assert!(gabow_matching.len() <= n / 2);
+
+    let mut matched = vec![false; n];
+    for &(u, v) in &gabow_matching {
+        let ui = u.as_();
+        let vi = v.as_();
+        assert!(u < v);
+        assert!(!matched[ui], "vertex {u:?} matched twice");
+        assert!(!matched[vi], "vertex {v:?} matched twice");
+        matched[ui] = true;
+        matched[vi] = true;
+        assert!(csr.has_entry(u, v));
+    }
+
+    for u in csr.row_indices() {
+        if matched[u.as_()] {
+            continue;
+        }
+        for w in csr.sparse_row(u) {
+            if w != u && !matched[w.as_()] {
+                panic!("edge ({u:?}, {w:?}) has both endpoints unmatched");
+            }
+        }
+    }
+}
+
+// ============================================================================
 // Karp-Sipser matching invariants
 // ============================================================================
 

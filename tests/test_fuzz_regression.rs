@@ -12,10 +12,11 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, check_floyd_warshall_invariants, check_kahn_ordering, check_karp_sipser_invariants,
-        check_lap_sparse_wrapper_invariants, check_lap_square_invariants, check_leiden_invariants,
-        check_louvain_invariants, check_padded_diagonal_invariants,
-        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
+        self, check_floyd_warshall_invariants, check_gabow_1976_invariants, check_kahn_ordering,
+        check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
+        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
+        check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
         check_valued_matrix_invariants, from_bytes,
     },
@@ -249,6 +250,28 @@ fn test_replay_karp_sipser_corpus() {
 #[test]
 fn test_replay_sink_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
+}
+
+// ============================================================================
+// Gabow 1976 (mirrors fuzz/fuzz_targets/gabow_1976.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_gabow_1976() {
+    for_each_instance::<TestSymmetricCSR, _>(|graph| {
+        if graph.order() as usize <= 128 {
+            check_gabow_1976_invariants(graph);
+        }
+    });
+}
+
+#[test]
+fn test_replay_gabow_1976_corpus() {
+    for instance in replay_shared_fixture::<TestSymmetricCSR>() {
+        if instance.order() as usize <= 128 {
+            check_gabow_1976_invariants(&instance);
+        }
+    }
 }
 
 // ============================================================================

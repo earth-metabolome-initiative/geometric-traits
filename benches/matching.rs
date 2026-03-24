@@ -3,6 +3,8 @@
 //!
 //! - Blossom (O(V²E))
 //! - Blossom+KS1 / Blossom+KS12
+//! - Gabow 1976 (O(V^3))
+//! - Gabow 1976+KS1 / Gabow 1976+KS12
 //! - Micali-Vazirani (O(√V·E))
 //! - Micali-Vazirani+KS1 / Micali-Vazirani+KS12
 //! - Blum (implementation worst case O(V·(V+E)); paper phased bound
@@ -65,6 +67,32 @@ fn random_graph(
         .unwrap()
 }
 
+/// Gabow's worst-case family G_{6m} from the 1976 paper.
+fn gabow_worst_case_graph(m: usize) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
+    let n = 6 * m;
+    let clique_order = 4 * m;
+    let mut edges = Vec::new();
+
+    for u in 0..clique_order {
+        for v in (u + 1)..clique_order {
+            edges.push((u, v));
+        }
+    }
+
+    for i in 0..(2 * m) {
+        edges.push((2 * i, clique_order + i));
+    }
+
+    edges.sort_unstable();
+
+    UndiEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .expected_shape(n)
+        .edges(edges.into_iter())
+        .build()
+        .unwrap()
+}
+
 fn bench_exact_matchers(
     group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
     g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>,
@@ -81,6 +109,18 @@ fn bench_exact_matchers(
 
     group.bench_with_input(BenchmarkId::new("Blossom+KS12", label), g, |b, g| {
         b.iter(|| black_box(g.blossom_with_karp_sipser(KarpSipserRules::Degree1And2)));
+    });
+
+    group.bench_with_input(BenchmarkId::new("Gabow1976", label), g, |b, g| {
+        b.iter(|| black_box(g.gabow_1976()));
+    });
+
+    group.bench_with_input(BenchmarkId::new("Gabow1976+KS1", label), g, |b, g| {
+        b.iter(|| black_box(g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1)));
+    });
+
+    group.bench_with_input(BenchmarkId::new("Gabow1976+KS12", label), g, |b, g| {
+        b.iter(|| black_box(g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1And2)));
     });
 
     group.bench_with_input(BenchmarkId::new("MicaliVazirani", label), g, |b, g| {
@@ -229,11 +269,25 @@ fn bench_matching_sparse_random(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_gabow_worst_case(c: &mut Criterion) {
+    let mut group = c.benchmark_group("gabow_worst_case");
+
+    for &m in &[4usize, 8, 12] {
+        let g = gabow_worst_case_graph(m);
+        let label = format!("m={m}_n={}", g.order());
+        let ext = to_blossom_graph(&g, g.order());
+        bench_exact_matchers(&mut group, &g, &label, &ext);
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_matching,
     bench_matching_dense,
     bench_matching_degree_two,
-    bench_matching_sparse_random
+    bench_matching_sparse_random,
+    bench_gabow_worst_case
 );
 criterion_main!(benches);
