@@ -130,70 +130,71 @@ impl<'a, M: SparseSquareMatrix + ?Sized> Gabow1976State<'a, M> {
         false
     }
 
-    /// Assigns an edge label to the blossom discovered via edge `(x, y)`.
-    fn relabel(&mut self, x: usize, y: usize) {
-        let mut r = self.first[x];
-        let mut s = self.first[y];
-        if r == s {
+    /// Assigns an edge label to the blossom discovered via edge
+    /// `(left_outer, right_outer)`.
+    fn relabel(&mut self, left_outer: usize, right_outer: usize) {
+        let mut left_first = self.first[left_outer];
+        let mut right_first = self.first[right_outer];
+        if left_first == right_first {
             return;
         }
 
-        let flag = Label::Flag(x, y);
-        self.label[r] = flag;
-        self.label[s] = flag;
+        let flag = Label::Flag(left_outer, right_outer);
+        self.label[left_first] = flag;
+        self.label[right_first] = flag;
 
         let join = loop {
-            if s != self.dummy {
-                core::mem::swap(&mut r, &mut s);
+            if right_first != self.dummy {
+                core::mem::swap(&mut left_first, &mut right_first);
             }
 
-            let next_outer = self.anchor(self.label[self.mate[r]]);
-            r = self.first[next_outer];
-            if self.label[r] == flag {
-                break r;
+            let next_outer = self.anchor(self.label[self.mate[left_first]]);
+            left_first = self.first[next_outer];
+            if self.label[left_first] == flag {
+                break left_first;
             }
-            self.label[r] = flag;
+            self.label[left_first] = flag;
         };
 
-        for &start in &[self.first[x], self.first[y]] {
-            let mut v = start;
-            while v != join {
-                self.label[v] = Label::Edge(x, y);
-                self.first[v] = join;
-                self.enqueue(v);
+        for &path_start in &[self.first[left_outer], self.first[right_outer]] {
+            let mut path_vertex = path_start;
+            while path_vertex != join {
+                self.label[path_vertex] = Label::Edge(left_outer, right_outer);
+                self.first[path_vertex] = join;
+                self.enqueue(path_vertex);
 
-                let next_outer = self.anchor(self.label[self.mate[v]]);
-                v = self.first[next_outer];
+                let next_outer = self.anchor(self.label[self.mate[path_vertex]]);
+                path_vertex = self.first[next_outer];
             }
         }
 
-        for v in 0..self.n {
-            if self.label[v].is_outer()
-                && self.first[v] < self.n
-                && self.label[self.first[v]].is_outer()
+        for vertex in 0..self.n {
+            if self.label[vertex].is_outer()
+                && self.first[vertex] < self.n
+                && self.label[self.first[vertex]].is_outer()
             {
-                self.first[v] = join;
+                self.first[vertex] = join;
             }
         }
     }
 
     /// Recursively rematches the alternating path fragment described in the
     /// paper's `R` routine.
-    fn rematch(&mut self, v: usize, w: usize) {
-        let t = self.mate[v];
-        self.mate[v] = w;
-        if self.mate[t] != v {
+    fn rematch(&mut self, vertex: usize, partner: usize) {
+        let previous_partner = self.mate[vertex];
+        self.mate[vertex] = partner;
+        if self.mate[previous_partner] != vertex {
             return;
         }
 
-        match self.label[v] {
-            Label::Vertex(parent) => {
-                self.mate[t] = parent;
-                self.rematch(parent, t);
+        match self.label[vertex] {
+            Label::Vertex(parent_outer) => {
+                self.mate[previous_partner] = parent_outer;
+                self.rematch(parent_outer, previous_partner);
             }
-            Label::Edge(x, y) => {
-                self.rematch(x, y);
-                self.rematch(y, x);
+            Label::Edge(left_outer, right_outer) => {
+                self.rematch(left_outer, right_outer);
+                self.rematch(right_outer, left_outer);
             }
             Label::Start | Label::Unlabeled | Label::Flag(_, _) => {}
         }
@@ -213,9 +214,8 @@ impl<'a, M: SparseSquareMatrix + ?Sized> Gabow1976State<'a, M> {
     #[inline]
     fn anchor(&self, label: Label) -> usize {
         match label {
-            Label::Start => self.dummy,
             Label::Vertex(vertex) | Label::Edge(vertex, _) => vertex,
-            Label::Unlabeled | Label::Flag(_, _) => self.dummy,
+            Label::Start | Label::Unlabeled | Label::Flag(_, _) => self.dummy,
         }
     }
 }
