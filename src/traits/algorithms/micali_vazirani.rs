@@ -28,4 +28,4 @@ pub trait MicaliVazirani: SparseSquareMatrix {
     }
 }
 
-impl<M: SparseSquareMatrix> MicaliVazirani for M {}
+impl<M: SparseSquareMatrix + ?Sized> MicaliVazirani for M {}

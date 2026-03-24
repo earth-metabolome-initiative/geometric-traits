@@ -197,6 +197,126 @@ fn test_many_components() {
 }
 
 #[test]
+fn test_regression_invalid_non_edge_from_degree1_kernel() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 6),
+            (2, 10),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_small_plain_blum_size_mismatch() {
+    let g = build_graph(
+        15,
+        &[
+            (0, 9),
+            (0, 14),
+            (1, 3),
+            (1, 4),
+            (1, 5),
+            (2, 3),
+            (2, 7),
+            (4, 8),
+            (4, 11),
+            (5, 7),
+            (6, 10),
+            (6, 11),
+            (8, 11),
+            (9, 13),
+            (10, 14),
+        ],
+    );
+    let blossom = g.blossom();
+    let blum = g.blum();
+    let mut used = vec![false; g.order()];
+    for &(u, v) in &blum {
+        assert!(u < v, "pair must have u < v, got ({u}, {v})");
+        assert!(g.has_entry(u, v), "edge ({u}, {v}) not in graph");
+        assert!(!used[u], "vertex {u} matched twice");
+        assert!(!used[v], "vertex {v} matched twice");
+        used[u] = true;
+        used[v] = true;
+    }
+    assert_eq!(blum.len(), blossom.len(), "Blum and Blossom disagree on matching size");
+}
+
+#[test]
+fn test_regression_reused_vertex_from_degree1_kernel_corpus() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 2),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 3),
+            (1, 6),
+            (2, 3),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 9),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_non_edge_from_degree1_kernel_corpus_two() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (1, 2),
+            (1, 3),
+            (1, 6),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 9),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
 fn test_petersen_graph() {
     let g = build_graph(
         10,
@@ -399,6 +519,98 @@ fn test_regression_random_counterexample_size_mismatch() {
         &[(0, 2), (0, 3), (0, 4), (0, 7), (1, 2), (1, 3), (3, 7), (4, 5), (4, 6), (4, 7), (5, 7)],
     );
     validate_blum(&g, 4);
+}
+
+#[test]
+fn test_regression_phase_progression_stalls_before_maximum() {
+    let g = build_graph(
+        12,
+        &[
+            (0, 1),
+            (0, 3),
+            (0, 5),
+            (0, 6),
+            (1, 2),
+            (1, 3),
+            (2, 3),
+            (2, 6),
+            (3, 5),
+            (3, 6),
+            (4, 7),
+            (4, 9),
+            (4, 11),
+            (5, 10),
+            (6, 9),
+            (7, 9),
+            (7, 11),
+            (8, 9),
+            (8, 10),
+        ],
+    );
+    validate_blum(&g, 6);
+}
+
+#[test]
+fn test_regression_large_fixture_blum_size_mismatch() {
+    let g = build_graph(
+        119,
+        &[
+            (25, 50),
+            (25, 52),
+            (25, 53),
+            (25, 57),
+            (49, 50),
+            (49, 53),
+            (49, 55),
+            (49, 57),
+            (50, 53),
+            (52, 56),
+            (52, 61),
+            (53, 55),
+            (54, 55),
+            (54, 58),
+            (54, 61),
+            (56, 61),
+            (57, 58),
+            (57, 61),
+            (57, 73),
+            (57, 118),
+        ],
+    );
+
+    let n = g.order();
+    assert!(n <= 128, "fuzz regression should stay within the harness size cap");
+
+    let blum_matching = g.blum();
+    let blossom_matching = g.blossom();
+    assert_eq!(
+        blum_matching.len(),
+        blossom_matching.len(),
+        "Blum and Blossom disagree on matching size (n={n})",
+    );
+
+    let mut matched = vec![false; n];
+    for &(u, v) in &blum_matching {
+        let left = usize::from(u);
+        let right = usize::from(v);
+        assert!(u < v, "pair must have u < v, got ({u}, {v})");
+        assert!(!matched[left], "vertex {u} matched twice");
+        assert!(!matched[right], "vertex {v} matched twice");
+        matched[left] = true;
+        matched[right] = true;
+        assert!(g.has_entry(u, v), "matched edge ({u}, {v}) not in graph");
+    }
+
+    for u in g.row_indices() {
+        if matched[usize::from(u)] {
+            continue;
+        }
+        for w in g.sparse_row(u) {
+            if w != u && !matched[usize::from(w)] {
+                panic!("edge ({u}, {w}) has both endpoints unmatched");
+            }
+        }
+    }
 }
 
 // ============================================================================
