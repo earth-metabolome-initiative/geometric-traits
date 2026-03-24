@@ -14,6 +14,17 @@ fn edge_count(g: &UndirectedGraph) -> usize {
     geometric_traits::traits::Edges::number_of_edges(g) / 2
 }
 
+fn same_graph(left: &UndirectedGraph, right: &UndirectedGraph) -> bool {
+    left.order() == right.order()
+        && geometric_traits::traits::Edges::number_of_edges(left)
+            == geometric_traits::traits::Edges::number_of_edges(right)
+        && (0..left.order()).all(|row| left.sparse_row(row).eq(right.sparse_row(row)))
+}
+
+fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
+    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
+}
+
 // ============================================================================
 // Deterministic graph families
 // ============================================================================
@@ -240,6 +251,55 @@ fn test_friendship_graph_3() {
     // Max matching = 3 (one per triangle, hub exposed)
     let matching = g.blossom();
     assert_eq!(matching.len(), 3);
+}
+
+#[test]
+fn test_friendship_graph_0() {
+    let g = friendship_graph(0);
+    assert_eq!(g.order(), 1);
+    assert_eq!(edge_count(&g), 0);
+}
+
+#[test]
+fn test_windmill_graph_1_4() {
+    let g = windmill_graph(1, 4);
+    assert_eq!(g.order(), 4);
+    assert_eq!(edge_count(&g), 6);
+    assert_eq!(g.blossom().len(), windmill_matching_size(1, 4));
+}
+
+#[test]
+fn test_windmill_graph_3_4() {
+    let g = windmill_graph(3, 4);
+    assert_eq!(g.order(), 10);
+    assert_eq!(edge_count(&g), 18);
+    assert_eq!(g.blossom().len(), windmill_matching_size(3, 4));
+}
+
+#[test]
+fn test_windmill_graph_5_2_matches_star() {
+    let g = windmill_graph(5, 2);
+    let star = star_graph(6);
+    assert!(same_graph(&g, &star));
+}
+
+#[test]
+fn test_windmill_graph_4_3_matches_friendship() {
+    let windmill = windmill_graph(4, 3);
+    let friendship = friendship_graph(4);
+    assert!(same_graph(&windmill, &friendship));
+}
+
+#[test]
+#[should_panic(expected = "windmill_graph requires num_cliques >= 1")]
+fn test_windmill_graph_zero_cliques_panics() {
+    let _ = windmill_graph(0, 3);
+}
+
+#[test]
+#[should_panic(expected = "windmill_graph requires clique_size >= 2")]
+fn test_windmill_graph_clique_size_one_panics() {
+    let _ = windmill_graph(2, 1);
 }
 
 // ============================================================================
@@ -784,6 +844,18 @@ fn test_mv_on_friendship_graphs() {
         let blossom = g.blossom();
         let mv = g.micali_vazirani();
         assert_eq!(blossom.len(), mv.len(), "F_{n}");
+    }
+}
+
+#[test]
+fn test_mv_on_windmill_graphs() {
+    for num_cliques in 1..=6 {
+        for clique_size in 2..=5 {
+            let g = windmill_graph(num_cliques, clique_size);
+            let blossom = g.blossom();
+            let mv = g.micali_vazirani();
+            assert_eq!(blossom.len(), mv.len(), "windmill({num_cliques},{clique_size})");
+        }
     }
 }
 

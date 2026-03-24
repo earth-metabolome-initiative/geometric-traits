@@ -81,6 +81,11 @@ mod turan;
 pub use turan::turan_graph;
 
 #[cfg(feature = "alloc")]
+mod windmill;
+#[cfg(feature = "alloc")]
+pub use windmill::windmill_graph;
+
+#[cfg(feature = "alloc")]
 mod friendship;
 #[cfg(feature = "alloc")]
 pub use friendship::friendship_graph;

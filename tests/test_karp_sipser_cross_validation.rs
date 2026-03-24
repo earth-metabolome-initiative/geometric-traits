@@ -95,6 +95,11 @@ fn test_structured_graph_families() {
     for n in 1..=6 {
         assert_all_ks_exact(&friendship_graph(n));
     }
+    for num_cliques in 1..=6 {
+        for clique_size in 2..=5 {
+            assert_all_ks_exact(&windmill_graph(num_cliques, clique_size));
+        }
+    }
     for m in 1..=5 {
         for n in m..=5 {
             assert_all_ks_exact(&complete_bipartite_graph(m, n));
