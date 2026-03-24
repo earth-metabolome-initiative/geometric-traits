@@ -14,6 +14,11 @@ use crate::impls::{CSR2D, SymmetricCSR2D};
 /// This is the triangular special case of [`windmill_graph`] with
 /// `clique_size = 3`.
 ///
+/// For graph-theoretic background, see the friendship-theorem paper by
+/// [Erdős, Rényi, and Sós (1966)](https://static.renyi.hu/renyi_cikkek/1966_on_a_problem_of_graph_theory.pdf)
+/// and the follow-up by
+/// [van Lint and Seidel (1972)](https://doi.org/10.1016/1385-7258(72)90063-7).
+///
 /// For historical compatibility, `friendship_graph(0)` returns a single
 /// isolated hub vertex.
 #[must_use]

@@ -75,6 +75,7 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Star** S_n | `star_graph(n)` | n = leaves |
 | **Grid** G_{r×c} | `grid_graph(rows, cols)` | rows, cols |
 | **Hexagonal / Honeycomb Lattice** | `hexagonal_lattice_graph(rows, cols)` | rows, cols = hexagon rows, cols |
+| **Triangular Lattice** | `triangular_lattice_graph(rows, cols)` | rows, cols = vertex-grid rows, cols |
 | **Torus** T_{r×c} | `torus_graph(rows, cols)` | rows, cols |
 | **Hypercube** Q_d | `hypercube_graph(d)` | d = dimension |
 | **Barbell** B(k, p) | `barbell_graph(clique_size, path_len)` | clique_size, path_len |
@@ -85,10 +86,6 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Turán** T(n, r) | `turan_graph(n, r)` | n = vertices, r = partitions |
 | **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
 | **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
-
-`friendship_graph` is the triangular special case of the shared-hub windmill family. For background, see the original friendship-theorem paper by [Erdős, Rényi, and Sós (1966)](https://static.renyi.hu/renyi_cikkek/1966_on_a_problem_of_graph_theory.pdf) and the follow-up by [van Lint and Seidel (1972)](https://doi.org/10.1016/1385-7258(72)90063-7).
-
-`hexagonal_lattice_graph` returns a finite honeycomb-lattice patch with `rows * cols` hexagonal faces arranged as an axial parallelogram. The cited benzenoid literature supports two narrower claims relevant here: benzenoid systems are treated as polyhex families, and that literature is directly tied to matching polynomials and Kekulé structures; see [Gutman (1983)](https://doi.org/10.1039/F29837900337), [Gutman, Vukičević, Graovac, and Randić (2004)](https://doi.org/10.1021/ci030417z), and [Zhao et al. (2014)](https://doi.org/10.1371/journal.pone.0102043). For a materials-facing honeycomb-lattice reference, see [Lee et al. (2015)](https://doi.org/10.1038/srep11512).
 
 #### Random Generators
 

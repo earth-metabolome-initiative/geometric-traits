@@ -46,6 +46,11 @@ mod hexagonal_lattice;
 pub use hexagonal_lattice::hexagonal_lattice_graph;
 
 #[cfg(feature = "alloc")]
+mod triangular_lattice;
+#[cfg(feature = "alloc")]
+pub use triangular_lattice::triangular_lattice_graph;
+
+#[cfg(feature = "alloc")]
 mod torus;
 #[cfg(feature = "alloc")]
 pub use torus::torus_graph;
