@@ -117,6 +117,44 @@ fn test_grid_graph_3x3() {
 }
 
 #[test]
+fn test_hexagonal_lattice_graph_1x1() {
+    let g = hexagonal_lattice_graph(1, 1);
+    // Single hexagon = C6
+    assert_eq!(g.order(), 6);
+    assert_eq!(edge_count(&g), 6);
+    assert_eq!(g.blossom().len(), 3);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_zero_dimension() {
+    let empty_rows = hexagonal_lattice_graph(0, 3);
+    assert_eq!(empty_rows.order(), 0);
+    assert_eq!(edge_count(&empty_rows), 0);
+
+    let empty_cols = hexagonal_lattice_graph(3, 0);
+    assert_eq!(empty_cols.order(), 0);
+    assert_eq!(edge_count(&empty_cols), 0);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_1x2() {
+    let g = hexagonal_lattice_graph(1, 2);
+    // Two fused hexagons
+    assert_eq!(g.order(), 10);
+    assert_eq!(edge_count(&g), 11);
+    assert_eq!(g.blossom().len(), 5);
+}
+
+#[test]
+fn test_hexagonal_lattice_graph_2x2() {
+    let g = hexagonal_lattice_graph(2, 2);
+    // 4-cell parallelogram benzenoid patch
+    assert_eq!(g.order(), 16);
+    assert_eq!(edge_count(&g), 19);
+    assert_eq!(g.blossom().len(), 8);
+}
+
+#[test]
 fn test_torus_graph_3x3() {
     let g = torus_graph(3, 3);
     // 9 vertices, 4-regular → 9*4/2 = 18 edges
@@ -997,6 +1035,18 @@ fn test_mv_on_grid_graphs() {
             let blossom = g.blossom();
             let mv = g.micali_vazirani();
             assert_eq!(blossom.len(), mv.len(), "grid({r},{c})");
+        }
+    }
+}
+
+#[test]
+fn test_mv_on_hexagonal_lattice_graphs() {
+    for rows in 1..=4 {
+        for cols in 1..=4 {
+            let g = hexagonal_lattice_graph(rows, cols);
+            let blossom = g.blossom();
+            let mv = g.micali_vazirani();
+            assert_eq!(blossom.len(), mv.len(), "hexagonal({rows},{cols})");
         }
     }
 }

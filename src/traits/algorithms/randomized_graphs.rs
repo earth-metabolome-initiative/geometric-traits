@@ -41,6 +41,11 @@ mod grid;
 pub use grid::grid_graph;
 
 #[cfg(feature = "alloc")]
+mod hexagonal_lattice;
+#[cfg(feature = "alloc")]
+pub use hexagonal_lattice::hexagonal_lattice_graph;
+
+#[cfg(feature = "alloc")]
 mod torus;
 #[cfg(feature = "alloc")]
 pub use torus::torus_graph;

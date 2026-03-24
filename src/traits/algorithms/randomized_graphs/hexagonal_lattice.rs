@@ -1,0 +1,62 @@
+//! Generator for finite hexagonal / honeycomb lattice graphs.
+#![cfg(feature = "alloc")]
+
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec::Vec,
+};
+
+use super::builder_utils::build_symmetric;
+use crate::impls::{CSR2D, SymmetricCSR2D};
+
+/// Returns a finite hexagonal lattice patch with `rows * cols` hexagonal faces.
+///
+/// The hexagons are arranged as an axial `rows x cols` parallelogram. If either
+/// dimension is zero, the result is the empty graph. In particular,
+/// `hexagonal_lattice_graph(1, 1)` is a single 6-cycle.
+///
+/// This family is also called the honeycomb lattice; in chemical graph theory,
+/// finite connected patches are benzenoid / polyhex graphs.
+#[must_use]
+pub fn hexagonal_lattice_graph(
+    rows: usize,
+    cols: usize,
+) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
+    if rows == 0 || cols == 0 {
+        return build_symmetric(0, Vec::new());
+    }
+
+    const CORNER_OFFSETS: [(i64, i64, i64); 6] =
+        [(2, -1, -1), (1, 1, -2), (-1, 2, -1), (-2, 1, 1), (-1, -1, 2), (1, -2, 1)];
+
+    let mut vertex_ids = BTreeMap::new();
+    let mut edges = BTreeSet::new();
+    let mut next_id = 0;
+
+    for row in 0..rows {
+        for col in 0..cols {
+            let x = col as i64;
+            let z = row as i64;
+            let y = -x - z;
+            let mut corners = [0; 6];
+
+            for (index, (dx, dy, dz)) in CORNER_OFFSETS.into_iter().enumerate() {
+                let corner = (3 * x + dx, 3 * y + dy, 3 * z + dz);
+                let vertex = *vertex_ids.entry(corner).or_insert_with(|| {
+                    let vertex = next_id;
+                    next_id += 1;
+                    vertex
+                });
+                corners[index] = vertex;
+            }
+
+            for index in 0..6 {
+                let left = corners[index];
+                let right = corners[(index + 1) % 6];
+                edges.insert(if left < right { (left, right) } else { (right, left) });
+            }
+        }
+    }
+
+    build_symmetric(next_id, edges.into_iter().collect())
+}
