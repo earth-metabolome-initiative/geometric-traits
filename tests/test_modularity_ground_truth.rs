@@ -1,6 +1,8 @@
 //! Regression tests against external Louvain/Leiden reference implementations.
 #![cfg(feature = "std")]
 
+mod common;
+
 use std::{collections::HashMap, sync::OnceLock};
 
 use geometric_traits::{
@@ -11,8 +13,6 @@ use geometric_traits::{
 use serde::Deserialize;
 
 type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
-
-const GROUND_TRUTH_JSON: &str = include_str!("fixtures/modularity_ground_truth.json");
 
 #[derive(Debug, Deserialize)]
 struct GroundTruthFixture {
@@ -53,7 +53,8 @@ struct GroundTruthResult {
 fn fixture() -> &'static GroundTruthFixture {
     static FIXTURE: OnceLock<GroundTruthFixture> = OnceLock::new();
     FIXTURE.get_or_init(|| {
-        serde_json::from_str(GROUND_TRUTH_JSON)
+        let ground_truth_json = common::read_fixture_string("modularity_ground_truth.json");
+        serde_json::from_str(&ground_truth_json)
             .expect("`tests/fixtures/modularity_ground_truth.json` must be valid JSON")
     })
 }

@@ -1,6 +1,8 @@
 //! Tests for the Floyd-Warshall all-pairs shortest-path algorithm.
 #![cfg(feature = "std")]
 
+mod common;
+
 use std::io::Read as _;
 
 use flate2::read::GzDecoder;
@@ -181,8 +183,6 @@ fn test_generic_integer_weights() {
 // Ground-truth regression tests (NetworkX)
 // ============================================================================
 
-const GROUND_TRUTH_GZ: &[u8] = include_bytes!("fixtures/floyd_warshall_ground_truth.json.gz");
-
 #[derive(Deserialize)]
 struct Fixture {
     schema_version: u32,
@@ -197,8 +197,11 @@ struct GroundTruthCase {
 }
 
 fn load_fixture() -> Fixture {
+    let ground_truth_gz = common::read_fixture("floyd_warshall_ground_truth.json.gz");
     let mut json = String::new();
-    GzDecoder::new(GROUND_TRUTH_GZ).read_to_string(&mut json).expect("gzip decompression failed");
+    GzDecoder::new(ground_truth_gz.as_slice())
+        .read_to_string(&mut json)
+        .expect("gzip decompression failed");
     serde_json::from_str(&json).expect("fixture JSON parse failed")
 }
 
