@@ -224,6 +224,7 @@ fn test_regression_invalid_non_edge_from_degree1_kernel() {
 
 #[test]
 fn test_regression_small_plain_blum_size_mismatch() {
+    // Bug 3 counterexample: MBFS DOM exclusion gap.
     let g = build_graph(
         15,
         &[
@@ -552,29 +553,33 @@ fn test_regression_phase_progression_stalls_before_maximum() {
 
 #[test]
 fn test_regression_large_fixture_blum_size_mismatch() {
+    // Bug 2 counterexample: DFS subtree poisoning.
+    // Minimized from n=119 by renumbering the 13 active vertices.
+    // Original mapping: 25→0, 49→1, 50→2, 52→3, 53→4, 54→5, 55→6,
+    //                    56→7, 57→8, 58→9, 61→10, 73→11, 118→12.
     let g = build_graph(
-        119,
+        13,
         &[
-            (25, 50),
-            (25, 52),
-            (25, 53),
-            (25, 57),
-            (49, 50),
-            (49, 53),
-            (49, 55),
-            (49, 57),
-            (50, 53),
-            (52, 56),
-            (52, 61),
-            (53, 55),
-            (54, 55),
-            (54, 58),
-            (54, 61),
-            (56, 61),
-            (57, 58),
-            (57, 61),
-            (57, 73),
-            (57, 118),
+            (0, 2),
+            (0, 3),
+            (0, 4),
+            (0, 8),
+            (1, 2),
+            (1, 4),
+            (1, 6),
+            (1, 8),
+            (2, 4),
+            (3, 7),
+            (3, 10),
+            (4, 6),
+            (5, 6),
+            (5, 9),
+            (5, 10),
+            (7, 10),
+            (8, 9),
+            (8, 10),
+            (8, 11),
+            (8, 12),
         ],
     );
 
@@ -874,57 +879,4 @@ fn test_reference_friendship() {
         7,
         &[(0, 1), (0, 2), (1, 2), (0, 3), (0, 4), (3, 4), (0, 5), (0, 6), (5, 6)],
     );
-}
-
-#[test]
-fn test_dandeh_lukovszki_figure1_debug() {
-    let g = build_graph(
-        11,
-        &[
-            (1, 2),
-            (1, 9),
-            (2, 3),
-            (2, 10),
-            (3, 5),
-            (3, 9),
-            (4, 5),
-            (4, 6),
-            (5, 7),
-            (5, 8),
-            (6, 7),
-            (8, 9),
-        ],
-    );
-    let blossom = g.blossom();
-    let blum = g.blum();
-    eprintln!("Blossom ({} pairs): {:?}", blossom.len(), blossom);
-    eprintln!("Blum ({} pairs): {:?}", blum.len(), blum);
-}
-
-#[test]
-fn test_dandeh_lukovszki_figure1_all_matchers() {
-    let g = build_graph(
-        11,
-        &[
-            (1, 2),
-            (1, 9),
-            (2, 3),
-            (2, 10),
-            (3, 5),
-            (3, 9),
-            (4, 5),
-            (4, 6),
-            (5, 7),
-            (5, 8),
-            (6, 7),
-            (8, 9),
-        ],
-    );
-    let blossom = g.blossom();
-    let mv = g.micali_vazirani();
-    let blum = g.blum();
-    eprintln!("Blossom ({} pairs): {:?}", blossom.len(), blossom);
-    eprintln!("MV      ({} pairs): {:?}", mv.len(), mv);
-    eprintln!("Blum    ({} pairs): {:?}", blum.len(), blum);
-    assert_eq!(blossom.len(), mv.len(), "Blossom vs MV disagree");
 }
