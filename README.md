@@ -59,7 +59,7 @@ All listed algorithms require the `alloc` feature.
 
 `KarpSipser` in this crate is an exact preprocessing layer for maximum matching on general graphs. The ALENEX 2020 paper above is relevant related work, but it is specifically about bipartite graph matching rather than the general-graph wrapper implemented here.
 
-**Blum note:** the papers claim a phased O(√V·(V+E)) bound. This implementation keeps that fast path, but adds correctness fallbacks for three bugs we found in the published algorithm (see [docs/blum-bugs.md](docs/blum-bugs.md) for details, counterexamples, and theorem analysis). The fallbacks make the worst case O(V·(V+E)). Dandeh & Lukovszki (ICTCS 2025) independently found two additional single-path MDFS bugs; their counterexample graphs are in our test suite but do not trigger in our phased architecture.
+**Blum note:** the papers claim a phased O(√V·(V+E)) bound. This implementation keeps that fast path, but adds correctness fallbacks for three bugs we found in the published algorithm. The fallbacks make the worst case O(V·(V+E)). Dandeh & Lukovszki (ICTCS 2025) independently found two additional single-path MDFS bugs; their counterexample graphs are in our test suite but do not trigger in our phased architecture.
 
 ### Undirected Graph Generators
 
