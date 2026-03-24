@@ -103,20 +103,31 @@ fn main() {
             // 7. Partition-aware maximum clique.
             // Generate a random partition from remaining fuzzer data.
             if idx < data.len() && n > 0 {
-                let num_groups = (data[idx] % (n as u8).max(1)).max(1) as usize;
-                let partition: Vec<usize> = (0..n)
+                let num_g1_groups = (data[idx] % (n as u8).max(1)).max(1) as usize;
+                let num_g2_groups = if idx + 1 < data.len() {
+                    (data[idx + 1] % (n as u8).max(1)).max(1) as usize
+                } else {
+                    num_g1_groups
+                };
+                let partition: Vec<(usize, usize)> = (0..n)
                     .map(|i| {
-                        let byte_idx = idx + 1 + i;
-                        if byte_idx < data.len() {
-                            data[byte_idx] as usize % num_groups
+                        let byte_idx = idx + 2 + i * 2;
+                        let g1 = if byte_idx < data.len() {
+                            data[byte_idx] as usize % num_g1_groups
                         } else {
-                            i % num_groups
-                        }
+                            i % num_g1_groups
+                        };
+                        let g2 = if byte_idx + 1 < data.len() {
+                            data[byte_idx + 1] as usize % num_g2_groups
+                        } else {
+                            i % num_g2_groups
+                        };
+                        (g1, g2)
                     })
                     .collect();
 
-                let part_all = g.all_maximum_cliques_with_partition(&partition);
-                let part_one = g.maximum_clique_with_partition(&partition);
+                let part_all = g.all_maximum_cliques_with_pairs(&partition);
+                let part_one = g.maximum_clique_with_pairs(&partition);
 
                 // 7a. All partition-aware cliques must be actual cliques.
                 for c in &part_all {
@@ -130,16 +141,22 @@ fn main() {
                     }
                 }
 
-                // 7b. All partition-aware cliques must respect the partition.
+                // 7b. All partition-aware cliques must respect double-sided partition.
                 for c in &part_all {
-                    let mut groups_used = Vec::new();
+                    let mut g1_used = Vec::new();
+                    let mut g2_used = Vec::new();
                     for &v in c {
-                        let grp = partition[v];
+                        let (g1, g2) = partition[v];
                         assert!(
-                            !groups_used.contains(&grp),
-                            "partition violation: group {grp} appears twice in {c:?}"
+                            !g1_used.contains(&g1),
+                            "G1 partition violation: group {g1} appears twice in {c:?}"
                         );
-                        groups_used.push(grp);
+                        assert!(
+                            !g2_used.contains(&g2),
+                            "G2 partition violation: group {g2} appears twice in {c:?}"
+                        );
+                        g1_used.push(g1);
+                        g2_used.push(g2);
                     }
                 }
 
@@ -181,12 +198,12 @@ fn main() {
     }
 }
 
-/// Brute-force enumeration of all maximum cliques respecting a partition
-/// constraint (at most one vertex per group).
+/// Brute-force enumeration of all maximum cliques respecting a double-sided
+/// partition constraint (at most one vertex per G1 group AND per G2 group).
 fn brute_force_partition_cliques(
     g: &BitSquareMatrix,
     n: usize,
-    partition: &[usize],
+    partition: &[(usize, usize)],
 ) -> Vec<Vec<usize>> {
     let mut best_size = if n > 0 { 1 } else { 0 };
     let mut cliques: Vec<Vec<usize>> = Vec::new();
@@ -197,16 +214,18 @@ fn brute_force_partition_cliques(
         if sz < best_size {
             continue;
         }
-        // Check partition constraint.
-        let mut groups_seen = Vec::new();
+        // Check double-sided partition constraint.
+        let mut g1_seen = Vec::new();
+        let mut g2_seen = Vec::new();
         let mut partition_ok = true;
         for &v in &bits {
-            let g = partition[v];
-            if groups_seen.contains(&g) {
+            let (g1, g2) = partition[v];
+            if g1_seen.contains(&g1) || g2_seen.contains(&g2) {
                 partition_ok = false;
                 break;
             }
-            groups_seen.push(g);
+            g1_seen.push(g1);
+            g2_seen.push(g2);
         }
         if !partition_ok {
             continue;

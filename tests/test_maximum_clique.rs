@@ -274,6 +274,40 @@ fn test_maximum_clique_single_returns_one() {
     verify_cliques(&g, &[clique]);
 }
 
+#[test]
+fn test_maximum_clique_where_can_skip_rejected_tied_maximum() {
+    let g = BitSquareMatrix::from_symmetric_edges(
+        6,
+        vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)],
+    );
+
+    let clique = g.maximum_clique_where(|clique| !clique.contains(&0));
+
+    assert_eq!(clique, vec![3, 4, 5]);
+    verify_cliques(&g, &[clique]);
+}
+
+#[test]
+fn test_all_maximum_cliques_where_only_returns_accepted_maxima() {
+    let g = BitSquareMatrix::from_symmetric_edges(
+        6,
+        vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)],
+    );
+
+    let cliques = g.all_maximum_cliques_where(|clique| !clique.contains(&0));
+
+    assert_eq!(cliques, vec![vec![3, 4, 5]]);
+    verify_cliques(&g, &cliques);
+}
+
+#[test]
+fn test_maximum_clique_where_accept_all_matches_existing_api() {
+    let g = BitSquareMatrix::from_symmetric_edges(4, vec![(0, 1), (0, 2), (1, 2), (1, 3), (2, 3)]);
+
+    assert_eq!(g.maximum_clique_where(|_| true), g.maximum_clique());
+    assert_eq!(g.all_maximum_cliques_where(|_| true), g.all_maximum_cliques());
+}
+
 // ============================================================================
 // Larger known graph: complement of Petersen
 // ============================================================================
@@ -408,52 +442,74 @@ fn test_ground_truth_cases() {
 // Partition-aware maximum clique
 // ============================================================================
 
-/// Helper: verify all cliques respect the partition constraint (at most one
-/// vertex per group).
-fn verify_partition_respected(cliques: &[Vec<usize>], partition: &[usize]) {
+/// Helper: verify all cliques respect the double-sided partition constraint
+/// (at most one vertex per G1 group AND per G2 group).
+fn verify_partition_respected(cliques: &[Vec<usize>], partition: &[(usize, usize)]) {
     for clique in cliques {
-        let mut groups_seen = alloc::vec::Vec::new();
+        let mut g1_seen = alloc::vec::Vec::new();
+        let mut g2_seen = alloc::vec::Vec::new();
         for &v in clique {
-            let g = partition[v];
+            let (g1, g2) = partition[v];
             assert!(
-                !groups_seen.contains(&g),
-                "partition violation: two vertices in group {g} in clique {clique:?}"
+                !g1_seen.contains(&g1),
+                "G1 partition violation: two vertices in G1 group {g1} in clique {clique:?}"
             );
-            groups_seen.push(g);
+            assert!(
+                !g2_seen.contains(&g2),
+                "G2 partition violation: two vertices in G2 group {g2} in clique {clique:?}"
+            );
+            g1_seen.push(g1);
+            g2_seen.push(g2);
         }
     }
 }
 
 #[test]
 fn test_partition_identity_matches_regular() {
-    // Each vertex in its own group → no extra constraint.
+    // Each vertex in its own group on both sides → no extra constraint.
     let k4 = BitSquareMatrix::from_symmetric_edges(
         4,
         vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
     );
-    let partition: Vec<usize> = (0..4).collect();
+    let partition: Vec<(usize, usize)> = (0..4).map(|i| (i, i)).collect();
 
     let regular = k4.all_maximum_cliques();
-    let partitioned = k4.all_maximum_cliques_with_partition(&partition);
+    let partitioned = k4.all_maximum_cliques_with_pairs(&partition);
 
     assert_eq!(regular, partitioned);
 }
 
 #[test]
+fn test_partition_where_can_skip_rejected_tied_maximum() {
+    let g = BitSquareMatrix::from_symmetric_edges(
+        6,
+        vec![(0, 1), (0, 2), (1, 2), (3, 4), (3, 5), (4, 5)],
+    );
+    let partition: Vec<(usize, usize)> = (0..6).map(|i| (i, i)).collect();
+
+    let clique = g.maximum_clique_with_pairs_where(&partition, |clique| !clique.contains(&0));
+    let all = g.all_maximum_cliques_with_pairs_where(&partition, |clique| !clique.contains(&0));
+
+    assert_eq!(clique, vec![3, 4, 5]);
+    assert_eq!(all, vec![vec![3, 4, 5]]);
+    verify_partition_respected(&all, &partition);
+}
+
+#[test]
 fn test_partition_k4_two_groups() {
-    // K4 with groups {0,1} → group 0, {2,3} → group 1.
-    // Regular max clique = 4, but partition allows at most 2.
+    // K4 with G1 groups {0,1} → g1=0, {2,3} → g1=1. G2 unique.
+    // Regular max clique = 4, but G1 partition allows at most 2.
     let k4 = BitSquareMatrix::from_symmetric_edges(
         4,
         vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
     );
-    let partition = vec![0, 0, 1, 1];
+    let partition = vec![(0, 0), (0, 1), (1, 2), (1, 3)];
 
-    let clique = k4.maximum_clique_with_partition(&partition);
+    let clique = k4.maximum_clique_with_pairs(&partition);
     assert_eq!(clique.len(), 2);
     verify_partition_respected(&[clique], &partition);
 
-    let all = k4.all_maximum_cliques_with_partition(&partition);
+    let all = k4.all_maximum_cliques_with_pairs(&partition);
     verify_all_same_size(&all);
     verify_cliques(&k4, &all);
     verify_partition_respected(&all, &partition);
@@ -464,14 +520,14 @@ fn test_partition_k4_two_groups() {
 
 #[test]
 fn test_partition_single_group() {
-    // All vertices in one group → max clique under partition = 1.
+    // All vertices in one G1 group → max clique under partition = 1.
     let k3 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
-    let partition = vec![0, 0, 0];
+    let partition = vec![(0, 0), (0, 1), (0, 2)];
 
-    let clique = k3.maximum_clique_with_partition(&partition);
+    let clique = k3.maximum_clique_with_pairs(&partition);
     assert_eq!(clique.len(), 1);
 
-    let all = k3.all_maximum_cliques_with_partition(&partition);
+    let all = k3.all_maximum_cliques_with_pairs(&partition);
     assert_eq!(all.len(), 3); // {0}, {1}, {2}
     for c in &all {
         assert_eq!(c.len(), 1);
@@ -482,9 +538,9 @@ fn test_partition_single_group() {
 fn test_partition_no_edges() {
     // No edges, 4 vertices, each in own group → max clique = 1.
     let g = BitSquareMatrix::new(4);
-    let partition: Vec<usize> = (0..4).collect();
+    let partition: Vec<(usize, usize)> = (0..4).map(|i| (i, i)).collect();
 
-    let all = g.all_maximum_cliques_with_partition(&partition);
+    let all = g.all_maximum_cliques_with_pairs(&partition);
     for c in &all {
         assert_eq!(c.len(), 1);
     }
@@ -498,11 +554,11 @@ fn test_partition_aware_leq_regular() {
         6,
         vec![(0, 1), (0, 2), (1, 2), (2, 3), (3, 4), (3, 5), (4, 5)],
     );
-    // Group vertices into 3 groups of 2.
-    let partition = vec![0, 0, 1, 1, 2, 2];
+    // G1 groups of 2, G2 unique.
+    let partition = vec![(0, 0), (0, 1), (1, 2), (1, 3), (2, 4), (2, 5)];
 
     let regular = g.maximum_clique();
-    let partitioned = g.maximum_clique_with_partition(&partition);
+    let partitioned = g.maximum_clique_with_pairs(&partition);
 
     assert!(partitioned.len() <= regular.len());
     verify_cliques(&g, core::slice::from_ref(&partitioned));
@@ -517,9 +573,9 @@ fn test_partition_modular_product_integration() {
     let g2 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (1, 2)]);
 
     let result = g1.modular_product_filtered(&g2, |_, _| true);
-    let partition: Vec<usize> = result.vertex_pairs().iter().map(|&(i, _)| i).collect();
+    let partition: Vec<(usize, usize)> = result.vertex_pairs().to_vec();
 
-    let cliques = result.matrix().all_maximum_cliques_with_partition(&partition);
+    let cliques = result.matrix().all_maximum_cliques_with_pairs(&partition);
     verify_cliques(result.matrix(), &cliques);
     verify_partition_respected(&cliques, &partition);
     verify_all_same_size(&cliques);
@@ -533,18 +589,18 @@ fn test_partition_modular_product_integration() {
 #[test]
 fn test_partition_empty_graph() {
     let g = BitSquareMatrix::new(0);
-    let partition: Vec<usize> = vec![];
-    let cliques = g.all_maximum_cliques_with_partition(&partition);
+    let partition: Vec<(usize, usize)> = vec![];
+    let cliques = g.all_maximum_cliques_with_pairs(&partition);
     assert_eq!(cliques, vec![Vec::<usize>::new()]);
 }
 
 #[test]
 fn test_partition_three_groups_triangle() {
-    // K3 with each vertex in its own group → regular behavior.
+    // K3 with each vertex in its own group on both sides → regular behavior.
     let k3 = BitSquareMatrix::from_symmetric_edges(3, vec![(0, 1), (0, 2), (1, 2)]);
-    let partition = vec![0, 1, 2];
+    let partition = vec![(0, 0), (1, 1), (2, 2)];
 
-    let clique = k3.maximum_clique_with_partition(&partition);
+    let clique = k3.maximum_clique_with_pairs(&partition);
     assert_eq!(clique.len(), 3);
     verify_partition_respected(&[clique], &partition);
 }
@@ -558,9 +614,9 @@ fn test_partition_uneven_groups() {
         5,
         vec![(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
     );
-    let partition = vec![0, 0, 0, 1, 2];
+    let partition = vec![(0, 0), (0, 1), (0, 2), (1, 3), (2, 4)];
 
-    let all = k5.all_maximum_cliques_with_partition(&partition);
+    let all = k5.all_maximum_cliques_with_pairs(&partition);
     verify_cliques(&k5, &all);
     verify_partition_respected(&all, &partition);
     verify_all_same_size(&all);
@@ -595,14 +651,14 @@ fn test_partition_dense_graph_many_groups() {
     );
 
     // Identity partition: same as regular.
-    let id_part: Vec<usize> = (0..6).collect();
+    let id_part: Vec<(usize, usize)> = (0..6).map(|i| (i, i)).collect();
     let regular = k6.all_maximum_cliques();
-    let id_result = k6.all_maximum_cliques_with_partition(&id_part);
+    let id_result = k6.all_maximum_cliques_with_pairs(&id_part);
     assert_eq!(regular, id_result);
 
-    // 3 groups of 2: max 3.
-    let grouped = vec![0, 0, 1, 1, 2, 2];
-    let grouped_result = k6.all_maximum_cliques_with_partition(&grouped);
+    // 3 G1-groups of 2, G2 unique: max 3.
+    let grouped = vec![(0, 0), (0, 1), (1, 2), (1, 3), (2, 4), (2, 5)];
+    let grouped_result = k6.all_maximum_cliques_with_pairs(&grouped);
     verify_cliques(&k6, &grouped_result);
     verify_partition_respected(&grouped_result, &grouped);
     assert_eq!(grouped_result[0].len(), 3);
@@ -617,9 +673,9 @@ fn test_partition_sparse_graph_constraint_is_deciding() {
     // Partition {0,1}→g0, {2}→g0, {3,4}→g1: edges (0,1) and (1,2) have same-group
     // conflicts. Edge (2,3) crosses groups, so clique {2,3} is valid. Max = 2.
     let path = BitSquareMatrix::from_symmetric_edges(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
-    let partition = vec![0, 0, 0, 1, 1];
+    let partition = vec![(0, 0), (0, 1), (0, 2), (1, 3), (1, 4)];
 
-    let all = path.all_maximum_cliques_with_partition(&partition);
+    let all = path.all_maximum_cliques_with_pairs(&partition);
     verify_cliques(&path, &all);
     verify_partition_respected(&all, &partition);
     // Only cross-group edges: (2,3). Edges (0,1) and (1,2) have both endpoints
