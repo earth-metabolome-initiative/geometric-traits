@@ -92,4 +92,4 @@ pub trait KarpSipser: SparseSquareMatrix {
     }
 }
 
-impl<M: SparseSquareMatrix> KarpSipser for M {}
+impl<M: SparseSquareMatrix + ?Sized> KarpSipser for M {}

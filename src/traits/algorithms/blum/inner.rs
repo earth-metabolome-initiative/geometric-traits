@@ -464,7 +464,6 @@ struct Mdfs {
 
     r: Vec<Vec<usize>>,
     e: Vec<Vec<usize>>,
-    wc: Vec<Vec<usize>>,
 
     p: Vec<Option<(usize, usize)>>,
 
@@ -505,7 +504,6 @@ impl Mdfs {
             l_ever: vec![false; sz],
             r: vec![Vec::new(); sz],
             e: vec![Vec::new(); sz],
-            wc: vec![Vec::new(); sz],
             p: vec![None; sz],
             drep: (0..sz).collect(),
             expanded: vec![None; sz],
@@ -715,7 +713,6 @@ impl Mdfs {
                 self.l[src] = None;
             }
         }
-        self.l_rev[target] = sources;
     }
 
     fn do_push(&mut self, node: usize, parent: usize) {
@@ -781,24 +778,9 @@ impl Mdfs {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
-        for i in (0..self.wc[v_a].len()).rev() {
-            let q_b = self.wc[v_a][i];
-            if !self.vis_check(q_b) && !self.deleted[q_b] {
-                self.constrl(q_b, v_a, v_b, v_a);
-            }
-        }
-
         while let Some(k_a) = self.bs_queue.pop_front() {
             for i in (0..self.e[k_a].len()).rev() {
                 let q_b = self.e[k_a][i];
-                if !self.vis_check(q_b) && !self.deleted[q_b] {
-                    self.constrl(q_b, k_a, v_b, v_a);
-                }
-            }
-            // D&L Case 2.3.i: also process WC entries (forward/cross edges
-            // that targeted k_a when L[k_a] was empty).
-            for i in (0..self.wc[k_a].len()).rev() {
-                let q_b = self.wc[k_a][i];
                 if !self.vis_check(q_b) && !self.deleted[q_b] {
                     self.constrl(q_b, k_a, v_b, v_a);
                 }
@@ -987,5 +969,28 @@ impl Mdfs {
             }
             st = p2_a;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clear_l_sources_discards_stale_reverse_links() {
+        let sz = 6;
+        let mut mdfs = Mdfs::new(sz, 4, 5, 2, vec![Vec::new(); sz]);
+
+        mdfs.l[0] = Some(2);
+        mdfs.l[1] = Some(2);
+        mdfs.l[3] = Some(4);
+        mdfs.l_rev[2] = vec![0, 1, 1, 3];
+
+        mdfs.clear_l_sources(2);
+
+        assert_eq!(mdfs.l[0], None);
+        assert_eq!(mdfs.l[1], None);
+        assert_eq!(mdfs.l[3], Some(4));
+        assert!(mdfs.l_rev[2].is_empty());
     }
 }

@@ -40,4 +40,4 @@ pub trait Blum: SparseSquareMatrix {
     }
 }
 
-impl<M: SparseSquareMatrix> Blum for M {}
+impl<M: SparseSquareMatrix + ?Sized> Blum for M {}
