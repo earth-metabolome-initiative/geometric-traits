@@ -146,6 +146,21 @@ and to run the crash cases:
 cargo hfuzz run-debug karp_sipser hfuzz_workspace/*/*.fuzz
 ```
 
+### Gabow 1976
+
+The Gabow 1976 harness validates the new paper-structured exact matcher
+against `blossom()` and checks the returned matching for structural validity.
+
+```bash
+cargo hfuzz run gabow_1976
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug gabow_1976 hfuzz_workspace/*/*.fuzz
+```
+
 ### LAP
 
 Unified LAP harness validating sparse wrappers and core LAPMOD invariants.
