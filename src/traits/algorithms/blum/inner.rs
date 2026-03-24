@@ -95,7 +95,11 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 &mut self.mbfs_queue,
             );
             if self.mbfs_level[t] == INF {
-                break;
+                // MBFS could not reach t — fall back to per-vertex MDFS.
+                if !self.fallback_per_vertex(sz) {
+                    break;
+                }
+                continue;
             }
 
             // Take ownership of adj and level for MDFS.
@@ -110,13 +114,8 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
             self.mbfs_level = mdfs.take_level();
 
             if found == 0 {
-                // Fallback: BFS dist < strongly-simple dist.
-                let (s2, t2) = self.fill_gm();
-                let adj2 = core::mem::take(&mut self.adj);
-                let mut mdfs_full = Mdfs::new(sz, s2, t2, self.n, adj2);
-                let ok = mdfs_full.run(&mut self.mate);
-                self.adj = mdfs_full.take_adj();
-                if !ok {
+                // Fallback: layered MDFS found no paths. Try per-vertex.
+                if !self.fallback_per_vertex(sz) {
                     break;
                 }
             }
@@ -159,6 +158,37 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
         }
         (s, t)
     }
+
+    /// Per-free-vertex MDFS fallback.
+    ///
+    /// The standard single-path MDFS explores all free vertices from a
+    /// shared source `s`.  DFS ordering means the first subtree can mark
+    /// nodes `ever`, poisoning later subtrees.  This fallback tries each
+    /// free vertex with a **fresh** MDFS, isolating their `ever` state.
+    fn fallback_per_vertex(&mut self, sz: usize) -> bool {
+        let n = self.n;
+        let s = 2 * n;
+        let t = s + 1;
+
+        // Collect free vertices (mate == None).
+        let free: Vec<usize> = (0..n).filter(|&u| self.mate[u].is_none()).collect();
+
+        for &u in &free {
+            // Build G_M with only b(u) reachable from s.
+            self.fill_gm();
+            self.adj[s].clear();
+            self.adj[s].push(b_side(u));
+
+            let adj = core::mem::take(&mut self.adj);
+            let mut mdfs = Mdfs::new(sz, s, t, n, adj);
+            let ok = mdfs.run(&mut self.mate);
+            self.adj = mdfs.take_adj();
+            if ok {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 // ── MBFS (Modified Breadth-First Search) ────────────────────────────────
@@ -175,6 +205,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
 // for benchmarks showing Gabow-Tarjan is 6-10× slower in practice.
 
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 fn mbfs(
     adj: &[Vec<usize>],
     s: usize,
@@ -433,6 +464,7 @@ struct Mdfs {
 
     r: Vec<Vec<usize>>,
     e: Vec<Vec<usize>>,
+    wc: Vec<Vec<usize>>,
 
     p: Vec<Option<(usize, usize)>>,
 
@@ -473,6 +505,7 @@ impl Mdfs {
             l_ever: vec![false; sz],
             r: vec![Vec::new(); sz],
             e: vec![Vec::new(); sz],
+            wc: vec![Vec::new(); sz],
             p: vec![None; sz],
             drep: (0..sz).collect(),
             expanded: vec![None; sz],
@@ -515,10 +548,12 @@ impl Mdfs {
                 return false;
             };
             if top == self.t {
-                self.augment(mate);
-                return true;
-            }
-            if !self.step(top) {
+                if self.augment(mate) {
+                    return true;
+                }
+                // Path was not strongly simple — backtrack and keep searching.
+                self.do_pop(top);
+            } else if !self.step(top) {
                 self.do_pop(top);
             }
         }
@@ -533,9 +568,13 @@ impl Mdfs {
                 return count;
             };
             if top == self.t {
-                self.augment_and_delete(mate);
-                self.retreat_to_s();
-                count += 1;
+                if self.augment_and_delete(mate) {
+                    self.retreat_to_s();
+                    count += 1;
+                } else {
+                    // Path was not strongly simple — backtrack.
+                    self.do_pop(top);
+                }
                 continue;
             }
             if !self.step(top) {
@@ -595,7 +634,13 @@ impl Mdfs {
             }
 
             if self.ink[twin(w)] {
+                // Case 2.2: w_A not on stack, w_B on stack (weak back edge).
                 if self.ever[w] {
+                    // Case 2.2.i: w_A was previously pushed.
+                    // D&L fix: add top to R[w] with selective condition.
+                    // DIVERGENCE (2): we also add to E[w]. The paper and D&L
+                    // only prescribe adding to R. The extra E entry does not
+                    // affect correctness (tested) but is not in any paper.
                     if w < n2 {
                         self.e[w].push(top);
                         let v_a = twin(top);
@@ -605,12 +650,14 @@ impl Mdfs {
                         }
                     }
                 } else if w < n2 {
+                    // Case 2.2.ii: w_A was never pushed.
                     self.r[w].push(top);
                 }
                 continue;
             }
 
             if self.ever[w] {
+                // Case 2.3.i: forward/cross edge, w_A was previously pushed.
                 if let Some(mut u_a) = self.l[w] {
                     while self.ever[u_a] || self.deleted[u_a] {
                         if let Some(next) = self.l[u_a] {
@@ -624,18 +671,32 @@ impl Mdfs {
                         self.l[w] = None;
                     }
                 }
-                if let Some(u_a) = self.l[w] {
+                let label_target = if let Some(u_a) = self.l[w] {
+                    Some(u_a)
+                } else if self.l_ever[w] {
+                    // DIVERGENCE (1): this find_rep fallback is not in any
+                    // paper. When L[w] was set previously but has since been
+                    // cleared, we attempt to recover a usable label target
+                    // through the representative chain. Blum and D&L do not
+                    // describe this recovery; they would treat L[w] as empty.
+                    let u_a = self.find_rep(w);
+                    if u_a != w && !self.ever[u_a] && !self.deleted[u_a] { Some(u_a) } else { None }
+                } else {
+                    None
+                };
+                if let Some(u_a) = label_target {
                     self.expanded[u_a] = Some((top, w));
-                    let sources = core::mem::take(&mut self.l_rev[u_a]);
-                    for &src in &sources {
-                        if self.l[src] == Some(u_a) {
-                            self.l[src] = None;
-                        }
-                    }
-                    self.l_rev[u_a] = sources;
+                    self.clear_l_sources(u_a);
                     self.do_push(u_a, top);
                     return true;
                 }
+                // DIVERGENCE (3): we only add to E[w] when l_ever[w] is
+                // false (w never had a label). D&L define E[q_A] to include
+                // all forward/cross/back edges regardless of label history.
+                // Removing this gate was tested and does not fix Bug 1 or
+                // Bug 2, so the divergence is not the root cause of those
+                // bugs, but it remains a deviation from the paper's E
+                // definition.
                 if w < n2 && !self.l_ever[w] {
                     self.e[w].push(top);
                 }
@@ -645,6 +706,16 @@ impl Mdfs {
             }
         }
         false
+    }
+
+    fn clear_l_sources(&mut self, target: usize) {
+        let sources = core::mem::take(&mut self.l_rev[target]);
+        for &src in &sources {
+            if self.l[src] == Some(target) {
+                self.l[src] = None;
+            }
+        }
+        self.l_rev[target] = sources;
     }
 
     fn do_push(&mut self, node: usize, parent: usize) {
@@ -698,22 +769,36 @@ impl Mdfs {
         self.bs_queue.clear();
         self.bs_dl.clear();
 
-        for i in 0..self.r[v_a].len() {
+        for i in (0..self.r[v_a].len()).rev() {
             let q_b = self.r[v_a][i];
             if !self.deleted[q_b] {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
-        for i in 0..self.e[v_a].len() {
+        for i in (0..self.e[v_a].len()).rev() {
             let q_b = self.e[v_a][i];
+            if !self.vis_check(q_b) && !self.deleted[q_b] {
+                self.constrl(q_b, v_a, v_b, v_a);
+            }
+        }
+        for i in (0..self.wc[v_a].len()).rev() {
+            let q_b = self.wc[v_a][i];
             if !self.vis_check(q_b) && !self.deleted[q_b] {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
 
         while let Some(k_a) = self.bs_queue.pop_front() {
-            for i in 0..self.e[k_a].len() {
+            for i in (0..self.e[k_a].len()).rev() {
                 let q_b = self.e[k_a][i];
+                if !self.vis_check(q_b) && !self.deleted[q_b] {
+                    self.constrl(q_b, k_a, v_b, v_a);
+                }
+            }
+            // D&L Case 2.3.i: also process WC entries (forward/cross edges
+            // that targeted k_a when L[k_a] was empty).
+            for i in (0..self.wc[k_a].len()).rev() {
+                let q_b = self.wc[k_a][i];
                 if !self.vis_check(q_b) && !self.deleted[q_b] {
                     self.constrl(q_b, k_a, v_b, v_a);
                 }
@@ -778,37 +863,58 @@ impl Mdfs {
         }
     }
 
-    fn find_rep(&self, mut x: usize) -> usize {
-        let mut steps = 0;
+    fn find_rep(&mut self, mut x: usize) -> usize {
         while self.drep[x] != x {
-            steps += 1;
-            if steps > self.sz {
-                return x;
-            }
-            x = self.drep[x];
+            let gp = self.drep[self.drep[x]];
+            self.drep[x] = gp;
+            x = gp;
         }
         x
     }
 
     // ── Path reconstruction and augmentation ─────────────────────────────
 
-    fn augment(&self, mate: &mut [Option<usize>]) {
+    /// Check that the reconstructed path is strongly simple (each original
+    /// vertex appears at most once).  Returns the path if valid, empty if not.
+    fn validated_path(&self) -> Vec<usize> {
         let n2 = 2 * self.n;
         let mut path: Vec<usize> = Vec::new();
         self.reconstr_path(self.t, self.s, &mut path);
         path.reverse();
+        // Strong-simplicity check: each original vertex appears at most once.
+        let mut seen = vec![false; self.n];
+        for &v in &path {
+            if v < n2 {
+                let o = orig(v);
+                if seen[o] {
+                    return Vec::new(); // not strongly simple
+                }
+                seen[o] = true;
+            }
+        }
+        path
+    }
+
+    fn augment(&self, mate: &mut [Option<usize>]) -> bool {
+        let n2 = 2 * self.n;
+        let path = self.validated_path();
+        if path.is_empty() {
+            return false;
+        }
         let orig_path: Vec<usize> = path.iter().filter(|&&v| v < n2).map(|&v| orig(v)).collect();
         for pair in orig_path.chunks_exact(2) {
             mate[pair[0]] = Some(pair[1]);
             mate[pair[1]] = Some(pair[0]);
         }
+        true
     }
 
-    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) {
+    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) -> bool {
         let n2 = 2 * self.n;
-        let mut path: Vec<usize> = Vec::new();
-        self.reconstr_path(self.t, self.s, &mut path);
-        path.reverse();
+        let path = self.validated_path();
+        if path.is_empty() {
+            return false;
+        }
         for &v in &path {
             if v < n2 {
                 self.deleted[v] = true;
@@ -820,6 +926,7 @@ impl Mdfs {
             mate[pair[0]] = Some(pair[1]);
             mate[pair[1]] = Some(pair[0]);
         }
+        true
     }
 
     fn retreat_to_s(&mut self) {
@@ -874,7 +981,7 @@ impl Mdfs {
             blocks.push((p1_b, st));
             if p2_a == u_a {
                 for &(blk_end, blk_start) in blocks.iter().rev() {
-                    self.reconstr_path_inner(blk_end, blk_start, out, false);
+                    self.reconstr_path_inner(blk_end, blk_start, out, true);
                 }
                 return;
             }
