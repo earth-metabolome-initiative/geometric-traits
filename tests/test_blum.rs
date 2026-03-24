@@ -878,10 +878,23 @@ fn test_reference_friendship() {
 
 #[test]
 fn test_dandeh_lukovszki_figure1_debug() {
-    let g = build_graph(11, &[
-        (1, 2), (1, 9), (2, 3), (2, 10), (3, 5), (3, 9),
-        (4, 5), (4, 6), (5, 7), (5, 8), (6, 7), (8, 9),
-    ]);
+    let g = build_graph(
+        11,
+        &[
+            (1, 2),
+            (1, 9),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 9),
+            (4, 5),
+            (4, 6),
+            (5, 7),
+            (5, 8),
+            (6, 7),
+            (8, 9),
+        ],
+    );
     let blossom = g.blossom();
     let blum = g.blum();
     eprintln!("Blossom ({} pairs): {:?}", blossom.len(), blossom);
@@ -890,10 +903,23 @@ fn test_dandeh_lukovszki_figure1_debug() {
 
 #[test]
 fn test_dandeh_lukovszki_figure1_all_matchers() {
-    let g = build_graph(11, &[
-        (1, 2), (1, 9), (2, 3), (2, 10), (3, 5), (3, 9),
-        (4, 5), (4, 6), (5, 7), (5, 8), (6, 7), (8, 9),
-    ]);
+    let g = build_graph(
+        11,
+        &[
+            (1, 2),
+            (1, 9),
+            (2, 3),
+            (2, 10),
+            (3, 5),
+            (3, 9),
+            (4, 5),
+            (4, 6),
+            (5, 7),
+            (5, 8),
+            (6, 7),
+            (8, 9),
+        ],
+    );
     let blossom = g.blossom();
     let mv = g.micali_vazirani();
     let blum = g.blum();
