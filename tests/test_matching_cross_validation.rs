@@ -41,11 +41,21 @@ fn build_graph(n: usize, edges: &[(usize, usize)]) -> SymmetricCSR2D<CSR2D<usize
 /// Run all four algorithms on the same graph and assert they agree.
 fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let bl = g.blossom();
+    let gabow = g.gabow_1976();
     let mv = g.micali_vazirani();
     let blum = g.blum();
     validate_matching(g, &bl);
+    validate_matching(g, &gabow);
     validate_matching(g, &mv);
     validate_matching(g, &blum);
+    assert_eq!(
+        bl.len(),
+        gabow.len(),
+        "Blossom ({}) != Gabow1976 ({}) on graph with order {}",
+        bl.len(),
+        gabow.len(),
+        g.order()
+    );
     assert_eq!(
         bl.len(),
         mv.len(),

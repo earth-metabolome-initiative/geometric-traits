@@ -167,6 +167,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "gabow_1976"
+path = "fuzz_targets/gabow_1976.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "karp_sipser"
 path = "fuzz_targets/karp_sipser.rs"
 test = false

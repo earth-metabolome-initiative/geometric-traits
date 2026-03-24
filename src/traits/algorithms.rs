@@ -104,6 +104,10 @@ mod matching_utils;
 #[cfg(feature = "alloc")]
 pub use blossom::*;
 #[cfg(feature = "alloc")]
+mod gabow_1976;
+#[cfg(feature = "alloc")]
+pub use gabow_1976::*;
+#[cfg(feature = "alloc")]
 mod karp_sipser;
 #[cfg(feature = "alloc")]
 pub use karp_sipser::*;
