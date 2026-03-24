@@ -40,8 +40,6 @@ const fn is_a(gm: usize) -> bool {
 
 const INF: usize = usize::MAX;
 
-// ── Public entry ────────────────────────────────────────────────────────
-
 pub(super) struct BlumState<'a, M: SparseSquareMatrix + ?Sized> {
     matrix: &'a M,
     n: usize,
@@ -191,19 +189,18 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
     }
 }
 
-// ── MBFS (Modified Breadth-First Search) ────────────────────────────────
-//
-// Computes shortest *strongly simple* distances from s in G_M.
-//
-// Part 1: standard BFS assigning first levels (level₁).
-// Part 2: processes bridge pairs E(k) in order via back-path search.
-//
-// Reference: Blum 2015, Section 3 (full version, Uni Bonn, July 2016).
-//
-// Union-find choice: standard path-halving (not Gabow-Tarjan).
-// See <https://github.com/LucaCappelletti94/incremental-tree-set-union>
-// for benchmarks showing Gabow-Tarjan is 6-10× slower in practice.
-
+/// MBFS (Modified Breadth-First Search)
+///
+/// Computes shortest *strongly simple* distances from s in G_M.
+///
+/// Part 1: standard BFS assigning first levels (level₁).
+/// Part 2: processes bridge pairs E(k) in order via back-path search.
+///
+/// Reference: Blum 2015, Section 3 (full version, Uni Bonn, July 2016).
+///
+/// Union-find choice: standard path-halving (not Gabow-Tarjan).
+/// See <https://github.com/LucaCappelletti94/incremental-tree-set-union>
+/// for benchmarks showing Gabow-Tarjan is 6-10× slower in practice.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)]
 fn mbfs(
@@ -237,7 +234,7 @@ fn mbfs(
     // Flat bridge storage: (x, y, k).  Sorted by k before Part 2.
     let mut bridges: Vec<(usize, usize, usize)> = Vec::new();
 
-    // ── Part 1: BFS for first levels ────────────────────────────────────
+    // Part 1: BFS for first levels
 
     level[s] = 0;
     for &w in &adj[s] {
@@ -256,7 +253,7 @@ fn mbfs(
         mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, true);
     }
 
-    // ── Generate A-side bridge pairs from matched edges ─────────────────
+    // Generate A-side bridge pairs from matched edges
 
     for u in 0..n {
         let u_a = a_side(u);
@@ -280,7 +277,7 @@ fn mbfs(
         }
     }
 
-    // ── Part 2: process bridges in order of k ───────────────────────────
+    // Part 2: process bridges in order of k
     //
     // Bridges are sorted by k before processing.  New bridges appended
     // during Part 2 (by mbfs_scan) are at the tail and processed in
@@ -442,7 +439,7 @@ fn uf_find(uf: &mut [usize], mut x: usize) -> usize {
     x
 }
 
-// ── MDFS ────────────────────────────────────────────────────────────────
+// MDFS
 
 struct Mdfs {
     adj: Vec<Vec<usize>>,
@@ -581,8 +578,7 @@ impl Mdfs {
         }
     }
 
-    // ── Edge processing (SEARCH procedure) ──────────────────────────────
-
+    /// Edge processing (SEARCH procedure)
     fn step(&mut self, top: usize) -> bool {
         let n2 = 2 * self.n;
 
@@ -741,8 +737,6 @@ impl Mdfs {
         }
     }
 
-    // ── Backward search ─────────────────────────────────────────────────
-
     #[inline]
     fn vis_check(&self, i: usize) -> bool {
         self.vis_stamp[i] == self.vis_gen
@@ -853,8 +847,6 @@ impl Mdfs {
         }
         x
     }
-
-    // ── Path reconstruction and augmentation ─────────────────────────────
 
     /// Check that the reconstructed path is strongly simple (each original
     /// vertex appears at most once).  Returns the path if valid, empty if not.
