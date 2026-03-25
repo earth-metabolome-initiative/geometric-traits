@@ -27,6 +27,70 @@ pub struct ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value> {
     values: Vec<Value>,
 }
 
+/// Errors raised when constructing a [`ValuedCSR2D`] from pre-built parts.
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum ValuedCsrPartsError {
+    /// The provided values vector does not match the CSR structure.
+    #[error("Values length mismatch: expected {expected}, got {actual}")]
+    ValuesLengthMismatch {
+        /// Number of values required by the CSR structure.
+        expected: usize,
+        /// Number of values provided by the caller.
+        actual: usize,
+    },
+}
+
+impl<SparseIndex: AsPrimitive<usize>, RowIndex, ColumnIndex, Value>
+    ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: SizedSparseMatrix<SparseIndex = SparseIndex>,
+{
+    /// Creates a new valued CSR matrix from a CSR structure and its stored
+    /// values.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ValuedCsrPartsError::ValuesLengthMismatch`] when the number of
+    /// provided values does not match the number of sparse entries stored in
+    /// the CSR structure.
+    #[inline]
+    pub fn from_parts(
+        csr: CSR2D<SparseIndex, RowIndex, ColumnIndex>,
+        values: Vec<Value>,
+    ) -> Result<Self, ValuedCsrPartsError> {
+        let expected = csr.number_of_defined_values().as_();
+        let actual = values.len();
+
+        if actual != expected {
+            return Err(ValuedCsrPartsError::ValuesLengthMismatch { expected, actual });
+        }
+
+        Ok(Self { csr, values })
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value>
+    ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+{
+    /// Returns the underlying CSR structure and raw values storage.
+    #[inline]
+    pub fn into_parts(self) -> (CSR2D<SparseIndex, RowIndex, ColumnIndex>, Vec<Value>) {
+        (self.csr, self.values)
+    }
+
+    /// Returns the raw values slice in CSR storage order.
+    #[inline]
+    pub fn values_ref(&self) -> &[Value] {
+        &self.values
+    }
+
+    /// Returns the raw mutable values slice in CSR storage order.
+    #[inline]
+    pub fn values_mut(&mut self) -> &mut [Value] {
+        &mut self.values
+    }
+}
+
 impl<
     SparseIndex: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize>,
@@ -592,7 +656,7 @@ where
 
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
-    use alloc::vec::Vec;
+    use alloc::{string::String, vec::Vec};
 
     use super::*;
 
@@ -717,6 +781,79 @@ mod tests {
         assert_eq!(matrix.number_of_columns(), 2);
         let values: Vec<i32> = matrix.sparse_values().collect();
         assert_eq!(values, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_from_parts_round_trip() {
+        let mut csr: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((2, 3));
+        csr.add((0, 1)).unwrap();
+        csr.add((1, 2)).unwrap();
+
+        let matrix = TestValuedCSR2D::from_parts(csr, vec![10, 20]).unwrap();
+        assert_eq!(matrix.values_ref(), &[10, 20]);
+        assert_eq!(matrix.sparse_coordinates().collect::<Vec<_>>(), vec![(0, 1), (1, 2)]);
+
+        let (csr, values) = matrix.into_parts();
+        assert_eq!(csr.sparse_coordinates().collect::<Vec<_>>(), vec![(0, 1), (1, 2)]);
+        assert_eq!(values, vec![10, 20]);
+    }
+
+    #[test]
+    fn test_from_parts_rejects_length_mismatch() {
+        let mut csr: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((2, 2));
+        csr.add((0, 0)).unwrap();
+        csr.add((1, 1)).unwrap();
+
+        assert_eq!(
+            TestValuedCSR2D::from_parts(csr, vec![10]).unwrap_err(),
+            ValuedCsrPartsError::ValuesLengthMismatch { expected: 2, actual: 1 }
+        );
+    }
+
+    #[test]
+    fn test_values_ref_matches_sparse_storage_order() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 10)).unwrap();
+        matrix.add((0, 2, 20)).unwrap();
+        matrix.add((1, 0, 30)).unwrap();
+
+        let entries: Vec<_> = matrix
+            .sparse_coordinates()
+            .zip(matrix.values_ref().iter())
+            .map(|(coordinates, value)| (coordinates, *value))
+            .collect();
+
+        assert_eq!(entries, vec![((0, 1), 10), ((0, 2), 20), ((1, 0), 30)]);
+    }
+
+    #[test]
+    fn test_values_mut_updates_selected_values() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 10)).unwrap();
+        matrix.add((1, 2, 20)).unwrap();
+
+        for value in matrix.values_mut() {
+            *value += 5;
+        }
+
+        assert_eq!(matrix.select_value_ref(0), &15);
+        assert_eq!(matrix.select_value_ref(1), &25);
+    }
+
+    #[test]
+    fn test_values_ref_with_non_copy_type() {
+        let mut csr: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((1, 2));
+        csr.add((0, 0)).unwrap();
+        csr.add((0, 1)).unwrap();
+
+        let matrix =
+            ValuedCSR2D::from_parts(csr, vec![String::from("left"), String::from("right")])
+                .unwrap();
+
+        assert_eq!(
+            matrix.values_ref().iter().map(String::as_str).collect::<Vec<_>>(),
+            vec!["left", "right"]
+        );
     }
 
     #[test]
