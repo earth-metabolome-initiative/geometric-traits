@@ -124,7 +124,9 @@ fn test_ref_sparse_values_ufcs() {
 fn test_ref_select_value_ufcs() {
     let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
     let r = &vcsr;
-    assert_eq!(<&TestValCSR as SizedSparseValuedMatrix>::select_value(&r, 1), 2.0);
+    assert!(
+        (<&TestValCSR as SizedSparseValuedMatrix>::select_value(&r, 1) - 2.0).abs() < f64::EPSILON
+    );
 }
 
 #[test]
@@ -139,7 +141,10 @@ fn test_ref_sparse_values_ref_ufcs() {
 fn test_ref_select_value_ref_ufcs() {
     let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
     let r = &vcsr;
-    assert_eq!(<&TestValCSR as SizedSparseValuedMatrixRef>::select_value_ref(&r, 0), &1.0);
+    assert!(
+        (*<&TestValCSR as SizedSparseValuedMatrixRef>::select_value_ref(&r, 0) - 1.0).abs()
+            < f64::EPSILON
+    );
 }
 
 #[test]

@@ -2399,10 +2399,8 @@ mod tests {
 
         #[test]
         fn test_check_mds_invariants_returns_for_non_symmetric_matrix() {
-            let csr = build_valued_csr_f64(
-                (2, 2),
-                &[(0, 0, 0.0), (0, 1, 1.0), (1, 0, 2.0), (1, 1, 0.0)],
-            );
+            let csr =
+                build_valued_csr_f64((2, 2), &[(0, 0, 0.0), (0, 1, 1.0), (1, 0, 2.0), (1, 1, 0.0)]);
             check_mds_invariants(&csr);
         }
 

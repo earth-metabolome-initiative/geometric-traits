@@ -49,6 +49,14 @@ fn build_valued_symmetric(
     SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(valued, 0))
 }
 
+fn to_i32(index: usize) -> i32 {
+    i32::try_from(index).expect("test indices fit in i32")
+}
+
+fn coord_sum_to_i32(row: usize, column: usize) -> i32 {
+    i32::try_from(row + column).expect("test indices fit in i32")
+}
+
 // ============================================================================
 // SquareCSR2D<ValuedCSR2D> tests
 // ============================================================================
@@ -131,7 +139,7 @@ fn test_square_valued_mutable_accessors() {
     }
 
     for ((row, column), value) in sq.sparse_entries_mut() {
-        *value += (row + column) as i32;
+        *value += coord_sum_to_i32(row, column);
     }
 
     *sq.select_value_mut(0) = 100;
@@ -145,7 +153,7 @@ fn test_square_valued_mutable_accessors() {
     }
 
     for (column, value) in sq.sparse_row_entries_mut(0) {
-        *value += column as i32;
+        *value += to_i32(column);
     }
 
     assert_eq!(sq.sparse_values().collect::<Vec<i32>>(), vec![105, 30, 66]);
@@ -236,7 +244,7 @@ fn test_symmetric_valued_mutable_accessors() {
     }
 
     for ((row, column), value) in sym.sparse_entries_mut() {
-        *value += (row + column) as i32;
+        *value += coord_sum_to_i32(row, column);
     }
 
     *sym.select_value_mut(0) = 100;
@@ -250,7 +258,7 @@ fn test_symmetric_valued_mutable_accessors() {
     }
 
     for (column, value) in sym.sparse_row_entries_mut(1) {
-        *value += column as i32;
+        *value += to_i32(column);
     }
 
     assert_eq!(sym.sparse_values().collect::<Vec<i32>>(), vec![100, 17, 31, 48]);
