@@ -125,6 +125,28 @@ fn test_padded_sparse_rows_full_backward() {
     assert_eq!(rows_rev[0], 2);
 }
 
+#[test]
+fn test_padded_sparse_rows_next_falls_through_to_back_iterator() {
+    let padded = build_padded(vec![(0, 0, 1.0), (1, 0, 2.0), (1, 1, 3.0)], 2, 2);
+    let mut iter = padded.sparse_rows();
+
+    assert_eq!(iter.next_back(), Some(1));
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next(), Some(1));
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_padded_sparse_rows_next_back_falls_through_to_front_iterator() {
+    let padded = build_padded(vec![(0, 0, 1.0), (0, 1, 2.0), (1, 1, 3.0)], 2, 2);
+    let mut iter = padded.sparse_rows();
+
+    assert_eq!(iter.next(), Some(0));
+    assert_eq!(iter.next_back(), Some(1));
+    assert_eq!(iter.next_back(), Some(0));
+    assert_eq!(iter.next_back(), None);
+}
+
 // ============================================================================
 // GenericMatrix2DWithPaddedDiagonal: matrix() accessor and is_diagonal_imputed
 // ============================================================================
