@@ -375,6 +375,30 @@ where
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.column_indices[sparse_index.as_()]
     }
+
+    #[inline]
+    fn try_rank(
+        &self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        let start = self.rank_row(row);
+        let end = self.rank_row(row + RowIndex::one());
+        let relative = self.column_indices[start.as_()..end.as_()]
+            .binary_search(&column)
+            .ok()?;
+        Some(
+            start
+                + Self::SparseIndex::try_from_usize(relative).unwrap_or_else(|_| {
+                    unreachable!(
+                        "The Matrix is in an illegal state where a sparse index is greater than the number of defined values."
+                    )
+                }),
+        )
+    }
 }
 
 impl<
