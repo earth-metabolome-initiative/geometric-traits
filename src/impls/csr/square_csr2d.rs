@@ -349,22 +349,6 @@ where
             .max(column + M::RowIndex::one());
         self.matrix.increase_shape((side, side))?;
 
-        debug_assert!(
-            row < self.number_of_rows(),
-            "The matrix is in an illegal state where the row index {row} is greater than the number of rows {}.",
-            self.number_of_rows()
-        );
-        debug_assert!(
-            column < self.number_of_columns(),
-            "The matrix is in an illegal state where the column index {column} is greater than the number of columns {}.",
-            self.number_of_columns()
-        );
-        debug_assert_eq!(
-            self.number_of_rows(),
-            self.number_of_columns(),
-            "The matrix is not square."
-        );
-
         self.number_of_diagonal_values +=
             if row == column { M::RowIndex::one() } else { M::RowIndex::zero() };
 

@@ -12,8 +12,8 @@ use geometric_traits::{
         VecMatrix2D,
     },
     traits::{
-        Edges, Graph, LAPError, LAPJV, MatrixMut, MonoplexGraph, SparseMatrixMut, SquareMatrix,
-        information_content::InformationContentError,
+        Edges, Graph, LAPError, LAPJV, MatrixMut, MonoplexGraph, SizedSparseMatrix2D,
+        SparseMatrixMut, SquareMatrix, information_content::InformationContentError,
     },
 };
 
@@ -112,6 +112,14 @@ fn test_bimatrix_graph_has_nodes_and_edges() {
     let empty = build_bimatrix(3, vec![]);
     assert!(Graph::has_nodes(&empty));
     assert!(!Graph::has_edges(&empty));
+}
+
+#[test]
+fn test_bimatrix_try_rank_default_impl() {
+    let bm = build_bimatrix(3, vec![(0, 1), (1, 2)]);
+    assert_eq!(bm.try_rank(0, 1), Some(0));
+    assert_eq!(bm.try_rank(1, 2), Some(1));
+    assert_eq!(bm.try_rank(2, 2), None);
 }
 
 // ============================================================================

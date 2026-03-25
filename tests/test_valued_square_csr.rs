@@ -97,6 +97,63 @@ fn test_square_valued_diagonal_count() {
     assert_eq!(sq.number_of_defined_diagonal_values(), 3);
 }
 
+#[test]
+fn test_square_valued_try_rank() {
+    let sq = build_valued_square(3, &[(0, 0, 10), (0, 2, 20), (1, 1, 30)]);
+    assert_eq!(sq.try_rank(0, 0), Some(0));
+    assert_eq!(sq.try_rank(0, 2), Some(1));
+    assert_eq!(sq.try_rank(1, 1), Some(2));
+    assert_eq!(sq.try_rank(2, 2), None);
+}
+
+#[test]
+fn test_square_valued_reference_accessors() {
+    let sq = build_valued_square(3, &[(0, 0, 10), (0, 2, 20), (1, 1, 30)]);
+
+    let values: Vec<&i32> = sq.sparse_values_ref().collect();
+    assert_eq!(values, vec![&10, &20, &30]);
+
+    assert_eq!(sq.select_value_ref(1), &20);
+
+    let row0: Vec<&i32> = sq.sparse_row_values_ref(0).collect();
+    assert_eq!(row0, vec![&10, &20]);
+
+    assert_eq!(sq.sparse_value_at_ref(0, 2), Some(&20));
+    assert_eq!(sq.sparse_value_at_ref(2, 2), None);
+}
+
+#[test]
+fn test_square_valued_mutable_accessors() {
+    let mut sq = build_valued_square(3, &[(0, 0, 10), (0, 2, 20), (1, 1, 30)]);
+
+    for value in sq.sparse_values_mut() {
+        *value += 1;
+    }
+
+    for ((row, column), value) in sq.sparse_entries_mut() {
+        *value += (row + column) as i32;
+    }
+
+    *sq.select_value_mut(0) = 100;
+
+    for value in sq.sparse_row_values_mut(0) {
+        *value += 5;
+    }
+
+    if let Some(value) = sq.sparse_value_at_mut(1, 1) {
+        *value *= 2;
+    }
+
+    for (column, value) in sq.sparse_row_entries_mut(0) {
+        *value += column as i32;
+    }
+
+    assert_eq!(sq.sparse_values().collect::<Vec<i32>>(), vec![105, 30, 66]);
+    assert_eq!(sq.sparse_value_at(0, 0), Some(105));
+    assert_eq!(sq.sparse_value_at(0, 2), Some(30));
+    assert_eq!(sq.sparse_value_at(1, 1), Some(66));
+}
+
 // ============================================================================
 // SymmetricCSR2D<ValuedCSR2D> tests
 // ============================================================================
@@ -143,4 +200,62 @@ fn test_symmetric_valued_empty() {
     assert_eq!(sym.order(), 3);
     assert!(sym.is_empty());
     assert_eq!(sym.sparse_value_at(0, 1), None);
+}
+
+#[test]
+fn test_symmetric_valued_try_rank() {
+    let sym = build_valued_symmetric(3, &[(0, 1, 10), (1, 2, 20)]);
+    assert_eq!(sym.try_rank(0, 1), Some(0));
+    assert_eq!(sym.try_rank(1, 0), Some(1));
+    assert_eq!(sym.try_rank(1, 2), Some(2));
+    assert_eq!(sym.try_rank(2, 0), None);
+}
+
+#[test]
+fn test_symmetric_valued_reference_accessors() {
+    let sym = build_valued_symmetric(3, &[(0, 1, 10), (1, 2, 20)]);
+
+    let values: Vec<&i32> = sym.sparse_values_ref().collect();
+    assert_eq!(values, vec![&10, &10, &20, &20]);
+
+    assert_eq!(sym.select_value_ref(2), &20);
+
+    let row1: Vec<&i32> = sym.sparse_row_values_ref(1).collect();
+    assert_eq!(row1, vec![&10, &20]);
+
+    assert_eq!(sym.sparse_value_at_ref(2, 1), Some(&20));
+    assert_eq!(sym.sparse_value_at_ref(2, 2), None);
+}
+
+#[test]
+fn test_symmetric_valued_mutable_accessors() {
+    let mut sym = build_valued_symmetric(3, &[(0, 1, 10), (1, 2, 20)]);
+
+    for value in sym.sparse_values_mut() {
+        *value += 1;
+    }
+
+    for ((row, column), value) in sym.sparse_entries_mut() {
+        *value += (row + column) as i32;
+    }
+
+    *sym.select_value_mut(0) = 100;
+
+    for value in sym.sparse_row_values_mut(1) {
+        *value += 5;
+    }
+
+    if let Some(value) = sym.sparse_value_at_mut(2, 1) {
+        *value *= 2;
+    }
+
+    for (column, value) in sym.sparse_row_entries_mut(1) {
+        *value += column as i32;
+    }
+
+    assert_eq!(sym.sparse_values().collect::<Vec<i32>>(), vec![100, 17, 31, 48]);
+    assert_eq!(sym.sparse_value_at(0, 1), Some(100));
+    assert_eq!(sym.sparse_value_at(1, 0), Some(17));
+    assert_eq!(sym.sparse_value_at(1, 2), Some(31));
+    assert_eq!(sym.sparse_value_at(2, 1), Some(48));
 }
