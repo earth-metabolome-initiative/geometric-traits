@@ -4,14 +4,16 @@
 #![cfg(feature = "std")]
 
 use geometric_traits::{
-    impls::CSR2D,
+    impls::{CSR2D, ValuedCSR2D},
     traits::{
         BidirectionalVocabulary, Matrix, MatrixMut, RankSelectSparseMatrix, SizedSparseMatrix,
-        SparseMatrix, SparseMatrixMut, Vocabulary,
+        SizedSparseValuedMatrix, SizedSparseValuedMatrixRef, SparseMatrix, SparseMatrixMut,
+        SparseValuedMatrix2DRef, SparseValuedMatrixRef, Vocabulary,
     },
 };
 
 type TestCSR = CSR2D<usize, usize, usize>;
+type TestValCSR = ValuedCSR2D<usize, usize, usize, f64>;
 
 fn build_csr(entries: Vec<(usize, usize)>, shape: (usize, usize)) -> TestCSR {
     let mut csr: TestCSR = SparseMatrixMut::with_sparse_shaped_capacity(shape, entries.len());
@@ -19,6 +21,14 @@ fn build_csr(entries: Vec<(usize, usize)>, shape: (usize, usize)) -> TestCSR {
         MatrixMut::add(&mut csr, (r, c)).unwrap();
     }
     csr
+}
+
+fn build_valued_csr(entries: Vec<(usize, usize, f64)>, shape: (usize, usize)) -> TestValCSR {
+    let mut vcsr: TestValCSR = SparseMatrixMut::with_sparse_shaped_capacity(shape, entries.len());
+    for (r, c, v) in entries {
+        MatrixMut::add(&mut vcsr, (r, c, v)).unwrap();
+    }
+    vcsr
 }
 
 // ============================================================================
@@ -102,21 +112,51 @@ fn test_ref_select_ufcs() {
 
 #[test]
 fn test_ref_sparse_values_ufcs() {
-    use geometric_traits::{
-        impls::ValuedCSR2D,
-        prelude::*,
-        traits::{EdgesBuilder, SparseValuedMatrix},
-    };
-    type TestValCSR = ValuedCSR2D<usize, usize, usize, f64>;
-    let vcsr: TestValCSR = GenericEdgesBuilder::<_, TestValCSR>::default()
-        .expected_number_of_edges(2)
-        .expected_shape((2, 2))
-        .edges(vec![(0, 0, 1.0), (1, 1, 2.0)].into_iter())
-        .build()
-        .unwrap();
+    use geometric_traits::traits::SparseValuedMatrix;
+
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
     let r = &vcsr;
     let vals: Vec<f64> = <&TestValCSR as SparseValuedMatrix>::sparse_values(&r).collect();
     assert_eq!(vals, vec![1.0, 2.0]);
+}
+
+#[test]
+fn test_ref_select_value_ufcs() {
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
+    let r = &vcsr;
+    assert_eq!(<&TestValCSR as SizedSparseValuedMatrix>::select_value(&r, 1), 2.0);
+}
+
+#[test]
+fn test_ref_sparse_values_ref_ufcs() {
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
+    let r = &vcsr;
+    let vals: Vec<&f64> = <&TestValCSR as SparseValuedMatrixRef>::sparse_values_ref(&r).collect();
+    assert_eq!(vals, vec![&1.0, &2.0]);
+}
+
+#[test]
+fn test_ref_select_value_ref_ufcs() {
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (1, 1, 2.0)], (2, 2));
+    let r = &vcsr;
+    assert_eq!(<&TestValCSR as SizedSparseValuedMatrixRef>::select_value_ref(&r, 0), &1.0);
+}
+
+#[test]
+fn test_ref_sparse_row_values_ref_ufcs() {
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (0, 1, 2.0), (1, 1, 3.0)], (2, 2));
+    let r = &vcsr;
+    let vals: Vec<&f64> =
+        <&TestValCSR as SparseValuedMatrix2DRef>::sparse_row_values_ref(&r, 0).collect();
+    assert_eq!(vals, vec![&1.0, &2.0]);
+}
+
+#[test]
+fn test_ref_sparse_value_at_ref_ufcs() {
+    let vcsr = build_valued_csr(vec![(0, 0, 1.0), (0, 1, 2.0), (1, 1, 3.0)], (2, 2));
+    let r = &vcsr;
+    assert_eq!(<&TestValCSR as SparseValuedMatrix2DRef>::sparse_value_at_ref(&r, 0, 1), Some(&2.0));
+    assert_eq!(<&TestValCSR as SparseValuedMatrix2DRef>::sparse_value_at_ref(&r, 1, 0), None);
 }
 
 // ============================================================================
