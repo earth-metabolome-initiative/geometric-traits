@@ -176,6 +176,24 @@ pub trait SizedSparseMatrix2D: SizedRowsSparseMatrix2D + RankSelectSparseMatrix 
     ///
     /// * `sparse_index`: The sparse index of the column to get.
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex;
+
+    /// Returns the sparse index of the entry at the given row and column,
+    /// or `None` if the entry does not exist.
+    ///
+    /// This is a non-panicking alternative to
+    /// [`rank`](super::RankSelectSparseMatrix::rank).
+    ///
+    /// # Arguments
+    ///
+    /// * `row`: The row index.
+    /// * `column`: The column index.
+    #[inline]
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        if self.has_entry(row, column) { Some(self.rank(&(row, column))) } else { None }
+    }
 }
 
 /// Trait defining a sparse matrix which supports efficient operations on

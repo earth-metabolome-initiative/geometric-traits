@@ -2027,6 +2027,19 @@ mod tests {
         csr
     }
 
+    fn build_valued_csr_f64(
+        shape: (u8, u8),
+        edges: &[(u8, u8, f64)],
+    ) -> ValuedCSR2D<u16, u8, u8, f64> {
+        let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+            ValuedCSR2D::with_sparse_shaped_capacity(shape, u16::try_from(edges.len()).unwrap());
+        for &(row, column, value) in edges {
+            MatrixMut::add(&mut csr, (row, column, value))
+                .expect("insert weighted edge into test matrix");
+        }
+        csr
+    }
+
     #[test]
     fn test_from_bytes_success_and_failure() {
         assert_eq!(from_bytes::<u8>(&[42]), Some(42));
@@ -2219,6 +2232,12 @@ mod tests {
     }
 
     #[test]
+    fn test_check_leiden_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_leiden_invariants(&csr);
+    }
+
+    #[test]
     fn test_check_jacobi_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_jacobi_invariants(&csr);
@@ -2228,6 +2247,57 @@ mod tests {
     fn test_check_mds_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_mds_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_mds_invariants_on_valid_distance_matrix() {
+        let csr = build_valued_csr_f64(
+            (3, 3),
+            &[
+                (0, 0, 0.0),
+                (0, 1, 1.0),
+                (0, 2, 1.0),
+                (1, 0, 1.0),
+                (1, 1, 0.0),
+                (1, 2, 1.0),
+                (2, 0, 1.0),
+                (2, 1, 1.0),
+                (2, 2, 0.0),
+            ],
+        );
+        check_mds_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_floyd_warshall_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_floyd_warshall_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_pairwise_bfs_matches_unit_floyd_warshall_smoke() {
+        let mut matrix: SquareCSR2D<CSR2D<u16, u8, u8>> =
+            SquareCSR2D::with_sparse_shaped_capacity(3, 2);
+        matrix.extend(vec![(0, 1), (1, 2)]).expect("extend matrix");
+        check_pairwise_bfs_matches_unit_floyd_warshall(&matrix);
+    }
+
+    #[test]
+    fn test_check_pairwise_dijkstra_matches_floyd_warshall_smoke() {
+        let csr = sample_valued_csr_f64();
+        check_pairwise_dijkstra_matches_floyd_warshall(&csr);
+    }
+
+    #[test]
+    fn test_check_bit_square_matrix_invariants_smoke() {
+        let matrix = BitSquareMatrix::from_edges(4, [(0, 0), (0, 1), (1, 2), (2, 1), (2, 3)]);
+        check_bit_square_matrix_invariants(&matrix, &[0b1011, 0b0101]);
+    }
+
+    #[test]
+    fn test_check_bit_square_matrix_invariants_on_empty_matrix() {
+        let matrix = BitSquareMatrix::new(0);
+        check_bit_square_matrix_invariants(&matrix, &[]);
     }
 
     mod coverage_submodule {
@@ -2289,6 +2359,79 @@ mod tests {
             MatrixMut::add(&mut csr, (0, 0, 1.0e-20)).expect("insert tiny value");
             MatrixMut::add(&mut csr, (1, 1, 1.0e20)).expect("insert huge value");
             check_louvain_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_leiden_invariants_returns_for_unstable_weights() {
+            let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+                ValuedCSR2D::with_sparse_shaped_capacity((2, 2), 2);
+            MatrixMut::add(&mut csr, (0, 0, 1.0e-20)).expect("insert tiny value");
+            MatrixMut::add(&mut csr, (1, 1, 1.0e20)).expect("insert huge value");
+            check_leiden_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_floyd_warshall_invariants_non_square_error_path() {
+            let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+                ValuedCSR2D::with_sparse_shaped_capacity((2, 3), 2);
+            MatrixMut::add(&mut csr, (0, 1, 1.0)).expect("insert edge");
+            MatrixMut::add(&mut csr, (1, 2, 2.0)).expect("insert edge");
+            check_floyd_warshall_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_pairwise_dijkstra_matches_floyd_warshall_non_square_error_path() {
+            let mut csr: ValuedCSR2D<u16, u8, u8, f64> =
+                ValuedCSR2D::with_sparse_shaped_capacity((2, 3), 2);
+            MatrixMut::add(&mut csr, (0, 1, 1.0)).expect("insert edge");
+            MatrixMut::add(&mut csr, (1, 2, 2.0)).expect("insert edge");
+            check_pairwise_dijkstra_matches_floyd_warshall(&csr);
+        }
+
+        #[test]
+        fn test_check_mds_invariants_returns_for_negative_distance() {
+            let csr = build_valued_csr_f64(
+                (2, 2),
+                &[(0, 0, 0.0), (0, 1, -1.0), (1, 0, -1.0), (1, 1, 0.0)],
+            );
+            check_mds_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_mds_invariants_returns_for_non_symmetric_matrix() {
+            let csr =
+                build_valued_csr_f64((2, 2), &[(0, 0, 0.0), (0, 1, 1.0), (1, 0, 2.0), (1, 1, 0.0)]);
+            check_mds_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_floyd_warshall_invariants_non_finite_weight_path() {
+            let csr = build_valued_csr_f64(
+                (2, 2),
+                &[(0, 0, 0.0), (0, 1, f64::NAN), (1, 0, 1.0), (1, 1, 0.0)],
+            );
+            check_floyd_warshall_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_floyd_warshall_invariants_negative_cycle_path() {
+            let csr = build_valued_csr_f64((2, 2), &[(0, 1, -1.0), (1, 0, -1.0)]);
+            check_floyd_warshall_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_pairwise_dijkstra_matches_floyd_warshall_non_finite_weight_path() {
+            let csr = build_valued_csr_f64(
+                (2, 2),
+                &[(0, 0, 0.0), (0, 1, f64::NAN), (1, 0, 1.0), (1, 1, 0.0)],
+            );
+            check_pairwise_dijkstra_matches_floyd_warshall(&csr);
+        }
+
+        #[test]
+        fn test_check_pairwise_dijkstra_matches_floyd_warshall_negative_weight_path() {
+            let csr = build_valued_csr_f64((2, 2), &[(0, 0, 0.0), (0, 1, -1.0), (1, 1, 0.0)]);
+            check_pairwise_dijkstra_matches_floyd_warshall(&csr);
         }
 
         #[test]

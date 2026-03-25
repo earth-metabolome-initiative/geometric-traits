@@ -317,6 +317,14 @@ where
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.matrix.select_column(sparse_index)
     }
+
+    #[inline]
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.try_rank(row, column)
+    }
 }
 
 impl<M> MatrixMut for SquareCSR2D<M>
@@ -340,22 +348,6 @@ where
             .max(row + M::RowIndex::one())
             .max(column + M::RowIndex::one());
         self.matrix.increase_shape((side, side))?;
-
-        debug_assert!(
-            row < self.number_of_rows(),
-            "The matrix is in an illegal state where the row index {row} is greater than the number of rows {}.",
-            self.number_of_rows()
-        );
-        debug_assert!(
-            column < self.number_of_columns(),
-            "The matrix is in an illegal state where the column index {column} is greater than the number of columns {}.",
-            self.number_of_columns()
-        );
-        debug_assert_eq!(
-            self.number_of_rows(),
-            self.number_of_columns(),
-            "The matrix is not square."
-        );
 
         self.number_of_diagonal_values +=
             if row == column { M::RowIndex::one() } else { M::RowIndex::zero() };
@@ -422,6 +414,116 @@ where
     #[inline]
     fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
         self.matrix.select_value(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrixRef for SquareCSR2D<M>
+where
+    M: SparseValuedMatrixRef + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesRef<'a>
+        = M::SparseValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        self.matrix.sparse_values_ref()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixRef for SquareCSR2D<M>
+where
+    M: SizedSparseValuedMatrixRef + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        self.matrix.select_value_ref(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DRef for SquareCSR2D<M>
+where
+    M: SparseValuedMatrix2DRef<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesRef<'a>
+        = M::SparseRowValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_ref(&self, row: Self::RowIndex) -> Self::SparseRowValuesRef<'_> {
+        self.matrix.sparse_row_values_ref(row)
+    }
+}
+
+impl<M> SparseValuedMatrixMut for SquareCSR2D<M>
+where
+    M: SparseValuedMatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesMut<'a>
+        = M::SparseValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_> {
+        self.matrix.sparse_values_mut()
+    }
+
+    #[inline]
+    fn sparse_entries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)> {
+        self.matrix.sparse_entries_mut()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixMut for SquareCSR2D<M>
+where
+    M: SizedSparseValuedMatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value {
+        self.matrix.select_value_mut(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DMut for SquareCSR2D<M>
+where
+    M: SparseValuedMatrix2DMut<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesMut<'a>
+        = M::SparseRowValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_mut(&mut self, row: Self::RowIndex) -> Self::SparseRowValuesMut<'_> {
+        self.matrix.sparse_row_values_mut(row)
+    }
+
+    fn sparse_value_at_mut(
+        &mut self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<&mut <Self as ValuedMatrix>::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.sparse_value_at_mut(row, column)
+    }
+
+    #[inline]
+    fn sparse_row_entries_mut(
+        &mut self,
+        row: Self::RowIndex,
+    ) -> impl Iterator<Item = (Self::ColumnIndex, &mut <Self as ValuedMatrix>::Value)> {
+        self.matrix.sparse_row_entries_mut(row)
     }
 }
 

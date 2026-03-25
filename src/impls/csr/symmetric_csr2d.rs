@@ -257,6 +257,14 @@ where
     fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
         self.matrix.select_row(sparse_index)
     }
+
+    #[inline]
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.try_rank(row, column)
+    }
 }
 
 impl<M: Matrix2D> SymmetricCSR2D<M> {
@@ -317,6 +325,116 @@ where
     #[inline]
     fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
         self.matrix.select_value(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrixRef for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrixRef + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesRef<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrixRef>::SparseValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        self.matrix.sparse_values_ref()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixRef for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrixRef + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        self.matrix.select_value_ref(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DRef for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2DRef<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesRef<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2DRef>::SparseRowValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_ref(&self, row: Self::RowIndex) -> Self::SparseRowValuesRef<'_> {
+        self.matrix.sparse_row_values_ref(row)
+    }
+}
+
+impl<M> SparseValuedMatrixMut for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesMut<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrixMut>::SparseValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_> {
+        self.matrix.sparse_values_mut()
+    }
+
+    #[inline]
+    fn sparse_entries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)> {
+        self.matrix.sparse_entries_mut()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixMut for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrixMut + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value {
+        self.matrix.select_value_mut(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DMut for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2DMut<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesMut<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2DMut>::SparseRowValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_mut(&mut self, row: Self::RowIndex) -> Self::SparseRowValuesMut<'_> {
+        self.matrix.sparse_row_values_mut(row)
+    }
+
+    fn sparse_value_at_mut(
+        &mut self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<&mut <Self as ValuedMatrix>::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.sparse_value_at_mut(row, column)
+    }
+
+    #[inline]
+    fn sparse_row_entries_mut(
+        &mut self,
+        row: Self::RowIndex,
+    ) -> impl Iterator<Item = (Self::ColumnIndex, &mut <Self as ValuedMatrix>::Value)> {
+        self.matrix.sparse_row_entries_mut(row)
     }
 }
 

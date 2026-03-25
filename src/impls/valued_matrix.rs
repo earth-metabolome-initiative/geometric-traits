@@ -10,8 +10,10 @@ use super::{CSR2D, MutabilityError};
 use crate::traits::{
     EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger, RankSelectSparseMatrix,
     SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix,
-    SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
-    TryFromUsize, ValuedMatrix, ValuedMatrix2D,
+    SizedSparseValuedMatrixMut, SizedSparseValuedMatrixRef, SparseMatrix, SparseMatrix2D,
+    SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D, SparseValuedMatrix2DMut,
+    SparseValuedMatrix2DRef, SparseValuedMatrixMut, SparseValuedMatrixRef, TryFromUsize,
+    ValuedMatrix, ValuedMatrix2D,
 };
 
 #[cfg(feature = "arbitrary")]
@@ -253,6 +255,14 @@ where
     fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
         self.csr.select_column(sparse_index)
     }
+
+    #[inline]
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.csr.try_rank(row, column)
+    }
 }
 
 impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseMatrix
@@ -445,6 +455,141 @@ where
     }
 }
 
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrixRef
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SparseValuedMatrix<Value = Value>,
+{
+    type SparseValuesRef<'a>
+        = core::slice::Iter<'a, Value>
+    where
+        Self: 'a,
+        Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        self.values.iter()
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SizedSparseValuedMatrixRef
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SizedSparseValuedMatrix<Value = Value> + SparseValuedMatrixRef<Value = Value>,
+{
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        &self.values[sparse_index.as_()]
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrix2DRef
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SizedSparseMatrix2D
+        + SparseValuedMatrix2D<Value = Value>
+        + SparseValuedMatrixRef<Value = Value>,
+{
+    type SparseRowValuesRef<'a>
+        = core::slice::Iter<'a, Value>
+    where
+        Self: 'a,
+        Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_ref(&self, row: Self::RowIndex) -> Self::SparseRowValuesRef<'_> {
+        let start = self.rank_row(row).as_();
+        let end = self.rank_row(row + Self::RowIndex::one()).as_();
+        self.values[start..end].iter()
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrixMut
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SparseValuedMatrixRef<Value = Value>,
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: SparseMatrix<Coordinates = Self::Coordinates>,
+{
+    type SparseValuesMut<'a>
+        = core::slice::IterMut<'a, Value>
+    where
+        Self: 'a,
+        Value: 'a;
+
+    #[inline]
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_> {
+        self.values.iter_mut()
+    }
+
+    #[inline]
+    fn sparse_entries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)> {
+        core::iter::zip(self.csr.sparse_coordinates(), self.values.iter_mut())
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SizedSparseValuedMatrixMut
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SizedSparseValuedMatrixRef<Value = Value> + SparseValuedMatrixMut<Value = Value>,
+{
+    #[inline]
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value {
+        &mut self.values[sparse_index.as_()]
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrix2DMut
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    Self: SparseValuedMatrix2DRef<Value = Value, RowIndex = RowIndex, ColumnIndex = ColumnIndex>
+        + SparseValuedMatrixMut<Value = Value>,
+    SparseIndex: AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: PartialEq,
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: SizedSparseMatrix2D<
+            RowIndex = RowIndex,
+            ColumnIndex = ColumnIndex,
+            SparseIndex = SparseIndex,
+        > + SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
+{
+    type SparseRowValuesMut<'a>
+        = core::slice::IterMut<'a, Value>
+    where
+        Self: 'a,
+        Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_mut(&mut self, row: Self::RowIndex) -> Self::SparseRowValuesMut<'_> {
+        let start = self.csr.rank_row(row).as_();
+        let end = self.csr.rank_row(row + RowIndex::one()).as_();
+        self.values[start..end].iter_mut()
+    }
+
+    fn sparse_value_at_mut(
+        &mut self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<&mut <Self as ValuedMatrix>::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        let sparse_index = self.csr.try_rank(row, column)?;
+        Some(&mut self.values[sparse_index.as_()])
+    }
+
+    #[inline]
+    fn sparse_row_entries_mut(
+        &mut self,
+        row: Self::RowIndex,
+    ) -> impl Iterator<Item = (Self::ColumnIndex, &mut <Self as ValuedMatrix>::Value)> {
+        let start = self.csr.rank_row(row).as_();
+        let end = self.csr.rank_row(row + RowIndex::one()).as_();
+        core::iter::zip(self.csr.sparse_row(row), self.values[start..end].iter_mut())
+    }
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::vec::Vec;
@@ -572,5 +717,324 @@ mod tests {
         assert_eq!(matrix.number_of_columns(), 2);
         let values: Vec<i32> = matrix.sparse_values().collect();
         assert_eq!(values, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_sparse_values_ref() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.add((0, 1, 2)).unwrap();
+        matrix.add((1, 0, 3)).unwrap();
+        let values: Vec<&i32> = matrix.sparse_values_ref().collect();
+        assert_eq!(values, vec![&1, &2, &3]);
+    }
+
+    #[test]
+    fn test_select_value_ref() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 100)).unwrap();
+        matrix.add((0, 1, 200)).unwrap();
+        assert_eq!(matrix.select_value_ref(0), &100);
+        assert_eq!(matrix.select_value_ref(1), &200);
+    }
+
+    #[test]
+    fn test_sparse_row_values_ref() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 1, 20)).unwrap();
+        matrix.add((1, 2, 30)).unwrap();
+        let row0: Vec<&i32> = matrix.sparse_row_values_ref(0).collect();
+        assert_eq!(row0, vec![&10, &20]);
+        let row1: Vec<&i32> = matrix.sparse_row_values_ref(1).collect();
+        assert_eq!(row1, vec![&30]);
+    }
+
+    #[test]
+    fn test_sparse_value_at_ref() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 42)).unwrap();
+        assert_eq!(matrix.sparse_value_at_ref(0, 1), Some(&42));
+        assert_eq!(matrix.sparse_value_at_ref(0, 0), None);
+        assert_eq!(matrix.sparse_value_at_ref(1, 0), None);
+    }
+
+    #[test]
+    fn test_ref_on_empty_matrix() {
+        let matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert_eq!(matrix.sparse_values_ref().count(), 0);
+        assert_eq!(matrix.sparse_row_values_ref(0).count(), 0);
+    }
+
+    #[test]
+    fn test_sparse_values_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.add((1, 1, 2)).unwrap();
+        for v in matrix.sparse_values_mut() {
+            *v *= 10;
+        }
+        let values: Vec<i32> = matrix.sparse_values().collect();
+        assert_eq!(values, vec![10, 20]);
+    }
+
+    #[test]
+    fn test_select_value_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 5)).unwrap();
+        *matrix.select_value_mut(0) = 50;
+        assert_eq!(matrix.select_value(0), 50);
+    }
+
+    #[test]
+    fn test_sparse_row_values_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 1, 20)).unwrap();
+        matrix.add((1, 2, 30)).unwrap();
+        for v in matrix.sparse_row_values_mut(0) {
+            *v += 100;
+        }
+        let row0: Vec<i32> = matrix.sparse_row_values(0).collect();
+        assert_eq!(row0, vec![110, 120]);
+        let row1: Vec<i32> = matrix.sparse_row_values(1).collect();
+        assert_eq!(row1, vec![30]);
+    }
+
+    #[test]
+    fn test_sparse_value_at_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 42)).unwrap();
+        if let Some(v) = matrix.sparse_value_at_mut(0, 1) {
+            *v = 99;
+        }
+        assert_eq!(matrix.sparse_value_at_ref(0, 1), Some(&99));
+        assert!(matrix.sparse_value_at_mut(0, 0).is_none());
+    }
+
+    #[test]
+    fn test_mut_on_empty_row() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((1, 0, 7)).unwrap();
+        assert_eq!(matrix.sparse_row_values_mut(0).count(), 0);
+        for v in matrix.sparse_row_values_mut(1) {
+            *v = 77;
+        }
+        assert_eq!(matrix.select_value(0), 77);
+    }
+
+    #[test]
+    fn test_try_rank() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 10)).unwrap();
+        matrix.add((1, 2, 20)).unwrap();
+        assert_eq!(matrix.try_rank(0, 1), Some(0));
+        assert_eq!(matrix.try_rank(1, 2), Some(1));
+        assert_eq!(matrix.try_rank(0, 0), None);
+        assert_eq!(matrix.try_rank(0, 2), None);
+    }
+
+    #[test]
+    fn test_try_select_value() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 100)).unwrap();
+        assert_eq!(matrix.try_select_value(0), Some(&100));
+        assert_eq!(matrix.try_select_value(1), None);
+    }
+
+    #[test]
+    fn test_try_select_value_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 5)).unwrap();
+        if let Some(v) = matrix.try_select_value_mut(0) {
+            *v = 50;
+        }
+        assert_eq!(matrix.select_value(0), 50);
+        assert!(matrix.try_select_value_mut(1).is_none());
+    }
+
+    #[test]
+    fn test_replace_value() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 1, 42)).unwrap();
+        assert_eq!(matrix.replace_value(0, 1, 99), Some(42));
+        assert_eq!(matrix.select_value(0), 99);
+        assert_eq!(matrix.replace_value(0, 0, 10), None);
+    }
+
+    #[test]
+    fn test_update_value() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 1, 10)).unwrap();
+        assert!(matrix.update_value(0, 1, |v| *v *= 5));
+        assert_eq!(matrix.select_value(0), 50);
+        assert!(!matrix.update_value(0, 0, |v| *v *= 5));
+    }
+
+    #[test]
+    fn test_update_value_at() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 7)).unwrap();
+        matrix.update_value_at(0, |v| *v += 3);
+        assert_eq!(matrix.select_value(0), 10);
+    }
+
+    #[test]
+    fn test_sparse_entries() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 10)).unwrap();
+        matrix.add((1, 2, 20)).unwrap();
+        let entries: Vec<_> = matrix.sparse_entries().collect();
+        assert_eq!(entries, vec![((0, 1), &10), ((1, 2), &20)]);
+    }
+
+    #[test]
+    fn test_sparse_entries_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 1, 10)).unwrap();
+        matrix.add((1, 2, 20)).unwrap();
+        for (_, v) in matrix.sparse_entries_mut() {
+            *v *= 10;
+        }
+        let values: Vec<i32> = matrix.sparse_values().collect();
+        assert_eq!(values, vec![100, 200]);
+    }
+
+    #[test]
+    fn test_sparse_row_entries() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 2, 20)).unwrap();
+        matrix.add((1, 1, 30)).unwrap();
+        let entries: Vec<_> = matrix.sparse_row_entries(0).collect();
+        assert_eq!(entries, vec![(0, &10), (2, &20)]);
+    }
+
+    #[test]
+    fn test_sparse_row_entries_mut() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 2, 20)).unwrap();
+        matrix.add((1, 1, 30)).unwrap();
+        for (_, v) in matrix.sparse_row_entries_mut(0) {
+            *v += 100;
+        }
+        let row0: Vec<i32> = matrix.sparse_row_values(0).collect();
+        assert_eq!(row0, vec![110, 120]);
+        let row1: Vec<i32> = matrix.sparse_row_values(1).collect();
+        assert_eq!(row1, vec![30]);
+    }
+
+    #[test]
+    fn test_try_rank_empty_matrix() {
+        let matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert_eq!(matrix.try_rank(0, 0), None);
+        assert_eq!(matrix.try_rank(2, 2), None);
+    }
+
+    #[test]
+    fn test_try_rank_multi_entry_row() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 5));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.add((0, 2, 2)).unwrap();
+        matrix.add((0, 4, 3)).unwrap();
+        matrix.add((1, 1, 4)).unwrap();
+        matrix.add((1, 3, 5)).unwrap();
+        assert_eq!(matrix.try_rank(0, 0), Some(0));
+        assert_eq!(matrix.try_rank(0, 2), Some(1));
+        assert_eq!(matrix.try_rank(0, 4), Some(2));
+        assert_eq!(matrix.try_rank(0, 1), None);
+        assert_eq!(matrix.try_rank(0, 3), None);
+        assert_eq!(matrix.try_rank(1, 1), Some(3));
+        assert_eq!(matrix.try_rank(1, 3), Some(4));
+        assert_eq!(matrix.try_rank(1, 0), None);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_select_value_ref_panics_oob() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        let _ = matrix.select_value_ref(1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_select_value_mut_panics_oob() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        let _ = matrix.select_value_mut(1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_update_value_at_panics_oob() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 2));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.update_value_at(1, |v| *v += 1);
+    }
+
+    #[test]
+    fn test_sparse_entries_empty_matrix() {
+        let matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert_eq!(matrix.sparse_entries().count(), 0);
+    }
+
+    #[test]
+    fn test_sparse_entries_mut_empty_matrix() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert_eq!(matrix.sparse_entries_mut().count(), 0);
+    }
+
+    #[test]
+    fn test_sparse_row_entries_empty_row() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((1, 0, 10)).unwrap();
+        assert_eq!(matrix.sparse_row_entries(0).count(), 0);
+        assert_eq!(matrix.sparse_row_entries(1).count(), 1);
+    }
+
+    #[test]
+    fn test_sparse_row_entries_mut_empty_row() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((1, 0, 10)).unwrap();
+        assert_eq!(matrix.sparse_row_entries_mut(0).count(), 0);
+    }
+
+    #[test]
+    fn test_replace_value_preserves_other_values() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 1, 20)).unwrap();
+        matrix.add((1, 2, 30)).unwrap();
+        matrix.replace_value(0, 1, 99);
+        assert_eq!(matrix.select_value(0), 10);
+        assert_eq!(matrix.select_value(1), 99);
+        assert_eq!(matrix.select_value(2), 30);
+    }
+
+    #[test]
+    fn test_double_ended_ref_iterators() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((2, 3));
+        matrix.add((0, 0, 10)).unwrap();
+        matrix.add((0, 1, 20)).unwrap();
+        matrix.add((0, 2, 30)).unwrap();
+        let rev_values: Vec<&i32> = matrix.sparse_values_ref().rev().collect();
+        assert_eq!(rev_values, vec![&30, &20, &10]);
+        let rev_row: Vec<&i32> = matrix.sparse_row_values_ref(0).rev().collect();
+        assert_eq!(rev_row, vec![&30, &20, &10]);
+    }
+
+    #[test]
+    fn test_double_ended_mut_iterators() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((1, 3));
+        matrix.add((0, 0, 1)).unwrap();
+        matrix.add((0, 1, 2)).unwrap();
+        matrix.add((0, 2, 3)).unwrap();
+        for (new_value, v) in [100, 200, 300].into_iter().zip(matrix.sparse_values_mut().rev()) {
+            *v = new_value;
+        }
+        let values: Vec<i32> = matrix.sparse_values().collect();
+        assert_eq!(values, vec![300, 200, 100]);
     }
 }

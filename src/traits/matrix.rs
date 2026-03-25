@@ -312,6 +312,152 @@ pub trait SizedSparseValuedMatrix: SizedSparseMatrix + SparseValuedMatrix {
     fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value;
 }
 
+impl<M: SizedSparseValuedMatrix> SizedSparseValuedMatrix for &M {
+    #[inline]
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
+        (*self).select_value(sparse_index)
+    }
+}
+
+/// Trait defining a sparse valued matrix with reference access to values.
+///
+/// Unlike [`SparseValuedMatrix`] which returns cloned values, this trait
+/// provides direct references to the stored values, avoiding copies for
+/// non-`Copy` types.
+pub trait SparseValuedMatrixRef: SparseValuedMatrix {
+    /// Iterator over references to the sparse values of the matrix.
+    type SparseValuesRef<'a>: Iterator<Item = &'a Self::Value>
+        + DoubleEndedIterator<Item = &'a Self::Value>
+    where
+        Self: 'a,
+        Self::Value: 'a;
+
+    /// Returns an iterator of references to the sparse values of the matrix.
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_>;
+
+    /// Returns an iterator over the sparse entries (coordinates and value
+    /// references) of the matrix.
+    #[inline]
+    fn sparse_entries(&self) -> impl Iterator<Item = (Self::Coordinates, &Self::Value)> {
+        self.sparse_coordinates().zip(self.sparse_values_ref())
+    }
+}
+
+impl<M: SparseValuedMatrixRef> SparseValuedMatrixRef for &M {
+    type SparseValuesRef<'a>
+        = M::SparseValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        (*self).sparse_values_ref()
+    }
+}
+
+/// Trait defining a sized sparse valued matrix with reference access to values.
+pub trait SizedSparseValuedMatrixRef: SizedSparseValuedMatrix + SparseValuedMatrixRef {
+    /// Returns a reference to the value associated to the provided sparse
+    /// index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the value to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value;
+
+    /// Returns a reference to the value at the provided sparse index, or
+    /// `None` if the index is out of bounds.
+    #[inline]
+    fn try_select_value(&self, sparse_index: Self::SparseIndex) -> Option<&Self::Value> {
+        if sparse_index < self.number_of_defined_values() {
+            Some(self.select_value_ref(sparse_index))
+        } else {
+            None
+        }
+    }
+}
+
+impl<M: SizedSparseValuedMatrixRef> SizedSparseValuedMatrixRef for &M {
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        (*self).select_value_ref(sparse_index)
+    }
+}
+
+/// Trait defining a sparse valued matrix with mutable access to values.
+///
+/// This trait allows modifying stored values in-place without changing the
+/// sparse structure (row offsets and column indices) of the matrix.
+pub trait SparseValuedMatrixMut: SparseValuedMatrixRef {
+    /// Iterator over mutable references to the sparse values of the matrix.
+    type SparseValuesMut<'a>: Iterator<Item = &'a mut Self::Value>
+        + DoubleEndedIterator<Item = &'a mut Self::Value>
+    where
+        Self: 'a,
+        Self::Value: 'a;
+
+    /// Returns an iterator of mutable references to the sparse values of the
+    /// matrix.
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_>;
+
+    /// Returns an iterator over the sparse entries (coordinates and mutable
+    /// value references) of the matrix.
+    ///
+    /// This is a required method because the default implementation would
+    /// create conflicting borrows between `sparse_coordinates` and
+    /// `sparse_values_mut`. Concrete types implement this via split borrows.
+    fn sparse_entries_mut(&mut self)
+    -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)>;
+}
+
+/// Trait defining a sized sparse valued matrix with mutable access to values.
+pub trait SizedSparseValuedMatrixMut: SizedSparseValuedMatrixRef + SparseValuedMatrixMut {
+    /// Returns a mutable reference to the value associated to the provided
+    /// sparse index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the value to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value;
+
+    /// Returns a mutable reference to the value at the provided sparse index,
+    /// or `None` if the index is out of bounds.
+    #[inline]
+    fn try_select_value_mut(
+        &mut self,
+        sparse_index: Self::SparseIndex,
+    ) -> Option<&mut Self::Value> {
+        if sparse_index < self.number_of_defined_values() {
+            Some(self.select_value_mut(sparse_index))
+        } else {
+            None
+        }
+    }
+
+    /// Applies a function to the value at the provided sparse index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    #[inline]
+    fn update_value_at(
+        &mut self,
+        sparse_index: Self::SparseIndex,
+        f: impl FnOnce(&mut Self::Value),
+    ) {
+        f(self.select_value_mut(sparse_index));
+    }
+}
+
 /// Trait defining a bi-dimensional matrix.
 pub trait ImplicitValuedSparseMatrix: SparseValuedMatrix + ImplicitValuedMatrix {
     /// Iterator over the sparse columns of a row.
