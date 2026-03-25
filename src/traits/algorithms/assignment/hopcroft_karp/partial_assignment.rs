@@ -184,3 +184,88 @@ impl<M: SparseMatrix2D + ?Sized, Distance: Number> PartialAssignment<'_, M, Dist
         }
     }
 }
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use super::*;
+    use crate::{
+        impls::CSR2D,
+        traits::{MatrixMut, SparseMatrixMut},
+    };
+
+    type TestCSR = CSR2D<usize, usize, usize>;
+
+    fn build_csr(shape: (usize, usize), edges: &[(usize, usize)]) -> TestCSR {
+        let mut csr: TestCSR = SparseMatrixMut::with_sparse_shaped_capacity(shape, edges.len());
+        for &(row, column) in edges {
+            MatrixMut::add(&mut csr, (row, column)).expect("insert edge");
+        }
+        csr
+    }
+
+    #[test]
+    fn test_dfs_none_returns_true_without_mutation() {
+        let csr = build_csr((2, 2), &[(0, 0)]);
+        let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);
+
+        assert!(assignment.dfs(None));
+        assert_eq!(assignment.predecessors, vec![None, None]);
+        assert_eq!(assignment.successors, vec![None, None]);
+    }
+
+    #[test]
+    fn test_dfs_backtracks_to_false_and_marks_rows_exhausted() {
+        let csr = build_csr((2, 1), &[(0, 0), (1, 0)]);
+        let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);
+
+        assignment.predecessors[0] = Some(0);
+        assignment.successors[0] = Some(0);
+        assignment.left_distances[0] = 1;
+        assignment.left_distances[1] = 0;
+        assignment.null_distance = 2;
+
+        assert!(!assignment.dfs(Some(1)));
+        assert_eq!(assignment.successors, vec![Some(0), None]);
+        assert_eq!(assignment.predecessors, vec![Some(0)]);
+        assert_eq!(assignment.left_distances[0], u8::MAX);
+        assert_eq!(assignment.left_distances[1], u8::MAX);
+    }
+
+    #[test]
+    fn test_dfs_commits_multi_hop_augmenting_path() {
+        let csr = build_csr((2, 2), &[(0, 0), (0, 1), (1, 0)]);
+        let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);
+
+        assignment.predecessors[0] = Some(0);
+        assignment.successors[0] = Some(0);
+        assignment.left_distances[0] = 1;
+        assignment.left_distances[1] = 0;
+        assignment.null_distance = 2;
+
+        assert!(assignment.dfs(Some(1)));
+        assert_eq!(assignment.successors, vec![Some(1), Some(0)]);
+        assert_eq!(assignment.predecessors, vec![Some(1), Some(0)]);
+    }
+
+    #[test]
+    fn test_bfs_returns_insufficient_distance_type_for_long_augmenting_chain() {
+        let depth = usize::from(u8::MAX) - 1;
+        let mut edges = Vec::with_capacity(depth.saturating_mul(2));
+        edges.push((0, 0));
+        for row in 1..=depth {
+            edges.push((row, row - 1));
+            if row < depth {
+                edges.push((row, row));
+            }
+        }
+        let csr = build_csr((depth + 1, depth), &edges);
+        let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);
+
+        for row in 1..=depth {
+            assignment.successors[row] = Some(row - 1);
+            assignment.predecessors[row - 1] = Some(row);
+        }
+
+        assert_eq!(assignment.bfs(), Err(HopcroftKarpError::InsufficientDistanceType));
+    }
+}

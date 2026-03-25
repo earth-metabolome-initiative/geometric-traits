@@ -164,3 +164,33 @@ fn test_labeled_subset_of_unlabeled() {
         }
     }
 }
+
+#[test]
+fn test_labeled_modular_product_filtered_and_into_parts() {
+    let g1 = build_valued(3, &[(0, 1, 1), (1, 2, 2)]);
+    let g2 = build_valued(3, &[(0, 1, 3), (1, 2, 5)]);
+
+    let result = g1.labeled_modular_product_filtered(
+        &g2,
+        |left, right| left == right,
+        |a, b| {
+            match (a, b) {
+                (None, None) => true,
+                (Some(left), Some(right)) => left % 2 == right % 2,
+                _ => false,
+            }
+        },
+    );
+
+    assert_eq!(result.vertex_pairs(), &[(0, 0), (1, 1), (2, 2)]);
+    assert_eq!(result.matrix().order(), 3);
+    assert!(result.matrix().has_entry(0, 1), "odd labels should be compatible");
+    assert!(!result.matrix().has_entry(1, 2), "even/odd labels should be incompatible");
+
+    let expected_pairs = result.vertex_pairs().to_vec();
+    let expected_matrix = result.matrix().clone();
+    let (matrix, pairs) = result.into_parts();
+
+    assert_eq!(pairs, expected_pairs);
+    assert_eq!(matrix, expected_matrix);
+}

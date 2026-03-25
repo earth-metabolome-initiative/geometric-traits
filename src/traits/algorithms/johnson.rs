@@ -326,3 +326,60 @@ pub trait Johnson: SquareMatrix + SparseMatrix2D + Sized {
 }
 
 impl<M: SquareMatrix + SparseMatrix2D> Johnson for M {}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use lender::prelude::Lender;
+
+    use super::*;
+    use crate::{
+        impls::CSR2D,
+        traits::{MatrixMut, SparseMatrixMut},
+    };
+
+    type TestSquareCSR = crate::impls::SquareCSR2D<CSR2D<usize, usize, usize>>;
+
+    fn build_square_csr(order: usize, edges: &[(usize, usize)]) -> TestSquareCSR {
+        let mut matrix: TestSquareCSR =
+            SparseMatrixMut::with_sparse_shaped_capacity(order, edges.len());
+        for &(row, column) in edges {
+            MatrixMut::add(&mut matrix, (row, column)).expect("insert edge");
+        }
+        matrix
+    }
+
+    #[test]
+    fn test_inner_iterator_returns_none_and_marks_exhaustion_for_dag() {
+        let matrix = build_square_csr(4, &[(0, 1), (1, 2), (2, 3)]);
+        let mut iterator = InnerJohnsonIterator::from(&matrix);
+
+        assert!(Lender::next(&mut iterator).is_none());
+        assert_eq!(iterator.data.current_root_id, matrix.order());
+    }
+
+    #[test]
+    fn test_unblock_skips_duplicate_nodes_once_they_are_already_cleared() {
+        let matrix = build_square_csr(3, &[(0, 1), (1, 0), (1, 2), (2, 1)]);
+        let bounded = LowerBoundedSquareMatrix::new(&matrix, 0).expect("bounded matrix");
+        let component = SubsetSquareMatrix::with_sorted_indices(bounded, vec![0, 1, 2]);
+        let mut data = Data::from(&matrix);
+        data.blocked = vec![true, true, true];
+        data.block_map[0] = vec![1, 2];
+        data.block_map[2] = vec![1];
+
+        let mut search = CircuitSearch {
+            data: &mut data,
+            current_root_id: 0,
+            current_component: &component,
+            row_iterators: Vec::new(),
+            found_circuit_stack: Vec::new(),
+        };
+
+        search.unblock(0);
+
+        assert_eq!(search.data.blocked, vec![false, false, false]);
+        assert!(search.data.block_map[0].is_empty());
+        assert!(search.data.block_map[1].is_empty());
+        assert!(search.data.block_map[2].is_empty());
+    }
+}
