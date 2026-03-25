@@ -259,11 +259,7 @@ where
     }
 
     #[inline]
-    fn try_rank(
-        &self,
-        row: Self::RowIndex,
-        column: Self::ColumnIndex,
-    ) -> Option<Self::SparseIndex>
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
     where
         Self::ColumnIndex: PartialEq,
     {
@@ -350,8 +346,7 @@ where
 
 impl<M> SizedSparseValuedMatrixRef for SymmetricCSR2D<M>
 where
-    M: SizedSparseValuedMatrixRef
-        + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+    M: SizedSparseValuedMatrixRef + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
 {
     #[inline]
     fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
@@ -400,8 +395,7 @@ where
 
 impl<M> SizedSparseValuedMatrixMut for SymmetricCSR2D<M>
 where
-    M: SizedSparseValuedMatrixMut
-        + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+    M: SizedSparseValuedMatrixMut + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
 {
     #[inline]
     fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value {

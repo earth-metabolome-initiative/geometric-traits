@@ -188,19 +188,11 @@ pub trait SizedSparseMatrix2D: SizedRowsSparseMatrix2D + RankSelectSparseMatrix 
     /// * `row`: The row index.
     /// * `column`: The column index.
     #[inline]
-    fn try_rank(
-        &self,
-        row: Self::RowIndex,
-        column: Self::ColumnIndex,
-    ) -> Option<Self::SparseIndex>
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
     where
         Self::ColumnIndex: PartialEq,
     {
-        if self.has_entry(row, column) {
-            Some(self.rank(&(row, column)))
-        } else {
-            None
-        }
+        if self.has_entry(row, column) { Some(self.rank(&(row, column))) } else { None }
     }
 }
 

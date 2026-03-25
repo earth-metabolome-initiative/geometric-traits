@@ -257,11 +257,7 @@ where
     }
 
     #[inline]
-    fn try_rank(
-        &self,
-        row: Self::RowIndex,
-        column: Self::ColumnIndex,
-    ) -> Option<Self::SparseIndex>
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
     where
         Self::ColumnIndex: PartialEq,
     {
@@ -490,7 +486,9 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrix2DRef
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
-    Self: SizedSparseMatrix2D + SparseValuedMatrix2D<Value = Value> + SparseValuedMatrixRef<Value = Value>,
+    Self: SizedSparseMatrix2D
+        + SparseValuedMatrix2D<Value = Value>
+        + SparseValuedMatrixRef<Value = Value>,
 {
     type SparseRowValuesRef<'a>
         = core::slice::Iter<'a, Value>
@@ -510,8 +508,7 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value> SparseValuedMatrixMut
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
     Self: SparseValuedMatrixRef<Value = Value>,
-    CSR2D<SparseIndex, RowIndex, ColumnIndex>:
-        SparseMatrix<Coordinates = Self::Coordinates>,
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: SparseMatrix<Coordinates = Self::Coordinates>,
 {
     type SparseValuesMut<'a>
         = core::slice::IterMut<'a, Value>
@@ -551,9 +548,11 @@ where
     SparseIndex: AsPrimitive<usize>,
     RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
     ColumnIndex: PartialEq,
-    CSR2D<SparseIndex, RowIndex, ColumnIndex>:
-        SizedSparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex, SparseIndex = SparseIndex>
-        + SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: SizedSparseMatrix2D<
+            RowIndex = RowIndex,
+            ColumnIndex = ColumnIndex,
+            SparseIndex = SparseIndex,
+        > + SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     type SparseRowValuesMut<'a>
         = core::slice::IterMut<'a, Value>
@@ -1032,8 +1031,8 @@ mod tests {
         matrix.add((0, 0, 1)).unwrap();
         matrix.add((0, 1, 2)).unwrap();
         matrix.add((0, 2, 3)).unwrap();
-        for (i, v) in matrix.sparse_values_mut().rev().enumerate() {
-            *v = (i as i32 + 1) * 100;
+        for (new_value, v) in [100, 200, 300].into_iter().zip(matrix.sparse_values_mut().rev()) {
+            *v = new_value;
         }
         let values: Vec<i32> = matrix.sparse_values().collect();
         assert_eq!(values, vec![300, 200, 100]);

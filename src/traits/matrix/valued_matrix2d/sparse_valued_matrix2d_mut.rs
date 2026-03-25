@@ -7,9 +7,7 @@ use crate::traits::{SparseValuedMatrix2DRef, SparseValuedMatrixMut, ValuedMatrix
 ///
 /// This trait allows modifying stored values in-place without changing the
 /// sparse structure (row offsets and column indices) of the matrix.
-pub trait SparseValuedMatrix2DMut:
-    SparseValuedMatrix2DRef + SparseValuedMatrixMut
-{
+pub trait SparseValuedMatrix2DMut: SparseValuedMatrix2DRef + SparseValuedMatrixMut {
     /// Iterator over mutable references to the values of a row.
     type SparseRowValuesMut<'a>: Iterator<Item = &'a mut <Self as ValuedMatrix>::Value>
         + DoubleEndedIterator<Item = &'a mut <Self as ValuedMatrix>::Value>
@@ -51,8 +49,7 @@ pub trait SparseValuedMatrix2DMut:
     where
         Self::ColumnIndex: PartialEq,
     {
-        self.sparse_value_at_mut(row, column)
-            .map(|v| core::mem::replace(v, value))
+        self.sparse_value_at_mut(row, column).map(|v| core::mem::replace(v, value))
     }
 
     /// Applies a function to the value at the given row and column.

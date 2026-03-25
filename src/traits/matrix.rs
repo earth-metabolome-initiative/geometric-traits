@@ -338,9 +338,7 @@ pub trait SparseValuedMatrixRef: SparseValuedMatrix {
     /// Returns an iterator over the sparse entries (coordinates and value
     /// references) of the matrix.
     #[inline]
-    fn sparse_entries(
-        &self,
-    ) -> impl Iterator<Item = (Self::Coordinates, &Self::Value)> {
+    fn sparse_entries(&self) -> impl Iterator<Item = (Self::Coordinates, &Self::Value)> {
         self.sparse_coordinates().zip(self.sparse_values_ref())
     }
 }
@@ -360,7 +358,8 @@ impl<M: SparseValuedMatrixRef> SparseValuedMatrixRef for &M {
 
 /// Trait defining a sized sparse valued matrix with reference access to values.
 pub trait SizedSparseValuedMatrixRef: SizedSparseValuedMatrix + SparseValuedMatrixRef {
-    /// Returns a reference to the value associated to the provided sparse index.
+    /// Returns a reference to the value associated to the provided sparse
+    /// index.
     ///
     /// # Arguments
     ///
@@ -412,9 +411,8 @@ pub trait SparseValuedMatrixMut: SparseValuedMatrixRef {
     /// This is a required method because the default implementation would
     /// create conflicting borrows between `sparse_coordinates` and
     /// `sparse_values_mut`. Concrete types implement this via split borrows.
-    fn sparse_entries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)>;
+    fn sparse_entries_mut(&mut self)
+    -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)>;
 }
 
 /// Trait defining a sized sparse valued matrix with mutable access to values.
