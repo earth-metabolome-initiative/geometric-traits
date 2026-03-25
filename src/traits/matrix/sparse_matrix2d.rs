@@ -194,6 +194,24 @@ pub trait SizedSparseMatrix2D: SizedRowsSparseMatrix2D + RankSelectSparseMatrix 
     {
         if self.has_entry(row, column) { Some(self.rank(&(row, column))) } else { None }
     }
+
+    /// Returns the sparse index of the entry at the given row and column, or
+    /// `None` if the entry does not exist.
+    ///
+    /// This is a naming alias for [`try_rank`](Self::try_rank) intended for
+    /// callers that think in terms of sparse storage slots rather than
+    /// rank/select terminology.
+    #[inline]
+    fn sparse_index(
+        &self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.try_rank(row, column)
+    }
 }
 
 /// Trait defining a sparse matrix which supports efficient operations on
