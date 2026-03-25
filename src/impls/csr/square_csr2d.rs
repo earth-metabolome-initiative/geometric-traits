@@ -319,11 +319,7 @@ where
     }
 
     #[inline]
-    fn try_rank(
-        &self,
-        row: Self::RowIndex,
-        column: Self::ColumnIndex,
-    ) -> Option<Self::SparseIndex>
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
     where
         Self::ColumnIndex: PartialEq,
     {
