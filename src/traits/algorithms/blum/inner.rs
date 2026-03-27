@@ -893,20 +893,14 @@ impl Mdfs {
         self.bs_queue.clear();
         self.bs_dl.clear();
 
-        // Round 1: process R (weak back edges) and E (cross/forward/back).
+        // Round 1: process R (weak back edges).
         for i in (0..self.r[v_a].len()).rev() {
             let q_b = self.r[v_a][i];
             if !self.deleted[q_b] {
                 self.constrl(q_b, v_a, v_b, v_a);
             }
         }
-        for i in (0..self.e[v_a].len()).rev() {
-            let q_b = self.e[v_a][i];
-            if !self.vis_check(q_b) && !self.deleted[q_b] {
-                self.constrl(q_b, v_a, v_b, v_a);
-            }
-        }
-        // Subsequent rounds: process E entries of newly discovered nodes.
+        // Round 2 (BFS-through-Q): process E entries of discovered nodes.
         while let Some(k_a) = self.bs_queue.pop_front() {
             for i in (0..self.e[k_a].len()).rev() {
                 let q_b = self.e[k_a][i];
@@ -916,14 +910,12 @@ impl Mdfs {
             }
         }
 
-        // Assign L labels if v_A has never been pushed.
-        if !self.ever[v_a] {
-            for i in 0..self.bs_dl.len() {
-                let y_a = self.bs_dl[i];
-                self.l[y_a] = Some(v_a);
-                self.l_ever[y_a] = true;
-                self.l_rev[v_a].push(y_a);
-            }
+        // Assign L labels unconditionally (testing without ever guard).
+        for i in 0..self.bs_dl.len() {
+            let y_a = self.bs_dl[i];
+            self.l[y_a] = Some(v_a);
+            self.l_ever[y_a] = true;
+            self.l_rev[v_a].push(y_a);
         }
     }
 
