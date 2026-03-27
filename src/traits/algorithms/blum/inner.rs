@@ -652,9 +652,7 @@ impl Mdfs {
     /// Single-path MDFS on the full G_M (fallback mode).
     ///
     /// Searches for one strongly simple s→t path.  When t is reached,
-    /// the path is reconstructed and validated for strong simplicity
-    /// (Bug 1 workaround).  If the path fails validation, the search
-    /// backtracks and continues looking for an alternative.
+    /// the path is reconstructed and the matching augmented along it.
     fn run(&mut self, mate: &mut [Option<usize>]) -> bool {
         self.do_push(self.s, self.s);
         loop {
@@ -662,12 +660,10 @@ impl Mdfs {
                 return false;
             };
             if top == self.t {
-                if self.augment(mate) {
-                    return true;
-                }
-                // Path was not strongly simple — backtrack and keep searching.
-                self.do_pop(top);
-            } else if !self.step(top) {
+                self.augment(mate);
+                return true;
+            }
+            if !self.step(top) {
                 self.do_pop(top);
             }
         }
@@ -677,8 +673,8 @@ impl Mdfs {
     ///
     /// Finds as many vertex-disjoint augmenting paths as possible in
     /// the subgraph defined by the MBFS levels.  Each found path is
-    /// validated, augmented, and its vertices deleted from the search
-    /// space.  Returns the number of augmenting paths found.
+    /// augmented, its vertices deleted from the search space, and the
+    /// stack retreated to s.  Returns the number of augmenting paths found.
     fn run_multi_path(&mut self, mate: &mut [Option<usize>]) -> usize {
         let mut count = 0;
         self.do_push(self.s, self.s);
@@ -687,13 +683,9 @@ impl Mdfs {
                 return count;
             };
             if top == self.t {
-                if self.augment_and_delete(mate) {
-                    self.retreat_to_s();
-                    count += 1;
-                } else {
-                    // Path was not strongly simple — backtrack.
-                    self.do_pop(top);
-                }
+                self.augment_and_delete(mate);
+                self.retreat_to_s();
+                count += 1;
                 continue;
             }
             if !self.step(top) {
@@ -996,39 +988,20 @@ impl Mdfs {
 
     // ── Path reconstruction and augmentation ─────────────────────────
 
-    /// Reconstructs the s→t path and validates it for strong simplicity.
-    ///
-    /// Returns the path as a `Vec<usize>` of G_M nodes (s first, t last),
-    /// or an empty `Vec` if the path visits any original vertex on both
-    /// its A-side and B-side (Bug 1 workaround).
-    fn validated_path(&self) -> Vec<usize> {
-        let n2 = 2 * self.n;
+    /// Reconstructs the s→t path as a `Vec<usize>` of G_M nodes
+    /// (s first, t last).
+    fn reconstr_s_t_path(&self) -> Vec<usize> {
         let mut path: Vec<usize> = Vec::new();
         self.reconstr_path(self.t, self.s, &mut path);
         path.reverse();
-        // Strong-simplicity check: each original vertex appears at most once.
-        let mut seen = vec![false; self.n];
-        for &v in &path {
-            if v < n2 {
-                let o = orig(v);
-                if seen[o] {
-                    return Vec::new(); // not strongly simple
-                }
-                seen[o] = true;
-            }
-        }
         path
     }
 
-    /// Single-path augmentation: reconstructs the path, validates it,
-    /// and flips the matching along it.  Returns `false` if the path
-    /// fails strong-simplicity validation.
+    /// Single-path augmentation: reconstructs the path and flips the
+    /// matching along it.
     fn augment(&self, mate: &mut [Option<usize>]) -> bool {
         let n2 = 2 * self.n;
-        let path = self.validated_path();
-        if path.is_empty() {
-            return false;
-        }
+        let path = self.reconstr_s_t_path();
         let orig_path: Vec<usize> = path.iter().filter(|&&v| v < n2).map(|&v| orig(v)).collect();
         for pair in orig_path.chunks_exact(2) {
             mate[pair[0]] = Some(pair[1]);
@@ -1037,15 +1010,11 @@ impl Mdfs {
         true
     }
 
-    /// Multi-path augmentation: reconstructs and validates the path,
-    /// marks all path vertices as deleted, and flips the matching.
-    /// Returns `false` if the path fails strong-simplicity validation.
-    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) -> bool {
+    /// Multi-path augmentation: reconstructs the path, marks all path
+    /// vertices as deleted, and flips the matching.
+    fn augment_and_delete(&mut self, mate: &mut [Option<usize>]) {
         let n2 = 2 * self.n;
-        let path = self.validated_path();
-        if path.is_empty() {
-            return false;
-        }
+        let path = self.reconstr_s_t_path();
         for &v in &path {
             if v < n2 {
                 self.deleted[v] = true;
@@ -1057,7 +1026,6 @@ impl Mdfs {
             mate[pair[0]] = Some(pair[1]);
             mate[pair[1]] = Some(pair[0]);
         }
-        true
     }
 
     /// Pops the stack back to s after a successful augmentation in
