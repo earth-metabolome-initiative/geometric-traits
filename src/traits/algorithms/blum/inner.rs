@@ -335,12 +335,6 @@ fn mbfs(
     }
 
     // ── Part 2: process bridges in order of k ───────────────────────
-    //
-    // Bridges are sorted by k before processing.  New bridges appended
-    // during Part 2 (by mbfs_scan) are at the tail and processed in
-    // subsequent iterations.  In rare pathological cases a new bridge
-    // could have k < current position, causing a suboptimal (but not
-    // incorrect) level assignment — the MDFS fallback handles this.
 
     bridges.sort_unstable_by_key(|&(_, _, k)| k);
 
@@ -358,6 +352,7 @@ fn mbfs(
 
         let mut px = uf_find(uf, x_z);
         let mut py = uf_find(uf, y_z);
+        let prev_len = bridges.len();
 
         while px != py {
             if level[px] == INF || level[py] == INF {
@@ -419,6 +414,12 @@ fn mbfs(
             } else {
                 py = uf_find(uf, py);
             }
+        }
+
+        // Re-sort unprocessed bridges if new ones were appended
+        // during back-path processing, maintaining k-order.
+        if bridges.len() > prev_len {
+            bridges[bi..].sort_unstable_by_key(|&(_, _, k)| k);
         }
     }
 }
@@ -955,9 +956,11 @@ impl Mdfs {
             if self.l_ever[y_a] {
                 // y_A was previously labeled: merge D-sets and jump.
                 let r_a = self.find_rep(y_a);
-                if r_a != lcur_root {
-                    self.drep[r_a] = lcur_root;
+                if r_a == lcur_root {
+                    // Already in T_v — stop (paper's stopping condition).
+                    return;
                 }
+                self.drep[r_a] = lcur_root;
                 let r_b = twin(r_a);
                 if r_b != stop_b && !self.vis_check(r_b) && !self.deleted[r_b] {
                     z = r_b;
