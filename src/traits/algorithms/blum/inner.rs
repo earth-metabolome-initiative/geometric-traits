@@ -374,9 +374,35 @@ fn mbfs(
                     par[tw] = adv;
                     ebar[adv].push(tw);
 
-                    mbfs_scan(tw, adj, level, level1, par, queue, &mut bridges, n, n2, t, false, ebar);
+                    mbfs_scan(
+                        tw,
+                        adj,
+                        level,
+                        level1,
+                        par,
+                        queue,
+                        &mut bridges,
+                        n,
+                        n2,
+                        t,
+                        false,
+                        ebar,
+                    );
                     while let Some(u) = queue.pop_front() {
-                        mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, false, ebar);
+                        mbfs_scan(
+                            u,
+                            adj,
+                            level,
+                            level1,
+                            par,
+                            queue,
+                            &mut bridges,
+                            n,
+                            n2,
+                            t,
+                            false,
+                            ebar,
+                        );
                     }
                 }
             }
@@ -627,13 +653,7 @@ impl Mdfs {
     ///
     /// The `ebar` adjacency lists contain only edges in the layered
     /// subgraph built by MBFS, so no level check is needed in `step`.
-    fn new_layered(
-        sz: usize,
-        s: usize,
-        t: usize,
-        n: usize,
-        ebar: Vec<Vec<usize>>,
-    ) -> Self {
+    fn new_layered(sz: usize, s: usize, t: usize, n: usize, ebar: Vec<Vec<usize>>) -> Self {
         Self::new(sz, s, t, n, ebar)
     }
 
