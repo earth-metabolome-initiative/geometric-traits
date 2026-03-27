@@ -141,11 +141,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 &mut self.ebar,
             );
             if self.mbfs_level[t] == INF {
-                // MBFS could not reach t — fall back to per-vertex MDFS.
-                if !self.fallback_per_vertex(sz) {
-                    break;
-                }
-                continue;
+                break;
             }
 
             // Layered MDFS searches Ē_M (ebar), not the full G_M.
@@ -831,6 +827,7 @@ impl Mdfs {
     /// [`backward_search`](Self::backward_search) to compute L labels.
     /// Also pops the paired A-side node if it was pushed as part of a
     /// matched-edge tree step.
+    #[inline]
     fn do_pop(&mut self, top: usize) {
         if top != self.s && !is_a(top) && top < 2 * self.n && !self.deleted[top] {
             self.backward_search(top);
