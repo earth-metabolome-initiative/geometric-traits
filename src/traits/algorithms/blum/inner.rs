@@ -78,6 +78,9 @@ pub(super) struct BlumState<'a, M: SparseSquareMatrix + ?Sized> {
     mbfs_uf: Vec<usize>,
     /// Reusable BFS queue for MBFS.
     mbfs_queue: VecDeque<usize>,
+    /// Layered edge set Ē_M built by MBFS: `ebar[u]` lists the G_M
+    /// neighbors of `u` that belong to the layered subgraph.
+    ebar: Vec<Vec<usize>>,
 }
 
 impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
@@ -95,6 +98,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
             mbfs_par: vec![usize::MAX; sz],
             mbfs_uf: (0..sz).collect(),
             mbfs_queue: VecDeque::new(),
+            ebar: vec![Vec::new(); sz],
         }
     }
 
@@ -122,7 +126,8 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
         for _ in 0..self.n {
             let (s, t) = self.fill_gm();
 
-            // MBFS on G_M to compute shortest strongly simple distances.
+            // MBFS on G_M to compute shortest strongly simple distances
+            // and build the layered edge set Ē_M.
             mbfs(
                 &self.adj,
                 s,
@@ -133,6 +138,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 &mut self.mbfs_par,
                 &mut self.mbfs_uf,
                 &mut self.mbfs_queue,
+                &mut self.ebar,
             );
             if self.mbfs_level[t] == INF {
                 // MBFS could not reach t — fall back to per-vertex MDFS.
@@ -142,16 +148,14 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
                 continue;
             }
 
-            // Take ownership of adj and level for MDFS.
-            let adj = core::mem::take(&mut self.adj);
-            let level = core::mem::take(&mut self.mbfs_level);
+            // Layered MDFS searches Ē_M (ebar), not the full G_M.
+            let ebar = core::mem::take(&mut self.ebar);
 
-            let mut mdfs = Mdfs::new_layered(sz, s, t, self.n, adj, level);
+            let mut mdfs = Mdfs::new_layered(sz, s, t, self.n, ebar);
             let found = mdfs.run_multi_path(&mut self.mate);
 
-            // Recover buffers for next phase.
-            self.adj = mdfs.take_adj();
-            self.mbfs_level = mdfs.take_level();
+            // Recover ebar buffer for next phase.
+            self.ebar = mdfs.take_adj();
 
             if found == 0 {
                 // Fallback: layered MDFS found no paths. Try per-vertex.
@@ -261,6 +265,7 @@ fn mbfs(
     par: &mut [usize],
     uf: &mut [usize],
     queue: &mut VecDeque<usize>,
+    ebar: &mut [Vec<usize>],
 ) {
     let n2 = 2 * n;
 
@@ -278,6 +283,9 @@ fn mbfs(
         *entry = index;
     }
     queue.clear();
+    for list in ebar.iter_mut() {
+        list.clear();
+    }
 
     // Flat bridge storage: (x, y, k).  Sorted by k before Part 2.
     let mut bridges: Vec<(usize, usize, usize)> = Vec::new();
@@ -293,12 +301,13 @@ fn mbfs(
             if v < n && level1[v] == INF {
                 level1[v] = 1;
             }
+            ebar[s].push(w);
             queue.push_back(w);
         }
     }
 
     while let Some(u) = queue.pop_front() {
-        mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, true);
+        mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, true, ebar);
     }
 
     // ── Generate A-side bridge pairs from matched edges ─────────────
@@ -363,10 +372,11 @@ fn mbfs(
                     let new_lev = sum + 1 - level[adv];
                     level[tw] = new_lev;
                     par[tw] = adv;
+                    ebar[adv].push(tw);
 
-                    mbfs_scan(tw, adj, level, level1, par, queue, &mut bridges, n, n2, t, false);
+                    mbfs_scan(tw, adj, level, level1, par, queue, &mut bridges, n, n2, t, false, ebar);
                     while let Some(u) = queue.pop_front() {
-                        mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, false);
+                        mbfs_scan(u, adj, level, level1, par, queue, &mut bridges, n, n2, t, false, ebar);
                     }
                 }
             }
@@ -409,6 +419,7 @@ fn mbfs_scan(
     gm_limit: usize,
     sink: usize,
     first_level_only: bool,
+    ebar: &mut [Vec<usize>],
 ) {
     let vertex_level = level[gm_vertex];
     if vertex_level == INF || gm_vertex == sink {
@@ -428,6 +439,7 @@ fn mbfs_scan(
                 if level[sink] == INF {
                     level[sink] = vertex_level + 1;
                     par[sink] = gm_vertex;
+                    ebar[gm_vertex].push(sink);
                 }
                 continue;
             }
@@ -441,6 +453,7 @@ fn mbfs_scan(
                 if neighbor_vertex < vertex_count && level1[neighbor_vertex] == INF {
                     level1[neighbor_vertex] = vertex_level + 1;
                 }
+                ebar[gm_vertex].push(neighbor);
                 queue.push_back(neighbor);
             }
         }
@@ -450,6 +463,7 @@ fn mbfs_scan(
                 if level[sink] == INF {
                     level[sink] = vertex_level + 1;
                     par[sink] = gm_vertex;
+                    ebar[gm_vertex].push(sink);
                 }
                 continue;
             }
@@ -470,6 +484,7 @@ fn mbfs_scan(
                 if level1[neighbor_vertex] == INF {
                     level1[neighbor_vertex] = vertex_level + 1;
                 }
+                ebar[gm_vertex].push(neighbor_a);
                 queue.push_back(neighbor_a);
             } else if mate_side_level != INF
                 && ((candidate_level == INF && mate_side_level <= vertex_level)
@@ -524,10 +539,10 @@ struct Mdfs {
     /// DFS parent pointer: `par[v]` = the node that pushed v.
     par: Vec<usize>,
 
-    /// Label set L: `l[w_A] = Some(u_A)` means the extensible edge
-    /// from w_A reaches u_A.  See Blum 2015 Section 2.3.
-    l: Vec<Option<usize>>,
-    /// Reverse map for L: `l_rev[u_A]` lists all w_A with `l[w_A] = u_A`,
+    /// Label set L: `l[w_A]` is the set of extensible-edge targets
+    /// reachable from w_A.  See Blum 2016 Section 2.3.
+    l: Vec<Vec<usize>>,
+    /// Reverse map for L: `l_rev[u_A]` lists all w_A with `u_A ∈ l[w_A]`,
     /// used by [`clear_l_sources`](Self::clear_l_sources).
     l_rev: Vec<Vec<usize>>,
     /// `l_ever[w]` = true iff the L entry for `w` was ever set
@@ -573,10 +588,6 @@ struct Mdfs {
     /// Nodes discovered during backward search that will receive L labels.
     bs_dl: Vec<usize>,
 
-    /// Optional MBFS level array.  When `Some`, the MDFS is restricted
-    /// to the layered subgraph (edges where `level[w] == level[top] + 1`).
-    /// When `None`, the MDFS runs on the full G_M (fallback mode).
-    level: Option<Vec<usize>>,
     /// `deleted[v]` = true iff v was part of a previously augmented path
     /// in this phase (multi-path mode only).
     deleted: Vec<bool>,
@@ -595,7 +606,7 @@ impl Mdfs {
             ever: vec![false; sz],
             ink: vec![false; sz],
             par: vec![usize::MAX; sz],
-            l: vec![None; sz],
+            l: vec![Vec::new(); sz],
             l_rev: vec![Vec::new(); sz],
             l_ever: vec![false; sz],
             r: vec![Vec::new(); sz],
@@ -608,34 +619,27 @@ impl Mdfs {
             vis_gen: 0,
             bs_queue: VecDeque::new(),
             bs_dl: Vec::new(),
-            level: None,
             deleted: vec![false; sz],
         }
     }
 
-    /// Creates a new MDFS restricted to the layered subgraph defined
-    /// by the MBFS `level` array.
+    /// Creates a new MDFS restricted to the layered subgraph Ē_M.
+    ///
+    /// The `ebar` adjacency lists contain only edges in the layered
+    /// subgraph built by MBFS, so no level check is needed in `step`.
     fn new_layered(
         sz: usize,
         s: usize,
         t: usize,
         n: usize,
-        adj: Vec<Vec<usize>>,
-        level: Vec<usize>,
+        ebar: Vec<Vec<usize>>,
     ) -> Self {
-        let mut mdfs = Self::new(sz, s, t, n, adj);
-        mdfs.level = Some(level);
-        mdfs
+        Self::new(sz, s, t, n, ebar)
     }
 
     /// Returns the adjacency lists, transferring ownership back to the caller.
     fn take_adj(&mut self) -> Vec<Vec<usize>> {
         core::mem::take(&mut self.adj)
-    }
-
-    /// Returns the level array, transferring ownership back to the caller.
-    fn take_level(&mut self) -> Vec<usize> {
-        self.level.take().unwrap_or_default()
     }
 
     /// Single-path MDFS on the full G_M (fallback mode).
@@ -720,22 +724,14 @@ impl Mdfs {
                 continue;
             }
 
-            if let Some(ref lev) = self.level {
-                let lt = lev[top];
-                let lw = lev[w];
-                if lt == INF || lw == INF || lw != lt + 1 {
-                    continue;
-                }
-            }
-
             if w == self.t {
                 self.do_push(self.t, top);
                 return true;
             }
 
-            // Case 1 / 2.3.ii from s: tree edge to unvisited node.
+            // Case 1 / 2.3.ii from s: tree edge.
             if top == self.s {
-                if !self.ever[w] {
+                if !self.deleted[w] {
                     self.do_push(w, top);
                     return true;
                 }
@@ -744,7 +740,7 @@ impl Mdfs {
 
             // Case 1: tree edge (A-side top → B-side w via matched edge).
             if is_a(top) {
-                if !self.ever[w] {
+                if !self.deleted[w] {
                     self.do_push(w, top);
                     return true;
                 }
@@ -764,11 +760,11 @@ impl Mdfs {
             // Case 2.2: weak back edge — w_A not on stack, w_B on stack.
             if self.ink[twin(w)] {
                 if self.ever[w] {
-                    // Case 2.2.i: w_A was previously pushed.
-                    // Blum's original algorithm: do nothing.
-                    // D&L propose adding to R[w] with a selective condition,
-                    // but their bug does not reproduce in our phased
-                    // architecture (tested on their Figure 1 counterexample).
+                    // Case 2.2.i: w_A was previously pushed — do nothing.
+                    // D&L proposed adding to R[w] here, but their bug was
+                    // caused by the E[vA] implementation divergence, not by
+                    // the paper's algorithm. With paper-faithful backward
+                    // search, this case is correctly a no-op.
                 } else if w < n2 {
                     // Case 2.2.ii: w_A was never pushed.
                     self.r[w].push(top);
@@ -779,21 +775,17 @@ impl Mdfs {
             // Case 2.3: w_A and w_B both off the stack.
             if self.ever[w] {
                 // Case 2.3.i: forward/cross edge, w_A was previously pushed.
-                // Chase the label chain to find a valid extensible target.
-                if let Some(mut u_a) = self.l[w] {
-                    while self.ever[u_a] || self.deleted[u_a] {
-                        if let Some(next) = self.l[u_a] {
-                            u_a = next;
-                        } else {
-                            self.l[w] = None;
-                            break;
-                        }
+                // Find the first usable target in L[w] (skip ever/deleted).
+                let u_a = loop {
+                    let Some(candidate) = self.l[w].pop() else {
+                        break None;
+                    };
+                    if !self.ever[candidate] && !self.deleted[candidate] {
+                        break Some(candidate);
                     }
-                    if self.ever[u_a] || self.deleted[u_a] {
-                        self.l[w] = None;
-                    }
-                }
-                if let Some(u_a) = self.l[w] {
+                };
+                if let Some(u_a) = u_a {
+                    self.l[w].clear();
                     // L[w] has a usable target → push via extensible edge.
                     self.expanded[u_a] = Some((top, w));
                     self.clear_l_sources(u_a);
@@ -819,9 +811,7 @@ impl Mdfs {
     fn clear_l_sources(&mut self, target: usize) {
         let sources = core::mem::take(&mut self.l_rev[target]);
         for &src in &sources {
-            if self.l[src] == Some(target) {
-                self.l[src] = None;
-            }
+            self.l[src].retain(|&v| v != target);
         }
     }
 
@@ -844,12 +834,14 @@ impl Mdfs {
         if top != self.s && !is_a(top) && top < 2 * self.n && !self.deleted[top] {
             self.backward_search(top);
         }
+        self.expanded[top] = None;
         self.ink[top] = false;
         self.k.pop();
 
         if top != self.s && !is_a(top) {
             if let Some(&pa) = self.k.last() {
                 if pa != self.s && is_a(pa) && pa < 2 * self.n {
+                    self.expanded[pa] = None;
                     self.ink[pa] = false;
                     self.k.pop();
                 }
@@ -913,7 +905,7 @@ impl Mdfs {
         // Assign L labels unconditionally (testing without ever guard).
         for i in 0..self.bs_dl.len() {
             let y_a = self.bs_dl[i];
-            self.l[y_a] = Some(v_a);
+            self.l[y_a].push(v_a);
             self.l_ever[y_a] = true;
             self.l_rev[v_a].push(y_a);
         }
@@ -1143,16 +1135,30 @@ mod tests {
         let sz = 6;
         let mut mdfs = Mdfs::new(sz, 4, 5, 2, vec![Vec::new(); sz]);
 
-        mdfs.l[0] = Some(2);
-        mdfs.l[1] = Some(2);
-        mdfs.l[3] = Some(4);
+        mdfs.l[0] = vec![2];
+        mdfs.l[1] = vec![2];
+        mdfs.l[3] = vec![4];
         mdfs.l_rev[2] = vec![0, 1, 1, 3];
 
         mdfs.clear_l_sources(2);
 
-        assert_eq!(mdfs.l[0], None);
-        assert_eq!(mdfs.l[1], None);
-        assert_eq!(mdfs.l[3], Some(4));
+        assert!(mdfs.l[0].is_empty());
+        assert!(mdfs.l[1].is_empty());
+        assert_eq!(mdfs.l[3], vec![4]);
+        assert!(mdfs.l_rev[2].is_empty());
+    }
+
+    #[test]
+    fn test_clear_l_sources_removes_target_from_multi_label_set() {
+        let sz = 6;
+        let mut mdfs = Mdfs::new(sz, 4, 5, 2, vec![Vec::new(); sz]);
+
+        mdfs.l[0] = vec![2, 4];
+        mdfs.l_rev[2] = vec![0];
+
+        mdfs.clear_l_sources(2);
+
+        assert_eq!(mdfs.l[0], vec![4]);
         assert!(mdfs.l_rev[2].is_empty());
     }
 }
