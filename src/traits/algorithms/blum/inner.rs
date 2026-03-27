@@ -151,7 +151,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> BlumState<'a, M> {
             // Layered MDFS searches Ē_M (ebar), not the full G_M.
             let ebar = core::mem::take(&mut self.ebar);
 
-            let mut mdfs = Mdfs::new_layered(sz, s, t, self.n, ebar);
+            let mut mdfs = Mdfs::new(sz, s, t, self.n, ebar);
             let found = mdfs.run_multi_path(&mut self.mate);
 
             // Recover ebar buffer for next phase.
@@ -485,14 +485,6 @@ fn mbfs_scan(
         }
     } else {
         for &neighbor_a in &adj[gm_vertex] {
-            if neighbor_a == sink {
-                if level[sink] == INF {
-                    level[sink] = vertex_level + 1;
-                    par[sink] = gm_vertex;
-                    ebar[gm_vertex].push(sink);
-                }
-                continue;
-            }
             if neighbor_a >= gm_limit {
                 continue;
             }
@@ -529,6 +521,7 @@ fn mbfs_scan(
 }
 
 /// Union-find with path halving.
+#[inline]
 fn uf_find(uf: &mut [usize], mut x: usize) -> usize {
     while uf[x] != x {
         uf[x] = uf[uf[x]];
@@ -649,15 +642,8 @@ impl Mdfs {
         }
     }
 
-    /// Creates a new MDFS restricted to the layered subgraph Ē_M.
-    ///
-    /// The `ebar` adjacency lists contain only edges in the layered
-    /// subgraph built by MBFS, so no level check is needed in `step`.
-    fn new_layered(sz: usize, s: usize, t: usize, n: usize, ebar: Vec<Vec<usize>>) -> Self {
-        Self::new(sz, s, t, n, ebar)
-    }
-
     /// Returns the adjacency lists, transferring ownership back to the caller.
+    #[inline]
     fn take_adj(&mut self) -> Vec<Vec<usize>> {
         core::mem::take(&mut self.adj)
     }
@@ -828,6 +814,7 @@ impl Mdfs {
     /// Clears all L labels that point to `target`, using the reverse
     /// map `l_rev`.  Called when `target` is used as an extensible-edge
     /// endpoint, invalidating all labels that pointed to it.
+    #[inline]
     fn clear_l_sources(&mut self, target: usize) {
         let sources = core::mem::take(&mut self.l_rev[target]);
         for &src in &sources {
@@ -837,6 +824,7 @@ impl Mdfs {
 
     /// PUSH(node): adds `node` to the DFS stack K and marks it as
     /// visited (`ever`) and on-stack (`ink`).
+    #[inline]
     fn do_push(&mut self, node: usize, parent: usize) {
         self.ever[node] = true;
         self.ink[node] = true;
@@ -993,6 +981,7 @@ impl Mdfs {
     }
 
     /// Union-find root query with path-halving compression on `drep`.
+    #[inline]
     fn find_rep(&mut self, mut x: usize) -> usize {
         while self.drep[x] != x {
             let gp = self.drep[self.drep[x]];
