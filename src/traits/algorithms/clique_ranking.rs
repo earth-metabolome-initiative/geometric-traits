@@ -68,8 +68,17 @@ pub trait CliqueInfo {
     /// subgraph.
     fn fragment_count(&self) -> usize;
 
-    /// Number of edges in the largest connected fragment.
-    fn largest_fragment_size(&self) -> usize;
+    /// Number of matched edges in the largest connected fragment.
+    fn largest_fragment_edge_count(&self) -> usize;
+
+    /// Number of matched vertices in the largest connected fragment.
+    fn largest_fragment_atom_count(&self) -> usize;
+
+    /// Legacy alias for the edge-based largest fragment size.
+    #[inline]
+    fn largest_fragment_size(&self) -> usize {
+        self.largest_fragment_edge_count()
+    }
 }
 
 /// Eagerly precomputed clique information.
@@ -81,7 +90,8 @@ pub struct EagerCliqueInfo<N> {
     matched_edges: Vec<MatchedEdgePair<N>>,
     vertex_matches: Vec<(N, N)>,
     fragment_count: usize,
-    largest_fragment_size: usize,
+    largest_fragment_edge_count: usize,
+    largest_fragment_atom_count: usize,
 }
 
 impl<N> EagerCliqueInfo<N>
@@ -134,9 +144,17 @@ where
 
         // 3. Compute fragment structure from G1 edges.
         let g1_edges: Vec<(N, N)> = matched_edges.iter().map(|&(e1, _)| e1).collect();
-        let (fragment_count, largest_fragment_size) = compute_fragments(&g1_edges);
+        let (fragment_count, largest_fragment_edge_count, largest_fragment_atom_count) =
+            compute_fragments(&g1_edges);
 
-        Self { clique, matched_edges, vertex_matches, fragment_count, largest_fragment_size }
+        Self {
+            clique,
+            matched_edges,
+            vertex_matches,
+            fragment_count,
+            largest_fragment_edge_count,
+            largest_fragment_atom_count,
+        }
     }
 }
 
@@ -167,21 +185,26 @@ where
     }
 
     #[inline]
-    fn largest_fragment_size(&self) -> usize {
-        self.largest_fragment_size
+    fn largest_fragment_edge_count(&self) -> usize {
+        self.largest_fragment_edge_count
+    }
+
+    #[inline]
+    fn largest_fragment_atom_count(&self) -> usize {
+        self.largest_fragment_atom_count
     }
 }
 
-/// Computes the number of connected components and the size (edge count)
-/// of the largest component in an edge list.
+/// Computes the number of connected components and the sizes of the largest
+/// component in an edge list.
 ///
 /// Uses BFS on a `BTreeMap`-based adjacency list to support arbitrary
 /// (non-contiguous) node ID types.
 ///
-/// Returns `(0, 0)` for an empty edge list.
-fn compute_fragments<N: Eq + Copy + Ord>(edges: &[(N, N)]) -> (usize, usize) {
+/// Returns `(0, 0, 0)` for an empty edge list.
+fn compute_fragments<N: Eq + Copy + Ord>(edges: &[(N, N)]) -> (usize, usize, usize) {
     if edges.is_empty() {
-        return (0, 0);
+        return (0, 0, 0);
     }
 
     // Build adjacency list.
@@ -196,6 +219,7 @@ fn compute_fragments<N: Eq + Copy + Ord>(edges: &[(N, N)]) -> (usize, usize) {
     let mut queue: VecDeque<N> = VecDeque::new();
     let mut num_components = 0usize;
     let mut largest_component_edges = 0usize;
+    let mut largest_component_vertices = 0usize;
 
     for &start in adj.keys() {
         if visited.contains(&start) {
@@ -231,9 +255,12 @@ fn compute_fragments<N: Eq + Copy + Ord>(edges: &[(N, N)]) -> (usize, usize) {
         if component_edges > largest_component_edges {
             largest_component_edges = component_edges;
         }
+        if component_vertices.len() > largest_component_vertices {
+            largest_component_vertices = component_vertices.len();
+        }
     }
 
-    (num_components, largest_component_edges)
+    (num_components, largest_component_edges, largest_component_vertices)
 }
 
 /// Trait for comparing two cliques to determine ranking order.
@@ -304,7 +331,51 @@ pub struct LargestFragmentRanker;
 impl<I: CliqueInfo> CliqueRanker<I> for LargestFragmentRanker {
     #[inline]
     fn compare(&self, a: &I, b: &I) -> Ordering {
-        b.largest_fragment_size().cmp(&a.largest_fragment_size())
+        b.largest_fragment_edge_count().cmp(&a.largest_fragment_edge_count())
+    }
+}
+
+/// Fragment-size metric used by [`LargestFragmentMetricRanker`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LargestFragmentMetric {
+    /// Prefer the clique with more matched edges in its largest fragment.
+    Edges,
+    /// Prefer the clique with more matched vertices in its largest fragment.
+    Atoms,
+}
+
+/// Ranks cliques by largest fragment size using a selectable metric.
+pub struct LargestFragmentMetricRanker {
+    metric: LargestFragmentMetric,
+}
+
+impl LargestFragmentMetricRanker {
+    /// Creates a new metric-selectable largest-fragment ranker.
+    #[inline]
+    #[must_use]
+    pub const fn new(metric: LargestFragmentMetric) -> Self {
+        Self { metric }
+    }
+}
+
+impl Default for LargestFragmentMetricRanker {
+    #[inline]
+    fn default() -> Self {
+        Self::new(LargestFragmentMetric::Edges)
+    }
+}
+
+impl<I: CliqueInfo> CliqueRanker<I> for LargestFragmentMetricRanker {
+    #[inline]
+    fn compare(&self, a: &I, b: &I) -> Ordering {
+        match self.metric {
+            LargestFragmentMetric::Edges => {
+                b.largest_fragment_edge_count().cmp(&a.largest_fragment_edge_count())
+            }
+            LargestFragmentMetric::Atoms => {
+                b.largest_fragment_atom_count().cmp(&a.largest_fragment_atom_count())
+            }
+        }
     }
 }
 
@@ -352,46 +423,52 @@ mod tests {
 
     #[test]
     fn test_compute_fragments_empty() {
-        let (count, largest) = compute_fragments::<u32>(&[]);
+        let (count, largest_edges, largest_atoms) = compute_fragments::<u32>(&[]);
         assert_eq!(count, 0);
-        assert_eq!(largest, 0);
+        assert_eq!(largest_edges, 0);
+        assert_eq!(largest_atoms, 0);
     }
 
     #[test]
     fn test_compute_fragments_single_edge() {
-        let (count, largest) = compute_fragments(&[(0u32, 1)]);
+        let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1)]);
         assert_eq!(count, 1);
-        assert_eq!(largest, 1);
+        assert_eq!(largest_edges, 1);
+        assert_eq!(largest_atoms, 2);
     }
 
     #[test]
     fn test_compute_fragments_path() {
         // Path: 0-1-2-3 → 1 component, 3 edges.
-        let (count, largest) = compute_fragments(&[(0u32, 1), (1, 2), (2, 3)]);
+        let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1), (1, 2), (2, 3)]);
         assert_eq!(count, 1);
-        assert_eq!(largest, 3);
+        assert_eq!(largest_edges, 3);
+        assert_eq!(largest_atoms, 4);
     }
 
     #[test]
     fn test_compute_fragments_two_disjoint() {
         // Two disjoint edges: (0,1) and (5,6) → 2 components, 1 edge each.
-        let (count, largest) = compute_fragments(&[(0u32, 1), (5, 6)]);
+        let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1), (5, 6)]);
         assert_eq!(count, 2);
-        assert_eq!(largest, 1);
+        assert_eq!(largest_edges, 1);
+        assert_eq!(largest_atoms, 2);
     }
 
     #[test]
     fn test_compute_fragments_uneven() {
         // Path (0,1,2) + isolated edge (5,6) → 2 components, largest has 2 edges.
-        let (count, largest) = compute_fragments(&[(0u32, 1), (1, 2), (5, 6)]);
+        let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1), (1, 2), (5, 6)]);
         assert_eq!(count, 2);
-        assert_eq!(largest, 2);
+        assert_eq!(largest_edges, 2);
+        assert_eq!(largest_atoms, 3);
     }
 
     #[test]
     fn test_compute_fragments_triangle() {
-        let (count, largest) = compute_fragments(&[(0u32, 1), (1, 2), (0, 2)]);
+        let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1), (1, 2), (0, 2)]);
         assert_eq!(count, 1);
-        assert_eq!(largest, 3);
+        assert_eq!(largest_edges, 3);
+        assert_eq!(largest_atoms, 3);
     }
 }

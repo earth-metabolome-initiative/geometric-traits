@@ -121,7 +121,7 @@ mod tests {
 
         assert_eq!(contexts.len(), 3);
         assert_eq!(contexts.contexts_of(0), &[1, 2]);
-        assert_eq!(contexts.contexts_of(1), &[]);
+        assert_eq!(contexts.contexts_of(1), &[] as &[u8]);
         assert_eq!(contexts.contexts_of(2), &[3]);
     }
 

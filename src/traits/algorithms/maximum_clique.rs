@@ -14,7 +14,12 @@ mod partitioned;
 
 use alloc::vec::Vec;
 
-pub use partitioned::{OwnedPartitionLabels, PartitionInfo, PartitionSide, choose_partition_side};
+pub use partitioned::{
+    OwnedPartitionLabels, PartitionInfo, PartitionSearchProfile, PartitionSearchStats,
+    PartitionSearchTrace, PartitionSide, all_best_search, choose_partition_side,
+    greedy_lower_bound, partial_search, partial_search_with_root_pruning, profile_search,
+    profile_search_with_bounds, trace_partial_search_to_target,
+};
 
 use crate::{impls::BitSquareMatrix, traits::SquareMatrix};
 

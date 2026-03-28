@@ -15,29 +15,29 @@
 //! let similarity = result.johnson_similarity();
 //! ```
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 
 use num_traits::AsPrimitive;
 
 use super::{
     clique_ranking::{
         ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo,
-        FragmentCountRanker, LargestFragmentRanker, MatchedEdgePair,
+        FragmentCountRanker, LargestFragmentMetric, LargestFragmentMetricRanker, MatchedEdgePair,
     },
     graph_similarities::GraphSimilarities,
     labeled_line_graph::LabeledLineGraph,
     line_graph::LineGraph,
     maximum_clique::{
-        MaximumClique, PartitionInfo, PartitionSide, PartitionedMaximumClique,
-        choose_partition_side,
+        MaximumClique, PartitionInfo, PartitionSide, all_best_search, choose_partition_side,
+        partial_search,
     },
     modular_product::ModularProduct,
 };
 use crate::{
-    impls::EdgeContexts,
+    impls::{BitSquareMatrix, EdgeContexts},
     traits::{
-        Edges, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger, SparseValuedMatrix2D,
-        TypedNode, ValuedMatrix,
+        Edges, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger, SparseMatrix2D,
+        SparseValuedMatrix2D, SquareMatrix, TypedNode, ValuedMatrix,
     },
 };
 
@@ -411,17 +411,66 @@ fn intern_shared_labels<L: PartialEq + Copy>(
 
 /// Search mode for the clique stage of MCES.
 ///
-/// `FirstValid` mirrors RDKit's default behavior more closely: it keeps
-/// searching until it finds an accepted maximum clique and then prunes tie-only
-/// branches.
+/// `PartialEnumeration` mirrors RDKit's default partitioned behavior more
+/// closely: it keeps strict tie-pruning, retains equal-size accepted maxima
+/// encountered during that search, and ranks the retained set afterward.
 ///
 /// `AllBest` enumerates all accepted tied maximum cliques before ranking.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum McesSearchMode {
-    /// Return one accepted maximum clique.
-    FirstValid,
+    /// Strict pruning plus retained tied-best cliques for later ranking.
+    ///
+    /// On the non-partitioned fallback path, this currently degenerates to the
+    /// legacy single accepted maximum behavior.
+    PartialEnumeration,
     /// Enumerate all accepted tied maximum cliques.
     AllBest,
+}
+
+type ProductVertexOrdering<'g> =
+    dyn FnMut(usize, usize, (usize, usize), (usize, usize)) -> (usize, usize) + 'g;
+
+fn reorder_product_for_search<N>(
+    matrix: BitSquareMatrix,
+    vertex_pairs: Vec<(usize, usize)>,
+    first_edge_map: &[(N, N)],
+    second_edge_map: &[(N, N)],
+    ordering: Option<&mut Box<ProductVertexOrdering<'_>>>,
+) -> (BitSquareMatrix, Vec<(usize, usize)>)
+where
+    N: Copy + AsPrimitive<usize>,
+{
+    let Some(ordering) = ordering else {
+        return (matrix, vertex_pairs);
+    };
+
+    let mut ranked_indices: Vec<((usize, usize), usize)> = vertex_pairs
+        .iter()
+        .enumerate()
+        .map(|(index, &(first_lg, second_lg))| {
+            let first_edge = (first_edge_map[first_lg].0.as_(), first_edge_map[first_lg].1.as_());
+            let second_edge =
+                (second_edge_map[second_lg].0.as_(), second_edge_map[second_lg].1.as_());
+            (((*ordering)(first_lg, second_lg, first_edge, second_edge)), index)
+        })
+        .collect();
+    ranked_indices.sort_unstable();
+
+    if ranked_indices.iter().enumerate().all(|(new, (_, old))| new == *old) {
+        return (matrix, vertex_pairs);
+    }
+
+    let order: Vec<usize> = ranked_indices.into_iter().map(|(_, index)| index).collect();
+    let mut permuted = BitSquareMatrix::new(order.len());
+    for new_left in 0..order.len() {
+        for new_right in new_left + 1..order.len() {
+            if matrix.has_entry(order[new_left], order[new_right]) {
+                permuted.set_symmetric(new_left, new_right);
+            }
+        }
+    }
+    let permuted_pairs = order.into_iter().map(|old| vertex_pairs[old]).collect();
+    (permuted, permuted_pairs)
 }
 
 fn accepted_cliques<M, F>(
@@ -434,36 +483,38 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     match search_mode {
-        McesSearchMode::FirstValid => vec![matrix.maximum_clique_where(accept_clique)],
+        McesSearchMode::PartialEnumeration => vec![matrix.maximum_clique_where(accept_clique)],
         McesSearchMode::AllBest => matrix.all_maximum_cliques_where(accept_clique),
     }
 }
 
-fn accepted_partitioned_cliques<M, F>(
-    matrix: &M,
+fn accepted_partitioned_cliques<F>(
+    matrix: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     search_mode: McesSearchMode,
     accept_clique: F,
 ) -> Vec<Vec<usize>>
 where
-    M: PartitionedMaximumClique,
     F: FnMut(&[usize]) -> bool,
 {
     match search_mode {
-        McesSearchMode::FirstValid => {
-            vec![matrix.maximum_clique_with_partition_where(partition, accept_clique)]
+        McesSearchMode::PartialEnumeration => {
+            let initial_lower_bound = usize::from(matrix.order() > 0);
+            partial_search(matrix, partition, initial_lower_bound, accept_clique)
         }
-        McesSearchMode::AllBest => {
-            matrix.all_maximum_cliques_with_partition_where(partition, accept_clique)
-        }
+        McesSearchMode::AllBest => all_best_search(matrix, partition, 0, accept_clique),
     }
 }
 
 /// Default ranker: fragment count → largest fragment.
-pub type DefaultRanker = ChainedRanker<FragmentCountRanker, LargestFragmentRanker>;
+pub type DefaultRanker = ChainedRanker<FragmentCountRanker, LargestFragmentMetricRanker>;
 
 fn default_ranker() -> DefaultRanker {
-    FragmentCountRanker.then(LargestFragmentRanker)
+    default_ranker_with_metric(LargestFragmentMetric::Edges)
+}
+
+fn default_ranker_with_metric(metric: LargestFragmentMetric) -> DefaultRanker {
+    FragmentCountRanker.then(LargestFragmentMetricRanker::new(metric))
 }
 
 // ============================================================================
@@ -520,10 +571,10 @@ impl<N: Eq + Copy + Ord + core::fmt::Debug> McesResult<N> {
 
     /// All ranked clique infos (best first).
     ///
-    /// In [`McesSearchMode::FirstValid`], this usually contains a single
-    /// retained clique. In [`McesSearchMode::AllBest`], it contains all
-    /// tied maximum cliques already accepted by the search, ranked
-    /// best-first.
+    /// In [`McesSearchMode::PartialEnumeration`], this contains the retained
+    /// tied-best subset already accepted by the partitioned search, ranked
+    /// best-first. In [`McesSearchMode::AllBest`], it contains the full tied
+    /// maximum set already accepted by the search, ranked best-first.
     #[inline]
     #[must_use]
     pub fn all_cliques(&self) -> &[EagerCliqueInfo<N>] {
@@ -574,6 +625,7 @@ pub struct McesBuilder<'g, G, PF, XC, EC, D, R> {
     edge_comparator: EC,
     disambiguate: D,
     ranker: R,
+    product_vertex_ordering: Option<Box<ProductVertexOrdering<'g>>>,
     use_partition: bool,
     search_mode: McesSearchMode,
     delta_y: bool,
@@ -605,14 +657,33 @@ impl<'g, G>
             edge_comparator: StrictEqualityComparator,
             disambiguate: ArbitraryDisambiguate,
             ranker: default_ranker(),
+            product_vertex_ordering: None,
             use_partition: true,
-            search_mode: McesSearchMode::FirstValid,
+            search_mode: McesSearchMode::PartialEnumeration,
             delta_y: true,
             ignore_edge_values: false,
-            partition_orientation_heuristic: false,
+            partition_orientation_heuristic: true,
             similarity_threshold: None,
             distance_threshold: None,
         }
+    }
+}
+
+impl<'g, G, PF, XC, EC, D> McesBuilder<'g, G, PF, XC, EC, D, DefaultRanker> {
+    /// Chooses which fragment-size metric the built-in default ranker uses.
+    ///
+    /// This only affects the default tie-breaking chain
+    /// (`FragmentCountRanker -> largest fragment`).
+    /// If you need a fully custom policy, use [`McesBuilder::with_ranker`]
+    /// instead.
+    ///
+    /// The default is [`LargestFragmentMetric::Edges`]. For RDKit-oriented
+    /// comparisons, [`LargestFragmentMetric::Atoms`] is often the more relevant
+    /// choice because RDKit's `LargestFragSize` is atom-based.
+    #[must_use]
+    pub fn with_largest_fragment_metric(mut self, metric: LargestFragmentMetric) -> Self {
+        self.ranker = default_ranker_with_metric(metric);
+        self
     }
 }
 
@@ -638,6 +709,7 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             edge_comparator: self.edge_comparator,
             disambiguate: self.disambiguate,
             ranker: self.ranker,
+            product_vertex_ordering: self.product_vertex_ordering,
             use_partition: self.use_partition,
             search_mode: self.search_mode,
             delta_y: self.delta_y,
@@ -665,6 +737,7 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             edge_comparator: CustomEdgeComparator(f),
             disambiguate: self.disambiguate,
             ranker: self.ranker,
+            product_vertex_ordering: self.product_vertex_ordering,
             use_partition: self.use_partition,
             search_mode: self.search_mode,
             delta_y: self.delta_y,
@@ -689,6 +762,7 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             edge_comparator: self.edge_comparator,
             disambiguate: CustomDisambiguate(f),
             ranker: self.ranker,
+            product_vertex_ordering: self.product_vertex_ordering,
             use_partition: self.use_partition,
             search_mode: self.search_mode,
             delta_y: self.delta_y,
@@ -700,6 +774,140 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
     }
 
     /// Sets a custom clique ranker.
+    ///
+    /// The ranker is only used to choose among cliques with the same maximum
+    /// edge count. In other words, the maximum clique search still optimizes
+    /// matched edges first; the ranker only breaks ties afterward.
+    ///
+    /// For ad-hoc policies, use [`FnRanker`]. For reusable lexicographic
+    /// policies, chain rankers with [`CliqueRankerExt::then`].
+    ///
+    /// Note that `matched_edges().len()` is already identical across the
+    /// cliques being ranked. If you want an edge-centric tiebreaker, rank by a
+    /// fragment-edge statistic such as [`CliqueInfo::largest_fragment_size()`]
+    /// rather than total matched edges.
+    ///
+    /// # Examples
+    ///
+    /// The examples below use `AllBest` so the custom ranker can choose among
+    /// tied maxima when more than one is retained.
+    ///
+    /// Rank by matched nodes:
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D},
+    ///     naive_structs::UndiGraph,
+    ///     prelude::*,
+    ///     traits::{
+    ///         VocabularyBuilder,
+    ///         algorithms::randomized_graphs::{cycle_graph, path_graph},
+    ///     },
+    /// };
+    ///
+    /// fn wrap_undi(g: SymmetricCSR2D<CSR2D<usize, usize, usize>>) -> UndiGraph<usize> {
+    ///     let n = g.order();
+    ///     let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///         .expected_number_of_symbols(n)
+    ///         .symbols((0..n).enumerate())
+    ///         .build()
+    ///         .unwrap();
+    ///     UndiGraph::from((nodes, g))
+    /// }
+    ///
+    /// let g1 = wrap_undi(cycle_graph(4));
+    /// let g2 = wrap_undi(path_graph(4));
+    ///
+    /// let result = McesBuilder::new(&g1, &g2)
+    ///     .with_search_mode(McesSearchMode::AllBest)
+    ///     .with_ranker(FnRanker::new(|a: &EagerCliqueInfo<usize>, b: &EagerCliqueInfo<usize>| {
+    ///         b.vertex_matches().len().cmp(&a.vertex_matches().len())
+    ///     }))
+    ///     .compute_unlabeled();
+    ///
+    /// assert_eq!(result.matched_edges().len(), 3);
+    /// ```
+    ///
+    /// Rank by fragment edges:
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D},
+    ///     naive_structs::UndiGraph,
+    ///     prelude::*,
+    ///     traits::{
+    ///         VocabularyBuilder,
+    ///         algorithms::randomized_graphs::{cycle_graph, path_graph},
+    ///     },
+    /// };
+    ///
+    /// fn wrap_undi(g: SymmetricCSR2D<CSR2D<usize, usize, usize>>) -> UndiGraph<usize> {
+    ///     let n = g.order();
+    ///     let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///         .expected_number_of_symbols(n)
+    ///         .symbols((0..n).enumerate())
+    ///         .build()
+    ///         .unwrap();
+    ///     UndiGraph::from((nodes, g))
+    /// }
+    ///
+    /// let g1 = wrap_undi(cycle_graph(4));
+    /// let g2 = wrap_undi(path_graph(4));
+    ///
+    /// let result = McesBuilder::new(&g1, &g2)
+    ///     .with_search_mode(McesSearchMode::AllBest)
+    ///     .with_ranker(FragmentCountRanker.then(FnRanker::new(
+    ///         |a: &EagerCliqueInfo<usize>, b: &EagerCliqueInfo<usize>| {
+    ///             b.largest_fragment_size().cmp(&a.largest_fragment_size())
+    ///         },
+    ///     )))
+    ///     .compute_unlabeled();
+    ///
+    /// assert_eq!(result.matched_edges().len(), 3);
+    /// ```
+    ///
+    /// Rank by a mixed policy: fewer fragments, then more matched nodes, then
+    /// larger fragment edges:
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{CSR2D, SortedVec, SymmetricCSR2D},
+    ///     naive_structs::UndiGraph,
+    ///     prelude::*,
+    ///     traits::{
+    ///         VocabularyBuilder,
+    ///         algorithms::randomized_graphs::{cycle_graph, path_graph},
+    ///     },
+    /// };
+    ///
+    /// fn wrap_undi(g: SymmetricCSR2D<CSR2D<usize, usize, usize>>) -> UndiGraph<usize> {
+    ///     let n = g.order();
+    ///     let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///         .expected_number_of_symbols(n)
+    ///         .symbols((0..n).enumerate())
+    ///         .build()
+    ///         .unwrap();
+    ///     UndiGraph::from((nodes, g))
+    /// }
+    ///
+    /// let g1 = wrap_undi(cycle_graph(4));
+    /// let g2 = wrap_undi(path_graph(4));
+    ///
+    /// let mixed_ranker = FragmentCountRanker
+    ///     .then(FnRanker::new(|a: &EagerCliqueInfo<usize>, b: &EagerCliqueInfo<usize>| {
+    ///         b.vertex_matches().len().cmp(&a.vertex_matches().len())
+    ///     }))
+    ///     .then(FnRanker::new(|a: &EagerCliqueInfo<usize>, b: &EagerCliqueInfo<usize>| {
+    ///         b.largest_fragment_size().cmp(&a.largest_fragment_size())
+    ///     }));
+    ///
+    /// let result = McesBuilder::new(&g1, &g2)
+    ///     .with_search_mode(McesSearchMode::AllBest)
+    ///     .with_ranker(mixed_ranker)
+    ///     .compute_unlabeled();
+    ///
+    /// assert_eq!(result.matched_edges().len(), 3);
+    /// ```
     #[must_use]
     pub fn with_ranker<R2>(self, ranker: R2) -> McesBuilder<'g, G, PF, XC, EC, D, R2> {
         McesBuilder {
@@ -710,6 +918,7 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             edge_comparator: self.edge_comparator,
             disambiguate: self.disambiguate,
             ranker,
+            product_vertex_ordering: self.product_vertex_ordering,
             use_partition: self.use_partition,
             search_mode: self.search_mode,
             delta_y: self.delta_y,
@@ -743,6 +952,7 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             edge_comparator: self.edge_comparator,
             disambiguate: self.disambiguate,
             ranker: self.ranker,
+            product_vertex_ordering: self.product_vertex_ordering,
             use_partition: self.use_partition,
             search_mode: self.search_mode,
             delta_y: self.delta_y,
@@ -761,10 +971,31 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
         self
     }
 
+    /// Reorders modular-product vertices before clique search.
+    ///
+    /// The closure receives:
+    /// - the line-graph vertex index from the first graph
+    /// - the line-graph vertex index from the second graph
+    /// - the original edge endpoints from the first graph
+    /// - the original edge endpoints from the second graph
+    ///
+    /// It must return a lexicographic ordering key. This only affects
+    /// search-order-sensitive behavior, such as which tied maxima
+    /// [`McesSearchMode::PartialEnumeration`] encounters first.
+    #[must_use]
+    pub fn with_product_vertex_ordering<F>(mut self, ordering: F) -> Self
+    where
+        F: FnMut(usize, usize, (usize, usize), (usize, usize)) -> (usize, usize) + 'g,
+    {
+        self.product_vertex_ordering = Some(Box::new(ordering));
+        self
+    }
+
     /// Selects how the clique stage explores tied maximum solutions.
     ///
-    /// The default is [`McesSearchMode::FirstValid`], which mirrors RDKit's
-    /// default behavior more closely and avoids enumerating all tied maxima.
+    /// The default is [`McesSearchMode::PartialEnumeration`], which mirrors the
+    /// RDKit-style partitioned default more closely while avoiding full tied
+    /// best enumeration.
     #[must_use]
     pub fn with_search_mode(mut self, search_mode: McesSearchMode) -> Self {
         self.search_mode = search_mode;
@@ -795,12 +1026,13 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
         self
     }
 
-    /// Enables or disables choosing the partition side from the admitted
-    /// modular-product vertex profile.
+    /// Enables or disables RDKit-style partition-side selection.
     ///
-    /// When enabled, the partition-aware clique search groups candidate bond
-    /// pairs by whichever side yields the flatter initial partition profile,
-    /// instead of always partitioning by the first graph's bond ids.
+    /// When enabled, the partition-aware clique search partitions on the
+    /// smaller line graph first. If both line graphs have the same number of
+    /// bond vertices, it falls back to the flatter initial partition profile
+    /// as a tie-breaker. When disabled, the search always partitions by the
+    /// first graph's bond ids.
     #[must_use]
     pub fn with_partition_orientation_heuristic(mut self, enabled: bool) -> Self {
         self.partition_orientation_heuristic = enabled;
@@ -890,39 +1122,81 @@ where
         // 2. Modular product.
         let mp =
             lg1.graph().modular_product_filtered(lg2.graph(), |i, j| self.pair_filter.filter(i, j));
+        let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
+            mp.matrix().clone(),
+            mp.vertex_pairs().to_vec(),
+            lg1.edge_map(),
+            lg2.edge_map(),
+            self.product_vertex_ordering.as_mut(),
+        );
 
         // 3. Maximum cliques (unlabeled: all bonds get label 0).
         let cliques = if self.use_partition {
             let g1_labels = vec![0usize; first_edges];
             let g2_labels = vec![0usize; second_edges];
             let info = PartitionInfo {
-                pairs: mp.vertex_pairs(),
+                pairs: &mp_vertex_pairs,
                 g1_labels: &g1_labels,
                 g2_labels: &g2_labels,
                 num_labels: 1,
                 partition_side: if self.partition_orientation_heuristic {
-                    choose_partition_side(mp.vertex_pairs(), g1_labels.len(), g2_labels.len())
+                    choose_partition_side(&mp_vertex_pairs, g1_labels.len(), g2_labels.len())
                 } else {
                     PartitionSide::First
                 },
             };
-            accepted_partitioned_cliques(mp.matrix(), &info, self.search_mode, |clique| {
-                !self.delta_y
-                    || !clique_has_delta_y(
-                        clique,
-                        mp.vertex_pairs(),
-                        lg1.edge_map(),
-                        lg2.edge_map(),
-                        first_vertices,
-                        second_vertices,
+            match self.search_mode {
+                McesSearchMode::PartialEnumeration => {
+                    accepted_partitioned_cliques(&mp_matrix, &info, self.search_mode, |clique| {
+                        !self.delta_y
+                            || !clique_has_delta_y(
+                                clique,
+                                &mp_vertex_pairs,
+                                lg1.edge_map(),
+                                lg2.edge_map(),
+                                first_vertices,
+                                second_vertices,
+                            )
+                    })
+                }
+                McesSearchMode::AllBest => {
+                    let initial_lower_bound = partial_search(
+                        &mp_matrix,
+                        &info,
+                        usize::from(mp_matrix.order() > 0),
+                        |clique| {
+                            !self.delta_y
+                                || !clique_has_delta_y(
+                                    clique,
+                                    &mp_vertex_pairs,
+                                    lg1.edge_map(),
+                                    lg2.edge_map(),
+                                    first_vertices,
+                                    second_vertices,
+                                )
+                        },
                     )
-            })
+                    .first()
+                    .map_or(0, Vec::len);
+                    all_best_search(&mp_matrix, &info, initial_lower_bound, |clique| {
+                        !self.delta_y
+                            || !clique_has_delta_y(
+                                clique,
+                                &mp_vertex_pairs,
+                                lg1.edge_map(),
+                                lg2.edge_map(),
+                                first_vertices,
+                                second_vertices,
+                            )
+                    })
+                }
+            }
         } else {
-            accepted_cliques(mp.matrix(), self.search_mode, |clique| {
+            accepted_cliques(&mp_matrix, self.search_mode, |clique| {
                 !self.delta_y
                     || !clique_has_delta_y(
                         clique,
-                        mp.vertex_pairs(),
+                        &mp_vertex_pairs,
                         lg1.edge_map(),
                         lg2.edge_map(),
                         first_vertices,
@@ -937,7 +1211,7 @@ where
             .map(|c| {
                 EagerCliqueInfo::new(
                     c,
-                    mp.vertex_pairs(),
+                    &mp_vertex_pairs,
                     lg1.edge_map(),
                     lg2.edge_map(),
                     |a, b, c, d| self.disambiguate.disambiguate(a, b, c, d),
@@ -1048,17 +1322,24 @@ where
             },
             |a, b| edge_comparator.compare(a, b),
         );
+        let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
+            mp.matrix().clone(),
+            mp.vertex_pairs().to_vec(),
+            lg1.edge_map(),
+            lg2.edge_map(),
+            self.product_vertex_ordering.as_mut(),
+        );
 
         // 3. Maximum cliques (label-aware partition bound).
         let cliques = if self.use_partition {
             let info = PartitionInfo {
-                pairs: mp.vertex_pairs(),
+                pairs: &mp_vertex_pairs,
                 g1_labels: &g1_label_indices,
                 g2_labels: &g2_label_indices,
                 num_labels,
                 partition_side: if self.partition_orientation_heuristic {
                     choose_partition_side(
-                        mp.vertex_pairs(),
+                        &mp_vertex_pairs,
                         g1_label_indices.len(),
                         g2_label_indices.len(),
                     )
@@ -1066,23 +1347,58 @@ where
                     PartitionSide::First
                 },
             };
-            accepted_partitioned_cliques(mp.matrix(), &info, self.search_mode, |clique| {
-                !self.delta_y
-                    || !clique_has_delta_y(
-                        clique,
-                        mp.vertex_pairs(),
-                        lg1.edge_map(),
-                        lg2.edge_map(),
-                        first_vertices,
-                        second_vertices,
+            match self.search_mode {
+                McesSearchMode::PartialEnumeration => {
+                    accepted_partitioned_cliques(&mp_matrix, &info, self.search_mode, |clique| {
+                        !self.delta_y
+                            || !clique_has_delta_y(
+                                clique,
+                                &mp_vertex_pairs,
+                                lg1.edge_map(),
+                                lg2.edge_map(),
+                                first_vertices,
+                                second_vertices,
+                            )
+                    })
+                }
+                McesSearchMode::AllBest => {
+                    let initial_lower_bound = partial_search(
+                        &mp_matrix,
+                        &info,
+                        usize::from(mp_matrix.order() > 0),
+                        |clique| {
+                            !self.delta_y
+                                || !clique_has_delta_y(
+                                    clique,
+                                    &mp_vertex_pairs,
+                                    lg1.edge_map(),
+                                    lg2.edge_map(),
+                                    first_vertices,
+                                    second_vertices,
+                                )
+                        },
                     )
-            })
+                    .first()
+                    .map_or(0, Vec::len);
+                    all_best_search(&mp_matrix, &info, initial_lower_bound, |clique| {
+                        !self.delta_y
+                            || !clique_has_delta_y(
+                                clique,
+                                &mp_vertex_pairs,
+                                lg1.edge_map(),
+                                lg2.edge_map(),
+                                first_vertices,
+                                second_vertices,
+                            )
+                    })
+                }
+            }
         } else {
-            accepted_cliques(mp.matrix(), self.search_mode, |clique| {
+            accepted_cliques(&mp_matrix, self.search_mode, |clique| {
                 !self.delta_y
                     || !clique_has_delta_y(
                         clique,
-                        mp.vertex_pairs(),
+                        &mp_vertex_pairs,
                         lg1.edge_map(),
                         lg2.edge_map(),
                         first_vertices,
@@ -1097,7 +1413,7 @@ where
             .map(|c| {
                 EagerCliqueInfo::new(
                     c,
-                    mp.vertex_pairs(),
+                    &mp_vertex_pairs,
                     lg1.edge_map(),
                     lg2.edge_map(),
                     |a, b, c, d| self.disambiguate.disambiguate(a, b, c, d),

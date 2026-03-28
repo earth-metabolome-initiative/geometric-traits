@@ -154,7 +154,8 @@ pub mod mces;
 #[cfg(feature = "alloc")]
 pub use clique_ranking::{
     ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo, FnRanker,
-    FragmentCountRanker, LargestFragmentRanker, MatchedEdgePair,
+    FragmentCountRanker, LargestFragmentMetric, LargestFragmentMetricRanker, LargestFragmentRanker,
+    MatchedEdgePair,
 };
 #[cfg(feature = "alloc")]
 pub use mces::{McesBuilder, McesResult, McesSearchMode};

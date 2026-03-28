@@ -32,6 +32,8 @@ fn test_eager_clique_info_path_match() {
     assert_eq!(info.vertex_matches().len(), 3); // 0↔10, 1↔11, 2↔12
     assert_eq!(info.fragment_count(), 1); // single connected component
     assert_eq!(info.largest_fragment_size(), 2); // 2 edges in the component
+    assert_eq!(info.largest_fragment_edge_count(), 2);
+    assert_eq!(info.largest_fragment_atom_count(), 3);
 }
 
 #[test]
@@ -48,6 +50,8 @@ fn test_eager_clique_info_two_fragments() {
 
     assert_eq!(info.fragment_count(), 2);
     assert_eq!(info.largest_fragment_size(), 1);
+    assert_eq!(info.largest_fragment_edge_count(), 1);
+    assert_eq!(info.largest_fragment_atom_count(), 2);
 }
 
 #[test]
@@ -62,6 +66,8 @@ fn test_eager_clique_info_single_edge() {
 
     assert_eq!(info.fragment_count(), 1);
     assert_eq!(info.largest_fragment_size(), 1);
+    assert_eq!(info.largest_fragment_edge_count(), 1);
+    assert_eq!(info.largest_fragment_atom_count(), 2);
     assert_eq!(info.vertex_matches().len(), 2);
 }
 
@@ -74,6 +80,31 @@ fn test_eager_clique_info_empty() {
     assert_eq!(info.vertex_matches().len(), 0);
     assert_eq!(info.fragment_count(), 0);
     assert_eq!(info.largest_fragment_size(), 0);
+    assert_eq!(info.largest_fragment_edge_count(), 0);
+    assert_eq!(info.largest_fragment_atom_count(), 0);
+}
+
+#[test]
+fn test_eager_clique_info_distinguishes_edge_and_atom_fragment_sizes() {
+    let path = EagerCliqueInfo::new(
+        vec![0, 1, 2],
+        &[(0_usize, 0_usize), (1, 1), (2, 2)],
+        &[(0_u32, 1_u32), (1, 2), (2, 3)],
+        &[(10_u32, 11_u32), (11, 12), (12, 13)],
+        |_, _, _, _| true,
+    );
+    let triangle = EagerCliqueInfo::new(
+        vec![0, 1, 2],
+        &[(0_usize, 0_usize), (1, 1), (2, 2)],
+        &[(0_u32, 1_u32), (1, 2), (0, 2)],
+        &[(10_u32, 11_u32), (11, 12), (10, 12)],
+        |_, _, _, _| true,
+    );
+
+    assert_eq!(path.largest_fragment_edge_count(), 3);
+    assert_eq!(triangle.largest_fragment_edge_count(), 3);
+    assert_eq!(path.largest_fragment_atom_count(), 4);
+    assert_eq!(triangle.largest_fragment_atom_count(), 3);
 }
 
 // ===========================================================================
@@ -295,6 +326,31 @@ fn test_largest_fragment_ranker_equal() {
     );
 
     assert_eq!(LargestFragmentRanker.compare(&a, &b), Ordering::Equal);
+}
+
+#[test]
+fn test_largest_fragment_metric_ranker_atoms_prefers_more_vertices() {
+    let path = EagerCliqueInfo::new(
+        vec![0, 1, 2],
+        &[(0_usize, 0_usize), (1, 1), (2, 2)],
+        &[(0_u32, 1_u32), (1, 2), (2, 3)],
+        &[(10_u32, 11_u32), (11, 12), (12, 13)],
+        |_, _, _, _| true,
+    );
+    let triangle = EagerCliqueInfo::new(
+        vec![0, 1, 2],
+        &[(0_usize, 0_usize), (1, 1), (2, 2)],
+        &[(0_u32, 1_u32), (1, 2), (0, 2)],
+        &[(10_u32, 11_u32), (11, 12), (10, 12)],
+        |_, _, _, _| true,
+    );
+
+    let edge_ranker = LargestFragmentMetricRanker::new(LargestFragmentMetric::Edges);
+    let atom_ranker = LargestFragmentMetricRanker::new(LargestFragmentMetric::Atoms);
+
+    assert_eq!(edge_ranker.compare(&path, &triangle), Ordering::Equal);
+    assert_eq!(atom_ranker.compare(&path, &triangle), Ordering::Less);
+    assert_eq!(atom_ranker.compare(&triangle, &path), Ordering::Greater);
 }
 
 // ===========================================================================

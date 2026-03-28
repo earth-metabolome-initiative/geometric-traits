@@ -28,8 +28,6 @@ def _canonical_bond_payload(mol):
     for atom_ring, bond_ring in zip(ring_info.AtomRings(), ring_info.BondRings()):
         if not bond_ring:
             continue
-        if not all(mol.GetBondWithIdx(bond_idx).GetIsAromatic() for bond_idx in bond_ring):
-            continue
         ring_smiles = Chem.MolFragmentToSmiles(
             mol,
             atomsToUse=list(atom_ring),
@@ -39,16 +37,24 @@ def _canonical_bond_payload(mol):
         )
         signature = _normalize_aromatic_ring_smiles(ring_smiles)
         for bond_idx in bond_ring:
-            aromatic_contexts_by_bond[bond_idx].append(signature)
+            # RDKit's checkRings(..., aromaticRingsMatchOnly=true) compares
+            # aromatic bonds against every ring signature containing that bond,
+            # not just fully aromatic rings. Preserve that behavior by storing
+            # all enclosing ring signatures on aromatic bonds only.
+            if mol.GetBondWithIdx(bond_idx).GetIsAromatic():
+                aromatic_contexts_by_bond[bond_idx].append(signature)
 
     payload = []
     for bond in mol.GetBonds():
         src = bond.GetBeginAtomIdx()
         dst = bond.GetEndAtomIdx()
+        original_orientation = [src, dst]
         if src > dst:
             src, dst = dst, src
         contexts = sorted(set(aromatic_contexts_by_bond[bond.GetIdx()]))
-        payload.append(([src, dst], int(bond.GetBondType()), contexts))
+        payload.append(
+            ([src, dst], int(bond.GetBondType()), contexts, original_orientation, bond.GetIdx())
+        )
 
     payload.sort(key=lambda row: (row[0][0], row[0][1], row[1]))
     return payload
@@ -65,20 +71,26 @@ def mol_to_graph(smiles, sanitize=True):
 
     n_atoms = mol.GetNumAtoms()
     bond_payload = _canonical_bond_payload(mol)
-    edges = [edge for edge, _, _ in bond_payload]
-    bond_types = [bond_type for _, bond_type, _ in bond_payload]
-    aromatic_ring_contexts = [contexts for _, _, contexts in bond_payload]
+    edges = [edge for edge, _, _, _, _ in bond_payload]
+    bond_types = [bond_type for _, bond_type, _, _, _ in bond_payload]
+    aromatic_ring_contexts = [contexts for _, _, contexts, _, _ in bond_payload]
+    bond_orientations = [orientation for _, _, _, orientation, _ in bond_payload]
+    bond_original_indices = [original_index for _, _, _, _, original_index in bond_payload]
 
     atom_types = [atom.GetSymbol() for atom in mol.GetAtoms()]
     atom_is_aromatic = [atom.GetIsAromatic() for atom in mol.GetAtoms()]
+    atom_total_hs = [atom.GetTotalNumHs() for atom in mol.GetAtoms()]
 
     return {
         "n_atoms": n_atoms,
         "edges": edges,
         "atom_types": atom_types,
         "atom_is_aromatic": atom_is_aromatic,
+        "atom_total_hs": atom_total_hs,
         "bond_types": bond_types,
         "aromatic_ring_contexts": aromatic_ring_contexts,
+        "bond_orientations": bond_orientations,
+        "bond_original_indices": bond_original_indices,
     }
 
 
@@ -262,7 +274,7 @@ def main():
 
     output_path = "tests/fixtures/mces_ground_truth.json.gz"
     with gzip.open(output_path, "wt", encoding="utf-8") as f:
-        json.dump({"version": 3, "cases": cases}, f, indent=2)
+        json.dump({"version": 4, "cases": cases}, f, indent=2)
 
     print(f"\nWrote {len(cases)} cases to {output_path} (skipped {skipped})")
 

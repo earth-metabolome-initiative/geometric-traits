@@ -200,21 +200,76 @@ fn test_mces_all_cliques_ranked() {
 
 #[test]
 fn test_mces_search_mode_controls_enumeration() {
-    let g1 = wrap_undi(complete_graph(3));
-    let g2 = wrap_undi(path_graph(2));
+    let g1 = build_colored_graph(&[Color::Red, Color::Red, Color::Red], vec![(0, 1, 1), (1, 2, 1)]);
+    let g2 = build_colored_graph(
+        &[Color::Red, Color::Red, Color::Red, Color::Red],
+        vec![(0, 1, 1), (2, 3, 1)],
+    );
 
-    let default_result = McesBuilder::new(&g1, &g2).compute_unlabeled();
-    let first_valid =
-        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::FirstValid).compute_unlabeled();
+    let default_result = McesBuilder::new(&g1, &g2).compute_labeled();
+    let partial_enumeration = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::PartialEnumeration)
+        .compute_labeled();
     let all_best =
-        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
+        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_labeled();
 
     assert_eq!(default_result.matched_edges().len(), 1);
-    assert_eq!(first_valid.matched_edges().len(), 1);
+    assert_eq!(partial_enumeration.matched_edges().len(), 1);
     assert_eq!(all_best.matched_edges().len(), 1);
-    assert_eq!(default_result.all_cliques().len(), 1);
-    assert_eq!(first_valid.all_cliques().len(), 1);
-    assert_eq!(all_best.all_cliques().len(), 3);
+    assert_eq!(default_result.all_cliques().len(), partial_enumeration.all_cliques().len());
+    assert!(
+        all_best.all_cliques().len() > partial_enumeration.all_cliques().len(),
+        "AllBest should retain more tied maxima than PartialEnumeration on this fixture",
+    );
+}
+
+#[test]
+fn test_mces_builder_largest_fragment_metric_matches_explicit_ranker() {
+    let g1 = wrap_undi(cycle_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    let via_builder = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
+        .compute_unlabeled();
+    let via_ranker = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_ranker(
+            FragmentCountRanker
+                .then(LargestFragmentMetricRanker::new(LargestFragmentMetric::Atoms)),
+        )
+        .compute_unlabeled();
+
+    assert_eq!(via_builder.matched_edges(), via_ranker.matched_edges());
+    assert_eq!(via_builder.vertex_matches(), via_ranker.vertex_matches());
+    assert_eq!(via_builder.fragment_count(), via_ranker.fragment_count());
+    assert_eq!(via_builder.largest_fragment_size(), via_ranker.largest_fragment_size());
+    assert_eq!(via_builder.all_cliques().len(), via_ranker.all_cliques().len());
+    assert_eq!(
+        via_builder.all_cliques()[0].largest_fragment_atom_count(),
+        via_ranker.all_cliques()[0].largest_fragment_atom_count(),
+    );
+}
+
+#[test]
+fn test_mces_builder_product_vertex_ordering_identity_matches_default() {
+    let g1 = wrap_undi(cycle_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    let default =
+        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
+    let identity = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_product_vertex_ordering(|left_lg, right_lg, _first_edge, _second_edge| {
+            (left_lg, right_lg)
+        })
+        .compute_unlabeled();
+
+    assert_eq!(default.matched_edges(), identity.matched_edges());
+    assert_eq!(default.vertex_matches(), identity.vertex_matches());
+    assert_eq!(default.fragment_count(), identity.fragment_count());
+    assert_eq!(default.largest_fragment_size(), identity.largest_fragment_size());
+    assert_eq!(default.all_cliques().len(), identity.all_cliques().len());
 }
 
 // ===========================================================================
@@ -635,12 +690,12 @@ fn test_mces_delta_y_k3_vs_k1_3() {
 }
 
 #[test]
-fn test_mces_delta_y_first_valid_matches_all_best() {
+fn test_mces_delta_y_partial_enumeration_matches_all_best() {
     let g1 = wrap_undi(complete_graph(3));
     let g2 = wrap_undi(star_graph(4));
 
-    let first_valid = McesBuilder::new(&g1, &g2)
-        .with_search_mode(McesSearchMode::FirstValid)
+    let partial_enumeration = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::PartialEnumeration)
         .with_delta_y(true)
         .compute_unlabeled();
     let all_best = McesBuilder::new(&g1, &g2)
@@ -648,7 +703,7 @@ fn test_mces_delta_y_first_valid_matches_all_best() {
         .with_delta_y(true)
         .compute_unlabeled();
 
-    assert_eq!(first_valid.matched_edges().len(), all_best.matched_edges().len());
+    assert_eq!(partial_enumeration.matched_edges().len(), all_best.matched_edges().len());
 }
 
 #[test]
