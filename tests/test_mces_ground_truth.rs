@@ -7,6 +7,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
+    fs::File,
     io::{Read as _, Write as _},
     time::Instant,
 };
@@ -1158,48 +1159,6 @@ fn permuted_partitioned_infos_hybrid_partial(
     };
     let cliques =
         geometric_traits::traits::algorithms::maximum_clique::experimental_partial_search_hybrid(
-            &matrix,
-            &partition,
-            initial_lower_bound,
-            |clique| {
-                !clique_has_delta_y_from_product(
-                    clique,
-                    &permuted_pairs,
-                    &diagnostics.first_edge_map,
-                    &diagnostics.second_edge_map,
-                    case.graph1.n_atoms,
-                    case.graph2.n_atoms,
-                )
-            },
-        );
-    rank_partitioned_cliques(
-        cliques,
-        &permuted_pairs,
-        &diagnostics.first_edge_map,
-        &diagnostics.second_edge_map,
-    )
-}
-
-fn permuted_partitioned_infos_u32_partial(
-    case: &GroundTruthCase,
-    diagnostics: &LabeledCaseProductDiagnostics,
-    order: &[usize],
-    partition_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
-    initial_lower_bound: usize,
-) -> Vec<EagerCliqueInfo<usize>> {
-    let (matrix, permuted_pairs) =
-        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, order);
-    let (g1_label_indices, g2_label_indices, num_labels) =
-        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
-    let partition = PartitionInfo {
-        pairs: &permuted_pairs,
-        g1_labels: &g1_label_indices,
-        g2_labels: &g2_label_indices,
-        num_labels,
-        partition_side,
-    };
-    let cliques =
-        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_search_u32(
             &matrix,
             &partition,
             initial_lower_bound,
@@ -3161,6 +3120,1132 @@ fn print_massspecgym_case_timing_breakdown() {
     );
 }
 
+#[test]
+#[ignore = "manual sequential timing harness for default 10K Rust vs RDKit comparison"]
+fn print_massspecgym_default_10000_rust_vs_rdkit_timings() {
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let output_path = std::env::var("MCES_TIMING_CSV")
+        .unwrap_or_else(|_| "/tmp/massspecgym_default_10000_rust_vs_rdkit.csv".to_string());
+    let limit =
+        std::env::var("MCES_TIMING_LIMIT").ok().and_then(|value| value.parse::<usize>().ok());
+    let mut writer =
+        std::io::BufWriter::new(File::create(&output_path).expect("failed to create timing CSV"));
+    writeln!(
+        writer,
+        "case_name,rdkit_elapsed_seconds,rust_elapsed_seconds,rust_over_rdkit_ratio,matched_bonds,matched_atoms,similarity"
+    )
+    .expect("failed to write CSV header");
+
+    let mut rdkit_times = Vec::new();
+    let mut rust_times = Vec::new();
+    let mut slowest: Vec<(f64, String)> = Vec::new();
+
+    for (index, case) in cases.iter().enumerate() {
+        if let Some(limit) = limit
+            && index >= limit
+        {
+            break;
+        }
+
+        let started = Instant::now();
+        let result = run_labeled_case(case);
+        let rust_elapsed = started.elapsed().as_secs_f64();
+        let rdkit_elapsed = case.rdkit_elapsed_seconds.unwrap_or_default();
+        let ratio = if rdkit_elapsed > 0.0 { rust_elapsed / rdkit_elapsed } else { f64::INFINITY };
+
+        rdkit_times.push(rdkit_elapsed);
+        rust_times.push(rust_elapsed);
+        slowest.push((rust_elapsed, case.name.clone()));
+
+        writeln!(
+            writer,
+            "{},{:.6},{:.6},{:.6},{},{},{:.6}",
+            case.name,
+            rdkit_elapsed,
+            rust_elapsed,
+            ratio,
+            result.matched_edges().len(),
+            result.vertex_matches().len(),
+            result.johnson_similarity(),
+        )
+        .expect("failed to write timing CSV row");
+    }
+    writer.flush().expect("failed to flush timing CSV");
+
+    rdkit_times.sort_by(f64::total_cmp);
+    rust_times.sort_by(f64::total_cmp);
+    slowest.sort_by(|left, right| right.0.total_cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+
+    let count = rust_times.len();
+    let rdkit_sum: f64 = rdkit_times.iter().sum();
+    let rust_sum: f64 = rust_times.iter().sum();
+    let median_index = count / 2;
+    let p90_index = (count * 90) / 100;
+    let p99_index = (count * 99) / 100;
+
+    println!("cases_measured={count}");
+    println!("csv_output={output_path}");
+    println!("rdkit_sum_seconds={rdkit_sum:.6}");
+    println!("rust_sum_seconds={rust_sum:.6}");
+    println!(
+        "total_ratio_rust_over_rdkit={:.6}",
+        if rdkit_sum > 0.0 { rust_sum / rdkit_sum } else { f64::INFINITY }
+    );
+    println!("rdkit_median_seconds={:.6}", rdkit_times[median_index]);
+    println!("rust_median_seconds={:.6}", rust_times[median_index]);
+    println!(
+        "median_ratio_rust_over_rdkit={:.6}",
+        if rdkit_times[median_index] > 0.0 {
+            rust_times[median_index] / rdkit_times[median_index]
+        } else {
+            f64::INFINITY
+        }
+    );
+    println!("rdkit_p90_seconds={:.6}", rdkit_times[p90_index.min(count - 1)]);
+    println!("rust_p90_seconds={:.6}", rust_times[p90_index.min(count - 1)]);
+    println!("rdkit_p99_seconds={:.6}", rdkit_times[p99_index.min(count - 1)]);
+    println!("rust_p99_seconds={:.6}", rust_times[p99_index.min(count - 1)]);
+    for (rank, (elapsed, case_name)) in slowest.into_iter().take(10).enumerate() {
+        println!("slowest_rust_case_{}={},{}", rank + 1, case_name, elapsed);
+    }
+}
+
+#[test]
+#[ignore = "manual strategy sweep for partial-search incumbent quality on one MassSpecGym case"]
+fn print_massspecgym_case_partial_strategy_sweep() {
+    let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(10_000);
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
+    let case = find_case(&cases, &case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+
+    let orders = [
+        ("identity", product_order_identity(&diagnostics.vertex_pairs)),
+        ("rdkit_raw", product_order_rdkit_raw_pair_order(case, &diagnostics)),
+        ("second_then_first", product_order_second_then_first(&diagnostics.vertex_pairs)),
+        (
+            "reverse_within_first_buckets",
+            product_order_reverse_within_first_buckets(&diagnostics.vertex_pairs),
+        ),
+        ("reverse", product_order_reverse(&diagnostics.vertex_pairs)),
+    ];
+
+    println!("case: {}", case.name);
+    println!(
+        "expected bonds={} atoms={} similarity={:.6} rdkit_elapsed_seconds={:.6}",
+        case.expected_bond_matches,
+        case.expected_atom_matches,
+        case.expected_similarity,
+        case.rdkit_elapsed_seconds.unwrap_or_default(),
+    );
+
+    for (order_name, order) in orders {
+        let (matrix, permuted_pairs) =
+            permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+        let (g1_label_indices, g2_label_indices, num_labels) = intern_case_bond_labels(
+            &diagnostics.first_bond_labels,
+            &diagnostics.second_bond_labels,
+        );
+
+        for partition_side in [
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First,
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::Second,
+        ] {
+            let partition = PartitionInfo {
+                pairs: &permuted_pairs,
+                g1_labels: &g1_label_indices,
+                g2_labels: &g2_label_indices,
+                num_labels,
+                partition_side,
+            };
+
+            let baseline_lower_bound = usize::from(matrix.order() > 0);
+
+            let started = Instant::now();
+            let greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+                &matrix,
+                &partition,
+                baseline_lower_bound,
+                |clique| {
+                    !clique_has_delta_y_from_product(
+                        clique,
+                        &permuted_pairs,
+                        &diagnostics.first_edge_map,
+                        &diagnostics.second_edge_map,
+                        case.graph1.n_atoms,
+                        case.graph2.n_atoms,
+                    )
+                },
+            );
+            let greedy_elapsed = started.elapsed();
+
+            let started = Instant::now();
+            let profile =
+                geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+                    &matrix,
+                    &partition,
+                    false,
+                    greedy,
+                    greedy,
+                    |clique| {
+                        !clique_has_delta_y_from_product(
+                            clique,
+                            &permuted_pairs,
+                            &diagnostics.first_edge_map,
+                            &diagnostics.second_edge_map,
+                            case.graph1.n_atoms,
+                            case.graph2.n_atoms,
+                        )
+                    },
+                );
+            let seeded_elapsed = started.elapsed();
+            let top_bonds = profile.best_cliques.first().map_or(0, Vec::len);
+
+            println!(
+                "order={order_name} side={partition_side:?} product_vertices={} greedy_bound={} greedy_ms={} seeded_search_ms={} seeded_top_bonds={} seeded_dfs_calls={} seeded_last_best_call={}",
+                matrix.order(),
+                greedy,
+                greedy_elapsed.as_millis(),
+                seeded_elapsed.as_millis(),
+                top_bonds,
+                profile.stats.dfs_calls,
+                profile.stats.last_best_improvement_dfs_call,
+            );
+        }
+    }
+}
+
+#[test]
+#[ignore = "manual diagnostic harness for comparing greedy lower bounds across partition sides on the 10K default corpus"]
+fn print_massspecgym_default_10000_dual_side_greedy_summary() {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    #[derive(Debug)]
+    struct GreedyDelta {
+        name: String,
+        first_edges: usize,
+        second_edges: usize,
+        current_side: PartitionSide,
+        current_greedy: usize,
+        other_greedy: usize,
+        rdkit_elapsed_seconds: f64,
+    }
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let mut improved = Vec::new();
+    let mut improved_equal_edges = 0usize;
+    let mut improved_current_first = 0usize;
+    let mut improved_current_second = 0usize;
+    let mut total_current = 0usize;
+    let mut total_other = 0usize;
+
+    let started = Instant::now();
+    for case in &cases {
+        let prepared = prepare_labeled_case(case);
+        let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+        let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+        let (matrix, permuted_pairs) =
+            permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+        let (g1_label_indices, g2_label_indices, num_labels) = intern_case_bond_labels(
+            &diagnostics.first_bond_labels,
+            &diagnostics.second_bond_labels,
+        );
+        let baseline_lower_bound = usize::from(matrix.order() > 0);
+        let current_side =
+            geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+                &diagnostics.vertex_pairs,
+                diagnostics.first_edge_map.len(),
+                diagnostics.second_edge_map.len(),
+            );
+
+        let greedy_for_side = |partition_side| {
+            let partition = PartitionInfo {
+                pairs: &permuted_pairs,
+                g1_labels: &g1_label_indices,
+                g2_labels: &g2_label_indices,
+                num_labels,
+                partition_side,
+            };
+            geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+                &matrix,
+                &partition,
+                baseline_lower_bound,
+                |clique| {
+                    !clique_has_delta_y_from_product(
+                        clique,
+                        &permuted_pairs,
+                        &diagnostics.first_edge_map,
+                        &diagnostics.second_edge_map,
+                        case.graph1.n_atoms,
+                        case.graph2.n_atoms,
+                    )
+                },
+            )
+        };
+
+        let greedy_first = greedy_for_side(PartitionSide::First);
+        let greedy_second = greedy_for_side(PartitionSide::Second);
+        let (current_greedy, other_greedy) = match current_side {
+            PartitionSide::First => (greedy_first, greedy_second),
+            PartitionSide::Second => (greedy_second, greedy_first),
+        };
+
+        total_current += current_greedy;
+        total_other += other_greedy;
+
+        if other_greedy > current_greedy {
+            if diagnostics.first_edge_map.len() == diagnostics.second_edge_map.len() {
+                improved_equal_edges += 1;
+            }
+            match current_side {
+                PartitionSide::First => improved_current_first += 1,
+                PartitionSide::Second => improved_current_second += 1,
+            }
+            improved.push(GreedyDelta {
+                name: case.name.clone(),
+                first_edges: diagnostics.first_edge_map.len(),
+                second_edges: diagnostics.second_edge_map.len(),
+                current_side,
+                current_greedy,
+                other_greedy,
+                rdkit_elapsed_seconds: case.rdkit_elapsed_seconds.unwrap_or_default(),
+            });
+        }
+    }
+
+    improved.sort_by(|left, right| {
+        right
+            .other_greedy
+            .saturating_sub(right.current_greedy)
+            .cmp(&left.other_greedy.saturating_sub(left.current_greedy))
+            .then_with(|| {
+                right
+                    .rdkit_elapsed_seconds
+                    .partial_cmp(&left.rdkit_elapsed_seconds)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .then_with(|| left.name.cmp(&right.name))
+    });
+
+    println!("cases={}", cases.len());
+    println!("elapsed_ms={}", started.elapsed().as_millis());
+    println!("improved_cases={}", improved.len());
+    println!("improved_equal_edges={}", improved_equal_edges);
+    println!("improved_current_first={}", improved_current_first);
+    println!("improved_current_second={}", improved_current_second);
+    println!("total_current_greedy={}", total_current);
+    println!("total_other_greedy={}", total_other);
+    for record in improved.iter().take(20) {
+        println!(
+            "case={} edges=({},{}) current_side={:?} current_greedy={} other_greedy={} delta={} rdkit_elapsed_seconds={:.6}",
+            record.name,
+            record.first_edges,
+            record.second_edges,
+            record.current_side,
+            record.current_greedy,
+            record.other_greedy,
+            record.other_greedy.saturating_sub(record.current_greedy),
+            record.rdkit_elapsed_seconds,
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual diagnostic harness for comparing current-side vs dual-side greedy seeding on one MassSpecGym case"]
+fn print_massspecgym_case_partial_dual_side_greedy_oracle() {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(10_000);
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
+    let case = find_case(&cases, &case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+
+    let run_variant = |partition_side: PartitionSide, lower_bound: usize, seed: usize| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        let greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+        let started = Instant::now();
+        let profile =
+            geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+                &matrix,
+                &partition,
+                false,
+                lower_bound,
+                seed,
+                |clique| {
+                    !clique_has_delta_y_from_product(
+                        clique,
+                        &permuted_pairs,
+                        &diagnostics.first_edge_map,
+                        &diagnostics.second_edge_map,
+                        case.graph1.n_atoms,
+                        case.graph2.n_atoms,
+                    )
+                },
+            );
+        let elapsed = started.elapsed();
+        (
+            greedy,
+            elapsed,
+            profile.best_cliques.first().map_or(0, Vec::len),
+            profile.stats.dfs_calls,
+            profile.stats.last_best_improvement_dfs_call,
+        )
+    };
+
+    let (greedy_first, ..) =
+        run_variant(PartitionSide::First, baseline_lower_bound, baseline_lower_bound);
+    let (greedy_second, ..) =
+        run_variant(PartitionSide::Second, baseline_lower_bound, baseline_lower_bound);
+    let (other_side, current_greedy, other_greedy) = match current_side {
+        PartitionSide::First => (PartitionSide::Second, greedy_first, greedy_second),
+        PartitionSide::Second => (PartitionSide::First, greedy_second, greedy_first),
+    };
+    let best_side = if other_greedy > current_greedy { other_side } else { current_side };
+    let best_greedy = current_greedy.max(other_greedy);
+
+    let (_, current_elapsed, current_bonds, current_dfs, current_last_best) =
+        run_variant(current_side, current_greedy, current_greedy.saturating_sub(1));
+    let (
+        _,
+        current_best_seed_elapsed,
+        current_best_seed_bonds,
+        current_best_seed_dfs,
+        current_best_seed_last_best,
+    ) = run_variant(current_side, best_greedy, best_greedy.saturating_sub(1));
+    let (_, best_side_elapsed, best_side_bonds, best_side_dfs, best_side_last_best) =
+        run_variant(best_side, best_greedy, best_greedy.saturating_sub(1));
+
+    println!("case: {}", case.name);
+    println!(
+        "expected bonds={} atoms={} similarity={:.6} rdkit_elapsed_seconds={:.6}",
+        case.expected_bond_matches,
+        case.expected_atom_matches,
+        case.expected_similarity,
+        case.rdkit_elapsed_seconds.unwrap_or_default(),
+    );
+    println!(
+        "graph_edges=({},{}) product_vertices={} current_side={current_side:?} other_side={other_side:?} greedy_first={} greedy_second={} best_greedy={}",
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+        matrix.order(),
+        greedy_first,
+        greedy_second,
+        best_greedy,
+    );
+    println!(
+        "variant=current_side seeded_search_ms={} top_bonds={} dfs_calls={} last_best_call={}",
+        current_elapsed.as_millis(),
+        current_bonds,
+        current_dfs,
+        current_last_best,
+    );
+    println!(
+        "variant=current_side_best_seed seeded_search_ms={} top_bonds={} dfs_calls={} last_best_call={}",
+        current_best_seed_elapsed.as_millis(),
+        current_best_seed_bonds,
+        current_best_seed_dfs,
+        current_best_seed_last_best,
+    );
+    println!(
+        "variant=best_side_best_seed side={best_side:?} seeded_search_ms={} top_bonds={} dfs_calls={} last_best_call={}",
+        best_side_elapsed.as_millis(),
+        best_side_bonds,
+        best_side_dfs,
+        best_side_last_best,
+    );
+}
+
+#[test]
+#[ignore = "manual diagnostic harness for dual-side greedy oracle behavior on the slowest default 10K cases"]
+fn print_massspecgym_default_10000_dual_side_oracle_top10_slow_cases() {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    const CASES: &[&str] = &[
+        "massspecgym_default_5445",
+        "massspecgym_default_5255",
+        "massspecgym_default_4655",
+        "massspecgym_default_2336",
+        "massspecgym_default_1113",
+        "massspecgym_default_9331",
+        "massspecgym_default_7202",
+        "massspecgym_default_8641",
+        "massspecgym_default_4378",
+        "massspecgym_default_8164",
+    ];
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+
+    for case_name in CASES {
+        let case = find_case(&cases, case_name);
+        let prepared = prepare_labeled_case(case);
+        let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+        let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+        let (matrix, permuted_pairs) =
+            permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+        let (g1_label_indices, g2_label_indices, num_labels) = intern_case_bond_labels(
+            &diagnostics.first_bond_labels,
+            &diagnostics.second_bond_labels,
+        );
+        let baseline_lower_bound = usize::from(matrix.order() > 0);
+        let current_side =
+            geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+                &permuted_pairs,
+                diagnostics.first_edge_map.len(),
+                diagnostics.second_edge_map.len(),
+            );
+
+        let greedy_for_side = |partition_side| {
+            let partition = PartitionInfo {
+                pairs: &permuted_pairs,
+                g1_labels: &g1_label_indices,
+                g2_labels: &g2_label_indices,
+                num_labels,
+                partition_side,
+            };
+            geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+                &matrix,
+                &partition,
+                baseline_lower_bound,
+                |clique| {
+                    !clique_has_delta_y_from_product(
+                        clique,
+                        &permuted_pairs,
+                        &diagnostics.first_edge_map,
+                        &diagnostics.second_edge_map,
+                        case.graph1.n_atoms,
+                        case.graph2.n_atoms,
+                    )
+                },
+            )
+        };
+
+        let run_variant =
+            |partition_side: PartitionSide, lower_bound: usize, best_size_seed: usize| {
+                let partition = PartitionInfo {
+                    pairs: &permuted_pairs,
+                    g1_labels: &g1_label_indices,
+                    g2_labels: &g2_label_indices,
+                    num_labels,
+                    partition_side,
+                };
+                let started = Instant::now();
+                let profile =
+                geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+                    &matrix,
+                    &partition,
+                    false,
+                    lower_bound,
+                    best_size_seed,
+                    |clique| {
+                        !clique_has_delta_y_from_product(
+                            clique,
+                            &permuted_pairs,
+                            &diagnostics.first_edge_map,
+                            &diagnostics.second_edge_map,
+                            case.graph1.n_atoms,
+                            case.graph2.n_atoms,
+                        )
+                    },
+                );
+                let elapsed = started.elapsed();
+                let infos = rank_partitioned_cliques(
+                    profile.best_cliques,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                );
+                let top = infos.first().expect("expected retained clique");
+                (
+                    elapsed,
+                    top.matched_edges().len(),
+                    top.vertex_matches().len(),
+                    info_johnson_similarity(case, top),
+                )
+            };
+
+        let greedy_first = greedy_for_side(PartitionSide::First);
+        let greedy_second = greedy_for_side(PartitionSide::Second);
+        let (current_greedy, other_greedy, other_side) = match current_side {
+            PartitionSide::First => (greedy_first, greedy_second, PartitionSide::Second),
+            PartitionSide::Second => (greedy_second, greedy_first, PartitionSide::First),
+        };
+        let best_side = if other_greedy > current_greedy { other_side } else { current_side };
+        let best_greedy = current_greedy.max(other_greedy);
+
+        let (current_elapsed, current_bonds, current_atoms, current_similarity) =
+            run_variant(current_side, current_greedy, current_greedy.saturating_sub(1));
+        let (oracle_elapsed, oracle_bonds, oracle_atoms, oracle_similarity) =
+            run_variant(best_side, best_greedy, best_greedy.saturating_sub(1));
+
+        println!(
+            "case={} rdkit={:.6}s edges=({},{}) current_side={current_side:?} greedy=({}, {}) best_side={best_side:?} current_ms={} oracle_ms={} current=({},{},{:.6}) oracle=({},{},{:.6}) oracle_matches_fixture={}",
+            case.name,
+            case.rdkit_elapsed_seconds.unwrap_or_default(),
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+            greedy_first,
+            greedy_second,
+            current_elapsed.as_millis(),
+            oracle_elapsed.as_millis(),
+            current_bonds,
+            current_atoms,
+            current_similarity,
+            oracle_bonds,
+            oracle_atoms,
+            oracle_similarity,
+            oracle_bonds == case.expected_bond_matches
+                && oracle_atoms == case.expected_atom_matches
+                && (oracle_similarity - case.expected_similarity).abs() < 1e-6,
+        );
+    }
+}
+
+fn dual_side_greedy_oracle_fixture_mismatch(
+    case: &GroundTruthCase,
+    greedy_delta_threshold: usize,
+) -> (bool, Option<String>) {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+
+    let greedy_for_side = |partition_side| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        )
+    };
+
+    let greedy_first = greedy_for_side(PartitionSide::First);
+    let greedy_second = greedy_for_side(PartitionSide::Second);
+    let (current_greedy, other_greedy, other_side) = match current_side {
+        PartitionSide::First => (greedy_first, greedy_second, PartitionSide::Second),
+        PartitionSide::Second => (greedy_second, greedy_first, PartitionSide::First),
+    };
+    let switched = other_greedy >= current_greedy.saturating_add(greedy_delta_threshold);
+    let best_side = if switched { other_side } else { current_side };
+    let best_greedy = if switched { other_greedy } else { current_greedy };
+
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: best_side,
+    };
+    let profile = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &matrix,
+        &partition,
+        false,
+        best_greedy,
+        best_greedy.saturating_sub(1),
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    let infos = rank_partitioned_cliques(
+        profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let Some(top) = infos.first() else {
+        return (
+            switched,
+            Some(format!(
+                "{} oracle retained no clique current_side={current_side:?} best_side={best_side:?} greedy=({}, {})",
+                case.name, greedy_first, greedy_second
+            )),
+        );
+    };
+    let mismatch = labeled_info_mismatch(case, top).map(|message| {
+        format!(
+            "{} current_side={current_side:?} best_side={best_side:?} greedy=({}, {}) switched={} {}",
+            case.name, greedy_first, greedy_second, switched, message
+        )
+    });
+    (switched, mismatch)
+}
+
+#[test]
+#[ignore = "experimental parallel 10K correctness check for the thresholded dual-side greedy oracle"]
+fn test_massspecgym_ground_truth_labeled_mces_10000_dual_side_oracle() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let outcomes: Vec<(bool, Option<String>)> = cases
+        .par_iter()
+        .map(|case| dual_side_greedy_oracle_fixture_mismatch(case, GREEDY_DELTA_THRESHOLD))
+        .collect();
+
+    let switched_cases = outcomes.iter().filter(|(switched, _)| *switched).count();
+    let mut mismatches: Vec<String> =
+        outcomes.into_iter().filter_map(|(_, mismatch)| mismatch).collect();
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 10K oracle cases; switched={} threshold={} mismatches={}",
+        cases.len(),
+        switched_cases,
+        GREEDY_DELTA_THRESHOLD,
+        mismatches.len(),
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+
+    assert!(mismatches.is_empty(), "dual-side oracle diverged on {} cases", mismatches.len());
+}
+
+fn dual_side_seed_only_fixture_mismatch(
+    case: &GroundTruthCase,
+    greedy_delta_threshold: usize,
+) -> (bool, Option<String>) {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+
+    let greedy_for_side = |partition_side| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        )
+    };
+
+    let greedy_first = greedy_for_side(PartitionSide::First);
+    let greedy_second = greedy_for_side(PartitionSide::Second);
+    let (current_greedy, other_greedy) = match current_side {
+        PartitionSide::First => (greedy_first, greedy_second),
+        PartitionSide::Second => (greedy_second, greedy_first),
+    };
+    let adopted_other_seed = other_greedy >= current_greedy.saturating_add(greedy_delta_threshold);
+    let chosen_greedy = if adopted_other_seed { other_greedy } else { current_greedy };
+
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: current_side,
+    };
+    let profile = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &matrix,
+        &partition,
+        false,
+        baseline_lower_bound,
+        chosen_greedy.saturating_sub(1),
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    let infos = rank_partitioned_cliques(
+        profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let Some(top) = infos.first() else {
+        return (
+            adopted_other_seed,
+            Some(format!(
+                "{} seed-only retained no clique current_side={current_side:?} greedy=({}, {}) chosen_greedy={}",
+                case.name, greedy_first, greedy_second, chosen_greedy
+            )),
+        );
+    };
+    let mismatch = labeled_info_mismatch(case, top).map(|message| {
+        format!(
+            "{} current_side={current_side:?} greedy=({}, {}) adopted_other_seed={} chosen_greedy={} {}",
+            case.name, greedy_first, greedy_second, adopted_other_seed, chosen_greedy, message
+        )
+    });
+    (adopted_other_seed, mismatch)
+}
+
+#[derive(Clone, Debug)]
+struct SeedOnlyTimingOutcome {
+    case_name: String,
+    adopted_other_seed: bool,
+    baseline_ms: u128,
+    seed_only_ms: u128,
+    expected_bonds: usize,
+    expected_atoms: usize,
+}
+
+fn dual_side_seed_only_timing(
+    case: &GroundTruthCase,
+    greedy_delta_threshold: usize,
+) -> SeedOnlyTimingOutcome {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: current_side,
+    };
+
+    let accept = |clique: &[usize]| {
+        !clique_has_delta_y_from_product(
+            clique,
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+            case.graph1.n_atoms,
+            case.graph2.n_atoms,
+        )
+    };
+
+    let greedy_for_side = |partition_side| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        )
+    };
+
+    let greedy_first = greedy_for_side(PartitionSide::First);
+    let greedy_second = greedy_for_side(PartitionSide::Second);
+    let (current_greedy, other_greedy) = match current_side {
+        PartitionSide::First => (greedy_first, greedy_second),
+        PartitionSide::Second => (greedy_second, greedy_first),
+    };
+    let adopted_other_seed = other_greedy >= current_greedy.saturating_add(greedy_delta_threshold);
+    let chosen_greedy = if adopted_other_seed { other_greedy } else { current_greedy };
+
+    let started = Instant::now();
+    let baseline_profile =
+        geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+            &matrix,
+            &partition,
+            false,
+            baseline_lower_bound,
+            baseline_lower_bound,
+            accept,
+        );
+    let baseline_elapsed = started.elapsed().as_millis();
+    let baseline_infos = rank_partitioned_cliques(
+        baseline_profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let baseline_top = baseline_infos.first().expect("expected retained baseline clique");
+    assert!(
+        labeled_info_mismatch(case, baseline_top).is_none(),
+        "baseline path diverged unexpectedly for {}",
+        case.name
+    );
+
+    let started = Instant::now();
+    let seed_only_profile =
+        geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+            &matrix,
+            &partition,
+            false,
+            baseline_lower_bound,
+            chosen_greedy.saturating_sub(1),
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let seed_only_elapsed = started.elapsed().as_millis();
+    let seed_only_infos = rank_partitioned_cliques(
+        seed_only_profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let seed_only_top = seed_only_infos.first().expect("expected retained seed-only clique");
+    assert!(
+        labeled_info_mismatch(case, seed_only_top).is_none(),
+        "seed-only path diverged unexpectedly for {}",
+        case.name
+    );
+
+    SeedOnlyTimingOutcome {
+        case_name: case.name.clone(),
+        adopted_other_seed,
+        baseline_ms: baseline_elapsed,
+        seed_only_ms: seed_only_elapsed,
+        expected_bonds: case.expected_bond_matches,
+        expected_atoms: case.expected_atom_matches,
+    }
+}
+
+#[test]
+#[ignore = "experimental parallel 10K correctness check for the thresholded dual-side seed-only oracle"]
+fn test_massspecgym_ground_truth_labeled_mces_10000_dual_side_seed_only_oracle() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let outcomes: Vec<(bool, Option<String>)> = cases
+        .par_iter()
+        .map(|case| dual_side_seed_only_fixture_mismatch(case, GREEDY_DELTA_THRESHOLD))
+        .collect();
+
+    let adopted_other_seed_cases =
+        outcomes.iter().filter(|(adopted_other_seed, _)| *adopted_other_seed).count();
+    let mut mismatches: Vec<String> =
+        outcomes.into_iter().filter_map(|(_, mismatch)| mismatch).collect();
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 10K seed-only oracle cases; adopted_other_seed={} threshold={} mismatches={}",
+        cases.len(),
+        adopted_other_seed_cases,
+        GREEDY_DELTA_THRESHOLD,
+        mismatches.len(),
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "dual-side seed-only oracle diverged on {} cases",
+        mismatches.len()
+    );
+}
+
+#[test]
+#[ignore = "manual timing summary for the seed-only oracle on the slowest default 10K cases"]
+fn print_massspecgym_default_10000_dual_side_seed_only_top10_timing() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+    const CASES: &[&str] = &[
+        "massspecgym_default_5445",
+        "massspecgym_default_5255",
+        "massspecgym_default_4655",
+        "massspecgym_default_2336",
+        "massspecgym_default_1113",
+        "massspecgym_default_9331",
+        "massspecgym_default_7202",
+        "massspecgym_default_8641",
+        "massspecgym_default_4378",
+        "massspecgym_default_8164",
+    ];
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    for case_name in CASES {
+        let case = find_case(&cases, case_name);
+        let outcome = dual_side_seed_only_timing(case, GREEDY_DELTA_THRESHOLD);
+        println!(
+            "case={} adopted_other_seed={} baseline_ms={} seed_only_ms={} expected=({},{})",
+            outcome.case_name,
+            outcome.adopted_other_seed,
+            outcome.baseline_ms,
+            outcome.seed_only_ms,
+            outcome.expected_bonds,
+            outcome.expected_atoms,
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual parallel timing summary for the seed-only oracle over the full default 10K corpus"]
+fn print_massspecgym_default_10000_dual_side_seed_only_timing_summary() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let started = Instant::now();
+    let mut outcomes: Vec<SeedOnlyTimingOutcome> = cases
+        .par_iter()
+        .map(|case| dual_side_seed_only_timing(case, GREEDY_DELTA_THRESHOLD))
+        .collect();
+    let wall_ms = started.elapsed().as_millis();
+
+    let adopted_other_seed = outcomes.iter().filter(|outcome| outcome.adopted_other_seed).count();
+    let baseline_sum_ms: u128 = outcomes.iter().map(|outcome| outcome.baseline_ms).sum();
+    let seed_only_sum_ms: u128 = outcomes.iter().map(|outcome| outcome.seed_only_ms).sum();
+
+    outcomes.sort_by(|left, right| {
+        let left_delta = left.baseline_ms as i128 - left.seed_only_ms as i128;
+        let right_delta = right.baseline_ms as i128 - right.seed_only_ms as i128;
+        right_delta.cmp(&left_delta).then_with(|| left.case_name.cmp(&right.case_name))
+    });
+
+    println!(
+        "cases={} threshold={} adopted_other_seed={} wall_ms={} baseline_sum_ms={} seed_only_sum_ms={}",
+        cases.len(),
+        GREEDY_DELTA_THRESHOLD,
+        adopted_other_seed,
+        wall_ms,
+        baseline_sum_ms,
+        seed_only_sum_ms,
+    );
+    for outcome in outcomes.iter().take(20) {
+        println!(
+            "fastest_gain case={} adopted_other_seed={} baseline_ms={} seed_only_ms={} delta_ms={}",
+            outcome.case_name,
+            outcome.adopted_other_seed,
+            outcome.baseline_ms,
+            outcome.seed_only_ms,
+            outcome.baseline_ms as i128 - outcome.seed_only_ms as i128,
+        );
+    }
+    for outcome in outcomes.iter().rev().take(20) {
+        println!(
+            "worst_regression case={} adopted_other_seed={} baseline_ms={} seed_only_ms={} delta_ms={}",
+            outcome.case_name,
+            outcome.adopted_other_seed,
+            outcome.baseline_ms,
+            outcome.seed_only_ms,
+            outcome.baseline_ms as i128 - outcome.seed_only_ms as i128,
+        );
+    }
+}
+
 fn assert_hybrid_partial_matches_scalar(case_name: &str) {
     let cases = load_massspecgym_ground_truth_by_size(1000);
     let case = find_case(&cases, case_name);
@@ -3216,61 +4301,6 @@ fn assert_hybrid_partial_matches_scalar(case_name: &str) {
     );
 }
 
-fn assert_u32_partial_matches_scalar(case_name: &str) {
-    let cases = load_massspecgym_ground_truth_by_size(1000);
-    let case = find_case(&cases, case_name);
-    let prepared = prepare_labeled_case(case);
-    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
-    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
-    let partition_side =
-        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
-            &diagnostics.vertex_pairs,
-            diagnostics.first_edge_map.len(),
-            diagnostics.second_edge_map.len(),
-        );
-    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
-
-    let scalar = permuted_partitioned_infos_scalar_partial(
-        case,
-        &diagnostics,
-        &order,
-        partition_side,
-        initial_lower_bound,
-    );
-    let narrowed = permuted_partitioned_infos_u32_partial(
-        case,
-        &diagnostics,
-        &order,
-        partition_side,
-        initial_lower_bound,
-    );
-
-    assert_eq!(
-        narrowed.len(),
-        scalar.len(),
-        "u32 retained clique count diverged for {}",
-        case.name
-    );
-    assert_eq!(
-        narrowed.first().map(EagerCliqueInfo::clique),
-        scalar.first().map(EagerCliqueInfo::clique),
-        "u32 top clique diverged for {}",
-        case.name
-    );
-    assert_eq!(
-        narrowed.first().map(EagerCliqueInfo::vertex_matches),
-        scalar.first().map(EagerCliqueInfo::vertex_matches),
-        "u32 top atom matches diverged for {}",
-        case.name
-    );
-    assert_eq!(
-        narrowed.first().map(EagerCliqueInfo::matched_edges),
-        scalar.first().map(EagerCliqueInfo::matched_edges),
-        "u32 top edge matches diverged for {}",
-        case.name
-    );
-}
-
 #[test]
 #[ignore = "release equivalence probe for hybrid partial path"]
 fn test_massspecgym_ground_truth_labeled_mces_1000_case_0594_hybrid_partial_matches_scalar() {
@@ -3287,24 +4317,6 @@ fn test_massspecgym_ground_truth_labeled_mces_1000_case_0631_hybrid_partial_matc
 #[ignore = "release equivalence probe for hybrid partial path"]
 fn test_massspecgym_ground_truth_labeled_mces_1000_case_0939_hybrid_partial_matches_scalar() {
     assert_hybrid_partial_matches_scalar("massspecgym_default_0939");
-}
-
-#[test]
-#[ignore = "release equivalence probe for u32 partial path"]
-fn test_massspecgym_ground_truth_labeled_mces_1000_case_0594_u32_partial_matches_scalar() {
-    assert_u32_partial_matches_scalar("massspecgym_default_0594");
-}
-
-#[test]
-#[ignore = "release equivalence probe for u32 partial path"]
-fn test_massspecgym_ground_truth_labeled_mces_1000_case_0631_u32_partial_matches_scalar() {
-    assert_u32_partial_matches_scalar("massspecgym_default_0631");
-}
-
-#[test]
-#[ignore = "release equivalence probe for u32 partial path"]
-fn test_massspecgym_ground_truth_labeled_mces_1000_case_0939_u32_partial_matches_scalar() {
-    assert_u32_partial_matches_scalar("massspecgym_default_0939");
 }
 
 #[test]
@@ -3409,111 +4421,6 @@ fn print_massspecgym_case_hybrid_partial_timing() {
         hybrid.stats.vertices_pruned,
         hybrid.stats.selected_part_scans,
         hybrid.stats.prune_candidate_checks,
-    );
-}
-
-#[test]
-#[ignore = "manual timing comparison harness for scalar vs u32 partial search"]
-fn print_massspecgym_case_u32_partial_timing() {
-    let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
-    let cases = load_massspecgym_ground_truth_by_size(1000);
-    let case = find_case(&cases, &case_name);
-    let prepared = prepare_labeled_case(case);
-    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
-    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
-    let partition_side =
-        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
-            &diagnostics.vertex_pairs,
-            diagnostics.first_edge_map.len(),
-            diagnostics.second_edge_map.len(),
-        );
-    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
-    let (matrix, permuted_pairs) =
-        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
-    let (g1_label_indices, g2_label_indices, num_labels) =
-        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
-    let partition = PartitionInfo {
-        pairs: &permuted_pairs,
-        g1_labels: &g1_label_indices,
-        g2_labels: &g2_label_indices,
-        num_labels,
-        partition_side,
-    };
-    let started = Instant::now();
-    let scalar = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
-        &matrix,
-        &partition,
-        false,
-        initial_lower_bound,
-        initial_lower_bound,
-        |clique| {
-            !clique_has_delta_y_from_product(
-                clique,
-                &permuted_pairs,
-                &diagnostics.first_edge_map,
-                &diagnostics.second_edge_map,
-                case.graph1.n_atoms,
-                case.graph2.n_atoms,
-            )
-        },
-    );
-    let scalar_elapsed = started.elapsed();
-
-    let started = Instant::now();
-    let narrowed =
-        geometric_traits::traits::algorithms::maximum_clique::experimental_profile_partial_search_u32(
-            &matrix,
-            &partition,
-            initial_lower_bound,
-            |clique| {
-                !clique_has_delta_y_from_product(
-                    clique,
-                    &permuted_pairs,
-                    &diagnostics.first_edge_map,
-                    &diagnostics.second_edge_map,
-                    case.graph1.n_atoms,
-                    case.graph2.n_atoms,
-                )
-            },
-        );
-    let narrowed_elapsed = started.elapsed();
-
-    println!("case: {}", case.name);
-    println!(
-        "scalar: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
-        scalar_elapsed.as_millis(),
-        scalar.best_cliques.len(),
-        scalar.best_cliques.first().map_or(0, Vec::len),
-        rank_partitioned_cliques(
-            scalar.best_cliques.clone(),
-            &permuted_pairs,
-            &diagnostics.first_edge_map,
-            &diagnostics.second_edge_map,
-        )
-        .first()
-        .map_or(0, |info| info.vertex_matches().len()),
-        scalar.stats.dfs_calls,
-        scalar.stats.vertices_pruned,
-        scalar.stats.selected_part_scans,
-        scalar.stats.prune_candidate_checks,
-    );
-    println!(
-        "u32: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
-        narrowed_elapsed.as_millis(),
-        narrowed.best_cliques.len(),
-        narrowed.best_cliques.first().map_or(0, Vec::len),
-        rank_partitioned_cliques(
-            narrowed.best_cliques.clone(),
-            &permuted_pairs,
-            &diagnostics.first_edge_map,
-            &diagnostics.second_edge_map,
-        )
-        .first()
-        .map_or(0, |info| info.vertex_matches().len()),
-        narrowed.stats.dfs_calls,
-        narrowed.stats.vertices_pruned,
-        narrowed.stats.selected_part_scans,
-        narrowed.stats.prune_candidate_checks,
     );
 }
 

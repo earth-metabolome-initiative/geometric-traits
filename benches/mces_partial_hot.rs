@@ -1,11 +1,6 @@
 //! Criterion benchmarks for hot partitioned partial-search MCES cases.
 
-use std::{
-    collections::BTreeMap,
-    hint::black_box,
-    io::Read as _,
-    time::Duration,
-};
+use std::{collections::BTreeMap, hint::black_box, io::Read as _, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{
@@ -109,21 +104,25 @@ impl PreparedHotBenchCase {
     fn partition_info(
         &self,
     ) -> geometric_traits::traits::algorithms::maximum_clique::PartitionInfo<'_> {
+        self.partition_info_with_side(self.partition_side)
+    }
+
+    fn partition_info_with_side(
+        &self,
+        partition_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
+    ) -> geometric_traits::traits::algorithms::maximum_clique::PartitionInfo<'_> {
         geometric_traits::traits::algorithms::maximum_clique::PartitionInfo {
             pairs: &self.vertex_pairs,
             g1_labels: &self.g1_labels,
             g2_labels: &self.g2_labels,
             num_labels: self.num_labels,
-            partition_side: self.partition_side,
+            partition_side,
         }
     }
 }
 
-static HOT_CASE_NAMES: &[&str] = &[
-    "massspecgym_default_0594",
-    "massspecgym_default_0631",
-    "massspecgym_default_0939",
-];
+static HOT_CASE_NAMES: &[&str] =
+    &["massspecgym_default_0594", "massspecgym_default_0631", "massspecgym_default_0939"];
 
 static MASSSPECGYM_GROUND_TRUTH_1000_GZ: &[u8] =
     include_bytes!("../tests/fixtures/massspecgym_mces_default_1000.json.gz");
@@ -220,29 +219,30 @@ fn build_typed_graph(
         })
         .collect();
     let mut normalized_edges = normalized_edges;
-    normalized_edges
-        .sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+    normalized_edges.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
     normalized_edges.dedup();
 
     let explicit_degrees = explicit_degrees(n_atoms, &normalized_edges);
     let ring_membership = edge_ring_membership(n_atoms, &normalized_edges);
 
     let nodes_vec: Vec<AtomNode> = (0..n_atoms)
-        .map(|i| AtomNode {
-            id: i,
-            node_label: GroundTruthNodeLabel {
-                atom_type: atom_type_indices[i],
-                explicit_degree: if exact_connections_match {
-                    Some(explicit_degrees[i])
-                } else {
-                    None
+        .map(|i| {
+            AtomNode {
+                id: i,
+                node_label: GroundTruthNodeLabel {
+                    atom_type: atom_type_indices[i],
+                    explicit_degree: if exact_connections_match {
+                        Some(explicit_degrees[i])
+                    } else {
+                        None
+                    },
+                    is_aromatic: if respect_atom_aromaticity {
+                        Some(atom_is_aromatic[i])
+                    } else {
+                        None
+                    },
                 },
-                is_aromatic: if respect_atom_aromaticity {
-                    Some(atom_is_aromatic[i])
-                } else {
-                    None
-                },
-            },
+            }
         })
         .collect();
     let nodes: SortedVec<AtomNode> = GenericVocabularyBuilder::default()
@@ -370,7 +370,8 @@ fn compute_case_bond_labels(
     graph: &TypedGraph,
     edge_map: &[(usize, usize)],
 ) -> Vec<GroundTruthBondLabel> {
-    let node_types: Vec<GroundTruthNodeLabel> = graph.nodes().map(|symbol| symbol.node_type()).collect();
+    let node_types: Vec<GroundTruthNodeLabel> =
+        graph.nodes().map(|symbol| symbol.node_type()).collect();
     edge_map
         .iter()
         .map(|&(src, dst)| {
@@ -459,14 +460,16 @@ fn fixture_bond_records(graph: &GraphData) -> Vec<FixtureBondRecord> {
         .edges
         .iter()
         .enumerate()
-        .map(|(canonical_index, &edge)| FixtureBondRecord {
-            edge: canonical_edge(edge),
-            canonical_index,
-            original_index: graph
-                .bond_original_indices
-                .get(canonical_index)
-                .copied()
-                .unwrap_or(canonical_index),
+        .map(|(canonical_index, &edge)| {
+            FixtureBondRecord {
+                edge: canonical_edge(edge),
+                canonical_index,
+                original_index: graph
+                    .bond_original_indices
+                    .get(canonical_index)
+                    .copied()
+                    .unwrap_or(canonical_index),
+            }
         })
         .collect();
     records.sort_unstable_by_key(|record| (record.original_index, record.edge.0, record.edge.1));
@@ -573,14 +576,16 @@ fn prepare_hot_bench_case(case: &GroundTruthCase) -> PreparedHotBenchCase {
     let prepared = prepare_labeled_case(case);
     let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared);
     let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
-    let (matrix, vertex_pairs) = permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (matrix, vertex_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
     let (g1_labels, g2_labels, num_labels) =
         intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
-    let partition_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
-        &vertex_pairs,
-        diagnostics.first_edge_map.len(),
-        diagnostics.second_edge_map.len(),
-    );
+    let partition_side =
+        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+            &vertex_pairs,
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+        );
     PreparedHotBenchCase {
         name: case.name.clone(),
         matrix,
@@ -601,7 +606,31 @@ fn prepared_hot_cases() -> Vec<PreparedHotBenchCase> {
     load_hot_cases().iter().map(prepare_hot_bench_case).collect()
 }
 
-fn run_scalar(case: &PreparedHotBenchCase) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
+fn run_scalar(
+    case: &PreparedHotBenchCase,
+) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
+    let partition = case.partition_info();
+    geometric_traits::traits::algorithms::maximum_clique::experimental_profile_partial_search_scalar_with_bounds(
+        &case.matrix,
+        &partition,
+        case.initial_lower_bound,
+        case.initial_lower_bound,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &case.vertex_pairs,
+                &case.first_edge_map,
+                &case.second_edge_map,
+                case.first_vertices,
+                case.second_vertices,
+            )
+        },
+    )
+}
+
+fn run_shipped(
+    case: &PreparedHotBenchCase,
+) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
     let partition = case.partition_info();
     geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
         &case.matrix,
@@ -622,12 +651,85 @@ fn run_scalar(case: &PreparedHotBenchCase) -> geometric_traits::traits::algorith
     )
 }
 
-fn run_u32(case: &PreparedHotBenchCase) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
+fn accepts_hot_case_clique(case: &PreparedHotBenchCase, clique: &[usize]) -> bool {
+    !clique_has_delta_y_from_product(
+        clique,
+        &case.vertex_pairs,
+        &case.first_edge_map,
+        &case.second_edge_map,
+        case.first_vertices,
+        case.second_vertices,
+    )
+}
+
+fn best_size_seed_for_shipped_mces(case: &PreparedHotBenchCase) -> usize {
+    const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
+
+    let current_partition = case.partition_info();
+    let current_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+        &case.matrix,
+        &current_partition,
+        case.initial_lower_bound,
+        &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
+    );
+
+    let alternate_side = match case.partition_side {
+        geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First => {
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::Second
+        }
+        geometric_traits::traits::algorithms::maximum_clique::PartitionSide::Second => {
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First
+        }
+    };
+    let alternate_partition = case.partition_info_with_side(alternate_side);
+    let alternate_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+        &case.matrix,
+        &alternate_partition,
+        case.initial_lower_bound,
+        &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
+    );
+
+    if alternate_greedy >= current_greedy.saturating_add(PARTIAL_GREEDY_DELTA_THRESHOLD) {
+        alternate_greedy.saturating_sub(1)
+    } else {
+        current_greedy.saturating_sub(1)
+    }
+}
+
+fn run_mces_legacy_seed(
+    case: &PreparedHotBenchCase,
+) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
     let partition = case.partition_info();
-    geometric_traits::traits::algorithms::maximum_clique::experimental_profile_partial_search_u32(
+    geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
         &case.matrix,
         &partition,
+        false,
         case.initial_lower_bound,
+        case.initial_lower_bound,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &case.vertex_pairs,
+                &case.first_edge_map,
+                &case.second_edge_map,
+                case.first_vertices,
+                case.second_vertices,
+            )
+        },
+    )
+}
+
+fn run_mces_shipped_seed(
+    case: &PreparedHotBenchCase,
+) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
+    let partition = case.partition_info();
+    let best_size_seed = best_size_seed_for_shipped_mces(case);
+    geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &case.matrix,
+        &partition,
+        false,
+        case.initial_lower_bound,
+        best_size_seed,
         |clique| {
             !clique_has_delta_y_from_product(
                 clique,
@@ -652,12 +754,36 @@ fn bench_mces_partial_hot(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("scalar", &case.name), case, |b, case| {
             b.iter(|| black_box(run_scalar(case)));
         });
-        group.bench_with_input(BenchmarkId::new("u32", &case.name), case, |b, case| {
-            b.iter(|| black_box(run_u32(case)));
+        group.bench_with_input(BenchmarkId::new("shipped", &case.name), case, |b, case| {
+            b.iter(|| black_box(run_shipped(case)));
         });
     }
 
     group.finish();
+
+    let mut seeded_group = c.benchmark_group("mces_partial_seed_hot");
+    seeded_group.sample_size(10);
+    seeded_group.warm_up_time(Duration::from_secs(1));
+    seeded_group.measurement_time(Duration::from_secs(5));
+
+    for case in &cases {
+        seeded_group.bench_with_input(
+            BenchmarkId::new("legacy_seed", &case.name),
+            case,
+            |b, case| {
+                b.iter(|| black_box(run_mces_legacy_seed(case)));
+            },
+        );
+        seeded_group.bench_with_input(
+            BenchmarkId::new("shipped_seed", &case.name),
+            case,
+            |b, case| {
+                b.iter(|| black_box(run_mces_shipped_seed(case)));
+            },
+        );
+    }
+
+    seeded_group.finish();
 }
 
 criterion_group!(benches, bench_mces_partial_hot);

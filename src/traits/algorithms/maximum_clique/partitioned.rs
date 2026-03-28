@@ -82,6 +82,7 @@ struct PartitionSearchState<'a> {
     g2_type_counts: Vec<usize>,
 }
 
+#[inline]
 fn vertices_compatible(
     adj: &BitSquareMatrix,
     info: &PartitionInfo<'_>,
@@ -138,14 +139,17 @@ impl<'a> PartitionSearchState<'a> {
         state
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.non_empty_parts == 0
     }
 
+    #[inline]
     fn num_parts(&self) -> usize {
         self.non_empty_parts
     }
 
+    #[inline]
     fn upper_bound(&self) -> usize {
         (0..self.g1_type_counts.len())
             .map(|label| self.g1_type_counts[label].min(self.g2_type_counts[label]))
@@ -343,6 +347,7 @@ impl<'a> PartitionSearchState<'a> {
         });
     }
 
+    #[inline]
     fn deactivate_part(&mut self, part_index: usize) {
         let position = self.active_positions[part_index];
         debug_assert_ne!(position, usize::MAX);
@@ -354,6 +359,7 @@ impl<'a> PartitionSearchState<'a> {
         self.active_positions[part_index] = usize::MAX;
     }
 
+    #[inline]
     fn activate_part(&mut self, part_index: usize) {
         if self.active_positions[part_index] != usize::MAX {
             return;
@@ -489,14 +495,17 @@ impl<'a> U32PartitionSearchState<'a> {
         state
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.non_empty_parts == 0
     }
 
+    #[inline]
     fn num_parts(&self) -> usize {
         self.non_empty_parts
     }
 
+    #[inline]
     fn upper_bound(&self) -> usize {
         (0..self.g1_type_counts.len())
             .map(|label| self.g1_type_counts[label].min(self.g2_type_counts[label]))
@@ -713,6 +722,7 @@ impl<'a> U32PartitionSearchState<'a> {
         removed_count
     }
 
+    #[inline]
     fn deactivate_part(&mut self, part_index: usize) {
         let position = self.active_positions[part_index];
         debug_assert_ne!(position, u32::MAX);
@@ -725,6 +735,7 @@ impl<'a> U32PartitionSearchState<'a> {
         self.active_positions[part_index] = u32::MAX;
     }
 
+    #[inline]
     fn activate_part(&mut self, part_index: usize) {
         if self.active_positions[part_index] != u32::MAX {
             return;
@@ -1112,6 +1123,7 @@ fn build_endpoint_masks(
     (same_g1_masks, same_g2_masks)
 }
 
+#[inline]
 fn decrement_vertex_counts_raw(
     info: &PartitionInfo<'_>,
     g1_counts: &mut [usize],
@@ -1131,6 +1143,7 @@ fn decrement_vertex_counts_raw(
     }
 }
 
+#[inline]
 fn increment_vertex_counts_raw(
     info: &PartitionInfo<'_>,
     g1_counts: &mut [usize],
@@ -1273,7 +1286,6 @@ enum HybridPruneUndo {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PartitionSearchPolicy {
-    SingleAccepted,
     PartialEnumeration { cap: usize },
     AllBest,
 }
@@ -1304,7 +1316,7 @@ where
             accept_clique,
         )
     } else {
-        partial_search(adj, partition, initial_lower_bound, accept_clique)
+        experimental_partial_search_u32(adj, partition, initial_lower_bound, accept_clique)
     }
 }
 
@@ -1313,6 +1325,26 @@ pub fn partial_search<F>(
     adj: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     initial_lower_bound: usize,
+    accept_clique: F,
+) -> Vec<Vec<usize>>
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    partial_search_with_bounds(
+        adj,
+        partition,
+        initial_lower_bound,
+        initial_lower_bound,
+        accept_clique,
+    )
+}
+
+#[doc(hidden)]
+pub fn partial_search_with_bounds<F>(
+    adj: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    state_lower_bound: usize,
+    best_size_seed: usize,
     mut accept_clique: F,
 ) -> Vec<Vec<usize>>
 where
@@ -1324,9 +1356,9 @@ where
         return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
     }
 
-    let mut state = PartitionSearchState::new(adj, partition, initial_lower_bound);
+    let mut state = PartitionSearchState::new(adj, partition, state_lower_bound);
     let mut clique = Vec::new();
-    let mut best_size = initial_lower_bound;
+    let mut best_size = best_size_seed;
     let mut best_cliques = Vec::new();
     let mut trail = Vec::new();
 
@@ -1385,13 +1417,39 @@ pub fn experimental_partial_search_u32<F>(
     adj: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     initial_lower_bound: usize,
+    accept_clique: F,
+) -> Vec<Vec<usize>>
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    experimental_partial_search_u32_with_bounds(
+        adj,
+        partition,
+        initial_lower_bound,
+        initial_lower_bound,
+        accept_clique,
+    )
+}
+
+#[doc(hidden)]
+pub fn experimental_partial_search_u32_with_bounds<F>(
+    adj: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    state_lower_bound: usize,
+    best_size_seed: usize,
     mut accept_clique: F,
 ) -> Vec<Vec<usize>>
 where
     F: FnMut(&[usize]) -> bool,
 {
     if adj.order() > u32::MAX as usize {
-        return partial_search(adj, partition, initial_lower_bound, accept_clique);
+        return partial_search_with_bounds(
+            adj,
+            partition,
+            state_lower_bound,
+            best_size_seed,
+            accept_clique,
+        );
     }
 
     let n = adj.order();
@@ -1400,9 +1458,9 @@ where
         return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
     }
 
-    let mut state = U32PartitionSearchState::new(adj, partition, initial_lower_bound);
+    let mut state = U32PartitionSearchState::new(adj, partition, state_lower_bound);
     let mut clique = Vec::new();
-    let mut best_size = initial_lower_bound;
+    let mut best_size = best_size_seed;
     let mut best_cliques = Vec::new();
     let mut trail = Vec::new();
 
@@ -1605,7 +1663,7 @@ where
             accept_clique,
         )
     } else {
-        profile_partial_search(adj, partition, initial_lower_bound, accept_clique)
+        experimental_profile_partial_search_u32(adj, partition, initial_lower_bound, accept_clique)
     }
 }
 
@@ -1632,7 +1690,7 @@ where
             accept_clique,
         )
     } else {
-        profile_partial_search_with_bounds(
+        experimental_profile_partial_search_u32_with_bounds(
             adj,
             partition,
             state_lower_bound,
@@ -1818,6 +1876,79 @@ where
     );
 
     PartitionSearchProfile { best_cliques, stats }
+}
+
+#[allow(dead_code)]
+#[doc(hidden)]
+#[must_use]
+pub fn experimental_profile_partial_search_u32_with_bounds<F>(
+    adj: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    state_lower_bound: usize,
+    best_size_seed: usize,
+    mut accept_clique: F,
+) -> PartitionSearchProfile
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    if adj.order() > u32::MAX as usize {
+        return profile_partial_search_with_bounds(
+            adj,
+            partition,
+            state_lower_bound,
+            best_size_seed,
+            accept_clique,
+        );
+    }
+
+    let n = adj.order();
+    if n == 0 {
+        let empty = Vec::new();
+        let best_cliques = if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        return PartitionSearchProfile { best_cliques, stats: PartitionSearchStats::default() };
+    }
+
+    let mut state = U32PartitionSearchState::new(adj, partition, state_lower_bound);
+    let mut clique = Vec::new();
+    let mut best_size = best_size_seed;
+    let mut best_cliques = Vec::new();
+    let mut stats = PartitionSearchStats::default();
+    let mut trail = Vec::new();
+
+    dfs_partial_u32_in_place_profile(
+        &mut state,
+        &mut clique,
+        DEFAULT_PARTIAL_ENUMERATION_CAP,
+        &mut best_size,
+        &mut best_cliques,
+        &mut accept_clique,
+        &mut trail,
+        &mut stats,
+    );
+
+    PartitionSearchProfile { best_cliques, stats }
+}
+
+#[allow(dead_code)]
+#[doc(hidden)]
+#[must_use]
+pub fn experimental_profile_partial_search_scalar_with_bounds<F>(
+    adj: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    state_lower_bound: usize,
+    best_size_seed: usize,
+    accept_clique: F,
+) -> PartitionSearchProfile
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    profile_partial_search_with_bounds(
+        adj,
+        partition,
+        state_lower_bound,
+        best_size_seed,
+        accept_clique,
+    )
 }
 
 fn profile_partial_search_with_bounds<F>(
@@ -2808,12 +2939,6 @@ fn maybe_update_best<F>(
     if size < *best_size {
         return;
     }
-    if size == *best_size
-        && matches!(policy, PartitionSearchPolicy::SingleAccepted)
-        && !best_cliques.is_empty()
-    {
-        return;
-    }
 
     let mut candidate = clique.to_vec();
     candidate.sort_unstable();
@@ -2831,11 +2956,6 @@ fn maybe_update_best<F>(
     }
 
     match policy {
-        PartitionSearchPolicy::SingleAccepted => {
-            if best_cliques.is_empty() || size > best_cliques[0].len() {
-                best_cliques.push(candidate);
-            }
-        }
         PartitionSearchPolicy::PartialEnumeration { cap } => {
             if best_cliques.len() < cap {
                 best_cliques.push(candidate);

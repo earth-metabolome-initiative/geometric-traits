@@ -29,7 +29,7 @@ use super::{
     line_graph::LineGraph,
     maximum_clique::{
         MaximumClique, PartitionInfo, PartitionSide, all_best_search, choose_partition_side,
-        partial_search,
+        experimental_partial_search_u32_with_bounds, greedy_lower_bound, partial_search,
     },
     modular_product::ModularProduct,
 };
@@ -492,7 +492,7 @@ fn accepted_partitioned_cliques<F>(
     matrix: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     search_mode: McesSearchMode,
-    accept_clique: F,
+    mut accept_clique: F,
 ) -> Vec<Vec<usize>>
 where
     F: FnMut(&[usize]) -> bool,
@@ -500,9 +500,58 @@ where
     match search_mode {
         McesSearchMode::PartialEnumeration => {
             let initial_lower_bound = usize::from(matrix.order() > 0);
-            partial_search(matrix, partition, initial_lower_bound, accept_clique)
+            let best_size_seed =
+                partial_best_size_seed(matrix, partition, initial_lower_bound, &mut accept_clique);
+
+            experimental_partial_search_u32_with_bounds(
+                matrix,
+                partition,
+                initial_lower_bound,
+                best_size_seed,
+                accept_clique,
+            )
         }
         McesSearchMode::AllBest => all_best_search(matrix, partition, 0, accept_clique),
+    }
+}
+
+const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
+
+fn alternate_partition_info<'a>(partition: &PartitionInfo<'a>) -> PartitionInfo<'a> {
+    let partition_side = match partition.partition_side {
+        PartitionSide::First => PartitionSide::Second,
+        PartitionSide::Second => PartitionSide::First,
+    };
+    PartitionInfo {
+        pairs: partition.pairs,
+        g1_labels: partition.g1_labels,
+        g2_labels: partition.g2_labels,
+        num_labels: partition.num_labels,
+        partition_side,
+    }
+}
+
+fn partial_best_size_seed<F>(
+    matrix: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    initial_lower_bound: usize,
+    accept_clique: &mut F,
+) -> usize
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    // Keep the shipped partition side and state lower bound unchanged. Only
+    // improve the incumbent seed, which preserved parity on the fast corpora.
+    let current_greedy =
+        greedy_lower_bound(matrix, partition, initial_lower_bound, &mut *accept_clique);
+    let alternate_partition = alternate_partition_info(partition);
+    let alternate_greedy =
+        greedy_lower_bound(matrix, &alternate_partition, initial_lower_bound, &mut *accept_clique);
+
+    if alternate_greedy >= current_greedy.saturating_add(PARTIAL_GREEDY_DELTA_THRESHOLD) {
+        alternate_greedy.saturating_sub(1)
+    } else {
+        current_greedy.saturating_sub(1)
     }
 }
 
