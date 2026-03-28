@@ -8,12 +8,12 @@
 
 use arbitrary::Arbitrary;
 use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
+    impls::{CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, check_floyd_warshall_invariants, check_gabow_1976_invariants, check_kahn_ordering,
-        check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
+        self, check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
+        check_kahn_ordering, check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
         check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
         check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
         check_pairwise_bfs_matches_unit_floyd_warshall,
@@ -385,6 +385,24 @@ fn test_arbitrary_pairwise_dijkstra() {
 fn test_replay_pairwise_dijkstra_corpus() {
     for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_pairwise_dijkstra_matches_floyd_warshall(&instance);
+    }
+}
+
+// ============================================================================
+// Dense GTH (mirrors fuzz/fuzz_targets/gth.rs)
+// ============================================================================
+
+type TestDenseMatrix = VecMatrix2D<f64>;
+
+#[test]
+fn test_arbitrary_gth() {
+    for_each_instance::<TestDenseMatrix, _>(check_gth_invariants);
+}
+
+#[test]
+fn test_replay_gth_corpus() {
+    for instance in replay_shared_fixture::<TestDenseMatrix>() {
+        check_gth_invariants(&instance);
     }
 }
 

@@ -303,6 +303,7 @@ dependencies = [
  "multi_ranged",
  "num-traits",
  "rand",
+ "rayon",
  "serde",
  "serde_json",
  "thiserror",

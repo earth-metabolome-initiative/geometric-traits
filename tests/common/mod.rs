@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D},
+    impls::{CSR2D, SquareCSR2D, VecMatrix2D},
     prelude::*,
     traits::EdgesBuilder,
 };
@@ -39,4 +39,23 @@ pub fn read_fixture_string(relative_path: &str) -> String {
     let path = fixture_path(relative_path);
     std::fs::read_to_string(&path)
         .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()))
+}
+
+/// Flatten a row-major nested dense matrix fixture into a single buffer.
+pub fn flatten_dense_rows(matrix: &[Vec<f64>]) -> Vec<f64> {
+    matrix.iter().flat_map(|row| row.iter().copied()).collect()
+}
+
+/// Return the `L1` stationary residual `||πP - π||₁` for a dense matrix.
+pub fn dense_gth_residual_l1(matrix: &VecMatrix2D<f64>, stationary: &[f64]) -> f64 {
+    let n = matrix.number_of_rows();
+    let mut total = 0.0;
+    for column in 0..n {
+        let mut projected = 0.0;
+        for (row, value) in stationary.iter().enumerate().take(n) {
+            projected += *value * matrix.value((row, column));
+        }
+        total += (projected - stationary[column]).abs();
+    }
+    total
 }
