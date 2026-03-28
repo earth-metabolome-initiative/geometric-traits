@@ -1,5 +1,5 @@
-//! Regression tests that replay raw fuzzer crash artifacts against the LAP
-//! invariant-checking functions to diagnose assertion failures.
+//! Regression tests that replay raw fuzzer crash artifacts against invariant
+//! checkers to diagnose assertion failures.
 
 #[cfg(feature = "arbitrary")]
 mod common;
@@ -10,16 +10,24 @@ mod crashes {
 
     use arbitrary::{Arbitrary, Unstructured};
     use geometric_traits::{
-        impls::ValuedCSR2D,
+        impls::{ValuedCSR2D, VecMatrix2D},
         prelude::*,
-        test_utils::{check_lap_sparse_wrapper_invariants, check_lap_square_invariants},
+        test_utils::{
+            check_gth_invariants, check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
+        },
     };
 
     type Csr = ValuedCSR2D<u16, u8, u8, f64>;
+    type DenseMatrix = VecMatrix2D<f64>;
 
     fn deserialize(data: &[u8]) -> Option<Csr> {
         let mut u = Unstructured::new(data);
         Csr::arbitrary(&mut u).ok()
+    }
+
+    fn deserialize_dense(data: &[u8]) -> Option<DenseMatrix> {
+        let mut u = Unstructured::new(data);
+        DenseMatrix::arbitrary(&mut u).ok()
     }
 
     /// Deserialize the crash artifact and run both invariant checkers,
@@ -134,5 +142,16 @@ mod crashes {
     fn crash_5_from_fixture() {
         let data = super::common::read_fixture("fuzz/lap/crash_5.fuzz");
         reproduce_crash("crash_5", &data);
+    }
+
+    #[test]
+    fn gth_crash_1() {
+        let data = [
+            0x02, 0x02, 0x4c, 0xff, 0x80, 0x00, 0x00, 0x00, 0x00, 0xc3, 0xc1, 0x00, 0x00, 0x00,
+            0xff, 0xff, 0x10, 0x00, 0x5c, 0xa8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x1f,
+        ];
+        let matrix = deserialize_dense(&data).expect("deserialize GTH crash artifact");
+        check_gth_invariants(&matrix);
     }
 }

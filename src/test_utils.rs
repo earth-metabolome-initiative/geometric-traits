@@ -14,6 +14,7 @@ use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
+    impls::VecMatrix2D,
     prelude::*,
     traits::{
         DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseSquareMatrix,
@@ -1312,6 +1313,122 @@ pub fn check_mds_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 }
 
 // ============================================================================
+// Dense GTH invariants (from fuzz/fuzz_targets/gth.rs)
+// ============================================================================
+
+/// Lower bound used when projecting arbitrary floating-point payloads into a
+/// numerically tame dense Markov matrix for GTH fuzzing.
+const GTH_FUZZ_MIN_WEIGHT: f64 = 1.0e-3;
+
+/// Upper bound used when projecting arbitrary floating-point payloads into a
+/// numerically tame dense Markov matrix for GTH fuzzing.
+const GTH_FUZZ_MAX_WEIGHT: f64 = 1.0;
+
+fn projected_row_stochastic_dense_matrix(matrix: &VecMatrix2D<f64>) -> Option<VecMatrix2D<f64>> {
+    let rows = matrix.number_of_rows();
+    let columns = matrix.number_of_columns();
+    if rows != columns || rows == 0 || rows > 32 {
+        return None;
+    }
+
+    let mut data = Vec::with_capacity(rows * columns);
+    for row in 0..rows {
+        let mut row_values = Vec::with_capacity(columns);
+        let mut row_sum = 0.0;
+        for value in matrix.row_values(row) {
+            let projected = if value.is_finite() {
+                value.abs().clamp(GTH_FUZZ_MIN_WEIGHT, GTH_FUZZ_MAX_WEIGHT)
+            } else {
+                0.0
+            };
+            row_sum += projected;
+            row_values.push(projected);
+        }
+
+        if !row_sum.is_finite() || row_sum <= 0.0 {
+            row_values.fill(0.0);
+            row_values[row] = 1.0;
+        } else {
+            for value in &mut row_values {
+                *value /= row_sum;
+            }
+        }
+
+        data.extend(row_values);
+    }
+
+    Some(VecMatrix2D::new(rows, columns, data))
+}
+
+fn dense_gth_residual_l1(matrix: &VecMatrix2D<f64>, stationary: &[f64]) -> f64 {
+    let n = matrix.number_of_rows();
+    let mut total = 0.0;
+    for column in 0..n {
+        let mut projected = 0.0;
+        for (row, value) in stationary.iter().enumerate().take(n) {
+            projected += *value * matrix.value((row, column));
+        }
+        total += (projected - stationary[column]).abs();
+    }
+    total
+}
+
+/// Check dense GTH invariants on arbitrary input.
+///
+/// The raw input matrix is passed to `gth()` first to ensure the public API
+/// never panics on malformed dense inputs. When the matrix is square, bounded
+/// in size, and can be projected into a finite nonnegative row-stochastic
+/// matrix with bounded positive weights, the helper verifies:
+/// - `gth()` succeeds on the projected matrix
+/// - the stationary vector length matches the matrix order
+/// - all stationary entries are finite and nonnegative
+/// - the stationary entries sum to one
+/// - the residual `||πP - π||₁` is small
+/// - determinism for identical input
+///
+/// # Panics
+///
+/// Panics if any invariant is violated on the projected row-stochastic matrix.
+#[inline]
+pub fn check_gth_invariants(matrix: &VecMatrix2D<f64>) {
+    let config = GthConfig::default();
+
+    // The public API must never panic, even on malformed input.
+    let _ = matrix.gth(&config);
+
+    let Some(projected) = projected_row_stochastic_dense_matrix(matrix) else {
+        return;
+    };
+
+    let result =
+        projected.gth(&config).expect("GTH should succeed on a projected row-stochastic matrix");
+    let stationary = result.stationary();
+    let order = projected.number_of_rows();
+
+    assert_eq!(result.order(), order, "stationary result order mismatch");
+    assert_eq!(stationary.len(), order, "stationary vector length mismatch");
+
+    let sum: f64 = stationary.iter().sum();
+    assert!((sum - 1.0).abs() <= 1.0e-10, "stationary distribution must sum to one, got {sum}");
+    for &value in stationary {
+        assert!(value.is_finite(), "stationary distribution contains non-finite values");
+        assert!(value >= 0.0, "stationary distribution contains a negative value: {value}");
+    }
+
+    let residual = dense_gth_residual_l1(&projected, stationary);
+    assert!(residual <= 1.0e-10, "stationary distribution residual too large: {residual}");
+
+    let second =
+        projected.gth(&config).expect("GTH should remain deterministic on repeated evaluation");
+    for (index, (left, right)) in stationary.iter().zip(second.stationary()).enumerate() {
+        assert!(
+            (left - right).abs() <= 1.0e-12,
+            "GTH must be deterministic at index {index}: {left} vs {right}",
+        );
+    }
+}
+
+// ============================================================================
 // Floyd-Warshall invariants (from fuzz/fuzz_targets/floyd_warshall.rs)
 // ============================================================================
 
@@ -2027,6 +2144,10 @@ mod tests {
         csr
     }
 
+    fn sample_dense_matrix_f64() -> VecMatrix2D<f64> {
+        VecMatrix2D::new(3, 3, vec![0.2, 0.3, 0.5, 0.6, 0.1, 0.3, 0.25, 0.25, 0.5])
+    }
+
     fn build_valued_csr_f64(
         shape: (u8, u8),
         edges: &[(u8, u8, f64)],
@@ -2250,6 +2371,12 @@ mod tests {
     }
 
     #[test]
+    fn test_check_gth_invariants_smoke() {
+        let matrix = sample_dense_matrix_f64();
+        check_gth_invariants(&matrix);
+    }
+
+    #[test]
     fn test_check_mds_invariants_on_valid_distance_matrix() {
         let csr = build_valued_csr_f64(
             (3, 3),
@@ -2402,6 +2529,22 @@ mod tests {
             let csr =
                 build_valued_csr_f64((2, 2), &[(0, 0, 0.0), (0, 1, 1.0), (1, 0, 2.0), (1, 1, 0.0)]);
             check_mds_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_gth_invariants_handles_non_finite_and_zero_rows() {
+            let matrix = VecMatrix2D::new(
+                3,
+                3,
+                vec![f64::NAN, f64::INFINITY, -f64::INFINITY, 0.0, 0.0, 0.0, -3.0, 1.0, 2.0],
+            );
+            check_gth_invariants(&matrix);
+        }
+
+        #[test]
+        fn test_check_gth_invariants_returns_for_non_square_matrix() {
+            let matrix = VecMatrix2D::new(2, 3, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+            check_gth_invariants(&matrix);
         }
 
         #[test]

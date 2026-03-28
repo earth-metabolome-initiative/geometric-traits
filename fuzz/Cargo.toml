@@ -149,6 +149,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "gth"
+path = "fuzz_targets/gth.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "blum"
 path = "fuzz_targets/blum.rs"
 test = false

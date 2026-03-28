@@ -35,3 +35,6 @@ docs/mces_200k_runtime_summary.json
 
 # Reference papers
 papers/
+
+# Local-only large generated fixtures
+tests/fixtures/local/

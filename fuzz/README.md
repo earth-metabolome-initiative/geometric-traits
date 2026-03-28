@@ -264,3 +264,25 @@ and to run the crash cases:
 ```bash
 cargo hfuzz run-debug pairwise_dijkstra hfuzz_workspace/*/*.fuzz
 ```
+
+### GTH
+
+The GTH harness fuzzes the dense stationary-distribution solver. It checks
+that `gth()` never panics on arbitrary dense matrices, then projects square
+inputs to finite nonnegative row-stochastic matrices and validates the
+resulting stationary distribution:
+
+- entries are finite and nonnegative
+- entries sum to one
+- the residual `||πP - π||₁` is small
+- the solver is deterministic on identical input
+
+```bash
+cargo hfuzz run gth
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug gth hfuzz_workspace/*/*.fuzz
+```
