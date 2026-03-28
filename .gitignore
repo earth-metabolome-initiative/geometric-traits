@@ -25,3 +25,6 @@ coverage_output
 
 # Reference papers
 papers/
+
+# Local-only large generated fixtures
+tests/fixtures/local/

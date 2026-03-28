@@ -77,6 +77,7 @@ serde = { version = "1.0.225", features = ["derive"] }
 serde_json = "1.0"
 flate2 = "1"
 blossom = "0.4.0"
+rayon = "1"
 
 [[bench]]
 name = "wu_palmer"
@@ -96,4 +97,8 @@ harness = false
 
 [[bench]]
 name = "matching"
+harness = false
+
+[[bench]]
+name = "gth"
 harness = false

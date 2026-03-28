@@ -7,6 +7,9 @@ use core::{
     ops::Range,
 };
 
+#[cfg(feature = "arbitrary")]
+use arbitrary::{Arbitrary, Unstructured};
+
 use crate::{prelude::*, traits::Symbol};
 
 impl<V: Symbol> Vocabulary for Vec<V> {
@@ -196,6 +199,25 @@ impl<V, const COLS: usize, const ROWS: usize> From<[[V; COLS]; ROWS]> for VecMat
     fn from(value: [[V; COLS]; ROWS]) -> Self {
         let data: Vec<V> = value.into_iter().flat_map(IntoIterator::into_iter).collect();
         Self { data, number_of_rows: ROWS }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'a, V> Arbitrary<'a> for VecMatrix2D<V>
+where
+    V: Arbitrary<'a>,
+{
+    #[inline]
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        let number_of_rows = usize::from(u.int_in_range::<u8>(0..=32)?);
+        let number_of_columns =
+            if number_of_rows == 0 { 0 } else { usize::from(u.int_in_range::<u8>(0..=32)?) };
+        let number_of_values = number_of_rows * number_of_columns;
+        let mut data = Vec::with_capacity(number_of_values);
+        for _ in 0..number_of_values {
+            data.push(V::arbitrary(u)?);
+        }
+        Ok(Self::new(number_of_rows, number_of_columns, data))
     }
 }
 

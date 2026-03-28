@@ -94,6 +94,10 @@ mod jacobi;
 #[cfg(feature = "alloc")]
 pub use jacobi::*;
 #[cfg(feature = "alloc")]
+mod gth;
+#[cfg(feature = "alloc")]
+pub use gth::*;
+#[cfg(feature = "alloc")]
 mod mds;
 #[cfg(feature = "alloc")]
 pub use mds::*;
