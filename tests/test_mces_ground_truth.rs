@@ -1138,6 +1138,131 @@ fn permuted_partitioned_infos(
     )
 }
 
+fn permuted_partitioned_infos_hybrid_partial(
+    case: &GroundTruthCase,
+    diagnostics: &LabeledCaseProductDiagnostics,
+    order: &[usize],
+    partition_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
+    initial_lower_bound: usize,
+) -> Vec<EagerCliqueInfo<usize>> {
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side,
+    };
+    let cliques =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_search_hybrid(
+            &matrix,
+            &partition,
+            initial_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    rank_partitioned_cliques(
+        cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    )
+}
+
+fn permuted_partitioned_infos_u32_partial(
+    case: &GroundTruthCase,
+    diagnostics: &LabeledCaseProductDiagnostics,
+    order: &[usize],
+    partition_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
+    initial_lower_bound: usize,
+) -> Vec<EagerCliqueInfo<usize>> {
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side,
+    };
+    let cliques =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_search_u32(
+            &matrix,
+            &partition,
+            initial_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    rank_partitioned_cliques(
+        cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    )
+}
+
+fn permuted_partitioned_infos_scalar_partial(
+    case: &GroundTruthCase,
+    diagnostics: &LabeledCaseProductDiagnostics,
+    order: &[usize],
+    partition_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
+    initial_lower_bound: usize,
+) -> Vec<EagerCliqueInfo<usize>> {
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side,
+    };
+    let cliques = geometric_traits::traits::algorithms::maximum_clique::partial_search(
+        &matrix,
+        &partition,
+        initial_lower_bound,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    rank_partitioned_cliques(
+        cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    )
+}
+
 fn run_labeled_case(case: &GroundTruthCase) -> McesResult<usize> {
     run_labeled_case_with_default_orientation(case, true, McesSearchMode::PartialEnumeration)
 }
@@ -3033,6 +3158,362 @@ fn print_massspecgym_case_timing_breakdown() {
         top.matched_edges().len(),
         top.vertex_matches().len(),
         info_johnson_similarity(case, top),
+    );
+}
+
+fn assert_hybrid_partial_matches_scalar(case_name: &str) {
+    let cases = load_massspecgym_ground_truth_by_size(1000);
+    let case = find_case(&cases, case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let partition_side =
+        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+            &diagnostics.vertex_pairs,
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+        );
+    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
+
+    let scalar = permuted_partitioned_infos_scalar_partial(
+        case,
+        &diagnostics,
+        &order,
+        partition_side,
+        initial_lower_bound,
+    );
+    let hybrid = permuted_partitioned_infos_hybrid_partial(
+        case,
+        &diagnostics,
+        &order,
+        partition_side,
+        initial_lower_bound,
+    );
+
+    assert_eq!(
+        hybrid.len(),
+        scalar.len(),
+        "hybrid retained clique count diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        hybrid.first().map(EagerCliqueInfo::clique),
+        scalar.first().map(EagerCliqueInfo::clique),
+        "hybrid top clique diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        hybrid.first().map(EagerCliqueInfo::vertex_matches),
+        scalar.first().map(EagerCliqueInfo::vertex_matches),
+        "hybrid top atom matches diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        hybrid.first().map(EagerCliqueInfo::matched_edges),
+        scalar.first().map(EagerCliqueInfo::matched_edges),
+        "hybrid top edge matches diverged for {}",
+        case.name
+    );
+}
+
+fn assert_u32_partial_matches_scalar(case_name: &str) {
+    let cases = load_massspecgym_ground_truth_by_size(1000);
+    let case = find_case(&cases, case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let partition_side =
+        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+            &diagnostics.vertex_pairs,
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+        );
+    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
+
+    let scalar = permuted_partitioned_infos_scalar_partial(
+        case,
+        &diagnostics,
+        &order,
+        partition_side,
+        initial_lower_bound,
+    );
+    let narrowed = permuted_partitioned_infos_u32_partial(
+        case,
+        &diagnostics,
+        &order,
+        partition_side,
+        initial_lower_bound,
+    );
+
+    assert_eq!(
+        narrowed.len(),
+        scalar.len(),
+        "u32 retained clique count diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        narrowed.first().map(EagerCliqueInfo::clique),
+        scalar.first().map(EagerCliqueInfo::clique),
+        "u32 top clique diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        narrowed.first().map(EagerCliqueInfo::vertex_matches),
+        scalar.first().map(EagerCliqueInfo::vertex_matches),
+        "u32 top atom matches diverged for {}",
+        case.name
+    );
+    assert_eq!(
+        narrowed.first().map(EagerCliqueInfo::matched_edges),
+        scalar.first().map(EagerCliqueInfo::matched_edges),
+        "u32 top edge matches diverged for {}",
+        case.name
+    );
+}
+
+#[test]
+#[ignore = "release equivalence probe for hybrid partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0594_hybrid_partial_matches_scalar() {
+    assert_hybrid_partial_matches_scalar("massspecgym_default_0594");
+}
+
+#[test]
+#[ignore = "release equivalence probe for hybrid partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0631_hybrid_partial_matches_scalar() {
+    assert_hybrid_partial_matches_scalar("massspecgym_default_0631");
+}
+
+#[test]
+#[ignore = "release equivalence probe for hybrid partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0939_hybrid_partial_matches_scalar() {
+    assert_hybrid_partial_matches_scalar("massspecgym_default_0939");
+}
+
+#[test]
+#[ignore = "release equivalence probe for u32 partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0594_u32_partial_matches_scalar() {
+    assert_u32_partial_matches_scalar("massspecgym_default_0594");
+}
+
+#[test]
+#[ignore = "release equivalence probe for u32 partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0631_u32_partial_matches_scalar() {
+    assert_u32_partial_matches_scalar("massspecgym_default_0631");
+}
+
+#[test]
+#[ignore = "release equivalence probe for u32 partial path"]
+fn test_massspecgym_ground_truth_labeled_mces_1000_case_0939_u32_partial_matches_scalar() {
+    assert_u32_partial_matches_scalar("massspecgym_default_0939");
+}
+
+#[test]
+#[ignore = "manual timing comparison harness for scalar vs hybrid partial search"]
+fn print_massspecgym_case_hybrid_partial_timing() {
+    let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let cases = load_massspecgym_ground_truth_by_size(1000);
+    let case = find_case(&cases, &case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let partition_side =
+        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+            &diagnostics.vertex_pairs,
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+        );
+    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side,
+    };
+    let started = Instant::now();
+    let scalar = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &matrix,
+        &partition,
+        false,
+        initial_lower_bound,
+        initial_lower_bound,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    let scalar_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let hybrid =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_profile_partial_search_hybrid(
+            &matrix,
+            &partition,
+            initial_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let hybrid_elapsed = started.elapsed();
+
+    println!("case: {}", case.name);
+    println!(
+        "scalar: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
+        scalar_elapsed.as_millis(),
+        scalar.best_cliques.len(),
+        scalar.best_cliques.first().map_or(0, Vec::len),
+        rank_partitioned_cliques(
+            scalar.best_cliques.clone(),
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+        )
+        .first()
+        .map_or(0, |info| info.vertex_matches().len()),
+        scalar.stats.dfs_calls,
+        scalar.stats.vertices_pruned,
+        scalar.stats.selected_part_scans,
+        scalar.stats.prune_candidate_checks,
+    );
+    println!(
+        "hybrid: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
+        hybrid_elapsed.as_millis(),
+        hybrid.best_cliques.len(),
+        hybrid.best_cliques.first().map_or(0, Vec::len),
+        rank_partitioned_cliques(
+            hybrid.best_cliques.clone(),
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+        )
+        .first()
+        .map_or(0, |info| info.vertex_matches().len()),
+        hybrid.stats.dfs_calls,
+        hybrid.stats.vertices_pruned,
+        hybrid.stats.selected_part_scans,
+        hybrid.stats.prune_candidate_checks,
+    );
+}
+
+#[test]
+#[ignore = "manual timing comparison harness for scalar vs u32 partial search"]
+fn print_massspecgym_case_u32_partial_timing() {
+    let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let cases = load_massspecgym_ground_truth_by_size(1000);
+    let case = find_case(&cases, &case_name);
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let partition_side =
+        geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+            &diagnostics.vertex_pairs,
+            diagnostics.first_edge_map.len(),
+            diagnostics.second_edge_map.len(),
+        );
+    let initial_lower_bound = usize::from(!diagnostics.vertex_pairs.is_empty());
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side,
+    };
+    let started = Instant::now();
+    let scalar = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &matrix,
+        &partition,
+        false,
+        initial_lower_bound,
+        initial_lower_bound,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    let scalar_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    let narrowed =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_profile_partial_search_u32(
+            &matrix,
+            &partition,
+            initial_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let narrowed_elapsed = started.elapsed();
+
+    println!("case: {}", case.name);
+    println!(
+        "scalar: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
+        scalar_elapsed.as_millis(),
+        scalar.best_cliques.len(),
+        scalar.best_cliques.first().map_or(0, Vec::len),
+        rank_partitioned_cliques(
+            scalar.best_cliques.clone(),
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+        )
+        .first()
+        .map_or(0, |info| info.vertex_matches().len()),
+        scalar.stats.dfs_calls,
+        scalar.stats.vertices_pruned,
+        scalar.stats.selected_part_scans,
+        scalar.stats.prune_candidate_checks,
+    );
+    println!(
+        "u32: wall_ms={} retained={} top_bonds={} top_atoms={} dfs_calls={} pruned={} part_scans={} checks={}",
+        narrowed_elapsed.as_millis(),
+        narrowed.best_cliques.len(),
+        narrowed.best_cliques.first().map_or(0, Vec::len),
+        rank_partitioned_cliques(
+            narrowed.best_cliques.clone(),
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+        )
+        .first()
+        .map_or(0, |info| info.vertex_matches().len()),
+        narrowed.stats.dfs_calls,
+        narrowed.stats.vertices_pruned,
+        narrowed.stats.selected_part_scans,
+        narrowed.stats.prune_candidate_checks,
     );
 }
 

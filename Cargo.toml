@@ -102,3 +102,7 @@ harness = false
 [[bench]]
 name = "mces_ground_truth"
 harness = false
+
+[[bench]]
+name = "mces_partial_hot"
+harness = false

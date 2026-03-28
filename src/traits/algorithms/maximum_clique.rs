@@ -17,6 +17,8 @@ use alloc::vec::Vec;
 pub use partitioned::{
     OwnedPartitionLabels, PartitionInfo, PartitionSearchProfile, PartitionSearchStats,
     PartitionSearchTrace, PartitionSide, all_best_search, choose_partition_side,
+    experimental_partial_search_hybrid, experimental_partial_search_u32,
+    experimental_profile_partial_search_hybrid, experimental_profile_partial_search_u32,
     greedy_lower_bound, partial_search, partial_search_with_root_pruning, profile_search,
     profile_search_with_bounds, trace_partial_search_to_target,
 };
