@@ -415,23 +415,37 @@ struct GroundTruthCase {
 }
 
 static GROUND_TRUTH_GZ: &[u8] = include_bytes!("fixtures/mces_ground_truth.json.gz");
-static MASSSPECGYM_GROUND_TRUTH_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_default_100.json.gz");
-static MASSSPECGYM_GROUND_TRUTH_1000_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_default_1000.json.gz");
-static MASSSPECGYM_GROUND_TRUTH_10000_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_default_10000.json.gz");
-static MASSSPECGYM_ALL_BEST_GROUND_TRUTH_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_all_best_100.json.gz");
-static MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_all_best_1000.json.gz");
-static MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_all_best_10000.json.gz");
-static MASSSPECGYM_ALL_BEST_HOLDOUTS_GZ: &[u8] =
-    include_bytes!("fixtures/massspecgym_mces_all_best_holdouts.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_100_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_100.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_1000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_1000.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_10000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_10000.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_50000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_50000.json.gz");
+const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_100.json.gz");
+const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_1000.json.gz");
+const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_10000.json.gz");
+const MASSSPECGYM_ALL_BEST_HOLDOUTS_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/massspecgym_mces_all_best_holdouts.json.gz"
+);
 
 fn load_ground_truth_from_bytes(gz_bytes: &[u8]) -> Vec<GroundTruthCase> {
     let mut decoder = flate2::read::GzDecoder::new(gz_bytes);
+    let mut json_str = String::new();
+    decoder.read_to_string(&mut json_str).unwrap();
+    let file: GroundTruthFile = serde_json::from_str(&json_str).unwrap();
+    assert!(file.version >= 1);
+    file.cases
+}
+
+fn load_ground_truth_from_path(path: &str) -> Vec<GroundTruthCase> {
+    let file = File::open(path).unwrap_or_else(|error| panic!("failed to open fixture {path}: {error}"));
+    let mut decoder = flate2::read::GzDecoder::new(file);
     let mut json_str = String::new();
     decoder.read_to_string(&mut json_str).unwrap();
     let file: GroundTruthFile = serde_json::from_str(&json_str).unwrap();
@@ -444,31 +458,35 @@ fn load_ground_truth() -> Vec<GroundTruthCase> {
 }
 
 fn load_massspecgym_ground_truth() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_GROUND_TRUTH_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_100_PATH)
 }
 
 fn load_massspecgym_ground_truth_1000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_GROUND_TRUTH_1000_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_1000_PATH)
 }
 
 fn load_massspecgym_ground_truth_10000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_GROUND_TRUTH_10000_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_10000_PATH)
+}
+
+fn load_massspecgym_ground_truth_50000() -> Vec<GroundTruthCase> {
+    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_50000_PATH)
 }
 
 fn load_massspecgym_all_best_ground_truth() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH)
 }
 
 fn load_massspecgym_all_best_ground_truth_1000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_PATH)
 }
 
 fn load_massspecgym_all_best_ground_truth_10000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_PATH)
 }
 
 fn load_massspecgym_all_best_holdouts() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_bytes(MASSSPECGYM_ALL_BEST_HOLDOUTS_GZ)
+    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_HOLDOUTS_PATH)
 }
 
 fn load_massspecgym_ground_truth_by_size(size: usize) -> Vec<GroundTruthCase> {
@@ -476,6 +494,7 @@ fn load_massspecgym_ground_truth_by_size(size: usize) -> Vec<GroundTruthCase> {
         100 => load_massspecgym_ground_truth(),
         1000 => load_massspecgym_ground_truth_1000(),
         10000 => load_massspecgym_ground_truth_10000(),
+        50000 => load_massspecgym_ground_truth_50000(),
         _ => panic!("unsupported MassSpecGym corpus size {size}"),
     }
 }
@@ -1926,6 +1945,70 @@ fn test_massspecgym_ground_truth_labeled_mces_10000() {
 }
 
 #[test]
+#[ignore = "50K-corpus parity check against fast 1-second MassSpecGym-derived RDKit default fixtures"]
+fn test_massspecgym_ground_truth_labeled_mces_50000() {
+    let cases = load_massspecgym_ground_truth_50000();
+    assert_eq!(cases.len(), 50000, "expected exactly 50000 fast large-corpus cases");
+    assert!(
+        cases.iter().all(|case| !case.timed_out),
+        "fast 50K default fixture must exclude timed-out RDKit pairs",
+    );
+
+    let mut mismatches: Vec<String> = cases
+        .par_iter()
+        .filter_map(|case| {
+            let result = run_labeled_case(case);
+            labeled_result_mismatch(case, &result)
+        })
+        .collect();
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 50K fast cases; mismatches={}",
+        cases.len(),
+        mismatches.len()
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "found {} mismatches in MassSpecGym default-config 50K fast corpus",
+        mismatches.len()
+    );
+}
+
+#[test]
+#[ignore = "50K-corpus diagnostic parity check with partition orientation heuristic disabled"]
+fn print_massspecgym_ground_truth_labeled_mces_50000_without_partition_orientation_heuristic() {
+    let cases = load_massspecgym_ground_truth_50000();
+    assert_eq!(cases.len(), 50000, "expected exactly 50000 fast large-corpus cases");
+    assert!(
+        cases.iter().all(|case| !case.timed_out),
+        "fast 50K default fixture must exclude timed-out RDKit pairs",
+    );
+
+    let mut mismatches: Vec<String> = cases
+        .par_iter()
+        .filter_map(|case| {
+            let result = run_labeled_case_with_options(case, true, false);
+            labeled_result_mismatch(case, &result)
+        })
+        .collect();
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 50K fast cases without orientation heuristic; mismatches={}",
+        cases.len(),
+        mismatches.len()
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+}
+
+#[test]
 fn test_massspecgym_ground_truth_labeled_mces_smoke() {
     let cases = load_massspecgym_ground_truth();
     let indices = evenly_spaced_case_indices(cases.len(), 25);
@@ -2191,6 +2274,33 @@ fn test_massspecgym_ground_truth_labeled_mces_all_best_10000_case_5585() {
     let case = find_case(&cases, "massspecgym_default_5585");
     let result = run_labeled_case_with_search_mode(case, true, false, McesSearchMode::AllBest);
     assert_labeled_result_matches_ground_truth(case, &result, "AllBest");
+}
+
+#[test]
+#[ignore = "focused red regression for a remaining 50K default mismatch"]
+fn test_massspecgym_ground_truth_labeled_mces_50000_case_16725() {
+    let cases = load_massspecgym_ground_truth_50000();
+    let case = find_case(&cases, "massspecgym_default_16725");
+    let result = run_labeled_case(case);
+    assert_labeled_result_matches_ground_truth(case, &result, "PartialEnumeration");
+}
+
+#[test]
+#[ignore = "focused red regression for a remaining 50K default mismatch"]
+fn test_massspecgym_ground_truth_labeled_mces_50000_case_19932() {
+    let cases = load_massspecgym_ground_truth_50000();
+    let case = find_case(&cases, "massspecgym_default_19932");
+    let result = run_labeled_case(case);
+    assert_labeled_result_matches_ground_truth(case, &result, "PartialEnumeration");
+}
+
+#[test]
+#[ignore = "focused red regression for a remaining 50K default mismatch"]
+fn test_massspecgym_ground_truth_labeled_mces_50000_case_23080() {
+    let cases = load_massspecgym_ground_truth_50000();
+    let case = find_case(&cases, "massspecgym_default_23080");
+    let result = run_labeled_case(case);
+    assert_labeled_result_matches_ground_truth(case, &result, "PartialEnumeration");
 }
 
 #[test]
@@ -3123,9 +3233,13 @@ fn print_massspecgym_case_timing_breakdown() {
 #[test]
 #[ignore = "manual sequential timing harness for default 10K Rust vs RDKit comparison"]
 fn print_massspecgym_default_10000_rust_vs_rdkit_timings() {
-    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(10_000);
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
     let output_path = std::env::var("MCES_TIMING_CSV")
-        .unwrap_or_else(|_| "/tmp/massspecgym_default_10000_rust_vs_rdkit.csv".to_string());
+        .unwrap_or_else(|_| format!("/tmp/massspecgym_default_{corpus_size}_rust_vs_rdkit.csv"));
     let limit =
         std::env::var("MCES_TIMING_LIMIT").ok().and_then(|value| value.parse::<usize>().ok());
     let mut writer =
@@ -3183,6 +3297,7 @@ fn print_massspecgym_default_10000_rust_vs_rdkit_timings() {
     let p90_index = (count * 90) / 100;
     let p99_index = (count * 99) / 100;
 
+    println!("corpus_size={corpus_size}");
     println!("cases_measured={count}");
     println!("csv_output={output_path}");
     println!("rdkit_sum_seconds={rdkit_sum:.6}");
@@ -3985,6 +4100,21 @@ struct SeedOnlyTimingOutcome {
     expected_atoms: usize,
 }
 
+#[derive(Clone, Debug)]
+struct StagedSeedTimingOutcome {
+    case_name: String,
+    probe_side: geometric_traits::traits::algorithms::maximum_clique::PartitionSide,
+    baseline_seed_size: usize,
+    staged_seed_size: usize,
+    budget_dfs_calls: usize,
+    probe_ms: u128,
+    probe_dfs_calls: usize,
+    baseline_ms: u128,
+    staged_ms: u128,
+    expected_bonds: usize,
+    expected_atoms: usize,
+}
+
 fn dual_side_seed_only_timing(
     case: &GroundTruthCase,
     greedy_delta_threshold: usize,
@@ -4124,6 +4254,185 @@ fn dual_side_seed_only_timing(
     }
 }
 
+fn staged_exact_seed_only_timing(
+    case: &GroundTruthCase,
+    greedy_delta_threshold: usize,
+    budget_dfs_calls: usize,
+) -> StagedSeedTimingOutcome {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+    let current_partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: current_side,
+    };
+
+    let accept = |clique: &[usize]| {
+        !clique_has_delta_y_from_product(
+            clique,
+            &permuted_pairs,
+            &diagnostics.first_edge_map,
+            &diagnostics.second_edge_map,
+            case.graph1.n_atoms,
+            case.graph2.n_atoms,
+        )
+    };
+
+    let greedy_for_side = |partition_side| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        )
+    };
+
+    let greedy_first = greedy_for_side(PartitionSide::First);
+    let greedy_second = greedy_for_side(PartitionSide::Second);
+    let (current_greedy, other_greedy, other_side) = match current_side {
+        PartitionSide::First => (greedy_first, greedy_second, PartitionSide::Second),
+        PartitionSide::Second => (greedy_second, greedy_first, PartitionSide::First),
+    };
+    let baseline_seed_size =
+        if other_greedy >= current_greedy.saturating_add(greedy_delta_threshold) {
+            other_greedy
+        } else {
+            current_greedy
+        };
+    let probe_side = if other_greedy > current_greedy { other_side } else { current_side };
+    let probe_partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: probe_side,
+    };
+
+    let started = Instant::now();
+    let baseline_profile =
+        geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+            &matrix,
+            &current_partition,
+            false,
+            baseline_lower_bound,
+            baseline_seed_size.saturating_sub(1),
+            accept,
+        );
+    let baseline_elapsed = started.elapsed().as_millis();
+    let baseline_infos = rank_partitioned_cliques(
+        baseline_profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let baseline_top = baseline_infos.first().expect("expected retained baseline clique");
+    assert!(
+        labeled_info_mismatch(case, baseline_top).is_none(),
+        "baseline path diverged unexpectedly for {}",
+        case.name
+    );
+
+    let started = Instant::now();
+    let (probe_best_size, probe_stats) =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_u32_best_size_with_budget(
+            &matrix,
+            &probe_partition,
+            baseline_lower_bound,
+            baseline_seed_size.saturating_sub(1),
+            budget_dfs_calls,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let probe_elapsed = started.elapsed().as_millis();
+    let staged_seed_size = baseline_seed_size.max(probe_best_size);
+
+    let started = Instant::now();
+    let staged_profile =
+        geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+            &matrix,
+            &current_partition,
+            false,
+            baseline_lower_bound,
+            staged_seed_size.saturating_sub(1),
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let staged_elapsed = started.elapsed().as_millis();
+    let staged_infos = rank_partitioned_cliques(
+        staged_profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let staged_top = staged_infos.first().expect("expected retained staged clique");
+    assert!(
+        labeled_info_mismatch(case, staged_top).is_none(),
+        "staged seed path diverged unexpectedly for {}",
+        case.name
+    );
+
+    StagedSeedTimingOutcome {
+        case_name: case.name.clone(),
+        probe_side,
+        baseline_seed_size,
+        staged_seed_size,
+        budget_dfs_calls,
+        probe_ms: probe_elapsed,
+        probe_dfs_calls: probe_stats.dfs_calls,
+        baseline_ms: baseline_elapsed,
+        staged_ms: staged_elapsed,
+        expected_bonds: case.expected_bond_matches,
+        expected_atoms: case.expected_atom_matches,
+    }
+}
+
 #[test]
 #[ignore = "experimental parallel 10K correctness check for the thresholded dual-side seed-only oracle"]
 fn test_massspecgym_ground_truth_labeled_mces_10000_dual_side_seed_only_oracle() {
@@ -4242,6 +4551,288 @@ fn print_massspecgym_default_10000_dual_side_seed_only_timing_summary() {
             outcome.baseline_ms,
             outcome.seed_only_ms,
             outcome.baseline_ms as i128 - outcome.seed_only_ms as i128,
+        );
+    }
+}
+
+#[test]
+#[ignore = "manual timing summary for staged exact seed generation on the hardest default 10K cases"]
+fn print_massspecgym_default_10000_staged_seed_top_cases() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+    const BUDGETS: &[usize] = &[1_000, 5_000, 20_000];
+    const CASES: &[&str] = &[
+        "massspecgym_default_5445",
+        "massspecgym_default_3091",
+        "massspecgym_default_2713",
+        "massspecgym_default_4189",
+        "massspecgym_default_6027",
+        "massspecgym_default_1260",
+        "massspecgym_default_5729",
+        "massspecgym_default_7083",
+        "massspecgym_default_3914",
+        "massspecgym_default_5915",
+        "massspecgym_default_6719",
+    ];
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    for case_name in CASES {
+        let case = find_case(&cases, case_name);
+        for &budget_dfs_calls in BUDGETS {
+            let outcome =
+                staged_exact_seed_only_timing(case, GREEDY_DELTA_THRESHOLD, budget_dfs_calls);
+            println!(
+                "case={} budget_dfs={} probe_side={:?} probe_ms={} probe_dfs={} baseline_seed_size={} staged_seed_size={} baseline_ms={} staged_ms={} total_staged_ms={} delta_ms={} expected=({},{})",
+                outcome.case_name,
+                outcome.budget_dfs_calls,
+                outcome.probe_side,
+                outcome.probe_ms,
+                outcome.probe_dfs_calls,
+                outcome.baseline_seed_size,
+                outcome.staged_seed_size,
+                outcome.baseline_ms,
+                outcome.staged_ms,
+                outcome.probe_ms + outcome.staged_ms,
+                outcome.baseline_ms as i128 - (outcome.probe_ms + outcome.staged_ms) as i128,
+                outcome.expected_bonds,
+                outcome.expected_atoms,
+            );
+        }
+    }
+}
+
+fn staged_exact_seed_only_fixture_mismatch(
+    case: &GroundTruthCase,
+    greedy_delta_threshold: usize,
+    budget_dfs_calls: usize,
+) -> Option<String> {
+    use geometric_traits::traits::algorithms::maximum_clique::PartitionSide;
+
+    let prepared = prepare_labeled_case(case);
+    let diagnostics = collect_prepared_labeled_case_product_diagnostics(case, &prepared, true);
+    let order = product_order_rdkit_raw_pair_order(case, &diagnostics);
+    let (matrix, permuted_pairs) =
+        permute_product(&diagnostics.matrix, &diagnostics.vertex_pairs, &order);
+    let (g1_label_indices, g2_label_indices, num_labels) =
+        intern_case_bond_labels(&diagnostics.first_bond_labels, &diagnostics.second_bond_labels);
+    let baseline_lower_bound = usize::from(matrix.order() > 0);
+    let current_side = geometric_traits::traits::algorithms::maximum_clique::choose_partition_side(
+        &permuted_pairs,
+        diagnostics.first_edge_map.len(),
+        diagnostics.second_edge_map.len(),
+    );
+    let current_partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: current_side,
+    };
+
+    let greedy_for_side = |partition_side| {
+        let partition = PartitionInfo {
+            pairs: &permuted_pairs,
+            g1_labels: &g1_label_indices,
+            g2_labels: &g2_label_indices,
+            num_labels,
+            partition_side,
+        };
+        geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+            &matrix,
+            &partition,
+            baseline_lower_bound,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        )
+    };
+
+    let greedy_first = greedy_for_side(PartitionSide::First);
+    let greedy_second = greedy_for_side(PartitionSide::Second);
+    let (current_greedy, other_greedy, other_side) = match current_side {
+        PartitionSide::First => (greedy_first, greedy_second, PartitionSide::Second),
+        PartitionSide::Second => (greedy_second, greedy_first, PartitionSide::First),
+    };
+    let baseline_seed_size =
+        if other_greedy >= current_greedy.saturating_add(greedy_delta_threshold) {
+            other_greedy
+        } else {
+            current_greedy
+        };
+    let probe_side = if other_greedy > current_greedy { other_side } else { current_side };
+    let probe_partition = PartitionInfo {
+        pairs: &permuted_pairs,
+        g1_labels: &g1_label_indices,
+        g2_labels: &g2_label_indices,
+        num_labels,
+        partition_side: probe_side,
+    };
+    let (probe_best_size, _) =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_u32_best_size_with_budget(
+            &matrix,
+            &probe_partition,
+            baseline_lower_bound,
+            baseline_seed_size.saturating_sub(1),
+            budget_dfs_calls,
+            |clique| {
+                !clique_has_delta_y_from_product(
+                    clique,
+                    &permuted_pairs,
+                    &diagnostics.first_edge_map,
+                    &diagnostics.second_edge_map,
+                    case.graph1.n_atoms,
+                    case.graph2.n_atoms,
+                )
+            },
+        );
+    let staged_seed_size = baseline_seed_size.max(probe_best_size);
+
+    let profile = geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &matrix,
+        &current_partition,
+        false,
+        baseline_lower_bound,
+        staged_seed_size.saturating_sub(1),
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &permuted_pairs,
+                &diagnostics.first_edge_map,
+                &diagnostics.second_edge_map,
+                case.graph1.n_atoms,
+                case.graph2.n_atoms,
+            )
+        },
+    );
+    let infos = rank_partitioned_cliques(
+        profile.best_cliques,
+        &permuted_pairs,
+        &diagnostics.first_edge_map,
+        &diagnostics.second_edge_map,
+    );
+    let Some(top) = infos.first() else {
+        return Some(format!(
+            "{} staged seed retained no clique current_side={current_side:?} probe_side={probe_side:?} greedy=({}, {}) baseline_seed_size={} staged_seed_size={} budget_dfs={}",
+            case.name,
+            greedy_first,
+            greedy_second,
+            baseline_seed_size,
+            staged_seed_size,
+            budget_dfs_calls
+        ));
+    };
+    labeled_info_mismatch(case, top).map(|message| {
+        format!(
+            "{} current_side={current_side:?} probe_side={probe_side:?} greedy=({}, {}) baseline_seed_size={} staged_seed_size={} budget_dfs={} {}",
+            case.name,
+            greedy_first,
+            greedy_second,
+            baseline_seed_size,
+            staged_seed_size,
+            budget_dfs_calls,
+            message
+        )
+    })
+}
+
+#[test]
+#[ignore = "experimental parallel 10K correctness check for staged exact seed generation with a 5K DFS budget"]
+fn test_massspecgym_ground_truth_labeled_mces_10000_staged_seed_only_oracle_budget_5000() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+    const BUDGET_DFS_CALLS: usize = 5_000;
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let mut mismatches: Vec<String> = cases
+        .par_iter()
+        .filter_map(|case| {
+            staged_exact_seed_only_fixture_mismatch(case, GREEDY_DELTA_THRESHOLD, BUDGET_DFS_CALLS)
+        })
+        .collect();
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 10K staged-seed oracle cases; budget_dfs={} mismatches={}",
+        cases.len(),
+        BUDGET_DFS_CALLS,
+        mismatches.len(),
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "staged exact seed oracle diverged on {} cases",
+        mismatches.len()
+    );
+}
+
+#[test]
+#[ignore = "manual parallel timing summary for staged exact seed generation over the full default 10K corpus with a 5K DFS budget"]
+fn print_massspecgym_default_10000_staged_seed_summary_budget_5000() {
+    const GREEDY_DELTA_THRESHOLD: usize = 2;
+    const BUDGET_DFS_CALLS: usize = 5_000;
+
+    let cases = load_massspecgym_ground_truth_by_size(10_000);
+    let started = Instant::now();
+    let mut outcomes: Vec<StagedSeedTimingOutcome> = cases
+        .par_iter()
+        .map(|case| staged_exact_seed_only_timing(case, GREEDY_DELTA_THRESHOLD, BUDGET_DFS_CALLS))
+        .collect();
+    let wall_ms = started.elapsed().as_millis();
+
+    let baseline_sum_ms: u128 = outcomes.iter().map(|outcome| outcome.baseline_ms).sum();
+    let staged_sum_ms: u128 =
+        outcomes.iter().map(|outcome| outcome.probe_ms + outcome.staged_ms).sum();
+
+    outcomes.sort_by(|left, right| {
+        let left_delta = left.baseline_ms as i128 - (left.probe_ms + left.staged_ms) as i128;
+        let right_delta = right.baseline_ms as i128 - (right.probe_ms + right.staged_ms) as i128;
+        right_delta.cmp(&left_delta).then_with(|| left.case_name.cmp(&right.case_name))
+    });
+
+    println!(
+        "cases={} budget_dfs={} wall_ms={} baseline_sum_ms={} staged_total_sum_ms={}",
+        cases.len(),
+        BUDGET_DFS_CALLS,
+        wall_ms,
+        baseline_sum_ms,
+        staged_sum_ms,
+    );
+    for outcome in outcomes.iter().take(20) {
+        println!(
+            "fastest_gain case={} probe_side={:?} probe_ms={} probe_dfs={} baseline_seed_size={} staged_seed_size={} baseline_ms={} staged_ms={} total_staged_ms={} delta_ms={}",
+            outcome.case_name,
+            outcome.probe_side,
+            outcome.probe_ms,
+            outcome.probe_dfs_calls,
+            outcome.baseline_seed_size,
+            outcome.staged_seed_size,
+            outcome.baseline_ms,
+            outcome.staged_ms,
+            outcome.probe_ms + outcome.staged_ms,
+            outcome.baseline_ms as i128 - (outcome.probe_ms + outcome.staged_ms) as i128,
+        );
+    }
+    for outcome in outcomes.iter().rev().take(20) {
+        println!(
+            "worst_regression case={} probe_side={:?} probe_ms={} probe_dfs={} baseline_seed_size={} staged_seed_size={} baseline_ms={} staged_ms={} total_staged_ms={} delta_ms={}",
+            outcome.case_name,
+            outcome.probe_side,
+            outcome.probe_ms,
+            outcome.probe_dfs_calls,
+            outcome.baseline_seed_size,
+            outcome.staged_seed_size,
+            outcome.baseline_ms,
+            outcome.staged_ms,
+            outcome.probe_ms + outcome.staged_ms,
+            outcome.baseline_ms as i128 - (outcome.probe_ms + outcome.staged_ms) as i128,
         );
     }
 }
@@ -4964,10 +5555,14 @@ fn print_massspecgym_case_all_best_rdkit_materialization() {
 #[ignore = "manual diagnostic harness for MassSpecGym edge-context admission comparison"]
 fn print_massspecgym_case_context_comparison() {
     let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100);
     let removed_limit: usize =
         std::env::var("MCES_REMOVED_LIMIT").ok().and_then(|value| value.parse().ok()).unwrap_or(20);
 
-    let cases = load_massspecgym_ground_truth();
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
     let case = find_case(&cases, &case_name);
     let prepared = prepare_labeled_case(case);
 
@@ -5202,7 +5797,11 @@ fn print_massspecgym_case_product_order_sensitivity() {
 #[ignore = "manual diagnostic harness for fixture-order line-graph and product construction"]
 fn print_massspecgym_case_fixture_order_line_graph_product() {
     let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
-    let cases = load_massspecgym_ground_truth();
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100);
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
     let case = find_case(&cases, &case_name);
 
     let row_major = collect_labeled_case_product_diagnostics(case, true);
@@ -5705,18 +6304,22 @@ fn print_massspecgym_case_equivalent_root_pruning_probe() {
 #[ignore = "manual diagnostic harness for sweeping the initial lower bound in PartialEnumeration"]
 fn print_massspecgym_case_partial_lower_bound_sweep() {
     let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100);
     let max_bound: usize = std::env::var("MCES_MAX_LOWER_BOUND")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or_else(|| {
-            load_massspecgym_ground_truth()
+            load_massspecgym_ground_truth_by_size(corpus_size)
                 .iter()
                 .find(|case| case.name == case_name)
                 .map(|case| case.expected_bond_matches)
                 .unwrap_or(0)
         });
 
-    let cases = load_massspecgym_ground_truth();
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
     let case = find_case(&cases, &case_name);
     let diagnostics = collect_labeled_case_product_diagnostics(case, true);
     let (g1_label_indices, g2_label_indices, num_labels) =
@@ -5776,12 +6379,16 @@ fn print_massspecgym_case_partial_lower_bound_sweep() {
 #[ignore = "manual diagnostic harness for sweeping partition side in PartialEnumeration"]
 fn print_massspecgym_case_partial_partition_side_sweep() {
     let case_name = std::env::var("MCES_CASE").expect("set MCES_CASE to a MassSpecGym case name");
+    let corpus_size: usize = std::env::var("MCES_CORPUS_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(100);
     let lower_bound: usize = std::env::var("MCES_PARTITION_SIDE_LOWER_BOUND")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(0);
 
-    let cases = load_massspecgym_ground_truth();
+    let cases = load_massspecgym_ground_truth_by_size(corpus_size);
     let case = find_case(&cases, &case_name);
     let diagnostics = collect_labeled_case_product_diagnostics(case, true);
     let (g1_label_indices, g2_label_indices, num_labels) =

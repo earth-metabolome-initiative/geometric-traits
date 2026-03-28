@@ -123,9 +123,18 @@ impl PreparedHotBenchCase {
 
 static HOT_CASE_NAMES: &[&str] =
     &["massspecgym_default_0594", "massspecgym_default_0631", "massspecgym_default_0939"];
+static STAGED_SEED_CASE_NAMES: &[&str] = &[
+    "massspecgym_default_5445",
+    "massspecgym_default_3091",
+    "massspecgym_default_2713",
+    "massspecgym_default_4189",
+    "massspecgym_default_6027",
+];
 
 static MASSSPECGYM_GROUND_TRUTH_1000_GZ: &[u8] =
     include_bytes!("../tests/fixtures/massspecgym_mces_default_1000.json.gz");
+static MASSSPECGYM_GROUND_TRUTH_10000_GZ: &[u8] =
+    include_bytes!("../tests/fixtures/massspecgym_mces_default_10000.json.gz");
 
 fn atom_type_to_shared_indices(
     first_atom_types: &[String],
@@ -555,12 +564,12 @@ fn clique_has_delta_y_from_product(
         != clique_degree_sequence(second_vertices, &second_edges)
 }
 
-fn load_hot_cases() -> Vec<GroundTruthCase> {
-    let mut decoder = flate2::read::GzDecoder::new(MASSSPECGYM_GROUND_TRUTH_1000_GZ);
+fn load_named_cases(blob: &[u8], names: &[&str]) -> Vec<GroundTruthCase> {
+    let mut decoder = flate2::read::GzDecoder::new(blob);
     let mut json = String::new();
     decoder.read_to_string(&mut json).unwrap();
     let file: GroundTruthFile = serde_json::from_str(&json).unwrap();
-    HOT_CASE_NAMES
+    names
         .iter()
         .map(|name| {
             file.cases
@@ -570,6 +579,14 @@ fn load_hot_cases() -> Vec<GroundTruthCase> {
                 .clone()
         })
         .collect()
+}
+
+fn load_hot_cases() -> Vec<GroundTruthCase> {
+    load_named_cases(MASSSPECGYM_GROUND_TRUTH_1000_GZ, HOT_CASE_NAMES)
+}
+
+fn load_staged_seed_cases() -> Vec<GroundTruthCase> {
+    load_named_cases(MASSSPECGYM_GROUND_TRUTH_10000_GZ, STAGED_SEED_CASE_NAMES)
 }
 
 fn prepare_hot_bench_case(case: &GroundTruthCase) -> PreparedHotBenchCase {
@@ -604,6 +621,10 @@ fn prepare_hot_bench_case(case: &GroundTruthCase) -> PreparedHotBenchCase {
 
 fn prepared_hot_cases() -> Vec<PreparedHotBenchCase> {
     load_hot_cases().iter().map(prepare_hot_bench_case).collect()
+}
+
+fn prepared_staged_seed_cases() -> Vec<PreparedHotBenchCase> {
+    load_staged_seed_cases().iter().map(prepare_hot_bench_case).collect()
 }
 
 fn run_scalar(
@@ -665,10 +686,9 @@ fn accepts_hot_case_clique(case: &PreparedHotBenchCase, clique: &[usize]) -> boo
 fn best_size_seed_for_shipped_mces(case: &PreparedHotBenchCase) -> usize {
     const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
 
-    let current_partition = case.partition_info();
     let current_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
         &case.matrix,
-        &current_partition,
+        &case.partition_info(),
         case.initial_lower_bound,
         &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
     );
@@ -681,10 +701,9 @@ fn best_size_seed_for_shipped_mces(case: &PreparedHotBenchCase) -> usize {
             geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First
         }
     };
-    let alternate_partition = case.partition_info_with_side(alternate_side);
     let alternate_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
         &case.matrix,
-        &alternate_partition,
+        &case.partition_info_with_side(alternate_side),
         case.initial_lower_bound,
         &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
     );
@@ -743,6 +762,71 @@ fn run_mces_shipped_seed(
     )
 }
 
+fn run_mces_staged_seed(
+    case: &PreparedHotBenchCase,
+) -> geometric_traits::traits::algorithms::maximum_clique::PartitionSearchProfile {
+    const PARTIAL_STAGED_DFS_BUDGET: usize = 5_000;
+
+    let current_partition = case.partition_info();
+    let current_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+        &case.matrix,
+        &current_partition,
+        case.initial_lower_bound,
+        &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
+    );
+    let alternate_side = match case.partition_side {
+        geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First => {
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::Second
+        }
+        geometric_traits::traits::algorithms::maximum_clique::PartitionSide::Second => {
+            geometric_traits::traits::algorithms::maximum_clique::PartitionSide::First
+        }
+    };
+    let alternate_partition = case.partition_info_with_side(alternate_side);
+    let alternate_greedy = geometric_traits::traits::algorithms::maximum_clique::greedy_lower_bound(
+        &case.matrix,
+        &alternate_partition,
+        case.initial_lower_bound,
+        &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
+    );
+
+    let baseline_seed_size = if alternate_greedy >= current_greedy.saturating_add(2) {
+        alternate_greedy
+    } else {
+        current_greedy
+    };
+    let probe_side =
+        if alternate_greedy > current_greedy { alternate_side } else { case.partition_side };
+    let (probe_best_size, _) =
+        geometric_traits::traits::algorithms::maximum_clique::experimental_partial_u32_best_size_with_budget(
+            &case.matrix,
+            &case.partition_info_with_side(probe_side),
+            case.initial_lower_bound,
+            baseline_seed_size.saturating_sub(1),
+            PARTIAL_STAGED_DFS_BUDGET,
+            &mut |clique: &[usize]| accepts_hot_case_clique(case, clique),
+        );
+    let staged_seed = baseline_seed_size.max(probe_best_size).saturating_sub(1);
+
+    geometric_traits::traits::algorithms::maximum_clique::profile_search_with_bounds(
+        &case.matrix,
+        &case.partition_info(),
+        false,
+        case.initial_lower_bound,
+        staged_seed,
+        |clique| {
+            !clique_has_delta_y_from_product(
+                clique,
+                &case.vertex_pairs,
+                &case.first_edge_map,
+                &case.second_edge_map,
+                case.first_vertices,
+                case.second_vertices,
+            )
+        },
+    )
+}
+
 fn bench_mces_partial_hot(c: &mut Criterion) {
     let cases = prepared_hot_cases();
     let mut group = c.benchmark_group("mces_partial_hot");
@@ -784,6 +868,31 @@ fn bench_mces_partial_hot(c: &mut Criterion) {
     }
 
     seeded_group.finish();
+
+    let staged_cases = prepared_staged_seed_cases();
+    let mut staged_group = c.benchmark_group("mces_partial_staged_seed_hot");
+    staged_group.sample_size(10);
+    staged_group.warm_up_time(Duration::from_secs(1));
+    staged_group.measurement_time(Duration::from_secs(5));
+
+    for case in &staged_cases {
+        staged_group.bench_with_input(
+            BenchmarkId::new("shipped_seed", &case.name),
+            case,
+            |b, case| {
+                b.iter(|| black_box(run_mces_shipped_seed(case)));
+            },
+        );
+        staged_group.bench_with_input(
+            BenchmarkId::new("staged_seed", &case.name),
+            case,
+            |b, case| {
+                b.iter(|| black_box(run_mces_staged_seed(case)));
+            },
+        );
+    }
+
+    staged_group.finish();
 }
 
 criterion_group!(benches, bench_mces_partial_hot);

@@ -28,8 +28,10 @@ use super::{
     labeled_line_graph::LabeledLineGraph,
     line_graph::LineGraph,
     maximum_clique::{
-        MaximumClique, PartitionInfo, PartitionSide, all_best_search, choose_partition_side,
-        experimental_partial_search_u32_with_bounds, greedy_lower_bound, partial_search,
+        MaximumClique, PartitionInfo, PartitionSide, all_best_search,
+        choose_partition_side_by_atom_counts,
+        experimental_partial_search_u32_with_bounds,
+        experimental_partial_u32_best_size_with_budget, greedy_lower_bound, partial_search,
     },
     modular_product::ModularProduct,
 };
@@ -516,6 +518,7 @@ where
 }
 
 const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
+const PARTIAL_STAGED_DFS_BUDGET: usize = 5_000;
 
 fn alternate_partition_info<'a>(partition: &PartitionInfo<'a>) -> PartitionInfo<'a> {
     let partition_side = match partition.partition_side {
@@ -531,6 +534,42 @@ fn alternate_partition_info<'a>(partition: &PartitionInfo<'a>) -> PartitionInfo<
     }
 }
 
+fn partition_info_with_side<'a>(
+    partition: &PartitionInfo<'a>,
+    partition_side: PartitionSide,
+) -> PartitionInfo<'a> {
+    PartitionInfo {
+        pairs: partition.pairs,
+        g1_labels: partition.g1_labels,
+        g2_labels: partition.g2_labels,
+        num_labels: partition.num_labels,
+        partition_side,
+    }
+}
+
+fn partial_baseline_seed_size<F>(
+    matrix: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    initial_lower_bound: usize,
+    accept_clique: &mut F,
+) -> (usize, usize, usize)
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    let current_greedy =
+        greedy_lower_bound(matrix, partition, initial_lower_bound, &mut *accept_clique);
+    let alternate_partition = alternate_partition_info(partition);
+    let alternate_greedy =
+        greedy_lower_bound(matrix, &alternate_partition, initial_lower_bound, &mut *accept_clique);
+    let baseline_seed_size =
+        if alternate_greedy >= current_greedy.saturating_add(PARTIAL_GREEDY_DELTA_THRESHOLD) {
+            alternate_greedy
+        } else {
+            current_greedy
+        };
+    (baseline_seed_size, current_greedy, alternate_greedy)
+}
+
 fn partial_best_size_seed<F>(
     matrix: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
@@ -541,18 +580,27 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     // Keep the shipped partition side and state lower bound unchanged. Only
-    // improve the incumbent seed, which preserved parity on the fast corpora.
-    let current_greedy =
-        greedy_lower_bound(matrix, partition, initial_lower_bound, &mut *accept_clique);
-    let alternate_partition = alternate_partition_info(partition);
-    let alternate_greedy =
-        greedy_lower_bound(matrix, &alternate_partition, initial_lower_bound, &mut *accept_clique);
-
-    if alternate_greedy >= current_greedy.saturating_add(PARTIAL_GREEDY_DELTA_THRESHOLD) {
-        alternate_greedy.saturating_sub(1)
+    // improve the incumbent seed. The staged pre-pass runs on the more
+    // promising side, but the real search still runs on the shipped order,
+    // side, and state lower bound.
+    let (baseline_seed_size, current_greedy, alternate_greedy) =
+        partial_baseline_seed_size(matrix, partition, initial_lower_bound, &mut *accept_clique);
+    let probe_side = if alternate_greedy > current_greedy {
+        alternate_partition_info(partition).partition_side
     } else {
-        current_greedy.saturating_sub(1)
-    }
+        partition.partition_side
+    };
+    let probe_partition = partition_info_with_side(partition, probe_side);
+    let (probe_best_size, _) = experimental_partial_u32_best_size_with_budget(
+        matrix,
+        &probe_partition,
+        initial_lower_bound,
+        baseline_seed_size.saturating_sub(1),
+        PARTIAL_STAGED_DFS_BUDGET,
+        &mut *accept_clique,
+    );
+
+    baseline_seed_size.max(probe_best_size).saturating_sub(1)
 }
 
 /// Default ranker: fragment count → largest fragment.
@@ -1189,7 +1237,7 @@ where
                 g2_labels: &g2_labels,
                 num_labels: 1,
                 partition_side: if self.partition_orientation_heuristic {
-                    choose_partition_side(&mp_vertex_pairs, g1_labels.len(), g2_labels.len())
+                    choose_partition_side_by_atom_counts(first_vertices, second_vertices)
                 } else {
                     PartitionSide::First
                 },
@@ -1387,11 +1435,7 @@ where
                 g2_labels: &g2_label_indices,
                 num_labels,
                 partition_side: if self.partition_orientation_heuristic {
-                    choose_partition_side(
-                        &mp_vertex_pairs,
-                        g1_label_indices.len(),
-                        g2_label_indices.len(),
-                    )
+                    choose_partition_side_by_atom_counts(first_vertices, second_vertices)
                 } else {
                     PartitionSide::First
                 },

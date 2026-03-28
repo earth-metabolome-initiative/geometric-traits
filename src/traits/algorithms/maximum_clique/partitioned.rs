@@ -1171,12 +1171,12 @@ struct PruneUndo {
     swapped_vertex: Option<usize>,
 }
 
-/// Chooses the partition side using an RDKit-style smaller-first policy.
+/// Chooses the partition side by comparing the supplied side sizes.
 ///
-/// When the two line graphs have different numbers of bond vertices, the
-/// smaller side is preferred. If they are equal in size, the first side is
-/// kept to avoid introducing an extra bucket-profile heuristic that can drift
-/// away from RDKit's default traversal.
+/// This helper is used by diagnostics and experiments that want a generic
+/// "smaller side first" rule over two partition-size counts. The production
+/// MCES orientation heuristic uses original graph atom counts instead, to
+/// mirror RDKit's initial molecule swap rule.
 #[must_use]
 pub fn choose_partition_side(
     _pairs: &[(usize, usize)],
@@ -1190,6 +1190,23 @@ pub fn choose_partition_side(
         return PartitionSide::Second;
     }
     PartitionSide::First
+}
+
+/// Chooses the partition side using RDKit's initial molecule-swap rule.
+///
+/// RASCAL swaps the two molecules only when the first has strictly more
+/// atoms than the second. The partition-driving side should mirror that same
+/// choice: smaller atom count first, tie => keep the first input.
+#[must_use]
+pub fn choose_partition_side_by_atom_counts(
+    first_vertices: usize,
+    second_vertices: usize,
+) -> PartitionSide {
+    if first_vertices <= second_vertices {
+        PartitionSide::First
+    } else {
+        PartitionSide::Second
+    }
 }
 
 const DEFAULT_PARTIAL_ENUMERATION_CAP: usize = 10_000;
@@ -1927,6 +1944,63 @@ where
     );
 
     PartitionSearchProfile { best_cliques, stats }
+}
+
+#[doc(hidden)]
+#[must_use]
+pub fn experimental_partial_u32_best_size_with_budget<F>(
+    adj: &BitSquareMatrix,
+    partition: &PartitionInfo<'_>,
+    state_lower_bound: usize,
+    best_size_seed: usize,
+    max_dfs_calls: usize,
+    mut accept_clique: F,
+) -> (usize, PartitionSearchStats)
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    if adj.order() > u32::MAX as usize {
+        let profile = profile_partial_search_with_bounds(
+            adj,
+            partition,
+            state_lower_bound,
+            best_size_seed,
+            accept_clique,
+        );
+        let best_size = profile
+            .best_cliques
+            .first()
+            .map_or(best_size_seed, |clique| clique.len().max(best_size_seed));
+        return (best_size, profile.stats);
+    }
+
+    let n = adj.order();
+    if n == 0 {
+        let empty = Vec::new();
+        let best_size = if accept_clique(&empty) { 0 } else { best_size_seed };
+        return (best_size, PartitionSearchStats::default());
+    }
+
+    let mut state = U32PartitionSearchState::new(adj, partition, state_lower_bound);
+    let mut clique = Vec::new();
+    let mut best_size = best_size_seed;
+    let mut best_cliques = Vec::new();
+    let mut stats = PartitionSearchStats::default();
+    let mut trail = Vec::new();
+
+    dfs_partial_u32_in_place_profile_budgeted(
+        &mut state,
+        &mut clique,
+        DEFAULT_PARTIAL_ENUMERATION_CAP,
+        &mut best_size,
+        &mut best_cliques,
+        &mut accept_clique,
+        &mut trail,
+        &mut stats,
+        max_dfs_calls,
+    );
+
+    (best_size, stats)
 }
 
 #[allow(dead_code)]
@@ -2678,6 +2752,109 @@ fn dfs_partial_u32_in_place_profile<F>(
             accept_clique,
             trail,
             stats,
+        );
+    }
+    state.restore_selected_vertex_in_place(selected_part, selected);
+}
+
+fn dfs_partial_u32_in_place_profile_budgeted<F>(
+    state: &mut U32PartitionSearchState<'_>,
+    clique: &mut Vec<usize>,
+    cap: usize,
+    best_size: &mut usize,
+    best_cliques: &mut Vec<Vec<usize>>,
+    accept_clique: &mut F,
+    trail: &mut Vec<U32PruneUndo>,
+    stats: &mut PartitionSearchStats,
+    max_dfs_calls: usize,
+) where
+    F: FnMut(&[usize]) -> bool,
+{
+    if stats.dfs_calls >= max_dfs_calls {
+        return;
+    }
+    stats.dfs_calls += 1;
+    stats.max_depth = stats.max_depth.max(clique.len());
+
+    if state.is_empty() {
+        stats.empty_state_returns += 1;
+        return;
+    }
+
+    let parts_bound = clique.len() + state.num_parts();
+    if parts_bound == *best_size {
+        stats.parts_bound_equal_best += 1;
+    }
+    if parts_bound <= *best_size {
+        stats.parts_bound_prunes += 1;
+        return;
+    }
+
+    stats.upper_bound_labels_scanned += state.g1_type_counts.len();
+    let label_bound = clique.len() + state.upper_bound();
+    if label_bound == *best_size {
+        stats.label_bound_equal_best += 1;
+    }
+    if label_bound <= *best_size {
+        stats.label_bound_prunes += 1;
+        return;
+    }
+
+    stats.selected_part_scans += state.active_parts.len();
+    let selected_part = state.selected_part_index();
+    let selected = state.pop_selected_vertex_in_place(selected_part);
+    stats.vertices_popped += 1;
+    clique.push(selected);
+
+    stats.maybe_update_calls += 1;
+    let before_best_size = *best_size;
+    let before_len = best_cliques.len();
+    maybe_update_best(
+        clique,
+        PartitionSearchPolicy::PartialEnumeration { cap },
+        best_size,
+        best_cliques,
+        accept_clique,
+    );
+    if *best_size > before_best_size {
+        stats.best_size_improvements += 1;
+        stats.last_best_improvement_dfs_call = stats.dfs_calls;
+        stats.retained_best_cliques += best_cliques.len();
+    } else if best_cliques.len() > before_len {
+        stats.retained_best_cliques += best_cliques.len() - before_len;
+    }
+
+    let checkpoint = trail.len();
+    let removed = state.prune_vertices_in_place_profile(selected, trail, stats);
+    stats.vertices_pruned += removed;
+    stats.take_branches += 1;
+    dfs_partial_u32_in_place_profile_budgeted(
+        state,
+        clique,
+        cap,
+        best_size,
+        best_cliques,
+        accept_clique,
+        trail,
+        stats,
+        max_dfs_calls,
+    );
+    stats.restored_vertices += trail.len() - checkpoint;
+    state.restore_pruned_vertices_in_place(trail, checkpoint);
+
+    clique.pop();
+    if !state.is_empty() {
+        stats.skip_branches += 1;
+        dfs_partial_u32_in_place_profile_budgeted(
+            state,
+            clique,
+            cap,
+            best_size,
+            best_cliques,
+            accept_clique,
+            trail,
+            stats,
+            max_dfs_calls,
         );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);

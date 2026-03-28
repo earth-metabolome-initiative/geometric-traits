@@ -21,28 +21,49 @@ def _normalize_aromatic_ring_smiles(smiles):
     return smiles.replace("[nH]", "n").replace("[pH]", "p")
 
 
-def _canonical_bond_payload(mol):
-    """Return bonds in the canonical order used by the Rust fixture loader."""
+def _rdkit_aromatic_ring_contexts_by_bond(mol):
+    """Mirror RDKit's extractRings(...)+MolToSmiles ring signatures.
+
+    RASCAL does not use MolFragmentToSmiles on the ring atom/bond subset.
+    It clones the molecule, removes atoms outside the ring, then canonicalizes
+    that pruned ring molecule with MolToSmiles. For some fused / bridged
+    systems this yields a different signature than MolFragmentToSmiles, and the
+    MCES bond-pair admission depends on matching those exact signatures.
+    """
     aromatic_contexts_by_bond = {bond.GetIdx(): [] for bond in mol.GetBonds()}
     ring_info = mol.GetRingInfo()
+
     for atom_ring, bond_ring in zip(ring_info.AtomRings(), ring_info.BondRings()):
         if not bond_ring:
             continue
-        ring_smiles = Chem.MolFragmentToSmiles(
-            mol,
-            atomsToUse=list(atom_ring),
-            bondsToUse=list(bond_ring),
-            canonical=True,
-            isomericSmiles=True,
-        )
-        signature = _normalize_aromatic_ring_smiles(ring_smiles)
+
+        ring_mol = Chem.RWMol(mol)
+        atoms_in_ring = set(atom_ring)
+        atoms_to_remove = [
+            atom.GetIdx()
+            for atom in ring_mol.GetAtoms()
+            if atom.GetIdx() not in atoms_in_ring
+        ]
+        ring_mol.BeginBatchEdit()
+        for atom_idx in sorted(atoms_to_remove, reverse=True):
+            ring_mol.RemoveAtom(atom_idx)
+        ring_mol.CommitBatchEdit()
+
+        signature = _normalize_aromatic_ring_smiles(Chem.MolToSmiles(ring_mol))
         for bond_idx in bond_ring:
             # RDKit's checkRings(..., aromaticRingsMatchOnly=true) compares
-            # aromatic bonds against every ring signature containing that bond,
-            # not just fully aromatic rings. Preserve that behavior by storing
-            # all enclosing ring signatures on aromatic bonds only.
+            # aromatic bonds against every enclosing ring signature that
+            # survives extractRings(...), not only against fully aromatic
+            # cycles. Preserve that behavior here.
             if mol.GetBondWithIdx(bond_idx).GetIsAromatic():
                 aromatic_contexts_by_bond[bond_idx].append(signature)
+
+    return aromatic_contexts_by_bond
+
+
+def _canonical_bond_payload(mol):
+    """Return bonds in the canonical order used by the Rust fixture loader."""
+    aromatic_contexts_by_bond = _rdkit_aromatic_ring_contexts_by_bond(mol)
 
     payload = []
     for bond in mol.GetBonds():

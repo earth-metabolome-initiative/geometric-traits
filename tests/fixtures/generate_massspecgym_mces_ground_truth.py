@@ -2,7 +2,7 @@
 """Generate a larger default-config MCES ground truth corpus from MassSpecGym SMILES.
 
 Usage:
-    uv run --with rdkit python3 tests/fixtures/generate_massspecgym_mces_ground_truth.py
+    uv run --with rdkit --with tqdm python3 tests/fixtures/generate_massspecgym_mces_ground_truth.py
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import time
 from rdkit import Chem, DataStructs
 from rdkit.Chem import rdFingerprintGenerator
 from rdkit.Chem.rdRascalMCES import FindMCES, RascalOptions
+from tqdm.auto import tqdm
 
 from generate_mces_ground_truth import mol_to_graph
 
@@ -60,10 +61,10 @@ def read_unique_smiles(path: Path) -> list[str]:
 def load_molecules(smiles_list: list[str]) -> list[MoleculeRecord]:
     generator = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
     records = []
-    for smiles in smiles_list:
+    for smiles in tqdm(smiles_list, desc="load molecules", unit="mol"):
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
-            print(f"SKIP invalid SMILES: {smiles}")
+            tqdm.write(f"SKIP invalid SMILES: {smiles}")
             continue
         records.append(
             MoleculeRecord(
@@ -85,7 +86,13 @@ def sample_high_similarity_pairs(
     fingerprints = [record.fingerprint for record in records]
     qualifying_pairs = 0
 
-    for left_index, left_fp in enumerate(fingerprints[:-1]):
+    scan_bar = tqdm(
+        enumerate(fingerprints[:-1]),
+        total=max(len(fingerprints) - 1, 0),
+        desc="fingerprint scan",
+        unit="mol",
+    )
+    for left_index, left_fp in scan_bar:
         similarities = DataStructs.BulkTanimotoSimilarity(left_fp, fingerprints[left_index + 1 :])
         for right_offset, similarity in enumerate(similarities, start=left_index + 1):
             if similarity <= PAIR_SIMILARITY_LOWER_CUTOFF or similarity > PAIR_SIMILARITY_UPPER_CUTOFF:
@@ -101,11 +108,8 @@ def sample_high_similarity_pairs(
             if replacement_index < reservoir_size:
                 reservoir[replacement_index] = candidate
 
-        if (left_index + 1) % 1000 == 0:
-            print(
-                f"fingerprint scan progress: {left_index + 1}/{len(fingerprints)} "
-                f"molecules, qualifying_pairs={qualifying_pairs}"
-            )
+        if (left_index + 1) % 100 == 0:
+            scan_bar.set_postfix(qualifying_pairs=qualifying_pairs, reservoir=len(reservoir))
 
     return reservoir, qualifying_pairs
 
@@ -184,8 +188,10 @@ def generate_cases(
     cases = []
     case_index = 1
     timed_out_pairs = 0
+    started = time.perf_counter()
+    case_bar = tqdm(total=target_cases, desc="build cases", unit="case")
 
-    for candidate in sampled_pairs:
+    for processed_pairs, candidate in enumerate(sampled_pairs, start=1):
         left = records[candidate.left_index]
         right = records[candidate.right_index]
         case_name = f"massspecgym_default_{case_index:04d}"
@@ -193,11 +199,26 @@ def generate_cases(
             case = build_case(case_name, left, right, timeout_seconds)
         except TimeoutError:
             timed_out_pairs += 1
-            continue
-        cases.append(case)
-        case_index += 1
-        if len(cases) >= target_cases:
-            break
+        else:
+            cases.append(case)
+            case_index += 1
+            case_bar.update(1)
+            if len(cases) >= target_cases:
+                break
+
+        if processed_pairs % 25 == 0:
+            case_bar.set_postfix(
+                processed_pairs=processed_pairs,
+                timeouts=timed_out_pairs,
+                elapsed_s=f"{time.perf_counter() - started:.1f}",
+            )
+
+    case_bar.set_postfix(
+        processed_pairs=min(len(sampled_pairs), max(len(cases) + timed_out_pairs, 0)),
+        timeouts=timed_out_pairs,
+        elapsed_s=f"{time.perf_counter() - started:.1f}",
+    )
+    case_bar.close()
 
     if len(cases) != target_cases:
         raise RuntimeError(
@@ -215,13 +236,17 @@ def main() -> None:
         else max(DEFAULT_RESERVOIR_CASES, args.target_cases * 20)
     )
 
+    pipeline_bar = tqdm(total=5, desc="pipeline", unit="step")
     smiles_list = read_unique_smiles(INPUT_PATH)
+    pipeline_bar.update(1)
     records = load_molecules(smiles_list)
+    pipeline_bar.update(1)
     if len(records) < 2:
         raise RuntimeError("need at least two valid molecules to generate MCES pairs")
 
     rng = random.Random(RNG_SEED)
     sampled_pairs, qualifying_pairs = sample_high_similarity_pairs(records, rng, reservoir_cases)
+    pipeline_bar.update(1)
     if qualifying_pairs < args.target_cases:
         raise RuntimeError(
             f"only found {qualifying_pairs} Morgan-similar pairs in "
@@ -236,9 +261,12 @@ def main() -> None:
         args.target_cases,
         args.timeout_seconds,
     )
+    pipeline_bar.update(1)
 
     with gzip.open(args.output, "wt", encoding="utf-8") as fh:
         json.dump({"version": 4, "cases": cases}, fh, indent=2)
+    pipeline_bar.update(1)
+    pipeline_bar.close()
 
     bond_matches = [case["expected_bond_matches"] for case in cases]
     similarities = [case["expected_similarity"] for case in cases]
