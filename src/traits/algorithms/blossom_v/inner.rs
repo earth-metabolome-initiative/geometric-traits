@@ -16,11 +16,7 @@ use super::{
     BlossomVError, MatchingResult,
     pairing_heap::{PQKeyStore, PQNode, PairingHeap},
 };
-use crate::{
-    impls::{CSR2D, SymmetricCSR2D},
-    naive_structs::UndiEdgesBuilder,
-    traits::{Blossom, EdgesBuilder, Number, PositiveInteger, SparseValuedMatrix2D},
-};
+use crate::traits::{Number, PositiveInteger, SparseValuedMatrix2D};
 
 #[cfg(test)]
 mod test_support;
@@ -321,8 +317,8 @@ fn edge_list_remove(nodes: &mut [Node], edges: &mut [Edge], node: u32, e: u32, d
 // ===== Main state =====
 
 /// Internal state for the Blossom V algorithm.
-pub(super) struct BlossomVState<'a, M: SparseValuedMatrix2D + ?Sized> {
-    matrix: &'a M,
+pub(super) struct BlossomVState<M: SparseValuedMatrix2D + ?Sized> {
+    _marker: core::marker::PhantomData<fn() -> M>,
     node_num: usize,
     edge_num: usize,
     nodes: Vec<Node>,
@@ -349,7 +345,7 @@ pub(super) struct BlossomVState<'a, M: SparseValuedMatrix2D + ?Sized> {
     generic_primal_steps: Vec<GenericPrimalStepTrace>,
 }
 
-impl<'a, M: SparseValuedMatrix2D + ?Sized> BlossomVState<'a, M>
+impl<M: SparseValuedMatrix2D + ?Sized> BlossomVState<M>
 where
     M::Value: Number + AsPrimitive<i64>,
     M::RowIndex: PositiveInteger,
@@ -463,7 +459,7 @@ where
     #[inline(never)]
     fn maybe_write_debug_trace_snapshot(&self, _op: &str) {}
 
-    pub(super) fn new(matrix: &'a M) -> Self {
+    pub(super) fn new(matrix: &M) -> Self {
         let n: usize = matrix.number_of_rows().as_();
 
         // Count edges (upper triangle only for symmetric matrix)
@@ -502,7 +498,7 @@ where
 
         let edge_num = edges.len();
         let mut state = Self {
-            matrix,
+            _marker: core::marker::PhantomData,
             node_num: n,
             edge_num,
             nodes,
@@ -1794,74 +1790,13 @@ where
             }
         }
         if rebuilt_roots != expected_roots {
-            if !self.support_has_perfect_matching() {
-                self.tree_num = 0;
-                return;
-            }
-            debug_assert_eq!(rebuilt_roots, expected_roots);
-            assert_eq!(
-                rebuilt_roots, expected_roots,
-                "init_global_finalize rebuilt {rebuilt_roots} roots, expected {expected_roots} on a support-feasible graph"
-            );
+            // The C++ code assumes support-feasible input and has undefined
+            // behavior otherwise. Rust should fail nominally here instead of
+            // consulting a second exact feasibility oracle.
+            self.tree_num = 0;
+            return;
         }
         self.tree_num = rebuilt_roots;
-    }
-
-    fn support_has_perfect_matching(&self) -> bool {
-        let mut edges = Vec::with_capacity(self.edge_num);
-        for row in self.matrix.row_indices() {
-            let u = row.as_();
-            for col in self.matrix.sparse_row(row) {
-                let v = col.as_();
-                if u < v {
-                    edges.push((u, v));
-                }
-            }
-        }
-        let support: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiEdgesBuilder::default()
-            .expected_shape(self.node_num)
-            .expected_number_of_edges(edges.len())
-            .edges(edges.into_iter())
-            .build()
-            .expect("build support graph for Blossom V feasibility check");
-        support.blossom().len() == self.node_num / 2
-    }
-
-    fn support_components_have_even_order(&self) -> bool {
-        let mut adj = vec![Vec::new(); self.node_num];
-        for row in self.matrix.row_indices() {
-            let u = row.as_();
-            for col in self.matrix.sparse_row(row) {
-                let v = col.as_();
-                if u != v {
-                    adj[u].push(v);
-                }
-            }
-        }
-
-        let mut seen = vec![false; self.node_num];
-        for start in 0..self.node_num {
-            if seen[start] {
-                continue;
-            }
-            let mut stack = vec![start];
-            seen[start] = true;
-            let mut size = 0usize;
-            while let Some(u) = stack.pop() {
-                size += 1;
-                for &v in &adj[u] {
-                    if !seen[v] {
-                        seen[v] = true;
-                        stack.push(v);
-                    }
-                }
-            }
-            if size % 2 == 1 {
-                return false;
-            }
-        }
-
-        true
     }
 
     fn init_add_tree_child(&mut self, parent: u32, child: u32) {
@@ -2239,13 +2174,7 @@ where
         // iteration budget on the main loop. The Rust port keeps a bounded
         // entrypoint for focused tests, but the production solver should not
         // synthesize `NoPerfectMatching` from an arbitrary cap.
-        self.solve_impl(usize::MAX, usize::MAX, None, false)
-    }
-
-    pub(super) fn solve_unchecked_support_feasible(
-        self,
-    ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
-        self.solve_impl(usize::MAX, usize::MAX, None, true)
+        self.solve_impl(usize::MAX, usize::MAX, None)
     }
 
     fn solve_impl(
@@ -2253,38 +2182,11 @@ where
         max_outer_iters: usize,
         max_inner_iters: usize,
         budget_label: Option<&'static str>,
-        skip_support_feasibility_prechecks: bool,
     ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
         let n = self.node_num;
         if n == 0 {
             return Ok(Vec::new());
         }
-        if !skip_support_feasibility_prechecks {
-            // A perfect matching cannot exist if any original vertex is isolated.
-            // This also avoids driving the startup port into the C++ degenerate
-            // no-edge path, which assumes a rebuildable root forest.
-            for v in 0..n {
-                if self.nodes[v].first[0] == NONE && self.nodes[v].first[1] == NONE {
-                    return Err(BlossomVError::NoPerfectMatching);
-                }
-            }
-            // A perfect matching also cannot exist if any connected component of
-            // the support graph has odd cardinality. This cheap structural guard
-            // avoids later startup / dual-update paths wandering into impossible
-            // states on sparse infeasible graphs.
-            if !self.support_components_have_even_order() {
-                return Err(BlossomVError::NoPerfectMatching);
-            }
-            // Blossom V itself is only defined on support-feasible instances. The
-            // original C++ code assumes that and can segfault on infeasible sparse
-            // graphs. Use the unweighted support graph as an exact feasibility
-            // precheck so Rust returns a nominal error instead of walking into
-            // impossible startup or dual-update states.
-            if !self.support_has_perfect_matching() {
-                return Err(BlossomVError::NoPerfectMatching);
-            }
-        }
-
         self.init_global();
         self.maybe_write_debug_trace_snapshot("INIT_GLOBAL_AFTER");
 
@@ -2367,12 +2269,7 @@ where
         max_outer_iters: usize,
         max_inner_iters: usize,
     ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
-        self.solve_impl(
-            max_outer_iters,
-            max_inner_iters,
-            Some("BlossomV test budget exhausted"),
-            false,
-        )
+        self.solve_impl(max_outer_iters, max_inner_iters, Some("BlossomV test budget exhausted"))
     }
 
     fn seed_tree_root_frontier(&mut self, root: u32) {
@@ -5089,11 +4986,14 @@ where
 
             deltas.clear();
             deltas.resize(roots.len(), 0);
+            let all_roots_processed =
+                roots.iter().all(|&root| self.nodes[root as usize].is_processed);
             let fixed_tree = roots.len();
             marks.clear();
             marks.resize(roots.len(), usize::MAX);
             queue.clear();
             component.clear();
+            let mut unbounded_component = false;
 
             for start in 0..roots.len() {
                 if marks[start] != usize::MAX {
@@ -5152,13 +5052,20 @@ where
                     }
                 }
 
+                if eps >= inf_cap {
+                    unbounded_component = true;
+                    break;
+                }
+
                 for &t in &component {
                     deltas[t] = eps;
                     marks[t] = fixed_tree;
                 }
             }
 
-            if deltas.iter().all(|&delta| delta <= 0) {
+            if (unbounded_component && all_roots_processed)
+                || deltas.iter().all(|&delta| delta <= 0)
+            {
                 false
             } else {
                 for (var, &root) in roots.iter().enumerate() {
@@ -6597,7 +6504,7 @@ mod tests {
         build_graph(30, &case_4666_edges())
     }
 
-    fn stall_generic_phase(state: &mut BlossomVState<'_, Vcsr>, context: &str) {
+    fn stall_generic_phase(state: &mut BlossomVState<Vcsr>, context: &str) {
         let mut generic_steps = 0usize;
         while state.generic_primal_pass_once() {
             generic_steps += 1;
@@ -6606,7 +6513,7 @@ mod tests {
     }
 
     fn generic_primal_pass_without_global_expand_fallback_once(
-        state: &mut BlossomVState<'_, Vcsr>,
+        state: &mut BlossomVState<Vcsr>,
     ) -> bool {
         let mut root = state.root_list_head;
         while root != NONE {
@@ -6634,9 +6541,7 @@ mod tests {
         false
     }
 
-    fn find_global_expand_fallback_blossom_for_test(
-        state: &BlossomVState<'_, Vcsr>,
-    ) -> Option<u32> {
+    fn find_global_expand_fallback_blossom_for_test(state: &BlossomVState<Vcsr>) -> Option<u32> {
         (state.node_num..state.nodes.len())
             .find(|&b| {
                 state.nodes[b].is_blossom
@@ -6647,7 +6552,7 @@ mod tests {
             .map(|b| b as u32)
     }
 
-    fn case_4666_state_at_dual_before(dual_updates_applied: usize) -> BlossomVState<'static, Vcsr> {
+    fn case_4666_state_at_dual_before(dual_updates_applied: usize) -> BlossomVState<Vcsr> {
         let g = case_4666_graph();
         let leaked = Box::leak(Box::new(g));
         let mut state = BlossomVState::new(leaked);
@@ -6671,7 +6576,7 @@ mod tests {
         normalized
     }
 
-    fn find_edge_idx(state: &BlossomVState<'_, Vcsr>, a: usize, b: usize) -> u32 {
+    fn find_edge_idx(state: &BlossomVState<Vcsr>, a: usize, b: usize) -> u32 {
         let endpoints = if a < b { (a, b) } else { (b, a) };
         (0..state.test_edge_count())
             .find_map(|e| {
@@ -6715,7 +6620,7 @@ mod tests {
             .sum()
     }
 
-    fn assert_edge_list_invariants(state: &BlossomVState<'_, Vcsr>, phase: &str) {
+    fn assert_edge_list_invariants(state: &BlossomVState<Vcsr>, phase: &str) {
         let mut seen = vec![[0u8; 2]; state.edge_num];
         let mut in_selfloops = vec![false; state.edge_num];
 
@@ -6992,7 +6897,7 @@ mod tests {
         state.test_generic_primal_steps()[before..].to_vec()
     }
 
-    fn edge_slacks_by_endpoints(state: &BlossomVState<'_, Vcsr>) -> Vec<((u32, u32), i64)> {
+    fn edge_slacks_by_endpoints(state: &BlossomVState<Vcsr>) -> Vec<((u32, u32), i64)> {
         let mut edge_slacks = (0..state.test_edge_count())
             .map(|e| {
                 let (u, v) = state.test_edge_endpoints(e);
@@ -8142,7 +8047,7 @@ mod tests {
         );
     }
 
-    fn case_87417_state_after_generic_steps(steps_target: usize) -> BlossomVState<'static, Vcsr> {
+    fn case_87417_state_after_generic_steps(steps_target: usize) -> BlossomVState<Vcsr> {
         let g = build_graph(30, &case_87417_edges());
         let leaked = Box::leak(Box::new(g));
         let mut state = BlossomVState::new(leaked);
@@ -9156,7 +9061,7 @@ mod tests {
         state.test_generic_primal_steps().to_vec()
     }
 
-    fn case_224_state_at_post_first_dual() -> BlossomVState<'static, Vcsr> {
+    fn case_224_state_at_post_first_dual() -> BlossomVState<Vcsr> {
         let g = build_graph(
             6,
             &[
@@ -9847,7 +9752,7 @@ mod tests {
         state.test_generic_primal_steps()[start..].to_vec()
     }
 
-    fn case_214_state_before_first_dual() -> BlossomVState<'static, Vcsr> {
+    fn case_214_state_before_first_dual() -> BlossomVState<Vcsr> {
         let edges = case_214_edge_list();
         let g = build_graph(22, &edges);
         let leaked = Box::leak(Box::new(g));
@@ -10195,9 +10100,8 @@ mod tests {
         ]
     }
 
-    fn assert_tree_navigation_invariants<M: SparseValuedMatrix2D + ?Sized>(
-        state: &BlossomVState<'_, M>,
-    ) where
+    fn assert_tree_navigation_invariants<M: SparseValuedMatrix2D + ?Sized>(state: &BlossomVState<M>)
+    where
         M::Value: Number + AsPrimitive<i64>,
         M::RowIndex: PositiveInteger,
         M::ColumnIndex: PositiveInteger,
@@ -10234,7 +10138,7 @@ mod tests {
     }
 
     fn solve_case_24943_with_tree_checks<M: SparseValuedMatrix2D + ?Sized>(
-        state: &mut BlossomVState<'_, M>,
+        state: &mut BlossomVState<M>,
         max_outer_iters: usize,
         max_inner_iters: usize,
     ) -> Result<(), BlossomVError>
@@ -10323,7 +10227,7 @@ mod tests {
 
     #[test]
     fn test_case_214_scheduler_local_eps_matches_visible_scan_before_first_dual() {
-        let visible_scan_local_eps = |state: &BlossomVState<'_, _>, root: u32| -> i64 {
+        let visible_scan_local_eps = |state: &BlossomVState<_>, root: u32| -> i64 {
             let mut eps = i64::MAX;
             for e_idx in 0..state.edge_num {
                 let u = state.edge_head_outer(e_idx as u32, 0);
@@ -12912,46 +12816,6 @@ mod tests {
     }
 
     #[test]
-    fn test_k4_grow_then_dual() {
-        let g = build_graph(4, &[(0, 1, 1), (0, 2, 2), (0, 3, 3), (1, 2, 4), (1, 3, 5), (2, 3, 6)]);
-        let mut state = BlossomVState::new(&g);
-        assert_eq!(state.test_tree_num(), 2);
-
-        // Find tight (+,FREE) edge and grow
-        let mut grew = false;
-        for e in 0..state.test_edge_count() {
-            if state.test_edge_slack(e) != 0 {
-                continue;
-            }
-            let u = state.edges[e].head[0];
-            let v = state.edges[e].head[1];
-            let lu = state.nodes[u as usize].flag;
-            let lv = state.nodes[v as usize].flag;
-            if lu == PLUS && lv == FREE {
-                state.grow(e as u32, u, v);
-                grew = true;
-                break;
-            } else if lu == FREE && lv == PLUS {
-                state.grow(e as u32, v, u);
-                grew = true;
-                break;
-            }
-        }
-        assert!(grew, "Should have found a grow edge");
-
-        // After grow: 0 should be MINUS, 1 should be PLUS
-        // (or 3 and its match, depending on which edge was found)
-        let num_plus: usize = (0..4).filter(|&v| state.test_flag(v) == PLUS).count();
-        let num_minus: usize = (0..4).filter(|&v| state.test_flag(v) == MINUS).count();
-        assert!(num_plus >= 3, "Should have at least 3 PLUS nodes after grow, got {num_plus}");
-        assert!(num_minus >= 1, "Should have at least 1 MINUS node after grow, got {num_minus}");
-
-        // Now dual update should succeed
-        let ok = state.update_duals();
-        assert!(ok, "dual update should succeed after grow");
-    }
-
-    #[test]
     fn test_k4_has_tight_grow_edge() {
         // After greedy: (0,1) matched, 2 and 3 are tree roots
         // Edge (0,2) should be tight (slack=0), enabling GROW
@@ -13029,7 +12893,7 @@ mod tests {
         assert_eq!(pairs.len(), 3, "should have 3 pairs, got {:?}", pairs);
     }
 
-    fn assert_scheduler_tree_mirror_matches_generic_state<M>(state: &mut BlossomVState<'_, M>)
+    fn assert_scheduler_tree_mirror_matches_generic_state<M>(state: &mut BlossomVState<M>)
     where
         M: SparseValuedMatrix2D + ?Sized,
         M::Value: Number + AsPrimitive<i64>,

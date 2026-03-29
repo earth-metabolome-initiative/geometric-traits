@@ -265,9 +265,12 @@ fn normalize_blossom_v_edges(case: &FuzzBlossomVCase) -> Vec<(usize, usize, i32)
     by_pair.into_iter().map(|((u, v), w)| (u, v, w)).collect()
 }
 
+#[doc(hidden)]
 #[must_use]
 #[inline]
-fn build_blossom_v_graph(case: &FuzzBlossomVCase) -> (FuzzBlossomVCsr, Vec<(usize, usize, i32)>) {
+pub fn build_blossom_v_graph(
+    case: &FuzzBlossomVCase,
+) -> (FuzzBlossomVCsr, Vec<(usize, usize, i32)>) {
     let order = usize::from(case.order);
     let edges = normalize_blossom_v_edges(case);
     let mut csr: FuzzBlossomVCsr =
