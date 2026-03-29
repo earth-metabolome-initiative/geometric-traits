@@ -123,6 +123,29 @@ fn test_blossom_v_no_perfect_matching() {
 }
 
 #[test]
+fn test_blossom_v_even_connected_graph_without_perfect_matching_returns_error() {
+    let edges = [(0, 1, 1), (0, 2, 1), (0, 3, 1)];
+    let g = build_valued_graph(4, &edges);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => {
+            panic!("expected NoPerfectMatching for even connected infeasible graph, got {other:?}")
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("blossom_v() must not panic on even connected infeasible graph: {msg}");
+        }
+    }
+}
+
+#[test]
 fn test_blossom_v_two_isolated_vertices_returns_no_perfect_matching_without_panicking() {
     let g = build_valued_graph(2, &[]);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
@@ -138,6 +161,95 @@ fn test_blossom_v_two_isolated_vertices_returns_no_perfect_matching_without_pani
                 "<non-string panic payload>".to_string()
             };
             panic!("blossom_v() must not panic on two isolated vertices: {msg}");
+        }
+    }
+}
+
+#[test]
+fn test_blossom_v_two_isolated_vertices_returns_no_perfect_matching_via_solver_path() {
+    let g = build_valued_graph(2, &[]);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => panic!("expected NoPerfectMatching for two isolated vertices, got {other:?}"),
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("blossom_v() must not panic on two isolated vertices: {msg}");
+        }
+    }
+}
+
+#[test]
+fn test_blossom_v_sparse_graph_with_isolates_returns_no_perfect_matching_via_solver_path() {
+    let edges = [(0, 1, 5)];
+    let g = build_valued_graph(4, &edges);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => {
+            panic!("expected NoPerfectMatching for sparse graph with isolates, got {other:?}")
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("blossom_v() must not panic on sparse graph with isolates: {msg}");
+        }
+    }
+}
+
+#[test]
+fn test_blossom_v_disconnected_odd_components_returns_no_perfect_matching_via_solver_path() {
+    let edges = [(0, 1, 1), (1, 4, 2), (0, 4, 3), (2, 3, 4), (3, 5, 5), (2, 5, 6)];
+    let g = build_valued_graph(6, &edges);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => {
+            panic!("expected NoPerfectMatching for disconnected odd components, got {other:?}")
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("blossom_v() must not panic on disconnected odd components: {msg}");
+        }
+    }
+}
+
+#[test]
+fn test_blossom_v_even_connected_graph_without_perfect_matching_returns_error_via_solver_path() {
+    let edges = [(0, 1, 1), (0, 2, 1), (0, 3, 1)];
+    let g = build_valued_graph(4, &edges);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => {
+            panic!("expected NoPerfectMatching for even connected infeasible graph, got {other:?}")
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("blossom_v() must not panic on even connected infeasible graph: {msg}");
         }
     }
 }

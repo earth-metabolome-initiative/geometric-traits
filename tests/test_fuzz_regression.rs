@@ -14,7 +14,8 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, check_blossom_v_invariants,
+        self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, build_blossom_v_graph,
+        check_blossom_v_invariants,
         check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
         check_kahn_ordering, check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
         check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
@@ -506,6 +507,35 @@ fn test_replay_blossom_v_honggfuzz_sigabrt_case_3() {
             "Blossom V honggfuzz replay 3 failed for bytes {:?} decoded as {:?}: {msg}",
             pattern, instance
         );
+    }
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_3_returns_no_perfect_matching() {
+    let pattern: &[u8] = &[
+        0xe0, 0x6e, 0x8e, 0xfc, 0x13, 0x00, 0x00, 0x00, 0x00, 0xab, 0xaa, 0x47, 0x41, 0xc5, 0x4a,
+        0xd5, 0xaf, 0xef, 0x0c, 0x00, 0x98, 0xf2, 0xda, 0xb6, 0xf1, 0x7a, 0x04, 0xa9, 0xb7, 0xfb,
+        0x13, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe5, 0x31, 0x3f, 0x1f, 0x84, 0x00, 0x13,
+        0x32, 0x99, 0x99, 0x99, 0x99, 0x99, 0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+    ];
+    let instance = from_bytes::<FuzzBlossomVCase>(pattern)
+        .expect("saved honggfuzz crash bytes should decode as FuzzBlossomVCase");
+    let (graph, _) = build_blossom_v_graph(&instance);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| graph.blossom_v()));
+    match result {
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {}
+        Ok(other) => panic!("expected NoPerfectMatching for honggfuzz case 3, got {other:?}"),
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("Blossom V must not panic on honggfuzz case 3: {msg}");
+        }
     }
 }
 

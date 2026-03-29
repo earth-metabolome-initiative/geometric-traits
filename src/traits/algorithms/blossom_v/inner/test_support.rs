@@ -90,7 +90,7 @@ pub(super) struct GreedyInitSnapshot {
     pub(super) tree_num: usize,
 }
 
-pub(super) fn mark_tree_roots_processed<M>(state: &mut BlossomVState<'_, M>)
+pub(super) fn mark_tree_roots_processed<M>(state: &mut BlossomVState<M>)
 where
     M: SparseValuedMatrix2D + ?Sized,
     M::Value: Number + AsPrimitive<i64>,
@@ -103,7 +103,7 @@ where
     }
 }
 
-pub(super) fn rebuild_scheduler_tree_mirror<M>(state: &mut BlossomVState<'_, M>)
+pub(super) fn rebuild_scheduler_tree_mirror<M>(state: &mut BlossomVState<M>)
 where
     M: SparseValuedMatrix2D + ?Sized,
     M::Value: Number + AsPrimitive<i64>,
@@ -199,7 +199,7 @@ where
     }
 }
 
-impl<M> BlossomVState<'_, M>
+impl<M> BlossomVState<M>
 where
     M: SparseValuedMatrix2D + ?Sized,
     M::Value: Number + AsPrimitive<i64>,
@@ -453,7 +453,7 @@ pub(super) trait SchedulerMirrorTestExt {
     fn rebuild_scheduler_tree_mirror(&mut self);
 }
 
-impl<M> SchedulerMirrorTestExt for BlossomVState<'_, M>
+impl<M> SchedulerMirrorTestExt for BlossomVState<M>
 where
     M: SparseValuedMatrix2D + ?Sized,
     M::Value: Number + AsPrimitive<i64>,
@@ -482,7 +482,7 @@ pub(super) trait TestAccessorExt {
     fn test_init_snapshot(&self) -> GreedyInitSnapshot;
 }
 
-impl<M> TestAccessorExt for BlossomVState<'_, M>
+impl<M> TestAccessorExt for BlossomVState<M>
 where
     M: SparseValuedMatrix2D + ?Sized,
     M::Value: Number + AsPrimitive<i64>,
