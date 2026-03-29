@@ -6,7 +6,11 @@
 //! provides helpers used by both fuzz targets and regression tests, so
 //! crash files produced by fuzzing can be directly replayed as unit tests.
 
-use alloc::vec::Vec;
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::fmt::Debug;
 
 use arbitrary::{Arbitrary, Unstructured};
@@ -14,11 +18,15 @@ use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
-    impls::VecMatrix2D,
+    impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     prelude::*,
     traits::{
         DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseSquareMatrix,
         SparseValuedMatrix, SparseValuedMatrix2D,
+        algorithms::randomized_graphs::{
+            barabasi_albert, chung_lu, erdos_renyi_gnm, erdos_renyi_gnp, random_geometric_graph,
+            watts_strogatz,
+        },
     },
 };
 
@@ -128,6 +136,612 @@ where
             "The row {row_index:?} has different lengths for column indices and values"
         );
     }
+}
+
+// ============================================================================
+// Blossom V fuzz input and invariants
+// ============================================================================
+
+/// Arbitrary valid-input family for Blossom V fuzzing.
+///
+/// The generated graph always has an even number of vertices. Edges are
+/// interpreted as undirected; self-loops and out-of-range endpoints are
+/// discarded during normalization.
+#[derive(Clone, Debug)]
+pub struct FuzzBlossomVCase {
+    /// Even number of vertices.
+    pub order: u8,
+    /// Raw undirected weighted edges before normalization.
+    pub edges: Vec<(u8, u8, i32)>,
+}
+
+impl<'a> Arbitrary<'a> for FuzzBlossomVCase {
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        let pair_count: u8 = u.int_in_range(0..=16)?;
+        let order = pair_count.saturating_mul(2);
+        let max_edges = usize::from(order) * usize::from(order.saturating_sub(1)) / 2;
+        let edge_count: usize = u.int_in_range(0..=max_edges.min(192))?;
+        let mut edges = Vec::with_capacity(edge_count);
+
+        for _ in 0..edge_count {
+            let a = if order == 0 { 0 } else { u.int_in_range(0..=order - 1)? };
+            let b = if order == 0 { 0 } else { u.int_in_range(0..=order - 1)? };
+            let weight = i32::from(i16::arbitrary(u)?);
+            edges.push((a, b, weight));
+        }
+
+        Ok(Self { order, edges })
+    }
+}
+
+/// Structured topology family for Blossom V fuzzing.
+///
+/// This complements [`FuzzBlossomVCase`] without changing its byte encoding, so
+/// the saved crash corpus remains replayable.
+#[derive(Clone, Debug)]
+pub struct FuzzStructuredBlossomVCase {
+    /// Even number of vertices.
+    pub order: u8,
+    /// Topology family selector.
+    pub family: u8,
+    /// Weight regime selector.
+    pub weight_mode: u8,
+    /// Whether to overlay a guaranteed perfect-matching backbone.
+    pub ensure_perfect_support: bool,
+    /// Seed driving the topology and weight generation.
+    pub seed: u64,
+}
+
+impl<'a> Arbitrary<'a> for FuzzStructuredBlossomVCase {
+    fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+        // Keep structured cases smaller than the raw edge-bag target so honggfuzz
+        // spends its budget on diverse families rather than very large dense graphs.
+        let pair_count: u8 = u.int_in_range(1..=10)?;
+        let order = pair_count.saturating_mul(2);
+        Ok(Self {
+            order,
+            family: u.int_in_range(0..=13)?,
+            weight_mode: u.int_in_range(0..=4)?,
+            ensure_perfect_support: u.int_in_range(0..=3)? != 0,
+            seed: u64::arbitrary(u)?,
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+struct StructuredFuzzRng(u64);
+
+impl StructuredFuzzRng {
+    #[inline]
+    fn new(seed: u64) -> Self {
+        Self(seed.wrapping_add(0x9e37_79b9_7f4a_7c15))
+    }
+
+    #[inline]
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    }
+
+    #[inline]
+    fn next_usize(&mut self, upper: usize) -> usize {
+        if upper <= 1 { 0 } else { (self.next_u64() % upper as u64) as usize }
+    }
+
+    #[inline]
+    fn next_f64(&mut self) -> f64 {
+        (self.next_u64() as f64) / (u64::MAX as f64)
+    }
+
+    #[inline]
+    fn next_i16(&mut self) -> i16 {
+        self.next_u64() as i16
+    }
+}
+
+/// Weighted CSR type used by the Blossom V fuzz helpers.
+pub type FuzzBlossomVCsr = ValuedCSR2D<usize, usize, usize, i32>;
+type FuzzBlossomVSupportGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
+
+#[must_use]
+#[inline]
+fn normalize_blossom_v_edges(case: &FuzzBlossomVCase) -> Vec<(usize, usize, i32)> {
+    let order = usize::from(case.order);
+    let mut by_pair: BTreeMap<(usize, usize), i32> = BTreeMap::new();
+
+    for &(a, b, weight) in &case.edges {
+        let u = usize::from(a);
+        let v = usize::from(b);
+        if u >= order || v >= order || u == v {
+            continue;
+        }
+        let pair = if u < v { (u, v) } else { (v, u) };
+        by_pair.insert(pair, weight);
+    }
+
+    by_pair.into_iter().map(|((u, v), w)| (u, v, w)).collect()
+}
+
+#[must_use]
+#[inline]
+fn build_blossom_v_graph(case: &FuzzBlossomVCase) -> (FuzzBlossomVCsr, Vec<(usize, usize, i32)>) {
+    let order = usize::from(case.order);
+    let edges = normalize_blossom_v_edges(case);
+    let mut csr: FuzzBlossomVCsr =
+        SparseMatrixMut::with_sparse_shaped_capacity((order, order), edges.len() * 2);
+    let mut directed_edges = Vec::with_capacity(edges.len() * 2);
+    for &(u, v, weight) in &edges {
+        directed_edges.push((u, v, weight));
+        directed_edges.push((v, u, weight));
+    }
+    directed_edges.sort_unstable_by_key(|&(u, v, _)| (u, v));
+
+    for (u, v, weight) in directed_edges {
+        MatrixMut::add(&mut csr, (u, v, weight)).expect("insert Blossom V edge");
+    }
+
+    (csr, edges)
+}
+
+#[must_use]
+fn structured_support_graph(case: &FuzzStructuredBlossomVCase) -> FuzzBlossomVSupportGraph {
+    let family = case.family % 14;
+    let n_cap = match family {
+        // Dense or clique-heavy families benefit most from a tighter cap.
+        3 | 5 | 11 | 13 => 16usize,
+        _ => 20usize,
+    };
+    let n = usize::from(case.order).min(n_cap).max(2);
+    let seed = case.seed;
+
+    match family {
+        0..=3 => {
+            let p = match family {
+                0 => 0.22,
+                1 => 0.38,
+                2 => 0.58,
+                _ => 0.85,
+            };
+            erdos_renyi_gnp(seed, n, p)
+        }
+        4 => {
+            let max_edges = n * (n.saturating_sub(1)) / 2;
+            let m = (n * 3 / 2).clamp(1, max_edges.max(1));
+            erdos_renyi_gnm(seed, n, m)
+        }
+        5 => {
+            let max_edges = n * (n.saturating_sub(1)) / 2;
+            let m = (n * n / 4).clamp(1, max_edges.max(1));
+            erdos_renyi_gnm(seed, n, m)
+        }
+        6 => {
+            let m0 = n.clamp(2, 6).min(n.saturating_sub(1)).max(1);
+            barabasi_albert(seed, n.max(2), m0)
+        }
+        7 => {
+            let mut rng = StructuredFuzzRng::new(seed ^ 0x51ed_d15c_7a11_ce5d);
+            let weights = (0..n).map(|_| 1.0 + 4.0 * rng.next_f64()).collect::<Vec<_>>();
+            chung_lu(seed, &weights)
+        }
+        8 => {
+            let radius =
+                0.18 + 0.62 * StructuredFuzzRng::new(seed ^ 0x74ad_0f9c_0b13_5eed).next_f64();
+            random_geometric_graph(seed, n, radius)
+        }
+        9 => {
+            let max_even_k = n.saturating_sub(2).max(2);
+            let mut k = (2 + 2 * StructuredFuzzRng::new(seed ^ 0x0ddc_0ffe_e15e_d123)
+                .next_usize(3))
+            .min(max_even_k);
+            if k % 2 == 1 {
+                k -= 1;
+            }
+            let beta =
+                0.05 + 0.55 * StructuredFuzzRng::new(seed ^ 0x1234_5678_9abc_def0).next_f64();
+            watts_strogatz(seed, n.max(k + 1), k.max(2), beta)
+        }
+        10 => blossom_triangle_chain_support_graph(n),
+        11 => blossom_barbell_support_graph(n),
+        12 => overlapping_odd_cycles_support_graph(n),
+        _ => blossom_ladder_support_graph(n),
+    }
+}
+
+fn blossom_triangle_chain_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
+    let mut edges = Vec::new();
+    let mut triangle_starts = Vec::new();
+    let triangle_vertices = order / 3 * 3;
+
+    for start in (0..triangle_vertices).step_by(3) {
+        triangle_starts.push(start);
+        edges.push((start, start + 1));
+        edges.push((start + 1, start + 2));
+        edges.push((start, start + 2));
+    }
+
+    for window in triangle_starts.windows(2) {
+        let a = window[0];
+        let b = window[1];
+        edges.push((a + 2, b));
+    }
+
+    for u in triangle_vertices..order {
+        if u > 0 {
+            edges.push((u - 1, u));
+        }
+    }
+    edges.sort_unstable();
+
+    UndiEdgesBuilder::default()
+        .expected_shape(order)
+        .expected_number_of_edges(edges.len())
+        .edges(edges)
+        .build()
+        .expect("build triangle-chain support graph")
+}
+
+fn blossom_barbell_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
+    let mut edges = Vec::new();
+    let left = order / 2;
+    let right_start = left;
+
+    for u in 0..left {
+        for v in (u + 1)..left {
+            edges.push((u, v));
+        }
+    }
+    for u in right_start..order {
+        for v in (u + 1)..order {
+            edges.push((u, v));
+        }
+    }
+    if order >= 2 {
+        edges.push((left.saturating_sub(1), right_start.min(order - 1)));
+    }
+    edges.sort_unstable();
+
+    UndiEdgesBuilder::default()
+        .expected_shape(order)
+        .expected_number_of_edges(edges.len())
+        .edges(edges)
+        .build()
+        .expect("build barbell support graph")
+}
+
+fn overlapping_odd_cycles_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
+    let n = order.max(6);
+    let mut edges = Vec::new();
+
+    // Two triangles sharing a vertex, plus a tail/ring to propagate trees.
+    edges.push((0, 1));
+    edges.push((1, 2));
+    edges.push((0, 2));
+    edges.push((2, 3));
+    edges.push((3, 4));
+    edges.push((2, 4));
+
+    for u in 4..n.saturating_sub(1) {
+        edges.push((u, u + 1));
+    }
+    if n >= 8 {
+        edges.push((1, 5));
+        edges.push((3, 6));
+        edges.push((0, 7.min(n - 1)));
+    }
+
+    edges.sort_unstable();
+    edges.dedup();
+
+    UndiEdgesBuilder::default()
+        .expected_shape(n)
+        .expected_number_of_edges(edges.len())
+        .edges(edges)
+        .build()
+        .expect("build overlapping odd cycles support graph")
+}
+
+fn blossom_ladder_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
+    let n = order.max(6);
+    let mut edges = Vec::new();
+    let half = n / 2;
+
+    for i in 0..half.saturating_sub(1) {
+        edges.push((i, i + 1));
+        edges.push((half + i, half + i + 1));
+        edges.push((i, half + i));
+    }
+    if half > 0 {
+        edges.push((half - 1, n - 1));
+    }
+    // Add crossed rungs to encourage alternating structures and odd cycles.
+    for i in 0..half.saturating_sub(1) {
+        edges.push((i, half + i + 1));
+    }
+
+    edges.sort_unstable();
+    edges.dedup();
+
+    UndiEdgesBuilder::default()
+        .expected_shape(n)
+        .expected_number_of_edges(edges.len())
+        .edges(edges)
+        .build()
+        .expect("build blossom ladder support graph")
+}
+
+fn structured_weight(weight_mode: u8, rng: &mut StructuredFuzzRng, is_backbone: bool) -> i32 {
+    match weight_mode % 5 {
+        0 => i32::from(rng.next_i16()),
+        1 => {
+            const TIES: [i32; 9] = [-3, -2, -1, 0, 0, 0, 1, 2, 3];
+            TIES[rng.next_usize(TIES.as_slice().len())]
+        }
+        2 => {
+            if rng.next_usize(5) == 0 {
+                i32::from(rng.next_i16())
+            } else {
+                0
+            }
+        }
+        3 => {
+            if is_backbone {
+                -(8000 + (rng.next_usize(24000) as i32))
+            } else {
+                (rng.next_usize(2001) as i32) - 1000
+            }
+        }
+        _ => {
+            let base = (rng.next_usize(33) as i32) - 16;
+            if rng.next_usize(4) == 0 { base * 2048 } else { base }
+        }
+    }
+}
+
+fn overlay_perfect_matching_backbone(
+    edges: &mut BTreeMap<(usize, usize), i32>,
+    order: usize,
+    weight_mode: u8,
+    rng: &mut StructuredFuzzRng,
+) {
+    let mut vertices = (0..order).collect::<Vec<_>>();
+    for i in (1..vertices.len()).rev() {
+        let j = rng.next_usize(i + 1);
+        vertices.swap(i, j);
+    }
+    for pair in vertices.chunks_exact(2) {
+        let u = pair[0].min(pair[1]);
+        let v = pair[0].max(pair[1]);
+        edges.entry((u, v)).or_insert_with(|| structured_weight(weight_mode, rng, true));
+    }
+}
+
+#[must_use]
+fn build_structured_blossom_v_case(case: &FuzzStructuredBlossomVCase) -> FuzzBlossomVCase {
+    let order = usize::from(case.order);
+    let support = structured_support_graph(case);
+    let mut rng = StructuredFuzzRng::new(case.seed ^ 0xa02b_dbf7_bb3c_0a7d);
+    let mut by_pair = BTreeMap::new();
+
+    for u in support.row_indices() {
+        for v in support.sparse_row(u) {
+            if v > u {
+                by_pair.insert((u, v), structured_weight(case.weight_mode, &mut rng, false));
+            }
+        }
+    }
+
+    if case.ensure_perfect_support {
+        overlay_perfect_matching_backbone(&mut by_pair, order, case.weight_mode, &mut rng);
+    }
+
+    let edges = by_pair.into_iter().map(|((u, v), w)| (u as u8, v as u8, w)).collect();
+
+    FuzzBlossomVCase { order: case.order, edges }
+}
+
+#[must_use]
+#[inline]
+fn build_blossom_v_support_graph(
+    order: usize,
+    edges: &[(usize, usize, i32)],
+) -> FuzzBlossomVSupportGraph {
+    let undirected_edges = edges.iter().map(|&(u, v, _)| (u, v));
+    UndiEdgesBuilder::default()
+        .expected_shape(order)
+        .expected_number_of_edges(edges.len())
+        .edges(undirected_edges)
+        .build()
+        .expect("build Blossom V support graph")
+}
+
+#[must_use]
+#[inline]
+fn blossom_v_matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, usize)]) -> i64 {
+    matching
+        .iter()
+        .map(|&(u, v)| {
+            edges
+                .iter()
+                .find(|&&(a, b, _)| (a == u && b == v) || (a == v && b == u))
+                .map(|&(_, _, w)| i64::from(w))
+                .unwrap_or_else(|| panic!("matched edge ({u}, {v}) not found in graph"))
+        })
+        .sum()
+}
+
+#[inline]
+fn validate_blossom_v_matching(
+    order: usize,
+    edges: &[(usize, usize, i32)],
+    matching: &[(usize, usize)],
+) {
+    assert_eq!(
+        matching.len(),
+        order / 2,
+        "matching cardinality {} does not cover graph of order {order}",
+        matching.len()
+    );
+    let mut used = vec![false; order];
+
+    for &(u, v) in matching {
+        assert!(u < v, "matching pair must satisfy u < v, got ({u}, {v})");
+        assert!(u < order && v < order, "matching pair ({u}, {v}) is out of bounds for n={order}");
+        assert!(!used[u], "vertex {u} used twice");
+        assert!(!used[v], "vertex {v} used twice");
+        assert!(
+            edges.iter().any(|&(a, b, _)| (a == u && b == v) || (a == v && b == u)),
+            "matching includes non-edge ({u}, {v})"
+        );
+        used[u] = true;
+        used[v] = true;
+    }
+}
+
+#[must_use]
+fn brute_force_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
+    if order == 0 {
+        return Some(0);
+    }
+
+    let mut weights = vec![vec![None; order]; order];
+    for &(u, v, weight) in edges {
+        weights[u][v] = Some(i64::from(weight));
+        weights[v][u] = Some(i64::from(weight));
+    }
+
+    fn solve(
+        mask: usize,
+        weights: &[Vec<Option<i64>>],
+        memo: &mut [Option<Option<i64>>],
+    ) -> Option<i64> {
+        if mask == 0 {
+            return Some(0);
+        }
+        if let Some(cached) = memo[mask] {
+            return cached;
+        }
+
+        let i = mask.trailing_zeros() as usize;
+        let rest = mask & !(1usize << i);
+        let mut best = None;
+        let mut candidates = rest;
+
+        while candidates != 0 {
+            let j_bit = candidates & candidates.wrapping_neg();
+            let j = j_bit.trailing_zeros() as usize;
+            candidates &= candidates - 1;
+
+            let Some(weight) = weights[i][j] else {
+                continue;
+            };
+            let submask = rest & !(1usize << j);
+            if let Some(subcost) = solve(submask, weights, memo) {
+                let total = subcost + weight;
+                best = Some(best.map_or(total, |current: i64| current.min(total)));
+            }
+        }
+
+        memo[mask] = Some(best);
+        best
+    }
+
+    let mut memo = vec![None; 1usize << order];
+    solve((1usize << order) - 1, &weights, &mut memo)
+}
+
+/// Run Blossom V on a valid arbitrary undirected weighted graph and check that
+/// it either returns a valid perfect matching or correctly reports that none
+/// exists.
+///
+/// For graphs up to 12 vertices, this also cross-checks the returned cost or
+/// infeasibility against a brute-force oracle.
+#[inline]
+pub fn check_blossom_v_invariants(case: &FuzzBlossomVCase) {
+    check_blossom_v_invariants_with_bruteforce_limit(case, 12);
+}
+
+/// Fuzz-oriented Blossom V invariant checker.
+///
+/// This keeps the raw crash-replay-compatible byte encoding unchanged, but it
+/// avoids spending honggfuzz's 1-second per-input budget on oversized dense raw
+/// edge bags that are not useful for crash discovery.
+#[inline]
+pub fn check_blossom_v_invariants_fuzz(case: &FuzzBlossomVCase) {
+    let order = usize::from(case.order);
+    let normalized_edge_count = normalize_blossom_v_edges(case).len();
+
+    if order > 20 || normalized_edge_count > 96 {
+        return;
+    }
+
+    check_blossom_v_invariants_with_bruteforce_limit(case, 10);
+}
+
+#[inline]
+fn check_blossom_v_invariants_with_bruteforce_limit(
+    case: &FuzzBlossomVCase,
+    brute_force_limit: usize,
+) {
+    let order = usize::from(case.order);
+    let (graph, edges) = build_blossom_v_graph(case);
+    let support_graph = build_blossom_v_support_graph(order, &edges);
+    let support_has_perfect_matching = support_graph.blossom().len() == order / 2;
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| graph.blossom_v()));
+
+    match result {
+        Ok(Ok(matching)) => {
+            assert!(
+                support_has_perfect_matching,
+                "Blossom V returned a perfect matching for graph {case:?}, but support-graph feasibility says none exists"
+            );
+            validate_blossom_v_matching(order, &edges, &matching);
+            if order <= brute_force_limit {
+                let optimum = brute_force_blossom_v_cost(order, &edges)
+                    .expect("solver returned a perfect matching but brute-force found none");
+                let actual = blossom_v_matching_cost(&edges, &matching);
+                assert_eq!(
+                    actual, optimum,
+                    "Blossom V returned non-optimal cost {actual} for graph {case:?}; expected {optimum}"
+                );
+            }
+        }
+        Ok(Err(crate::traits::algorithms::BlossomVError::NoPerfectMatching)) => {
+            assert!(
+                !support_has_perfect_matching,
+                "Blossom V reported no perfect matching for graph {case:?}, but support-graph feasibility says one exists"
+            );
+            if order <= brute_force_limit {
+                let optimum = brute_force_blossom_v_cost(order, &edges);
+                assert!(
+                    optimum.is_none(),
+                    "Blossom V reported no perfect matching for graph {case:?}, but brute-force found cost {:?}",
+                    optimum
+                );
+            }
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!(
+                "Blossom V panicked for graph {case:?} (support perfect matching: {support_has_perfect_matching}): {msg}"
+            );
+        }
+    }
+}
+
+/// Run Blossom V invariants on a structured seeded graph family.
+#[inline]
+pub fn check_structured_blossom_v_invariants(case: &FuzzStructuredBlossomVCase) {
+    let derived = build_structured_blossom_v_case(case);
+    check_blossom_v_invariants_with_bruteforce_limit(&derived, 10);
 }
 
 // ============================================================================
@@ -1490,8 +2104,8 @@ fn bellman_ford_all_pairs(
 #[allow(clippy::too_many_lines)]
 pub fn check_floyd_warshall_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     let result = csr.floyd_warshall();
-    let rows = csr.number_of_rows().as_();
-    let columns = csr.number_of_columns().as_();
+    let rows: usize = csr.number_of_rows().as_();
+    let columns: usize = csr.number_of_columns().as_();
 
     if rows != columns {
         assert!(
@@ -1677,8 +2291,8 @@ pub fn check_pairwise_bfs_matches_unit_floyd_warshall(csr: &SquareCSR2D<CSR2D<u1
 #[inline]
 #[allow(clippy::too_many_lines)]
 pub fn check_pairwise_dijkstra_matches_floyd_warshall(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
-    let rows = csr.number_of_rows().as_();
-    let columns = csr.number_of_columns().as_();
+    let rows: usize = csr.number_of_rows().as_();
+    let columns: usize = csr.number_of_columns().as_();
 
     if rows != columns {
         let result = csr.pairwise_dijkstra();
@@ -2606,6 +3220,18 @@ mod tests {
             }
 
             check_louvain_invariants(&csr);
+        }
+
+        #[test]
+        fn test_check_blossom_v_invariants_smoke() {
+            let case = FuzzBlossomVCase { order: 2, edges: vec![(0, 1, -7)] };
+            check_blossom_v_invariants(&case);
+        }
+
+        #[test]
+        fn test_check_blossom_v_invariants_empty_smoke() {
+            let case = FuzzBlossomVCase { order: 0, edges: vec![] };
+            check_blossom_v_invariants(&case);
         }
     }
 }

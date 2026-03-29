@@ -106,3 +106,7 @@ harness = false
 [[bench]]
 name = "gth"
 harness = false
+
+[[bench]]
+name = "blossom_v"
+harness = false

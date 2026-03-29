@@ -38,3 +38,14 @@ papers/
 
 # Local-only large generated fixtures
 tests/fixtures/local/
+
+# Large generated Blossom V ground-truth corpus shards
+tests/fixtures/blossom_v_ground_truth_10m.d/
+tests/fixtures/blossom_v_ground_truth.d/
+tests/fixtures/blossom_v_ground_truth.json.gz
+
+# Local Blossom V debug and temporary artifacts
+tests/_tmp_*
+tests/fixtures/_case_*.txt
+tests/fixtures/blossom_v_op_traces.json.gz
+tests/fixtures/blossom_v_ground_truth_full.json.gz
