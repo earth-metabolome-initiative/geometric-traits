@@ -2,8 +2,12 @@
 #![cfg(feature = "std")]
 #![allow(clippy::pedantic)]
 
-use geometric_traits::{impls::ValuedCSR2D, prelude::*};
+use geometric_traits::{
+    impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D},
+    prelude::*,
+};
 
+type SupportGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 type Vcsr = ValuedCSR2D<usize, usize, usize, i32>;
 
 /// Build a symmetric valued matrix from weighted edges.
@@ -38,6 +42,26 @@ fn build_valued_graph_preserve_input_order(n: usize, edges: &[(usize, usize, i32
         MatrixMut::add(&mut vcsr, (j, i, w)).unwrap();
     }
     vcsr
+}
+
+/// Build an unweighted symmetric graph from an edge list.
+fn build_support_graph(n: usize, edges: &[(usize, usize, i32)]) -> SupportGraph {
+    let mut sorted_edges: Vec<(usize, usize)> = Vec::new();
+    for &(i, j, _) in edges {
+        if i == j {
+            continue;
+        }
+        let (lo, hi) = if i < j { (i, j) } else { (j, i) };
+        sorted_edges.push((lo, hi));
+    }
+    sorted_edges.sort_unstable();
+    sorted_edges.dedup();
+    UndiEdgesBuilder::default()
+        .expected_number_of_edges(sorted_edges.len())
+        .expected_shape(n)
+        .edges(sorted_edges.into_iter())
+        .build()
+        .unwrap()
 }
 
 /// Validate a perfect matching result.
@@ -281,6 +305,213 @@ fn test_blossom_v_generated_case_214() {
             (18, 20),
         ]
     );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_9_support_feasible() {
+    let edges = [
+        (0, 1, 0),
+        (0, 3, -21251),
+        (0, 6, -2023),
+        (0, 9, 14768),
+        (0, 12, 12819),
+        (0, 14, 0),
+        (0, 15, 0),
+        (0, 16, -27420),
+        (0, 17, -26215),
+        (1, 3, -1),
+        (1, 5, 32512),
+        (1, 9, -30271),
+        (1, 10, 5020),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 4, 100),
+        (2, 14, 76),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 6, -1),
+        (3, 12, 3072),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 5, 2752),
+        (4, 8, 26125),
+        (4, 17, -18671),
+        (5, 8, 12331),
+        (5, 14, -10251),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, -23283),
+        (7, 9, 13364),
+        (8, 9, -2846),
+        (8, 10, -1387),
+        (8, 12, -24415),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 14, -26215),
+        (9, 16, -18577),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (11, 13, -7374),
+        (11, 14, 32018),
+        (12, 14, 14393),
+        (12, 15, -24),
+        (12, 17, 50),
+        (14, 17, 1128),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(
+        support.blossom().len(),
+        9,
+        "support graph should admit a perfect matching for this fuzz regression"
+    );
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect(
+        "Blossom V should not report NoPerfectMatching on this support-feasible honggfuzz regression",
+    );
+    validate_matching(18, &edges, &matching);
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_10_support_feasible() {
+    let edges = [
+        (0, 1, 0),
+        (0, 3, -21251),
+        (0, 6, -2023),
+        (0, 8, 21258),
+        (0, 9, 14768),
+        (0, 11, 0),
+        (0, 12, 12819),
+        (0, 14, -23283),
+        (0, 15, 0),
+        (0, 16, -27420),
+        (0, 17, -26215),
+        (1, 3, -1),
+        (1, 5, 32512),
+        (1, 8, 1),
+        (1, 9, -30271),
+        (1, 10, 5020),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 4, 100),
+        (2, 9, -2846),
+        (2, 14, 76),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 6, -1),
+        (3, 12, 3072),
+        (3, 13, 511),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 5, 2752),
+        (4, 8, 26125),
+        (4, 17, -18671),
+        (5, 8, 12331),
+        (5, 14, -10251),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, 0),
+        (7, 9, 13364),
+        (8, 10, -1387),
+        (8, 12, -24415),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 14, -26215),
+        (9, 16, -18577),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (11, 13, -7374),
+        (11, 14, 26851),
+        (12, 14, 14393),
+        (12, 15, -24),
+        (12, 17, 50),
+        (16, 17, 1128),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(
+        support.blossom().len(),
+        9,
+        "support graph should admit a perfect matching for this fuzz regression"
+    );
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect(
+        "Blossom V should not report NoPerfectMatching on this support-feasible honggfuzz regression",
+    );
+    validate_matching(18, &edges, &matching);
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_11_support_feasible() {
+    let edges = [
+        (0, 1, 0),
+        (0, 3, -21251),
+        (0, 4, 0),
+        (0, 5, -18577),
+        (0, 6, 32018),
+        (0, 7, 0),
+        (0, 8, -31624),
+        (0, 10, -1387),
+        (0, 11, 5376),
+        (0, 12, 12819),
+        (0, 14, 14768),
+        (0, 15, 0),
+        (0, 16, -27420),
+        (1, 2, -12194),
+        (1, 3, -10864),
+        (1, 4, 0),
+        (1, 5, 32512),
+        (1, 11, 0),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 15, 246),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 5, 21845),
+        (3, 12, 3072),
+        (3, 14, 2920),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 16, -320),
+        (5, 8, 12331),
+        (5, 14, 3053),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, -23283),
+        (7, 10, 256),
+        (7, 11, -26516),
+        (8, 9, 32738),
+        (8, 12, -24415),
+        (8, 13, 17552),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 16, 0),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (10, 14, 9837),
+        (12, 15, 0),
+        (12, 17, -16846),
+        (13, 16, 12857),
+        (14, 17, 1080),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(
+        support.blossom().len(),
+        9,
+        "support graph should admit a perfect matching for this fuzz regression"
+    );
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect(
+        "Blossom V should not report NoPerfectMatching on this support-feasible honggfuzz regression",
+    );
+    validate_matching(18, &edges, &matching);
 }
 
 #[test]
@@ -1139,4 +1370,199 @@ fn test_blossom_v_generated_case_24595() {
     let g = build_valued_graph(18, &edges);
     let matching = g.blossom_v().expect("generated case #24595 should solve");
     assert_eq!(matching_cost(&edges, &matching), -316);
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_12_support_feasible() {
+    let edges = [
+        (0usize, 1usize, 0i32),
+        (0, 2, 0),
+        (0, 3, -21251),
+        (0, 5, -18577),
+        (0, 6, 32018),
+        (0, 8, -31624),
+        (0, 10, -1387),
+        (0, 11, -2023),
+        (0, 12, 12819),
+        (0, 14, 21845),
+        (0, 15, 0),
+        (0, 16, -26363),
+        (0, 17, 0),
+        (1, 2, -12194),
+        (1, 3, -10864),
+        (1, 4, 0),
+        (1, 5, 32512),
+        (1, 11, 0),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 15, 13302),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 10, -1),
+        (3, 12, 3072),
+        (3, 14, 2920),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 16, -320),
+        (5, 8, 12331),
+        (5, 13, 21356),
+        (5, 14, 3053),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, -23283),
+        (7, 10, -768),
+        (7, 11, -26516),
+        (8, 9, 32738),
+        (8, 12, -24415),
+        (8, 13, 17552),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 16, 0),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (12, 15, 0),
+        (12, 17, -16846),
+        (13, 16, 12857),
+        (14, 17, 7981),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(support.blossom().len(), 9, "support graph should admit a perfect matching");
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect("honggfuzz case 12 should solve");
+    validate_matching(18, &edges, &matching);
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_13_support_feasible() {
+    let edges = [
+        (0usize, 1usize, 0i32),
+        (0, 3, -21502),
+        (0, 4, 0),
+        (0, 5, -18577),
+        (0, 6, -2023),
+        (0, 7, 0),
+        (0, 8, -31624),
+        (0, 10, -1387),
+        (0, 11, 5376),
+        (0, 12, 12819),
+        (0, 14, 14768),
+        (0, 15, 0),
+        (0, 16, -27420),
+        (1, 2, -12194),
+        (1, 3, -10864),
+        (1, 4, 0),
+        (1, 5, 0),
+        (1, 11, 0),
+        (1, 12, -1),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 14, 21845),
+        (2, 15, 29174),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 5, 32767),
+        (3, 10, -1),
+        (3, 12, 3072),
+        (3, 14, 1128),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 16, -320),
+        (5, 8, 12331),
+        (5, 13, 21612),
+        (5, 14, 3053),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, -23283),
+        (6, 13, 32018),
+        (7, 10, 256),
+        (7, 11, -26516),
+        (8, 9, 32738),
+        (8, 12, -24415),
+        (8, 13, 27792),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 16, 0),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (12, 15, -24),
+        (12, 17, -16846),
+        (13, 16, 12857),
+        (14, 17, 1080),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(support.blossom().len(), 9, "support graph should admit a perfect matching");
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect("honggfuzz case 13 should solve");
+    validate_matching(18, &edges, &matching);
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_14_support_feasible() {
+    let edges = [
+        (0usize, 1usize, 0i32),
+        (0, 2, 0),
+        (0, 3, -21251),
+        (0, 5, -18577),
+        (0, 6, 32018),
+        (0, 8, -31624),
+        (0, 10, -1387),
+        (0, 11, -2023),
+        (0, 12, 12819),
+        (0, 14, 21845),
+        (0, 15, 0),
+        (0, 16, -26363),
+        (0, 17, 0),
+        (1, 2, -12194),
+        (1, 3, -10864),
+        (1, 4, 0),
+        (1, 5, 32512),
+        (1, 7, 0),
+        (1, 11, 0),
+        (1, 13, 12937),
+        (2, 3, 2303),
+        (2, 5, 0),
+        (2, 15, 13302),
+        (2, 16, 26984),
+        (2, 17, -20523),
+        (3, 4, 15679),
+        (3, 10, -1),
+        (3, 12, 3072),
+        (3, 14, 2920),
+        (3, 15, 22123),
+        (3, 16, -13726),
+        (4, 16, -320),
+        (5, 8, 12331),
+        (5, 13, 21356),
+        (5, 14, 3053),
+        (6, 7, -30029),
+        (6, 10, -10397),
+        (6, 11, -23283),
+        (7, 10, -768),
+        (7, 11, -26516),
+        (8, 9, 32738),
+        (8, 12, -24415),
+        (8, 13, 17552),
+        (8, 15, -18235),
+        (9, 10, -26215),
+        (9, 13, 21062),
+        (9, 16, 0),
+        (10, 11, -12279),
+        (10, 13, -8642),
+        (12, 15, 0),
+        (12, 17, -16846),
+        (13, 16, 12857),
+        (14, 17, 7981),
+    ];
+    let support = build_support_graph(18, &edges);
+    assert_eq!(support.blossom().len(), 9, "support graph should admit a perfect matching");
+
+    let g = build_valued_graph(18, &edges);
+    let matching = g.blossom_v().expect("honggfuzz case 14 should solve");
+    validate_matching(18, &edges, &matching);
 }

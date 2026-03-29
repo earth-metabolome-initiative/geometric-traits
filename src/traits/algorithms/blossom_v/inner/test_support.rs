@@ -301,7 +301,7 @@ where
             return;
         }
         self.ensure_scheduler_tree_edge_slot(pair_idx);
-        let old_stamp = self.edges[e_idx as usize].queue_stamp;
+        let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
         if !self.scheduler_tree_edges[pair_idx].pq00.contains(&e_idx) {
             self.scheduler_tree_edges[pair_idx].pq00.push(e_idx);
@@ -311,12 +311,12 @@ where
             self.edges.as_mut_slice(),
             self.pq_nodes.as_mut_slice(),
         );
-        self.edges[e_idx as usize].queue_state = GenericQueueState::Pq00Pair { pair_idx };
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Pair { pair_idx });
         if preserve_stamp {
-            self.edges[e_idx as usize].queue_stamp = old_stamp;
+            self.set_edge_queue_stamp(e_idx, old_stamp);
         } else {
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
         }
         self.sync_generic_pair_queues_from_scheduler(pair_idx);
     }
@@ -327,7 +327,7 @@ where
         }
         let affected = (0..self.edge_num as u32)
             .filter(|&e_idx| {
-                match self.edges[e_idx as usize].queue_state {
+                match self.edge_queue_owner(e_idx) {
                     GenericQueueState::None => false,
                     GenericQueueState::Pq0 { root: owner }
                     | GenericQueueState::Pq00Local { root: owner }

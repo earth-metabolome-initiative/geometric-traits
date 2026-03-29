@@ -98,6 +98,34 @@ where
     }
 }
 
+/// Benchmark-only entrypoint that skips the Rust-only support-feasibility
+/// guards and runs the main Blossom V solver directly.
+///
+/// # Safety contract
+///
+/// Callers must only use this on support-feasible graphs. The default
+/// [`BlossomV::blossom_v`] entrypoint should be preferred everywhere else.
+#[doc(hidden)]
+#[inline]
+pub fn blossom_v_unchecked_support_feasible<M>(
+    matrix: &M,
+) -> MatchingResult<M::RowIndex, M::ColumnIndex>
+where
+    M: SparseValuedMatrix2D + Sized,
+    M::Value: Number + AsPrimitive<i64>,
+    M::RowIndex: PositiveInteger,
+    M::ColumnIndex: PositiveInteger,
+{
+    let n_rows: usize = matrix.number_of_rows().as_();
+    let n_cols: usize = matrix.number_of_columns().as_();
+    assert!(n_rows == n_cols, "BlossomV requires a square matrix, got {n_rows} x {n_cols}");
+    assert!(
+        n_rows % 2 == 0,
+        "BlossomV requires an even number of vertices for a perfect matching, got {n_rows}"
+    );
+    BlossomVState::new(matrix).solve_unchecked_support_feasible()
+}
+
 impl<M: SparseValuedMatrix2D> BlossomV for M
 where
     M::Value: Number + AsPrimitive<i64>,

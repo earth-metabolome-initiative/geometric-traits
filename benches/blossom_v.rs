@@ -13,7 +13,9 @@ use std::{
 };
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use geometric_traits::{impls::ValuedCSR2D, prelude::*};
+use geometric_traits::{
+    impls::ValuedCSR2D, prelude::*, traits::algorithms::blossom_v_unchecked_support_feasible,
+};
 use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 type Vcsr = ValuedCSR2D<usize, usize, usize, i32>;
@@ -204,6 +206,11 @@ fn verify_case_alignment(case: &WeightedCase, cpp_bin: &PathBuf) {
         .blossom_v()
         .unwrap_or_else(|e| panic!("Rust Blossom V failed on benchmark case {}: {e:?}", case.name));
     let rust_cost = matching_cost(&case.edges, &rust_matching);
+    let rust_unchecked_matching =
+        blossom_v_unchecked_support_feasible(&case.graph).unwrap_or_else(|e| {
+            panic!("Rust unchecked Blossom V failed on benchmark case {}: {e:?}", case.name)
+        });
+    let rust_unchecked_cost = matching_cost(&case.edges, &rust_unchecked_matching);
 
     let mut cpp = CppBatchSolver::new(cpp_bin);
     let cpp_cost = cpp.solve_cost(&case.json_line);
@@ -211,6 +218,11 @@ fn verify_case_alignment(case: &WeightedCase, cpp_bin: &PathBuf) {
     assert_eq!(
         rust_cost, cpp_cost,
         "Rust/C++ Blossom V cost mismatch on benchmark case {}",
+        case.name
+    );
+    assert_eq!(
+        rust_cost, rust_unchecked_cost,
+        "Rust checked/unchecked Blossom V cost mismatch on benchmark case {}",
         case.name
     );
 }
@@ -238,6 +250,14 @@ fn bench_blossom_v(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("Rust", &case.name), case, |b, case| {
             b.iter(|| {
                 let matching = case.graph.blossom_v().expect("benchmark case should solve");
+                black_box(matching);
+            });
+        });
+
+        group.bench_with_input(BenchmarkId::new("RustNoPrecheck", &case.name), case, |b, case| {
+            b.iter(|| {
+                let matching = blossom_v_unchecked_support_feasible(&case.graph)
+                    .expect("benchmark case should solve");
                 black_box(matching);
             });
         });
