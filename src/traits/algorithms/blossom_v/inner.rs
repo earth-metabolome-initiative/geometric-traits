@@ -8,8 +8,6 @@
     clippy::question_mark
 )]
 
-#[cfg(test)]
-use alloc::string::{String, ToString};
 use alloc::{vec, vec::Vec};
 
 use num_traits::AsPrimitive;
@@ -145,11 +143,6 @@ struct Edge {
     /// Reduced cost (slack), lazily maintained. Stored as `cost*2 - y[i] -
     /// y[j]`.
     slack: i64,
-    /// Persistent generic main-loop queue ownership. This mirrors the single
-    /// intrusive queue membership an edge has in the C++ implementation.
-    queue_state: GenericQueueState,
-    /// Monotone enqueue stamp for generic queue tie-breaking.
-    queue_stamp: u64,
 }
 
 impl Edge {
@@ -160,8 +153,6 @@ impl Edge {
             next: [NONE; 2],
             prev: [NONE; 2],
             slack: cost * COST_FACTOR,
-            queue_state: GenericQueueState::None,
-            queue_stamp: 0,
         }
     }
 }
@@ -336,6 +327,8 @@ pub(super) struct BlossomVState<'a, M: SparseValuedMatrix2D + ?Sized> {
     edge_num: usize,
     nodes: Vec<Node>,
     edges: Vec<Edge>,
+    edge_queue_owner: Vec<GenericQueueState>,
+    edge_queue_stamp: Vec<u64>,
     pq_nodes: Vec<PQNode>,
     root_list_head: u32,
     #[cfg(test)]
@@ -507,12 +500,15 @@ where
             }
         }
 
+        let edge_num = edges.len();
         let mut state = Self {
             matrix,
             node_num: n,
-            edge_num: edges.len(),
+            edge_num,
             nodes,
             edges,
+            edge_queue_owner: vec![GenericQueueState::None; edge_num],
+            edge_queue_stamp: vec![0; edge_num],
             pq_nodes,
             root_list_head: NONE,
             #[cfg(test)]
@@ -876,19 +872,9 @@ where
             }
         }
 
-        // This is still an intentional compatibility shim, not dead logic.
-        // A few solver paths can leave an immediately expandable outer minus
-        // blossom unclaimed by the tree-local pass; without this fallback we
-        // regress real cases such as honggfuzz case 6.
-        for b in self.node_num..self.nodes.len() {
-            if self.nodes[b].is_blossom
-                && self.nodes[b].is_outer
-                && self.nodes[b].flag == MINUS
-                && self.effective_blossom_expand_slack(b as u32) == 0
-            {
-                self.apply_generic_expand(b as u32);
-                return true;
-            }
+        if let Some(blossom) = self.find_global_expand_fallback_blossom() {
+            self.apply_generic_expand(blossom);
+            return true;
         }
 
         false
@@ -967,12 +953,12 @@ where
             if (e_idx as usize) >= self.edge_num {
                 continue;
             }
-            if !matches!(self.edges[e_idx as usize].queue_state, GenericQueueState::Pq0 { root: q_root } if q_root == root)
+            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::Pq0 { root: q_root } if q_root == root)
             {
                 continue;
             }
             let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edges[e_idx as usize].queue_stamp;
+            let stamp = self.edge_queue_stamp(e_idx);
             if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
                 best = Some(e_idx);
                 best_slack = slack;
@@ -993,12 +979,12 @@ where
             if (e_idx as usize) >= self.edge_num {
                 continue;
             }
-            if !matches!(self.edges[e_idx as usize].queue_state, GenericQueueState::PqBlossoms { root: q_root } if q_root == root)
+            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::PqBlossoms { root: q_root } if q_root == root)
             {
                 continue;
             }
             let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edges[e_idx as usize].queue_stamp;
+            let stamp = self.edge_queue_stamp(e_idx);
             if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
                 best = Some(e_idx);
                 best_slack = slack;
@@ -1060,12 +1046,12 @@ where
             if (e_idx as usize) >= self.edge_num {
                 continue;
             }
-            if !matches!(self.edges[e_idx as usize].queue_state, GenericQueueState::Pq00Local { root: q_root } if q_root == root)
+            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::Pq00Local { root: q_root } if q_root == root)
             {
                 continue;
             }
             let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edges[e_idx as usize].queue_stamp;
+            let stamp = self.edge_queue_stamp(e_idx);
             if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
                 best = Some(e_idx);
                 best_slack = slack;
@@ -1111,7 +1097,7 @@ where
                 continue;
             }
             let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edges[e_idx as usize].queue_stamp;
+            let stamp = self.edge_queue_stamp(e_idx);
             if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
                 best = Some(e_idx);
                 best_slack = slack;
@@ -1340,68 +1326,13 @@ where
         best.map(|(_, e_idx, left, right)| (e_idx, left, right))
     }
 
-    #[cfg(test)]
-    fn find_global_augment_edge(&self) -> Option<(u32, u32, u32)> {
-        if let Some(augment) = self.find_scheduler_global_augment_edge() {
-            return Some(augment);
-        }
-        let mut best: Option<(i64, u32, u32, u32)> = None;
-        for root in 0..self.nodes.len() {
-            if !self.nodes[root].is_outer || !self.nodes[root].is_tree_root {
-                continue;
-            }
-            let eps_root = self.tree_eps(root as u32);
-
-            self.for_each_tree_plus(root as u32, |plus| {
-                if !self.nodes[plus as usize].is_processed {
-                    return None::<()>;
-                }
-                for (e_idx, dir) in self.incident_edges(plus) {
-                    let other = self.edge_head_outer(e_idx, dir);
-                    if other == NONE || other == plus || !self.nodes[other as usize].is_outer {
-                        continue;
-                    }
-                    if self.nodes[other as usize].flag == PLUS
-                        && self.nodes[other as usize].is_processed
-                    {
-                        let other_root = self.find_tree_root(other);
-                        if other_root == root as u32 || other_root == NONE {
-                            continue;
-                        }
-                        let eps_other = self.tree_eps(other_root);
-                        let slack = self.edges[e_idx as usize].slack;
-                        let augment_cap = eps_root + eps_other;
-                        if slack <= augment_cap {
-                            let adjusted = slack - eps_other;
-                            match best {
-                                Some((best_adjusted, best_edge, _, _))
-                                    if best_adjusted < adjusted
-                                        || (best_adjusted == adjusted && best_edge < e_idx) => {}
-                                _ => best = Some((adjusted, e_idx, plus, other)),
-                            }
-                        }
-                    }
-                }
-                None::<()>
-            });
-        }
-
-        best.map(|(_, e_idx, plus, other)| (e_idx, plus, other))
+    fn compute_tree_local_eps(&self, root: u32) -> i64 {
+        self.compute_tree_local_eps_for_virtual_dual(root)
     }
 
-    fn compute_tree_local_eps(&self, root: u32) -> i64 {
+    fn compute_tree_local_eps_for_virtual_dual(&self, root: u32) -> i64 {
         let mut eps = i64::MAX;
-        // In C++, UpdateDuals() seeds `eps_delta` from the tree queues:
-        //   - pq0: plus-free edges currently owned by the tree
-        //   - pq_blossoms: matched edges of outer MINUS blossoms
-        //   - pq00: handled separately through ProcessEdge00() normalization
-        //
-        // The important subtlety is that pq0 can still contain an edge even if
-        // the tree-side raw endpoint has since become an inner node of an outer
-        // blossom. Case #214 shows this directly: C++ uses edge #3 with slack 6
-        // and edge #75 with slack 7 as pq0 minima even though those raw heads
-        // are no longer discoverable from the processed outer PLUS adjacency
-        // scan. Reconstruct pq0 from current outer representatives instead.
+
         for e_idx in 0..self.edge_num {
             let u = self.edge_head_outer(e_idx as u32, 0);
             let v = self.edge_head_outer(e_idx as u32, 1);
@@ -1451,7 +1382,7 @@ where
         let mut tree_eps = vec![i64::MAX; self.nodes.len()];
         for root in 0..self.nodes.len() {
             if self.nodes[root].is_outer && self.nodes[root].is_tree_root {
-                tree_eps[root] = self.compute_tree_local_eps(root as u32);
+                tree_eps[root] = self.compute_tree_local_eps_for_virtual_dual(root as u32);
             }
         }
 
@@ -1462,7 +1393,11 @@ where
             }
 
             self.for_each_tree_plus(root as u32, |plus| {
-                let eps_plus = tree_eps[self.find_tree_root(plus) as usize];
+                let root_plus = self.find_tree_root(plus);
+                if root_plus == NONE {
+                    return None::<()>;
+                }
+                let eps_plus = tree_eps[root_plus as usize];
                 for (e_idx, dir) in self.incident_edges(plus) {
                     let slack = self.edges[e_idx as usize].slack;
                     let other = self.edge_head_outer(e_idx, dir);
@@ -1474,8 +1409,7 @@ where
                     }
 
                     let root_other = self.find_tree_root(other);
-                    let root_plus = self.find_tree_root(plus);
-                    if root_other == root_plus {
+                    if root_other == root_plus || root_other == NONE {
                         continue;
                     }
 
@@ -1656,18 +1590,6 @@ where
     }
 
     fn process_expand_selfloop(&mut self, e_idx: u32) {
-        #[cfg(test)]
-        if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-            std::eprintln!(
-                "DBG_PROCESS_EXPAND_SELFLOOP start e_idx={} pair={:?} head={:?} head0={:?} edge19_slack={} edge22_slack={}",
-                e_idx,
-                normalized_edge_pair(self.edges[e_idx as usize].head0),
-                self.edges[e_idx as usize].head,
-                self.edges[e_idx as usize].head0,
-                self.edges[19].slack,
-                self.edges[22].slack,
-            );
-        }
         let mut prev = [NONE; 2];
         for dir in 0..2usize {
             let head = self.edges[e_idx as usize].head[dir];
@@ -1689,22 +1611,6 @@ where
         } else {
             self.edges[e_idx as usize].next[0] = self.nodes[prev[0] as usize].blossom_selfloops;
             self.nodes[prev[0] as usize].blossom_selfloops = e_idx;
-        }
-
-        #[cfg(test)]
-        if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-            std::eprintln!(
-                "DBG_PROCESS_EXPAND_SELFLOOP end e_idx={} prev={:?} selfloop_slack={} edge19_slack={} edge22_slack={} edge19_next={:?} edge19_prev={:?} edge22_next={:?} edge22_prev={:?}",
-                e_idx,
-                prev,
-                self.edges[e_idx as usize].slack,
-                self.edges[19].slack,
-                self.edges[22].slack,
-                self.edges[19].next,
-                self.edges[19].prev,
-                self.edges[22].next,
-                self.edges[22].prev,
-            );
         }
     }
 
@@ -2304,28 +2210,27 @@ where
         self.maybe_write_debug_queue_summary("after AUGMENT_AFTER");
     }
 
-    #[cfg(test)]
-    fn apply_generic_expand(&mut self, b: u32) {
-        let event = GenericPrimalEvent::Expand { blossom: b };
-        let before = self.test_strict_parity_snapshot();
+    fn perform_generic_expand(&mut self, b: u32) {
         let match_arc = self.nodes[b as usize].match_arc;
         if match_arc != NONE && (arc_edge(match_arc) as usize) < self.edge_num {
             let match_edge = arc_edge(match_arc) as usize;
             core::mem::swap(&mut self.edges[match_edge].slack, &mut self.nodes[b as usize].y);
         }
         self.expand(b);
+    }
+
+    #[cfg(test)]
+    fn apply_generic_expand(&mut self, b: u32) {
+        let event = GenericPrimalEvent::Expand { blossom: b };
+        let before = self.test_strict_parity_snapshot();
+        self.perform_generic_expand(b);
         let after = self.test_strict_parity_snapshot();
         self.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
     fn apply_generic_expand(&mut self, b: u32) {
-        let match_arc = self.nodes[b as usize].match_arc;
-        if match_arc != NONE && (arc_edge(match_arc) as usize) < self.edge_num {
-            let match_edge = arc_edge(match_arc) as usize;
-            core::mem::swap(&mut self.edges[match_edge].slack, &mut self.nodes[b as usize].y);
-        }
-        self.expand(b);
+        self.perform_generic_expand(b);
         self.maybe_write_debug_trace_snapshot("EXPAND_AFTER");
     }
 
@@ -2334,7 +2239,13 @@ where
         // iteration budget on the main loop. The Rust port keeps a bounded
         // entrypoint for focused tests, but the production solver should not
         // synthesize `NoPerfectMatching` from an arbitrary cap.
-        self.solve_impl(usize::MAX, usize::MAX, None)
+        self.solve_impl(usize::MAX, usize::MAX, None, false)
+    }
+
+    pub(super) fn solve_unchecked_support_feasible(
+        self,
+    ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
+        self.solve_impl(usize::MAX, usize::MAX, None, true)
     }
 
     fn solve_impl(
@@ -2342,33 +2253,36 @@ where
         max_outer_iters: usize,
         max_inner_iters: usize,
         budget_label: Option<&'static str>,
+        skip_support_feasibility_prechecks: bool,
     ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
         let n = self.node_num;
         if n == 0 {
             return Ok(Vec::new());
         }
-        // A perfect matching cannot exist if any original vertex is isolated.
-        // This also avoids driving the startup port into the C++ degenerate
-        // no-edge path, which assumes a rebuildable root forest.
-        for v in 0..n {
-            if self.nodes[v].first[0] == NONE && self.nodes[v].first[1] == NONE {
+        if !skip_support_feasibility_prechecks {
+            // A perfect matching cannot exist if any original vertex is isolated.
+            // This also avoids driving the startup port into the C++ degenerate
+            // no-edge path, which assumes a rebuildable root forest.
+            for v in 0..n {
+                if self.nodes[v].first[0] == NONE && self.nodes[v].first[1] == NONE {
+                    return Err(BlossomVError::NoPerfectMatching);
+                }
+            }
+            // A perfect matching also cannot exist if any connected component of
+            // the support graph has odd cardinality. This cheap structural guard
+            // avoids later startup / dual-update paths wandering into impossible
+            // states on sparse infeasible graphs.
+            if !self.support_components_have_even_order() {
                 return Err(BlossomVError::NoPerfectMatching);
             }
-        }
-        // A perfect matching also cannot exist if any connected component of
-        // the support graph has odd cardinality. This cheap structural guard
-        // avoids later startup / dual-update paths wandering into impossible
-        // states on sparse infeasible graphs.
-        if !self.support_components_have_even_order() {
-            return Err(BlossomVError::NoPerfectMatching);
-        }
-        // Blossom V itself is only defined on support-feasible instances. The
-        // original C++ code assumes that and can segfault on infeasible sparse
-        // graphs. Use the unweighted support graph as an exact feasibility
-        // precheck so Rust returns a nominal error instead of walking into
-        // impossible startup or dual-update states.
-        if !self.support_has_perfect_matching() {
-            return Err(BlossomVError::NoPerfectMatching);
+            // Blossom V itself is only defined on support-feasible instances. The
+            // original C++ code assumes that and can segfault on infeasible sparse
+            // graphs. Use the unweighted support graph as an exact feasibility
+            // precheck so Rust returns a nominal error instead of walking into
+            // impossible startup or dual-update states.
+            if !self.support_has_perfect_matching() {
+                return Err(BlossomVError::NoPerfectMatching);
+            }
         }
 
         self.init_global();
@@ -2388,8 +2302,7 @@ where
                 if let Some(label) = budget_label {
                     #[cfg(test)]
                     panic!(
-                        "{label}: outer iteration budget exhausted at iteration {iters} (limit {max_outer_iters})\n{}",
-                        self.debug_state_dump()
+                        "{label}: outer iteration budget exhausted at iteration {iters} (limit {max_outer_iters})"
                     );
                     #[cfg(not(test))]
                     panic!("{label}: outer iteration budget exhausted");
@@ -2405,8 +2318,7 @@ where
                     if let Some(label) = budget_label {
                         #[cfg(test)]
                         panic!(
-                            "{label}: inner iteration budget exhausted at iteration {inner_iters} (limit {max_inner_iters})\n{}",
-                            self.debug_state_dump()
+                            "{label}: inner iteration budget exhausted at iteration {inner_iters} (limit {max_inner_iters})"
                         );
                         #[cfg(not(test))]
                         panic!("{label}: inner iteration budget exhausted");
@@ -2427,12 +2339,19 @@ where
             // No progress via tight edges — do a dual update
             self.maybe_write_debug_trace_snapshot("DUAL_UPDATE_BEFORE");
             if !self.update_duals() {
+                // Some real cases still need this rescue path: committed HEAD
+                // solved honggfuzz case 10 here by augmenting on a virtually
+                // tight cross-tree PLUS/PLUS edge after dual update stalled.
                 if let Some((e_idx, left, right)) = self.find_virtual_dual_augment_edge() {
                     self.augment(e_idx, left, right);
                     if self.tree_num == 0 {
                         self.maybe_write_debug_trace_snapshot("FINISH_BEFORE");
                         return self.into_pairs_checked();
                     }
+                    continue;
+                }
+                if let Some(blossom) = self.find_global_expand_fallback_blossom() {
+                    self.apply_generic_expand(blossom);
                     continue;
                 }
                 return Err(BlossomVError::NoPerfectMatching);
@@ -2448,7 +2367,12 @@ where
         max_outer_iters: usize,
         max_inner_iters: usize,
     ) -> MatchingResult<M::RowIndex, M::ColumnIndex> {
-        self.solve_impl(max_outer_iters, max_inner_iters, Some("BlossomV test budget exhausted"))
+        self.solve_impl(
+            max_outer_iters,
+            max_inner_iters,
+            Some("BlossomV test budget exhausted"),
+            false,
+        )
     }
 
     fn seed_tree_root_frontier(&mut self, root: u32) {
@@ -2500,6 +2424,26 @@ where
         roots
     }
 
+    #[inline]
+    fn edge_queue_owner(&self, e_idx: u32) -> GenericQueueState {
+        self.edge_queue_owner[e_idx as usize]
+    }
+
+    #[inline]
+    fn edge_queue_stamp(&self, e_idx: u32) -> u64 {
+        self.edge_queue_stamp[e_idx as usize]
+    }
+
+    #[inline]
+    fn set_edge_queue_owner(&mut self, e_idx: u32, owner: GenericQueueState) {
+        self.edge_queue_owner[e_idx as usize] = owner;
+    }
+
+    #[inline]
+    fn set_edge_queue_stamp(&mut self, e_idx: u32, stamp: u64) {
+        self.edge_queue_stamp[e_idx as usize] = stamp;
+    }
+
     fn fill_current_root_list(&self, roots: &mut Vec<u32>, seen: &mut Vec<bool>) {
         roots.clear();
         seen.clear();
@@ -2510,6 +2454,29 @@ where
             roots.push(current);
             current = self.nodes[current as usize].tree_sibling_next;
         }
+    }
+
+    #[inline]
+    fn effective_blossom_expand_slack(&self, b: u32) -> i64 {
+        let root = self.find_tree_root(b);
+        let match_arc = self.nodes[b as usize].match_arc;
+        let slack = if match_arc != NONE && (arc_edge(match_arc) as usize) < self.edge_num {
+            self.edges[arc_edge(match_arc) as usize].slack
+        } else {
+            self.nodes[b as usize].y
+        };
+        slack - self.tree_eps(root)
+    }
+
+    fn find_global_expand_fallback_blossom(&self) -> Option<u32> {
+        (self.node_num..self.nodes.len())
+            .find(|&b| {
+                self.nodes[b].is_blossom
+                    && self.nodes[b].is_outer
+                    && self.nodes[b].flag == MINUS
+                    && self.effective_blossom_expand_slack(b as u32) == 0
+            })
+            .map(|b| b as u32)
     }
 
     #[inline]
@@ -2744,7 +2711,7 @@ where
             return;
         }
         self.ensure_scheduler_tree_slot(root);
-        let old_stamp = self.edges[e_idx as usize].queue_stamp;
+        let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
         if !self.scheduler_trees[root as usize].pq0.contains(&e_idx) {
             self.scheduler_trees[root as usize].pq0.push(e_idx);
@@ -2754,12 +2721,12 @@ where
             self.edges.as_mut_slice(),
             self.pq_nodes.as_mut_slice(),
         );
-        self.edges[e_idx as usize].queue_state = GenericQueueState::Pq0 { root };
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq0 { root });
         if preserve_stamp {
-            self.edges[e_idx as usize].queue_stamp = old_stamp;
+            self.set_edge_queue_stamp(e_idx, old_stamp);
         } else {
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
         }
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
@@ -2776,7 +2743,7 @@ where
             return;
         }
         self.ensure_scheduler_tree_slot(root);
-        let old_stamp = self.edges[e_idx as usize].queue_stamp;
+        let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
         if !self.scheduler_trees[root as usize].pq_blossoms.contains(&e_idx) {
             self.scheduler_trees[root as usize].pq_blossoms.push(e_idx);
@@ -2786,17 +2753,18 @@ where
             self.edges.as_mut_slice(),
             self.pq_nodes.as_mut_slice(),
         );
-        self.edges[e_idx as usize].queue_state = GenericQueueState::PqBlossoms { root };
+        self.set_edge_queue_owner(e_idx, GenericQueueState::PqBlossoms { root });
         if preserve_stamp {
-            self.edges[e_idx as usize].queue_stamp = old_stamp;
+            self.set_edge_queue_stamp(e_idx, old_stamp);
         } else {
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
         }
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
     }
 
+    #[cfg(test)]
     #[inline]
     fn set_generic_pq_blossoms(&mut self, e_idx: u32, root: u32) {
         self.set_generic_pq_blossoms_root_slot(e_idx, root, false);
@@ -2808,7 +2776,7 @@ where
             return;
         }
         self.ensure_scheduler_tree_slot(root);
-        let old_stamp = self.edges[e_idx as usize].queue_stamp;
+        let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
         if !self.scheduler_trees[root as usize].pq00_local.contains(&e_idx) {
             self.scheduler_trees[root as usize].pq00_local.push(e_idx);
@@ -2818,12 +2786,12 @@ where
             self.edges.as_mut_slice(),
             self.pq_nodes.as_mut_slice(),
         );
-        self.edges[e_idx as usize].queue_state = GenericQueueState::Pq00Local { root };
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Local { root });
         if preserve_stamp {
-            self.edges[e_idx as usize].queue_stamp = old_stamp;
+            self.set_edge_queue_stamp(e_idx, old_stamp);
         } else {
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
         }
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
@@ -2850,9 +2818,9 @@ where
                 self.edges.as_mut_slice(),
                 self.pq_nodes.as_mut_slice(),
             );
-            self.edges[e_idx as usize].queue_state = GenericQueueState::Pq00Pair { pair_idx };
+            self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Pair { pair_idx });
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
             #[cfg(test)]
             self.sync_generic_pair_queues_from_scheduler(pair_idx);
         }
@@ -2911,7 +2879,7 @@ where
             return;
         }
         self.ensure_scheduler_tree_edge_slot(pair_idx);
-        let old_stamp = self.edges[e_idx as usize].queue_stamp;
+        let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
         if !self.scheduler_tree_edges[pair_idx].pq01[dir].contains(&e_idx) {
             self.scheduler_tree_edges[pair_idx].pq01[dir].push(e_idx);
@@ -2921,12 +2889,12 @@ where
             self.edges.as_mut_slice(),
             self.pq_nodes.as_mut_slice(),
         );
-        self.edges[e_idx as usize].queue_state = GenericQueueState::Pq01Pair { pair_idx, dir };
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq01Pair { pair_idx, dir });
         if preserve_stamp {
-            self.edges[e_idx as usize].queue_stamp = old_stamp;
+            self.set_edge_queue_stamp(e_idx, old_stamp);
         } else {
             self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.edges[e_idx as usize].queue_stamp = self.generic_queue_epoch;
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
         }
         #[cfg(test)]
         self.sync_generic_pair_queues_from_scheduler(pair_idx);
@@ -2936,7 +2904,8 @@ where
         if (e_idx as usize) >= self.edge_num {
             return;
         }
-        match self.edges[e_idx as usize].queue_state {
+        let state = self.edge_queue_owner(e_idx);
+        match state {
             GenericQueueState::None => {}
             GenericQueueState::Pq0 { root } => {
                 if (root as usize) < self.scheduler_trees.len() {
@@ -3018,8 +2987,8 @@ where
                 }
             }
         }
-        self.edges[e_idx as usize].queue_state = GenericQueueState::None;
-        self.edges[e_idx as usize].queue_stamp = 0;
+        self.set_edge_queue_owner(e_idx, GenericQueueState::None);
+        self.set_edge_queue_stamp(e_idx, 0);
     }
 
     fn replace_generic_queue_root(&mut self, old_root: u32, new_root: u32) {
@@ -3166,54 +3135,6 @@ where
         self.nodes[old_root as usize].tree_sibling_next = NONE;
     }
 
-    #[cfg(test)]
-    fn debug_state_dump(&self) -> String {
-        let fmt_index = |value: u32| {
-            if value == NONE { String::from("NONE") } else { value.to_string() }
-        };
-        let fmt_flag = |flag: u8| {
-            match flag {
-                PLUS => '+',
-                MINUS => '-',
-                FREE => 'F',
-                _ => '?',
-            }
-        };
-
-        let nodes = self
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| {
-                format!(
-                    "{idx}:o{} b{} f{} root={} eps={} match={} parent={} bparent={}",
-                    u8::from(node.is_outer),
-                    u8::from(node.is_blossom),
-                    fmt_flag(node.flag),
-                    fmt_index(node.tree_root),
-                    node.tree_eps,
-                    fmt_index(node.match_arc),
-                    fmt_index(node.tree_parent_arc),
-                    fmt_index(node.blossom_parent),
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(" | ");
-
-        let slacks = self
-            .edges
-            .iter()
-            .enumerate()
-            .map(|(idx, edge)| format!("{idx}:{}@({}, {})", edge.slack, edge.head[0], edge.head[1]))
-            .collect::<Vec<_>>()
-            .join(", ");
-
-        format!(
-            "tree_num={} blossom_count={} nodes=[{}] edge_slacks=[{}]",
-            self.tree_num, self.blossom_count, nodes, slacks
-        )
-    }
-
     // ===== Blossom-aware helpers =====
 
     /// Find the outermost blossom containing node `v`.
@@ -3328,20 +3249,6 @@ where
             return false;
         }
 
-        #[cfg(test)]
-        if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-            std::eprintln!(
-                "DBG_CASE6_PROCESS_EDGE00 start update_boundary_edge={} head={:?} head0={:?} slack={} prev={:?} last={:?} queue_state={:?}",
-                update_boundary_edge,
-                self.edges[e_idx as usize].head,
-                self.edges[e_idx as usize].head0,
-                self.edges[e_idx as usize].slack,
-                prev,
-                last,
-                self.edges[e_idx as usize].queue_state,
-            );
-        }
-
         if last[0] != last[1] {
             for dir in 0..2usize {
                 let head = self.edges[e_idx as usize].head[dir];
@@ -3355,15 +3262,6 @@ where
                 if root != NONE {
                     self.edges[e_idx as usize].slack -= 2 * self.tree_eps(root);
                 }
-            }
-            #[cfg(test)]
-            if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-                std::eprintln!(
-                    "DBG_CASE6_PROCESS_EDGE00 boundary_result head={:?} slack={} queue_state={:?}",
-                    self.edges[e_idx as usize].head,
-                    self.edges[e_idx as usize].slack,
-                    self.edges[e_idx as usize].queue_state,
-                );
             }
             return true;
         }
@@ -3380,15 +3278,6 @@ where
                 }
             }
             self.edges[e_idx as usize].slack -= 2 * self.nodes[prev[0] as usize].blossom_eps;
-            #[cfg(test)]
-            if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-                std::eprintln!(
-                    "DBG_CASE6_PROCESS_EDGE00 prev_result head={:?} slack={} queue_state={:?}",
-                    self.edges[e_idx as usize].head,
-                    self.edges[e_idx as usize].slack,
-                    self.edges[e_idx as usize].queue_state,
-                );
-            }
             return false;
         }
 
@@ -3401,17 +3290,6 @@ where
             }
             self.edges[e_idx as usize].next[0] = self.nodes[prev[0] as usize].blossom_selfloops;
             self.nodes[prev[0] as usize].blossom_selfloops = e_idx;
-            #[cfg(test)]
-            if self.node_num == 26 && (e_idx == 19 || e_idx == 22) {
-                std::eprintln!(
-                    "DBG_CASE6_PROCESS_EDGE00 selfloop_result owner={} head={:?} slack={} next0={} queue_state={:?}",
-                    prev[0],
-                    self.edges[e_idx as usize].head,
-                    self.edges[e_idx as usize].slack,
-                    self.edges[e_idx as usize].next[0],
-                    self.edges[e_idx as usize].queue_state,
-                );
-            }
         }
         false
     }
@@ -3425,18 +3303,6 @@ where
     #[inline]
     fn tree_eps(&self, root: u32) -> i64 {
         if root == NONE { 0 } else { self.nodes[root as usize].tree_eps }
-    }
-
-    #[inline]
-    fn effective_blossom_expand_slack(&self, b: u32) -> i64 {
-        let root = self.find_tree_root(b);
-        let match_arc = self.nodes[b as usize].match_arc;
-        let slack = if match_arc != NONE && (arc_edge(match_arc) as usize) < self.edge_num {
-            self.edges[arc_edge(match_arc) as usize].slack
-        } else {
-            self.nodes[b as usize].y
-        };
-        slack - self.tree_eps(root)
     }
 
     // ===== GROW =====
@@ -3570,10 +3436,7 @@ where
                                 continue;
                             }
                         }
-                        if matches!(
-                            self.edges[e_idx as usize].queue_state,
-                            GenericQueueState::Pq0 { .. }
-                        ) {
+                        if matches!(self.edge_queue_owner(e_idx), GenericQueueState::Pq0 { .. }) {
                             self.clear_generic_queue_state(e_idx);
                         }
                         self.edges[e_idx as usize].slack -= eps;
@@ -3632,21 +3495,6 @@ where
         let mut incident = self.take_incident_scratch();
         self.collect_incident_edges_into(plus_node, &mut incident);
 
-        #[cfg(test)]
-        if self.node_num == 26 && root == 29 {
-            std::eprintln!(
-                "DBG_RUST_GROW_NODE start plus={plus_node} eps={eps} match_arc={} match_raw={} match_outer={} y0={} y19={} y29={} y32={} y33={}",
-                self.nodes[plus_node as usize].match_arc,
-                self.arc_head_raw(self.nodes[plus_node as usize].match_arc),
-                self.arc_head_outer(self.nodes[plus_node as usize].match_arc),
-                self.nodes[0].y,
-                self.nodes[19].y,
-                if 29 < self.nodes.len() { self.nodes[29].y } else { 0 },
-                if 32 < self.nodes.len() { self.nodes[32].y } else { 0 },
-                if 33 < self.nodes.len() { self.nodes[33].y } else { 0 },
-            );
-        }
-
         for &(e_idx, dir) in &incident {
             let other = self.edge_head_outer(e_idx, dir);
             if other == NONE || other == plus_node || !self.nodes[other as usize].is_outer {
@@ -3656,34 +3504,12 @@ where
             if self.nodes[other as usize].flag == FREE {
                 self.edges[e_idx as usize].slack += eps;
                 if self.edges[e_idx as usize].slack <= 0 {
-                    #[cfg(test)]
-                    if self.node_num == 26 && root == 29 {
-                        std::eprintln!(
-                            "DBG_RUST_GROW_NODE absorb plus={plus_node} edge={e_idx} other={other} slack={} eps={eps} other_match_arc={} other_match_raw={} other_match_outer={}",
-                            self.edges[e_idx as usize].slack,
-                            self.nodes[other as usize].match_arc,
-                            self.arc_head_raw(self.nodes[other as usize].match_arc),
-                            self.arc_head_outer(self.nodes[other as usize].match_arc),
-                        );
-                    }
                     self.clear_generic_queue_state(e_idx);
                     self.grow(e_idx, plus_node, other);
                     self.nodes[other as usize].y += eps;
                     let new_plus = self.arc_head_raw(self.nodes[other as usize].match_arc);
                     if new_plus != NONE {
                         self.nodes[new_plus as usize].y -= eps;
-                    }
-                    #[cfg(test)]
-                    if self.node_num == 26 && root == 29 {
-                        std::eprintln!(
-                            "DBG_RUST_GROW_NODE after_absorb plus={plus_node} edge={e_idx} other={other} new_plus={} y0={} y19={} y29={} y32={} y33={}",
-                            new_plus,
-                            self.nodes[0].y,
-                            self.nodes[19].y,
-                            if 29 < self.nodes.len() { self.nodes[29].y } else { 0 },
-                            if 32 < self.nodes.len() { self.nodes[32].y } else { 0 },
-                            if 33 < self.nodes.len() { self.nodes[33].y } else { 0 },
-                        );
                     }
                 } else {
                     self.set_generic_pq0(e_idx, root);
@@ -3729,27 +3555,10 @@ where
                 self.nodes[minus as usize].is_processed = true;
                 if self.nodes[minus as usize].is_blossom {
                     let match_edge = arc_edge(self.nodes[plus_node as usize].match_arc);
-                    #[cfg(test)]
-                    if self.node_num == 26 && root == 29 {
-                        std::eprintln!(
-                            "DBG_RUST_GROW_NODE blossom_swap plus={plus_node} minus={minus} match_edge={match_edge} before_slack={} before_minus_y={}",
-                            self.edges[match_edge as usize].slack,
-                            self.nodes[minus as usize].y,
-                        );
-                    }
                     let tmp = self.edges[match_edge as usize].slack;
                     self.edges[match_edge as usize].slack = self.nodes[minus as usize].y;
                     self.nodes[minus as usize].y = tmp;
-                    self.set_generic_pq_blossoms(match_edge, root);
-                    #[cfg(test)]
-                    if self.node_num == 26 && root == 29 {
-                        std::eprintln!(
-                            "DBG_RUST_GROW_NODE blossom_swap_done plus={plus_node} minus={minus} match_edge={match_edge} after_slack={} after_minus_y={} pq_blossoms={:?}",
-                            self.edges[match_edge as usize].slack,
-                            self.nodes[minus as usize].y,
-                            self.generic_trees[root as usize].pq_blossoms,
-                        );
-                    }
+                    self.queue_processed_plus_blossom_match_edge(plus_node);
                 }
             }
         }
@@ -3758,7 +3567,37 @@ where
         augment_edge
     }
 
-    fn reseed_generic_queues_for_processed_plus_node(&mut self, plus_node: u32) {
+    fn queue_processed_plus_blossom_match_edge(&mut self, plus_node: u32) {
+        if plus_node == NONE
+            || (plus_node as usize) >= self.nodes.len()
+            || !self.nodes[plus_node as usize].is_outer
+            || self.nodes[plus_node as usize].flag != PLUS
+            || !self.nodes[plus_node as usize].is_processed
+        {
+            return;
+        }
+
+        let root = self.find_tree_root(plus_node);
+        if root == NONE || self.nodes[plus_node as usize].is_tree_root {
+            return;
+        }
+
+        let minus = self.arc_head_outer(self.nodes[plus_node as usize].match_arc);
+        if minus == NONE
+            || (minus as usize) >= self.nodes.len()
+            || !self.nodes[minus as usize].is_blossom
+            || !self.nodes[minus as usize].is_processed
+        {
+            return;
+        }
+
+        let match_edge = arc_edge(self.nodes[plus_node as usize].match_arc);
+        if (match_edge as usize) < self.edge_num {
+            self.set_generic_pq_blossoms_root_slot(match_edge, root, false);
+        }
+    }
+
+    fn requeue_processed_plus_edges_after_expand(&mut self, plus_node: u32) {
         if plus_node == NONE
             || (plus_node as usize) >= self.nodes.len()
             || !self.nodes[plus_node as usize].is_outer
@@ -3776,7 +3615,7 @@ where
         let mut incident = self.take_incident_scratch();
         self.collect_incident_edges_into(plus_node, &mut incident);
         for &(e_idx, dir) in &incident {
-            if !matches!(self.edges[e_idx as usize].queue_state, GenericQueueState::None) {
+            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::None) {
                 continue;
             }
 
@@ -3808,12 +3647,9 @@ where
             {
                 let match_edge = arc_edge(self.nodes[plus_node as usize].match_arc);
                 if (match_edge as usize) < self.edge_num
-                    && matches!(
-                        self.edges[match_edge as usize].queue_state,
-                        GenericQueueState::None
-                    )
+                    && matches!(self.edge_queue_owner(match_edge), GenericQueueState::None)
                 {
-                    self.set_generic_pq_blossoms(match_edge, root);
+                    self.set_generic_pq_blossoms_root_slot(match_edge, root, false);
                 }
             }
         }
@@ -3956,10 +3792,7 @@ where
                         if other_root != root {
                             self.edges[e_idx as usize].slack += eps;
                             if other_root != NONE
-                                && matches!(
-                                    self.edges[e_idx as usize].queue_state,
-                                    GenericQueueState::None
-                                )
+                                && matches!(self.edge_queue_owner(e_idx), GenericQueueState::None)
                             {
                                 self.set_generic_pq0(e_idx, other_root);
                             }
@@ -4022,7 +3855,7 @@ where
                     self.normalize_edge_outer_heads(e_idx);
                 }
                 if matches!(
-                    self.edges[e_idx as usize].queue_state,
+                    self.edge_queue_owner(e_idx),
                     GenericQueueState::Pq01Pair { pair_idx: q_pair_idx, dir }
                         if q_pair_idx == pair_idx && dir == current_side
                 ) {
@@ -4050,7 +3883,7 @@ where
             core::mem::swap(&mut queue_edges, &mut self.scheduler_trees[root as usize].pq00_local);
             for &e_idx in &queue_edges {
                 if matches!(
-                    self.edges[e_idx as usize].queue_state,
+                    self.edge_queue_owner(e_idx),
                     GenericQueueState::Pq00Local { root: q_root } if q_root == root
                 ) {
                     self.clear_generic_queue_state(e_idx);
@@ -4631,9 +4464,40 @@ where
                 continue;
             }
 
-            let old_state = self.edges[e_idx].queue_state;
-            let old_stamp = self.edges[e_idx].queue_stamp;
+            let old_state = self.edge_queue_owner(e_idx as u32);
+            let old_stamp = self.edge_queue_stamp(e_idx as u32);
             self.remove_edge_from_generic_queue(e_idx as u32);
+
+            let pq_blossom_root = [outer0, outer1].into_iter().find_map(|cand| {
+                if cand == NONE || (cand as usize) >= self.nodes.len() {
+                    return None;
+                }
+                if !self.nodes[cand as usize].is_blossom || self.nodes[cand as usize].flag != MINUS
+                {
+                    return None;
+                }
+                let match_arc = self.nodes[cand as usize].match_arc;
+                if match_arc == NONE {
+                    return None;
+                }
+                let match_edge = arc_edge(match_arc);
+                if (match_edge as usize) >= self.edge_num || match_edge != e_idx as u32 {
+                    return None;
+                }
+                let cand_root = self.find_tree_root(cand);
+                (cand_root != NONE).then_some(cand_root)
+            });
+            if let Some(pq_root) = pq_blossom_root {
+                self.set_generic_pq_blossoms_root_slot(
+                    e_idx as u32,
+                    pq_root,
+                    !matches!(old_state, GenericQueueState::None),
+                );
+                if !matches!(old_state, GenericQueueState::None) {
+                    self.set_edge_queue_stamp(e_idx as u32, old_stamp);
+                }
+                continue;
+            }
 
             if outer0 == NONE || outer1 == NONE {
                 continue;
@@ -4643,7 +4507,7 @@ where
                     && self.edges[e_idx].slack > 0
                 {
                     self.set_generic_pq00(e_idx as u32, root, root);
-                    self.edges[e_idx].queue_stamp = old_stamp;
+                    self.set_edge_queue_stamp(e_idx as u32, old_stamp);
                 }
                 continue;
             }
@@ -4654,7 +4518,7 @@ where
                     let preserve_stamp = matches!(old_state, GenericQueueState::Pq0 { root: old_root } if old_root == root);
                     self.set_generic_pq0_root_slot(e_idx as u32, root, preserve_stamp);
                     if preserve_stamp {
-                        self.edges[e_idx].queue_stamp = old_stamp;
+                        self.set_edge_queue_stamp(e_idx as u32, old_stamp);
                     }
                 }
                 PLUS => {
@@ -4691,23 +4555,6 @@ where
         let b_tree_root = self.nodes[b as usize].tree_root;
         let eps = if b_tree_root != NONE { self.tree_eps(b_tree_root) } else { 0 };
 
-        #[cfg(test)]
-        if self.node_num == 26 && b == 33 {
-            let edge19 = &self.edges[19];
-            let edge22 = &self.edges[22];
-            std::eprintln!(
-                "DBG_EXPAND stage=start edge19_slack={} edge19_head={:?} edge19_next={:?} edge19_prev={:?} edge22_slack={} edge22_head={:?} edge22_next={:?} edge22_prev={:?}",
-                edge19.slack,
-                edge19.head,
-                edge19.next,
-                edge19.prev,
-                edge22.slack,
-                edge22.head,
-                edge22.next,
-                edge22.prev
-            );
-        }
-
         // child_plus = PLUS node above blossom (its match partner)
         let child_plus = if b_match != NONE && (arc_edge(b_match) as usize) < self.edge_num {
             self.arc_head_raw(b_match)
@@ -4740,23 +4587,6 @@ where
                 self.process_expand_selfloop(e_idx);
             }
             self.nodes[child as usize].is_outer = false;
-        }
-
-        #[cfg(test)]
-        if self.node_num == 26 && b == 33 {
-            let edge19 = &self.edges[19];
-            let edge22 = &self.edges[22];
-            std::eprintln!(
-                "DBG_EXPAND stage=after_selfloops edge19_slack={} edge19_head={:?} edge19_next={:?} edge19_prev={:?} edge22_slack={} edge22_head={:?} edge22_next={:?} edge22_prev={:?}",
-                edge19.slack,
-                edge19.head,
-                edge19.next,
-                edge19.prev,
-                edge22.slack,
-                edge22.head,
-                edge22.next,
-                edge22.prev
-            );
         }
 
         // Mark all children as outer, initially FREE
@@ -4975,18 +4805,6 @@ where
                     seen_minus[e_idx as usize] = true;
                     let other = self.edge_head_outer(e_idx, dir);
                     if other != NONE && self.nodes[other as usize].flag != PLUS {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 minus-listed minus={} dir={} other={} other_flag={} slack_before={} eps={}",
-                                minus,
-                                dir,
-                                other,
-                                self.nodes[other as usize].flag,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack -= eps;
                     }
                 }
@@ -4996,18 +4814,6 @@ where
                     }
                     let other = self.edges[e_idx as usize].head[1 - dir];
                     if other != NONE && self.nodes[other as usize].flag != PLUS {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 minus-raw minus={} dir={} other={} other_flag={} slack_before={} eps={}",
-                                minus,
-                                dir,
-                                other,
-                                self.nodes[other as usize].flag,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack -= eps;
                     }
                 }
@@ -5027,30 +4833,8 @@ where
                         continue;
                     }
                     if self.nodes[other as usize].flag == FREE {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 plus-listed-free plus={} dir={} other={} slack_before={} eps={}",
-                                plus,
-                                dir,
-                                other,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack += eps;
                     } else if self.nodes[other as usize].flag == PLUS && plus < other {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 plus-listed-plus plus={} dir={} other={} slack_before={} eps={}",
-                                plus,
-                                dir,
-                                other,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack += 2 * eps;
                     }
                 }
@@ -5063,30 +4847,8 @@ where
                         continue;
                     }
                     if self.nodes[other as usize].flag == FREE {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 plus-raw-free plus={} dir={} other={} slack_before={} eps={}",
-                                plus,
-                                dir,
-                                other,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack += eps;
                     } else if self.nodes[other as usize].flag == PLUS && plus < other {
-                        #[cfg(test)]
-                        if self.node_num == 26 && b == 33 && e_idx == 19 {
-                            std::eprintln!(
-                                "DBG_EXPAND edge19 plus-raw-plus plus={} dir={} other={} slack_before={} eps={}",
-                                plus,
-                                dir,
-                                other,
-                                self.edges[e_idx as usize].slack,
-                                eps,
-                            );
-                        }
                         self.edges[e_idx as usize].slack += 2 * eps;
                     }
                 }
@@ -5097,23 +4859,6 @@ where
                 }
                 minus = self.arc_head_raw(self.nodes[plus as usize].match_arc);
             }
-        }
-
-        #[cfg(test)]
-        if self.node_num == 26 && b == 33 {
-            let edge19 = &self.edges[19];
-            let edge22 = &self.edges[22];
-            std::eprintln!(
-                "DBG_EXPAND stage=after_inner_arcs edge19_slack={} edge19_head={:?} edge19_next={:?} edge19_prev={:?} edge22_slack={} edge22_head={:?} edge22_next={:?} edge22_prev={:?}",
-                edge19.slack,
-                edge19.head,
-                edge19.next,
-                edge19.prev,
-                edge22.slack,
-                edge22.head,
-                edge22.next,
-                edge22.prev
-            );
         }
 
         // Move edges from blossom back to original nodes
@@ -5143,39 +4888,46 @@ where
             }
         }
         for &(e, dir, new_owner) in &moves {
-            #[cfg(test)]
-            if self.node_num == 26 && b == 33 && (e == 19 || e == 22) {
-                std::eprintln!(
-                    "DBG_EXPAND move-back e={} dir={} new_owner={} slack_before={} head={:?} head0={:?}",
-                    e,
-                    dir,
-                    new_owner,
-                    self.edges[e as usize].slack,
-                    self.edges[e as usize].head,
-                    self.edges[e as usize].head0,
-                );
-            }
             edge_list_remove(&mut self.nodes, &mut self.edges, b, e, dir);
             edge_list_add(&mut self.nodes, &mut self.edges, new_owner, e, dir);
             let other = self.edge_head_outer(e, dir);
             let other_root = if other == NONE { NONE } else { self.find_tree_root(other) };
+            let old_owner = self.edge_queue_owner(e);
+            let new_owner_match_edge = if self.nodes[new_owner as usize].match_arc != NONE {
+                let match_edge = arc_edge(self.nodes[new_owner as usize].match_arc);
+                ((match_edge as usize) < self.edge_num).then_some(match_edge)
+            } else {
+                None
+            };
+            let old_stamp = self.edge_queue_stamp(e);
 
             self.clear_generic_queue_state(e);
 
             match self.nodes[new_owner as usize].flag {
-                MINUS => {}
-                FREE => {
-                    #[cfg(test)]
-                    if self.node_num == 26 && b == 33 && (e == 19 || e == 22) {
-                        std::eprintln!(
-                            "DBG_EXPAND move-back free e={} new_owner={} other={} slack_before_add={} eps={}",
+                MINUS => {
+                    let preserve_same_root_blossom = matches!(
+                        old_owner,
+                        GenericQueueState::PqBlossoms { root } if root == b_tree_root
+                    ) && other != NONE
+                        && self.nodes[other as usize].is_blossom;
+                    let seed_new_blossom = matches!(old_owner, GenericQueueState::None);
+                    if self.nodes[new_owner as usize].is_blossom
+                        && b_tree_root != NONE
+                        && other != NONE
+                        && new_owner_match_edge == Some(e)
+                        && (seed_new_blossom || preserve_same_root_blossom)
+                    {
+                        self.set_generic_pq_blossoms_root_slot(
                             e,
-                            new_owner,
-                            other,
-                            self.edges[e as usize].slack,
-                            eps,
+                            b_tree_root,
+                            preserve_same_root_blossom,
                         );
+                        if preserve_same_root_blossom {
+                            self.set_edge_queue_stamp(e, old_stamp);
+                        }
                     }
+                }
+                FREE => {
                     self.edges[e as usize].slack += eps;
                     if other != NONE
                         && self.nodes[other as usize].is_outer
@@ -5186,17 +4938,6 @@ where
                     }
                 }
                 PLUS => {
-                    #[cfg(test)]
-                    if self.node_num == 26 && b == 33 && (e == 19 || e == 22) {
-                        std::eprintln!(
-                            "DBG_EXPAND move-back plus e={} new_owner={} other={} slack_before_add={} eps={}",
-                            e,
-                            new_owner,
-                            other,
-                            self.edges[e as usize].slack,
-                            eps,
-                        );
-                    }
                     self.edges[e as usize].slack += 2 * eps;
                     if other == NONE || !self.nodes[other as usize].is_outer {
                         continue;
@@ -5227,53 +4968,18 @@ where
             }
         }
 
-        #[cfg(test)]
-        if self.node_num == 26 && b == 33 {
-            let edge19 = &self.edges[19];
-            let edge22 = &self.edges[22];
-            std::eprintln!(
-                "DBG_EXPAND stage=after_boundary_arcs edge19_slack={} edge19_head={:?} edge19_next={:?} edge19_prev={:?} edge22_slack={} edge22_head={:?} edge22_next={:?} edge22_prev={:?}",
-                edge19.slack,
-                edge19.head,
-                edge19.next,
-                edge19.prev,
-                edge22.slack,
-                edge22.head,
-                edge22.next,
-                edge22.prev
-            );
-        }
-
         self.nodes[b as usize].is_outer = false;
         self.nodes[b as usize].is_blossom = false;
         self.nodes[b as usize].first = [NONE; 2];
 
-        // C++ keeps the relevant tree queues alive across Expand(). The Rust
-        // port reconstructs queue membership, so any edge that became visible
-        // again on an already-processed PLUS child needs to be re-seeded here.
+        // Expanding the blossom makes processed PLUS children expose outer
+        // boundary edges again. Requeue those now that ownership is visible.
         for &child in &children {
-            self.reseed_generic_queues_for_processed_plus_node(child);
+            self.requeue_processed_plus_edges_after_expand(child);
         }
 
         self.restore_edge_moves_scratch(moves);
         self.restore_node_work_a_scratch(children);
-
-        #[cfg(test)]
-        if self.node_num == 26 && b == 33 {
-            let edge19 = &self.edges[19];
-            let edge22 = &self.edges[22];
-            std::eprintln!(
-                "DBG_EXPAND stage=end edge19_slack={} edge19_head={:?} edge19_next={:?} edge19_prev={:?} edge22_slack={} edge22_head={:?} edge22_next={:?} edge22_prev={:?}",
-                edge19.slack,
-                edge19.head,
-                edge19.next,
-                edge19.prev,
-                edge22.slack,
-                edge22.head,
-                edge22.next,
-                edge22.prev
-            );
-        }
     }
 
     // ===== DUAL UPDATE =====
@@ -5720,6 +5426,60 @@ mod tests {
         ]
     }
 
+    fn case_9_edges() -> Vec<(usize, usize, i32)> {
+        vec![
+            (0, 1, 0),
+            (0, 3, -21251),
+            (0, 6, -2023),
+            (0, 9, 14768),
+            (0, 12, 12819),
+            (0, 14, 0),
+            (0, 15, 0),
+            (0, 16, -27420),
+            (0, 17, -26215),
+            (1, 3, -1),
+            (1, 5, 32512),
+            (1, 9, -30271),
+            (1, 10, 5020),
+            (1, 13, 12937),
+            (2, 3, 2303),
+            (2, 4, 100),
+            (2, 14, 76),
+            (2, 16, 26984),
+            (2, 17, -20523),
+            (3, 4, 15679),
+            (3, 6, -1),
+            (3, 12, 3072),
+            (3, 15, 22123),
+            (3, 16, -13726),
+            (4, 5, 2752),
+            (4, 8, 26125),
+            (4, 17, -18671),
+            (5, 8, 12331),
+            (5, 14, -10251),
+            (6, 7, -30029),
+            (6, 10, -10397),
+            (6, 11, -23283),
+            (7, 9, 13364),
+            (8, 9, -2846),
+            (8, 10, -1387),
+            (8, 12, -24415),
+            (8, 15, -18235),
+            (9, 10, -26215),
+            (9, 13, 21062),
+            (9, 14, -26215),
+            (9, 16, -18577),
+            (10, 11, -12279),
+            (10, 13, -8642),
+            (11, 13, -7374),
+            (11, 14, 32018),
+            (12, 14, 14393),
+            (12, 15, -24),
+            (12, 17, 50),
+            (14, 17, 1128),
+        ]
+    }
+
     fn case_97_edges() -> Vec<(usize, usize, i32)> {
         vec![
             (0, 1, 94),
@@ -5992,6 +5752,64 @@ mod tests {
             (18, 23, 881),
             (21, 24, 124),
             (22, 25, 21),
+        ]
+    }
+
+    fn case_honggfuzz_sigabrt_14_edges() -> Vec<(usize, usize, i32)> {
+        vec![
+            (0, 1, 0),
+            (0, 2, 0),
+            (0, 3, -21251),
+            (0, 5, -18577),
+            (0, 6, 32018),
+            (0, 8, -31624),
+            (0, 10, -1387),
+            (0, 11, -2023),
+            (0, 12, 12819),
+            (0, 14, 21845),
+            (0, 15, 0),
+            (0, 16, -26363),
+            (0, 17, 0),
+            (1, 2, -12194),
+            (1, 3, -10864),
+            (1, 4, 0),
+            (1, 5, 32512),
+            (1, 7, 0),
+            (1, 11, 0),
+            (1, 13, 12937),
+            (2, 3, 2303),
+            (2, 5, 0),
+            (2, 15, 13302),
+            (2, 16, 26984),
+            (2, 17, -20523),
+            (3, 4, 15679),
+            (3, 10, -1),
+            (3, 12, 3072),
+            (3, 14, 2920),
+            (3, 15, 22123),
+            (3, 16, -13726),
+            (4, 16, -320),
+            (5, 8, 12331),
+            (5, 13, 21356),
+            (5, 14, 3053),
+            (6, 7, -30029),
+            (6, 10, -10397),
+            (6, 11, -23283),
+            (7, 10, -768),
+            (7, 11, -26516),
+            (8, 9, 32738),
+            (8, 12, -24415),
+            (8, 13, 17552),
+            (8, 15, -18235),
+            (9, 10, -26215),
+            (9, 13, 21062),
+            (9, 16, 0),
+            (10, 11, -12279),
+            (10, 13, -8642),
+            (12, 15, 0),
+            (12, 17, -16846),
+            (13, 16, 12857),
+            (14, 17, 7981),
         ]
     }
 
@@ -6787,6 +6605,48 @@ mod tests {
         }
     }
 
+    fn generic_primal_pass_without_global_expand_fallback_once(
+        state: &mut BlossomVState<'_, Vcsr>,
+    ) -> bool {
+        let mut root = state.root_list_head;
+        while root != NONE {
+            let root_usize = root as usize;
+            let next_root = state.nodes[root_usize].tree_sibling_next;
+            let next_next_root = if next_root != NONE {
+                state.nodes[next_root as usize].tree_sibling_next
+            } else {
+                NONE
+            };
+
+            if state.nodes[root_usize].is_outer
+                && state.nodes[root_usize].is_tree_root
+                && state.process_tree_primal(root)
+            {
+                return true;
+            }
+
+            root = next_root;
+            if root != NONE && !state.nodes[root as usize].is_tree_root {
+                root = next_next_root;
+            }
+        }
+
+        false
+    }
+
+    fn find_global_expand_fallback_blossom_for_test(
+        state: &BlossomVState<'_, Vcsr>,
+    ) -> Option<u32> {
+        (state.node_num..state.nodes.len())
+            .find(|&b| {
+                state.nodes[b].is_blossom
+                    && state.nodes[b].is_outer
+                    && state.nodes[b].flag == MINUS
+                    && state.effective_blossom_expand_slack(b as u32) == 0
+            })
+            .map(|b| b as u32)
+    }
+
     fn case_4666_state_at_dual_before(dual_updates_applied: usize) -> BlossomVState<'static, Vcsr> {
         let g = case_4666_graph();
         let leaked = Box::leak(Box::new(g));
@@ -7007,17 +6867,7 @@ mod tests {
                 &format!("case #1594 after dual update outer {outer}"),
             );
 
-            if !dual_ok {
-                if let Some((e_idx, left, right)) = state.find_virtual_dual_augment_edge() {
-                    state.augment(e_idx, left, right);
-                    assert_edge_list_invariants(
-                        &state,
-                        &format!("case #1594 after virtual augment outer {outer}"),
-                    );
-                } else {
-                    panic!("case #1594 had no virtual augment after a failed dual update");
-                }
-            }
+            assert!(dual_ok, "case #1594 dual update failed during edge-list check");
 
             assert!(
                 outer < 4_999,
@@ -7070,17 +6920,7 @@ mod tests {
                 &format!("case #232 after dual update outer {outer}"),
             );
 
-            if !dual_ok {
-                if let Some((e_idx, left, right)) = state.find_virtual_dual_augment_edge() {
-                    state.augment(e_idx, left, right);
-                    assert_edge_list_invariants(
-                        &state,
-                        &format!("case #232 after virtual augment outer {outer}"),
-                    );
-                } else {
-                    panic!("case #232 had no virtual augment after a failed dual update");
-                }
-            }
+            assert!(dual_ok, "case #232 dual update failed during edge-list check");
 
             assert!(
                 outer < 4_999,
@@ -7129,17 +6969,7 @@ mod tests {
                 &format!("case #474 after dual update outer {outer}"),
             );
 
-            if !dual_ok {
-                if let Some((e_idx, left, right)) = state.find_virtual_dual_augment_edge() {
-                    state.augment(e_idx, left, right);
-                    assert_edge_list_invariants(
-                        &state,
-                        &format!("case #474 after virtual augment outer {outer}"),
-                    );
-                } else {
-                    panic!("case #474 had no virtual augment after a failed dual update");
-                }
-            }
+            assert!(dual_ok, "case #474 dual update failed during edge-list check");
 
             assert!(outer < 99, "case #474 exceeded outer-step budget while checking edge lists");
         }
@@ -9462,7 +9292,7 @@ mod tests {
         );
         assert_eq!(
             state
-                .find_global_augment_edge()
+                .find_scheduler_global_augment_edge()
                 .map(|(e_idx, _, _)| normalized_edge_pair(state.edges[e_idx as usize].head0)),
             Some((2, 3)),
             "after the sorted-order dual update, C++ immediately augments on edge (2,3)"
@@ -10017,6 +9847,23 @@ mod tests {
         state.test_generic_primal_steps()[start..].to_vec()
     }
 
+    fn case_214_state_before_first_dual() -> BlossomVState<'static, Vcsr> {
+        let edges = case_214_edge_list();
+        let g = build_graph(22, &edges);
+        let leaked = Box::leak(Box::new(g));
+        let mut state = BlossomVState::new(leaked);
+        state.init_global();
+        state.mark_tree_roots_processed();
+
+        let mut passes = 0usize;
+        while state.generic_primal_pass_once() {
+            passes += 1;
+            assert!(passes <= 4, "generic phase should stall before first dual on case #214");
+        }
+
+        state
+    }
+
     fn case_24943_edges() -> Vec<(usize, usize, i32)> {
         vec![
             (0, 2, -30),
@@ -10434,11 +10281,7 @@ mod tests {
             }
 
             if !progressed && !state.update_duals() {
-                if let Some((e_idx, left, right)) = state.find_virtual_dual_augment_edge() {
-                    state.augment(e_idx, left, right);
-                } else {
-                    return Err(BlossomVError::NoPerfectMatching);
-                }
+                return Err(BlossomVError::NoPerfectMatching);
             }
             assert_tree_navigation_invariants(state);
         }
@@ -10476,6 +10319,283 @@ mod tests {
             steps[1].event,
             GenericPrimalEvent::Shrink { edge: (0, 18), left: 18, right: 0 }
         );
+    }
+
+    #[test]
+    fn test_case_214_scheduler_local_eps_matches_visible_scan_before_first_dual() {
+        let visible_scan_local_eps = |state: &BlossomVState<'_, _>, root: u32| -> i64 {
+            let mut eps = i64::MAX;
+            for e_idx in 0..state.edge_num {
+                let u = state.edge_head_outer(e_idx as u32, 0);
+                let v = state.edge_head_outer(e_idx as u32, 1);
+                if u == NONE || v == NONE || u == v {
+                    continue;
+                }
+
+                let slack = state.edges[e_idx].slack;
+                if state.nodes[u as usize].flag == PLUS
+                    && state.nodes[u as usize].is_processed
+                    && state.find_tree_root(u) == root
+                    && state.nodes[v as usize].flag == FREE
+                {
+                    eps = eps.min(slack);
+                }
+                if state.nodes[v as usize].flag == PLUS
+                    && state.nodes[v as usize].is_processed
+                    && state.find_tree_root(v) == root
+                    && state.nodes[u as usize].flag == FREE
+                {
+                    eps = eps.min(slack);
+                }
+            }
+
+            for i in 0..state.nodes.len() {
+                let node = &state.nodes[i];
+                if node.is_blossom
+                    && node.is_outer
+                    && node.flag == MINUS
+                    && state.find_tree_root(i as u32) == root
+                {
+                    let candidate = if node.match_arc != NONE
+                        && (arc_edge(node.match_arc) as usize) < state.edge_num
+                    {
+                        state.edges[arc_edge(node.match_arc) as usize].slack
+                    } else {
+                        node.y
+                    };
+                    eps = eps.min(candidate);
+                }
+            }
+
+            eps
+        };
+
+        let mut state = case_214_state_before_first_dual();
+        let roots = state.current_root_list();
+        assert!(!roots.is_empty(), "case #214 should have active roots before first dual");
+
+        for root in roots {
+            let _ = state.tree_min_pq00_local_for_step3(root);
+            assert_eq!(
+                state.compute_tree_local_eps(root),
+                visible_scan_local_eps(&state, root),
+                "case #214 local eps mismatch for root {root}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_case_9_does_not_expose_missed_local_expand_state() {
+        let edges = case_9_edges();
+        let g = build_graph(18, &edges);
+        let leaked = Box::leak(Box::new(g));
+        let mut state = BlossomVState::new(leaked);
+        state.init_global();
+
+        for outer_iter in 0..64 {
+            let mut progressed = true;
+            let mut inner_iters = 0usize;
+            while progressed {
+                progressed = generic_primal_pass_without_global_expand_fallback_once(&mut state);
+                inner_iters += usize::from(progressed);
+                assert!(
+                    inner_iters <= 512,
+                    "case 9 did not stall before finding a local/global expand mismatch"
+                );
+                if state.tree_num == 0 {
+                    return;
+                }
+            }
+
+            if let Some(blossom) = find_global_expand_fallback_blossom_for_test(&state) {
+                let root = state.find_tree_root(blossom);
+                let eps_root = state.tree_eps(root);
+                let match_edge = arc_edge(state.nodes[blossom as usize].match_arc);
+                let queue_owner = state.edge_queue_owner(match_edge);
+                let outer0 = state.edge_head_outer(match_edge, 0);
+                let outer1 = state.edge_head_outer(match_edge, 1);
+                let raw = state.edges[match_edge as usize].head;
+                assert_eq!(
+                    state.find_tree_expand_blossom_with_eps(root, eps_root),
+                    Some(blossom),
+                    "case 9 missed local expand: blossom={blossom} root={root} eps_root={eps_root} match_edge={match_edge} owner={queue_owner:?} outer=({outer0},{outer1}) raw={raw:?} pq_blossoms={:?}",
+                    state.scheduler_trees[root as usize].pq_blossoms,
+                );
+                return;
+            }
+
+            assert!(
+                state.update_duals(),
+                "case 9 failed dual update before exposing the missed local expand state at outer_iter={outer_iter}"
+            );
+        }
+
+        panic!("case 9 did not expose a missed local expand state within the search budget");
+    }
+
+    #[test]
+    fn test_case_6_does_not_expose_missed_local_expand_state() {
+        let edges = case_honggfuzz_sigabrt_6_edges();
+        let g = build_graph(26, &edges);
+        let leaked = Box::leak(Box::new(g));
+        let mut state = BlossomVState::new(leaked);
+        state.init_global();
+
+        for outer_iter in 0..128 {
+            let mut progressed = true;
+            let mut inner_iters = 0usize;
+            while progressed {
+                progressed = generic_primal_pass_without_global_expand_fallback_once(&mut state);
+                inner_iters += usize::from(progressed);
+                assert!(
+                    inner_iters <= 2048,
+                    "case 6 did not stall before finding a local/global expand mismatch"
+                );
+                if state.tree_num == 0 {
+                    return;
+                }
+            }
+
+            if let Some(blossom) = find_global_expand_fallback_blossom_for_test(&state) {
+                let root = state.find_tree_root(blossom);
+                let eps_root = state.tree_eps(root);
+                let match_edge = arc_edge(state.nodes[blossom as usize].match_arc);
+                let queue_owner = state.edge_queue_owner(match_edge);
+                let outer0 = state.edge_head_outer(match_edge, 0);
+                let outer1 = state.edge_head_outer(match_edge, 1);
+                let raw = state.edges[match_edge as usize].head;
+                assert_eq!(
+                    state.find_tree_expand_blossom_with_eps(root, eps_root),
+                    Some(blossom),
+                    "case 6 missed local expand: blossom={blossom} root={root} eps_root={eps_root} match_edge={match_edge} owner={queue_owner:?} outer=({outer0},{outer1}) raw={raw:?} pq_blossoms={:?}",
+                    state.scheduler_trees[root as usize].pq_blossoms,
+                );
+                return;
+            }
+
+            assert!(
+                state.update_duals(),
+                "case 6 failed dual update before exposing the missed local expand state at outer_iter={outer_iter}"
+            );
+        }
+
+        panic!("case 6 did not expose a missed local expand state within the search budget");
+    }
+
+    #[test]
+    fn test_case_14_exposes_missed_global_expand_fallback_state() {
+        let edges = case_honggfuzz_sigabrt_14_edges();
+        let g = build_graph(18, &edges);
+        let leaked = Box::leak(Box::new(g));
+        let mut state = BlossomVState::new(leaked);
+        state.init_global();
+
+        for outer_iter in 0..128 {
+            let mut progressed = true;
+            let mut inner_iters = 0usize;
+            while progressed {
+                progressed = generic_primal_pass_without_global_expand_fallback_once(&mut state);
+                inner_iters += usize::from(progressed);
+                assert!(
+                    inner_iters <= 2048,
+                    "case 14 did not stall before exposing the fallback-dependent expand state"
+                );
+                assert!(
+                    state.tree_num != 0,
+                    "case 14 unexpectedly solved without the global expand fallback at outer_iter={outer_iter}"
+                );
+            }
+
+            if let Some(blossom) = find_global_expand_fallback_blossom_for_test(&state) {
+                let root = state.find_tree_root(blossom);
+                let eps_root = state.tree_eps(root);
+                assert_eq!(
+                    state.find_tree_expand_blossom_with_eps(root, eps_root),
+                    None,
+                    "case 14 no longer needs the global expand fallback"
+                );
+                return;
+            }
+
+            assert!(
+                state.update_duals(),
+                "case 14 failed dual update before exposing the fallback-dependent expand state at outer_iter={outer_iter}"
+            );
+        }
+
+        panic!(
+            "case 14 did not expose the fallback-dependent expand state within the search budget"
+        );
+    }
+
+    #[test]
+    fn test_case_14_next_primal_event_at_head_checkpoint() {
+        let edges = case_honggfuzz_sigabrt_14_edges();
+        let g = build_graph(18, &edges);
+        let leaked = Box::leak(Box::new(g));
+        let mut state = BlossomVState::new(leaked);
+        state.init_global();
+
+        for outer_iter in 0..128 {
+            let roots = state.current_root_list();
+            let at_head_checkpoint = roots == vec![19, 20]
+                && state.scheduler_trees[19].pq0 == vec![33]
+                && state.scheduler_trees[19].pq00_local == vec![47, 36, 38]
+                && state.scheduler_trees[19].pq_blossoms.is_empty()
+                && state.scheduler_trees[20].pq0 == vec![32, 21]
+                && state.scheduler_trees[20].pq00_local == vec![22]
+                && state.scheduler_trees[20].pq_blossoms.is_empty()
+                && state.scheduler_tree_edges[5].head == [20, 19]
+                && state.scheduler_tree_edges[5].pq00 == vec![42, 40]
+                && state.scheduler_tree_edges[5].pq01[0].is_empty()
+                && state.scheduler_tree_edges[5].pq01[1].is_empty();
+
+            if at_head_checkpoint {
+                let eps19 = state.tree_eps(19);
+                let eps20 = state.tree_eps(20);
+                let shrink19 = state.find_tree_shrink_edge_with_cap(19, eps19.saturating_mul(2));
+                let shrink20 = state.find_tree_shrink_edge_with_cap(20, eps20.saturating_mul(2));
+                let expand19 = state.find_tree_expand_blossom_with_eps(19, eps19);
+                let expand20 = state.find_tree_expand_blossom_with_eps(20, eps20);
+                let fallback = find_global_expand_fallback_blossom_for_test(&state);
+                let before = state.test_generic_primal_steps().len();
+                assert!(
+                    state.generic_primal_pass_once(),
+                    "case 14 checkpoint should still make primal progress"
+                );
+                let step = &state.test_generic_primal_steps()[before];
+                assert_eq!(
+                    step.event,
+                    GenericPrimalEvent::Expand { blossom: 18 },
+                    "case 14 diverged from committed HEAD at the checkpoint in outer_iter={outer_iter}; eps19={eps19} eps20={eps20} shrink19={shrink19:?} shrink20={shrink20:?} expand19={expand19:?} expand20={expand20:?} fallback={fallback:?} owner40={:?} owner42={:?} owner44={:?} pq_blossoms19={:?} pq_blossoms20={:?}",
+                    state.edge_queue_owner(40),
+                    state.edge_queue_owner(42),
+                    state.edge_queue_owner(44),
+                    state.scheduler_trees[19].pq_blossoms,
+                    state.scheduler_trees[20].pq_blossoms,
+                );
+                return;
+            }
+
+            let mut progressed = true;
+            let mut inner_iters = 0usize;
+            while progressed {
+                progressed = state.generic_primal_pass_once();
+                inner_iters += usize::from(progressed);
+                assert!(inner_iters <= 2048, "case 14 exceeded the inner-step budget");
+                assert!(
+                    state.tree_num != 0,
+                    "case 14 solved before reaching the committed-HEAD checkpoint"
+                );
+            }
+
+            assert!(
+                state.update_duals(),
+                "case 14 failed dual update before reaching the committed-HEAD checkpoint at outer_iter={outer_iter}"
+            );
+        }
+
+        panic!("case 14 never reached the committed-HEAD checkpoint within the search budget");
     }
 
     #[test]
@@ -11631,7 +11751,6 @@ mod tests {
             edge.next = [NONE; 2];
             edge.prev = [NONE; 2];
             edge.slack = 0;
-            edge.queue_state = GenericQueueState::None;
         }
 
         let root = 5u32;
@@ -11727,7 +11846,6 @@ mod tests {
             edge.next = [NONE; 2];
             edge.prev = [NONE; 2];
             edge.slack = 0;
-            edge.queue_state = GenericQueueState::None;
         }
 
         let lca = 0u32;
@@ -11794,7 +11912,7 @@ mod tests {
 
         assert_eq!(state.edges[boundary_edge as usize].head[1], new_blossom);
         assert_eq!(
-            state.edges[boundary_edge as usize].queue_state,
+            state.edge_queue_owner(boundary_edge),
             GenericQueueState::Pq0 { root: new_blossom }
         );
         assert_eq!(state.edges[boundary_edge as usize].slack, 19);
@@ -11833,15 +11951,15 @@ mod tests {
         state.set_generic_pq0(0, blossom);
         state.set_generic_pq0(1, blossom);
 
-        state.edges[0].queue_stamp = 11;
-        state.edges[1].queue_stamp = 10;
+        state.set_edge_queue_stamp(0, 11);
+        state.set_edge_queue_stamp(1, 10);
 
         assert_eq!(state.scheduler_tree_best_pq0_edge(blossom), Some(0));
 
         state.rebuild_generic_queue_membership_for_outer_blossom(blossom);
 
-        assert_eq!(state.edges[0].queue_stamp, 11);
-        assert_eq!(state.edges[1].queue_stamp, 10);
+        assert_eq!(state.edge_queue_stamp(0), 11);
+        assert_eq!(state.edge_queue_stamp(1), 10);
         assert_eq!(state.scheduler_tree_best_pq0_edge(blossom), Some(0));
     }
 
@@ -11866,7 +11984,6 @@ mod tests {
             edge.next = [NONE; 2];
             edge.prev = [NONE; 2];
             edge.slack = 0;
-            edge.queue_state = GenericQueueState::None;
         }
 
         state.nodes[root as usize].flag = PLUS;
@@ -11924,7 +12041,6 @@ mod tests {
             edge.next = [NONE; 2];
             edge.prev = [NONE; 2];
             edge.slack = 0;
-            edge.queue_state = GenericQueueState::None;
         }
 
         state.nodes[root as usize].flag = PLUS;
@@ -11999,7 +12115,7 @@ mod tests {
         state.edges[e_idx as usize].slack = 5;
         state.set_generic_pq00(e_idx, 0, 1);
 
-        assert_eq!(state.find_global_augment_edge(), Some((e_idx, 0, 1)));
+        assert_eq!(state.find_scheduler_global_augment_edge(), Some((e_idx, 0, 1)));
     }
 
     #[test]
@@ -12038,7 +12154,7 @@ mod tests {
 
         state.prepare_tree_for_augment(0, &[0]);
 
-        assert_eq!(state.edges[e_idx as usize].queue_state, GenericQueueState::Pq0 { root: 3 });
+        assert_eq!(state.edge_queue_owner(e_idx), GenericQueueState::Pq0 { root: 3 });
         assert!(state.generic_trees[3].pq0.contains(&e_idx));
         assert!(state.scheduler_trees[3].pq0.contains(&e_idx));
     }
@@ -12075,7 +12191,7 @@ mod tests {
 
         state.prepare_tree_for_augment(0, &[0]);
 
-        assert_eq!(state.edges[e_idx as usize].queue_state, GenericQueueState::None);
+        assert_eq!(state.edge_queue_owner(e_idx), GenericQueueState::None);
         assert!(state.scheduler_trees[0].pq0.is_empty());
         assert!(state.generic_trees[0].pq0.is_empty());
         assert_eq!(state.edges[e_idx as usize].slack, 3);
@@ -12120,6 +12236,87 @@ mod tests {
         state.prepare_tree_for_augment(0, &[0]);
 
         assert_eq!(state.scheduler_trees[3].current, SchedulerCurrent::None);
+    }
+
+    #[test]
+    fn test_queue_processed_plus_blossom_match_edge_promotes_owned_edge_into_pq_blossoms() {
+        let g = build_graph(2, &[(0, 1, 5)]);
+        let mut state = BlossomVState::new(&g);
+        let plus = 1u32;
+        let root = 0u32;
+        let blossom = state.nodes.len() as u32;
+        let match_edge = 0u32;
+
+        state.nodes[root as usize].flag = PLUS;
+        state.nodes[root as usize].is_outer = true;
+        state.nodes[root as usize].is_tree_root = true;
+        state.nodes[root as usize].is_processed = true;
+        state.nodes[root as usize].tree_root = root;
+
+        state.nodes[plus as usize].flag = PLUS;
+        state.nodes[plus as usize].is_outer = true;
+        state.nodes[plus as usize].is_tree_root = false;
+        state.nodes[plus as usize].is_processed = true;
+        state.nodes[plus as usize].tree_root = root;
+        state.nodes[plus as usize].match_arc = make_arc(match_edge, 0);
+
+        let mut blossom_node = Node::new_vertex();
+        blossom_node.is_blossom = true;
+        blossom_node.is_outer = true;
+        blossom_node.flag = MINUS;
+        blossom_node.is_processed = true;
+        blossom_node.tree_root = root;
+        blossom_node.match_arc = make_arc(match_edge, 1);
+        state.nodes.push(blossom_node);
+
+        state.edges[match_edge as usize].head = [blossom, plus];
+        state.edges[match_edge as usize].head0 = [blossom, plus];
+
+        state.set_generic_pq0(match_edge, root);
+
+        state.queue_processed_plus_blossom_match_edge(plus);
+
+        assert_eq!(state.edge_queue_owner(match_edge), GenericQueueState::PqBlossoms { root });
+        assert!(state.scheduler_trees[root as usize].pq_blossoms.contains(&match_edge));
+    }
+
+    #[test]
+    fn test_rebuild_outer_blossom_queue_membership_requeues_match_edge_into_pq_blossoms() {
+        let g = build_graph(2, &[(0, 1, 5)]);
+        let mut state = BlossomVState::new(&g);
+        let plus = 1u32;
+        let root = 0u32;
+        let blossom = state.nodes.len() as u32;
+        let match_edge = 0u32;
+
+        state.nodes[root as usize].flag = PLUS;
+        state.nodes[root as usize].is_outer = true;
+        state.nodes[root as usize].is_tree_root = true;
+        state.nodes[root as usize].is_processed = true;
+        state.nodes[root as usize].tree_root = root;
+
+        state.nodes[plus as usize].flag = PLUS;
+        state.nodes[plus as usize].is_outer = true;
+        state.nodes[plus as usize].is_tree_root = false;
+        state.nodes[plus as usize].is_processed = true;
+        state.nodes[plus as usize].tree_root = root;
+
+        let mut blossom_node = Node::new_vertex();
+        blossom_node.is_blossom = true;
+        blossom_node.is_outer = true;
+        blossom_node.flag = MINUS;
+        blossom_node.is_processed = true;
+        blossom_node.tree_root = root;
+        blossom_node.match_arc = make_arc(match_edge, 1);
+        state.nodes.push(blossom_node);
+
+        state.edges[match_edge as usize].head = [blossom, plus];
+        state.edges[match_edge as usize].head0 = [blossom, plus];
+
+        state.rebuild_generic_queue_membership_for_outer_blossom(blossom);
+
+        assert_eq!(state.edge_queue_owner(match_edge), GenericQueueState::PqBlossoms { root });
+        assert!(state.scheduler_trees[root as usize].pq_blossoms.contains(&match_edge));
     }
 
     #[test]
@@ -12248,7 +12445,7 @@ mod tests {
 
         state.clear_generic_queues_for_root(0);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::None);
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
         assert_eq!(state.scheduler_tree_edges[0].head, [2, NONE]);
         assert_eq!(state.generic_pairs[0].head, [2, NONE]);
     }
@@ -12262,10 +12459,10 @@ mod tests {
         state.set_generic_pq00(1, 0, 0);
         state.set_generic_pq_blossoms(2, 0);
         state.set_generic_pq00(3, 0, 2);
-        let pq0_stamp = state.edges[0].queue_stamp;
-        let pq00_local_stamp = state.edges[1].queue_stamp;
-        let pq_blossoms_stamp = state.edges[2].queue_stamp;
-        let pair_stamp = state.edges[3].queue_stamp;
+        let pq0_stamp = state.edge_queue_stamp(0);
+        let pq00_local_stamp = state.edge_queue_stamp(1);
+        let pq_blossoms_stamp = state.edge_queue_stamp(2);
+        let pair_stamp = state.edge_queue_stamp(3);
 
         state.generic_trees[0].pq0.clear();
         state.generic_trees[0].pq00_local.clear();
@@ -12273,14 +12470,14 @@ mod tests {
 
         state.replace_generic_queue_root(0, 1);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq0 { root: 1 });
-        assert_eq!(state.edges[1].queue_state, GenericQueueState::Pq00Local { root: 1 });
-        assert_eq!(state.edges[2].queue_state, GenericQueueState::PqBlossoms { root: 1 });
-        assert_eq!(state.edges[3].queue_state, GenericQueueState::Pq00Pair { pair_idx: 0 });
-        assert_eq!(state.edges[0].queue_stamp, pq0_stamp);
-        assert_eq!(state.edges[1].queue_stamp, pq00_local_stamp);
-        assert_eq!(state.edges[2].queue_stamp, pq_blossoms_stamp);
-        assert_eq!(state.edges[3].queue_stamp, pair_stamp);
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq0 { root: 1 });
+        assert_eq!(state.edge_queue_owner(1), GenericQueueState::Pq00Local { root: 1 });
+        assert_eq!(state.edge_queue_owner(2), GenericQueueState::PqBlossoms { root: 1 });
+        assert_eq!(state.edge_queue_owner(3), GenericQueueState::Pq00Pair { pair_idx: 0 });
+        assert_eq!(state.edge_queue_stamp(0), pq0_stamp);
+        assert_eq!(state.edge_queue_stamp(1), pq00_local_stamp);
+        assert_eq!(state.edge_queue_stamp(2), pq_blossoms_stamp);
+        assert_eq!(state.edge_queue_stamp(3), pair_stamp);
         assert_eq!(state.scheduler_tree_edges[0].head, [2, 1]);
         assert_eq!(state.generic_pairs[0].head, [2, 1]);
     }
@@ -12338,7 +12535,7 @@ mod tests {
             state.scheduler_trees[2].current,
             SchedulerCurrent::Pair { pair_idx: 0, dir: 0 }
         );
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
         assert_eq!(state.generic_pairs[0].pq01[0], vec![0]);
         assert_eq!(state.scheduler_tree_edges[0].pq01[0], vec![0]);
     }
@@ -12368,7 +12565,7 @@ mod tests {
 
         state.set_generic_pq01_other_side(0, 0, 2);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
         assert_eq!(state.generic_pairs[0].pq01[0], vec![0]);
         assert_eq!(state.scheduler_tree_edges[0].pq01[0], vec![0]);
     }
@@ -12384,7 +12581,7 @@ mod tests {
 
         state.set_generic_pq01_pair_slot(0, 0, 0, false);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq01Pair { pair_idx: 0, dir: 0 });
         assert_eq!(state.scheduler_tree_edges[0].pq01[0], vec![0]);
     }
 
@@ -12399,7 +12596,7 @@ mod tests {
 
         state.set_generic_pq00_pair_slot(0, 0, false);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq00Pair { pair_idx: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq00Pair { pair_idx: 0 });
         assert_eq!(state.scheduler_tree_edges[0].pq00, vec![0]);
     }
 
@@ -12430,7 +12627,7 @@ mod tests {
         assert_eq!(e_idx, 0);
         assert!((left == 0 && right == 1) || (left == 1 && right == 0));
         assert_eq!(slack, state.edges[0].slack);
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq00Local { root: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq00Local { root: 0 });
     }
 
     #[test]
@@ -12491,11 +12688,11 @@ mod tests {
 
         assert!(state.nodes[0].is_processed);
         assert!(state.scheduler_trees[0].pq0.contains(&0));
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::Pq0 { root: 0 });
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq0 { root: 0 });
         assert_eq!(state.generic_pairs.len(), 1);
         assert_eq!(state.scheduler_tree_edges[0].head, [2, 0]);
         assert!(state.scheduler_tree_edges[0].pq00.contains(&1));
-        assert_eq!(state.edges[1].queue_state, GenericQueueState::Pq00Pair { pair_idx: 0 });
+        assert_eq!(state.edge_queue_owner(1), GenericQueueState::Pq00Pair { pair_idx: 0 });
     }
 
     #[test]
@@ -12630,9 +12827,9 @@ mod tests {
 
         state.detach_generic_root_after_augment(0);
 
-        assert_eq!(state.edges[0].queue_state, GenericQueueState::None);
-        assert_eq!(state.edges[1].queue_state, GenericQueueState::None);
-        assert_eq!(state.edges[2].queue_state, GenericQueueState::None);
+        assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
+        assert_eq!(state.edge_queue_owner(1), GenericQueueState::None);
+        assert_eq!(state.edge_queue_owner(2), GenericQueueState::None);
         assert!(state.scheduler_trees[0].pq0.is_empty());
         assert!(state.scheduler_trees[0].pq00_local.is_empty());
         assert!(state.scheduler_trees[0].pq_blossoms.is_empty());

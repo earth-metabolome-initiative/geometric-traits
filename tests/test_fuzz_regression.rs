@@ -660,6 +660,48 @@ fn test_replay_blossom_v_honggfuzz_sigabrt_case_8() {
 }
 
 #[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_9() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_9.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 9", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_10() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_10.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 10", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_11() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_11.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 11", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_12() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_12.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 12", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_13() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_13.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 13", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_14() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_14.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 14", &pattern);
+}
+
+#[test]
 fn test_replay_hopcroft_karp_corpus() {
     for instance in replay_shared_fixture::<TestCSR>() {
         let _ = instance.hopcroft_karp();
