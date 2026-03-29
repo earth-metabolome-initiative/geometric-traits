@@ -29,9 +29,8 @@ use super::{
     line_graph::LineGraph,
     maximum_clique::{
         MaximumClique, PartitionInfo, PartitionSide, all_best_search,
-        choose_partition_side_by_atom_counts,
-        experimental_partial_search_u32_with_bounds,
-        experimental_partial_u32_best_size_with_budget, greedy_lower_bound, partial_search,
+        choose_partition_side_by_atom_counts, greedy_lower_bound, partial_search,
+        partial_search_u32_with_bounds, partial_u32_best_size_with_budget,
     },
     modular_product::ModularProduct,
 };
@@ -505,7 +504,7 @@ where
             let best_size_seed =
                 partial_best_size_seed(matrix, partition, initial_lower_bound, &mut accept_clique);
 
-            experimental_partial_search_u32_with_bounds(
+            partial_search_u32_with_bounds(
                 matrix,
                 partition,
                 initial_lower_bound,
@@ -591,7 +590,7 @@ where
         partition.partition_side
     };
     let probe_partition = partition_info_with_side(partition, probe_side);
-    let (probe_best_size, _) = experimental_partial_u32_best_size_with_budget(
+    let probe_best_size = partial_u32_best_size_with_budget(
         matrix,
         &probe_partition,
         initial_lower_bound,
