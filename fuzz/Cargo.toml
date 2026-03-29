@@ -167,6 +167,18 @@ test = false
 doc = false
 
 [[bin]]
+name = "blossom_v"
+path = "fuzz_targets/blossom_v.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "blossom_v_structured"
+path = "fuzz_targets/blossom_v_structured.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "micali_vazirani"
 path = "fuzz_targets/micali_vazirani.rs"
 test = false
