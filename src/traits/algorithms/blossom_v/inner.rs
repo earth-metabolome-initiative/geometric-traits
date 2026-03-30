@@ -90,6 +90,9 @@ struct Node {
     blossom_sibling_arc: u32,
     /// Parent blossom node index.
     blossom_parent: u32,
+    /// A direct child of this blossom, used as a stable entry point when
+    /// expanding the blossom back into its cycle.
+    blossom_child: u32,
     /// Snapshot of tree eps when this node was shrunk into a blossom.
     blossom_eps: i64,
     /// Head of the self-loop edge list for this blossom.
@@ -117,6 +120,7 @@ impl Node {
             tree_eps: 0,
             blossom_sibling_arc: NONE,
             blossom_parent: NONE,
+            blossom_child: NONE,
             blossom_eps: 0,
             blossom_selfloops: NONE,
             blossom_grandparent: NONE,
@@ -161,6 +165,38 @@ impl PQKeyStore for [Edge] {
     #[inline]
     fn set_key(&mut self, idx: u32, key: i64) {
         self[idx as usize].slack = key;
+    }
+}
+
+struct EdgeQueueKeyStore<'a> {
+    edges: &'a mut [Edge],
+    stamps: &'a [u64],
+}
+
+impl<'a> EdgeQueueKeyStore<'a> {
+    #[inline]
+    fn new(edges: &'a mut [Edge], stamps: &'a [u64]) -> Self {
+        Self { edges, stamps }
+    }
+}
+
+impl PQKeyStore for EdgeQueueKeyStore<'_> {
+    #[inline]
+    fn get_key(&self, idx: u32) -> i64 {
+        self.edges[idx as usize].slack
+    }
+
+    #[inline]
+    fn set_key(&mut self, idx: u32, key: i64) {
+        self.edges[idx as usize].slack = key;
+    }
+
+    #[inline]
+    fn less(&self, lhs: u32, rhs: u32) -> bool {
+        let lhs_slack = self.edges[lhs as usize].slack;
+        let rhs_slack = self.edges[rhs as usize].slack;
+        lhs_slack < rhs_slack
+            || (lhs_slack == rhs_slack && self.stamps[lhs as usize] > self.stamps[rhs as usize])
     }
 }
 
@@ -213,7 +249,11 @@ struct PersistentTreeEdgeState {
 struct BlossomVScratch {
     incident_edges: Vec<(u32, usize)>,
     queue_edges: Vec<u32>,
+    edge_seen: Vec<bool>,
+    node_seen_stamp: Vec<u32>,
+    node_seen_epoch: u32,
     incident_pairs: Vec<(usize, usize)>,
+    pair_marks: Vec<u8>,
     tree_members_u: Vec<u32>,
     tree_members_v: Vec<u32>,
     members_mask: Vec<bool>,
@@ -936,30 +976,20 @@ where
         progressed
     }
 
-    fn scheduler_tree_best_pq0_edge(&self, root: u32) -> Option<u32> {
-        if (root as usize) >= self.scheduler_trees.len() {
-            return None;
-        }
-        let mut best = None;
-        let mut best_slack = i64::MAX;
-        let mut best_stamp = 0u64;
-        for &e_idx in &self.scheduler_trees[root as usize].pq0 {
-            if (e_idx as usize) >= self.edge_num {
-                continue;
-            }
-            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::Pq0 { root: q_root } if q_root == root)
+    fn scheduler_tree_best_pq0_edge(&mut self, root: u32) -> Option<u32> {
+        loop {
+            let e_idx = self.scheduler_tree_heap_min_pq0_edge(root)?;
+            if (e_idx as usize) >= self.edge_num
+                || !matches!(
+                    self.edge_queue_owner(e_idx),
+                    GenericQueueState::Pq0 { root: q_root } if q_root == root
+                )
             {
+                self.remove_edge_from_generic_queue(e_idx);
                 continue;
             }
-            let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edge_queue_stamp(e_idx);
-            if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
-                best = Some(e_idx);
-                best_slack = slack;
-                best_stamp = stamp;
-            }
+            return Some(e_idx);
         }
-        best
     }
 
     #[inline]
@@ -1006,30 +1036,20 @@ where
         }
     }
 
-    fn scheduler_tree_best_pq_blossom_edge(&self, root: u32) -> Option<u32> {
-        if (root as usize) >= self.scheduler_trees.len() {
-            return None;
-        }
-        let mut best = None;
-        let mut best_slack = i64::MAX;
-        let mut best_stamp = 0u64;
-        for &e_idx in &self.scheduler_trees[root as usize].pq_blossoms {
-            if (e_idx as usize) >= self.edge_num {
-                continue;
-            }
-            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::PqBlossoms { root: q_root } if q_root == root)
+    fn scheduler_tree_best_pq_blossom_edge(&mut self, root: u32) -> Option<u32> {
+        loop {
+            let e_idx = self.scheduler_tree_heap_min_pq_blossom_edge(root)?;
+            if (e_idx as usize) >= self.edge_num
+                || !matches!(
+                    self.edge_queue_owner(e_idx),
+                    GenericQueueState::PqBlossoms { root: q_root } if q_root == root
+                )
             {
+                self.remove_edge_from_generic_queue(e_idx);
                 continue;
             }
-            let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edge_queue_stamp(e_idx);
-            if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
-                best = Some(e_idx);
-                best_slack = slack;
-                best_stamp = stamp;
-            }
+            return Some(e_idx);
         }
-        best
     }
 
     #[inline]
@@ -1091,19 +1111,20 @@ where
     }
 
     fn scheduler_tree_edge_best_pq00_edge(
-        &self,
+        &mut self,
         pair_idx: usize,
         root: u32,
         other_root: u32,
     ) -> Option<u32> {
-        if pair_idx >= self.scheduler_tree_edges.len() {
-            return None;
-        }
-        let mut best = None;
-        let mut best_slack = i64::MAX;
-        let mut best_stamp = 0u64;
-        for &e_idx in &self.scheduler_tree_edges[pair_idx].pq00 {
-            if (e_idx as usize) >= self.edge_num {
+        loop {
+            let e_idx = self.scheduler_tree_edge_heap_min_pq00_edge(pair_idx)?;
+            if (e_idx as usize) >= self.edge_num
+                || !matches!(
+                    self.edge_queue_owner(e_idx),
+                    GenericQueueState::Pq00Pair { pair_idx: q_pair_idx } if q_pair_idx == pair_idx
+                )
+            {
+                self.remove_edge_from_generic_queue(e_idx);
                 continue;
             }
             let left = self.edge_head_outer(e_idx, 0);
@@ -1123,17 +1144,11 @@ where
             let matches_pair = (root_left == root && root_right == other_root)
                 || (root_left == other_root && root_right == root);
             if !matches_pair {
+                self.remove_edge_from_generic_queue(e_idx);
                 continue;
             }
-            let slack = self.edges[e_idx as usize].slack;
-            let stamp = self.edge_queue_stamp(e_idx);
-            if best.is_none() || slack < best_slack || (slack == best_slack && stamp > best_stamp) {
-                best = Some(e_idx);
-                best_slack = slack;
-                best_stamp = stamp;
-            }
+            return Some(e_idx);
         }
-        best
     }
 
     #[inline]
@@ -1412,7 +1427,7 @@ where
     }
 
     #[cfg(test)]
-    fn find_scheduler_global_augment_edge(&self) -> Option<(u32, u32, u32)> {
+    fn find_scheduler_global_augment_edge(&mut self) -> Option<(u32, u32, u32)> {
         let mut best: Option<(i64, u32, u32, u32)> = None;
         let mut root = self.root_list_head;
         let mut seen = vec![false; self.nodes.len()];
@@ -1682,6 +1697,215 @@ where
         }
     }
 
+    #[inline]
+    fn build_dual_root_index(&self, roots: &[u32], root_to_var: &mut Vec<usize>) {
+        root_to_var.clear();
+        root_to_var.resize(self.nodes.len(), usize::MAX);
+        for (var, &root) in roots.iter().enumerate() {
+            root_to_var[root as usize] = var;
+        }
+    }
+
+    fn seed_dual_local_caps(&mut self, roots: &[u32], inf_cap: i64, local_caps: &mut Vec<i64>) {
+        local_caps.clear();
+        local_caps.resize(roots.len(), inf_cap);
+        for (var, &root) in roots.iter().enumerate() {
+            let local_abs_eps = self.compute_tree_local_eps(root);
+            if local_abs_eps != i64::MAX {
+                local_caps[var] = local_caps[var].min(local_abs_eps - self.tree_eps(root));
+            }
+        }
+    }
+
+    fn reset_dual_pair_tree_caps(
+        &self,
+        inf_cap: i64,
+        pair_tree_eps00: &mut Vec<i64>,
+        pair_tree_eps01_dir0: &mut Vec<i64>,
+        pair_tree_eps01_dir1: &mut Vec<i64>,
+        pair_tree_ready: &mut Vec<bool>,
+    ) {
+        pair_tree_eps00.clear();
+        pair_tree_eps01_dir0.clear();
+        pair_tree_eps01_dir1.clear();
+        pair_tree_ready.clear();
+        pair_tree_eps00.resize(self.scheduler_tree_edges.len(), inf_cap);
+        pair_tree_eps01_dir0.resize(self.scheduler_tree_edges.len(), inf_cap);
+        pair_tree_eps01_dir1.resize(self.scheduler_tree_edges.len(), inf_cap);
+        pair_tree_ready.resize(self.scheduler_tree_edges.len(), false);
+    }
+
+    fn ensure_dual_pair_tree_caps(
+        &mut self,
+        tree_edge_idx: usize,
+        root_to_var: &[usize],
+        pair_tree_eps00: &mut [i64],
+        pair_tree_eps01_dir0: &mut [i64],
+        pair_tree_eps01_dir1: &mut [i64],
+        pair_tree_ready: &mut [bool],
+    ) {
+        if pair_tree_ready[tree_edge_idx] {
+            return;
+        }
+
+        let root_left = self.scheduler_tree_edges[tree_edge_idx].head[0];
+        let root_right = self.scheduler_tree_edges[tree_edge_idx].head[1];
+        if root_left != NONE
+            && root_right != NONE
+            && (root_left as usize) < root_to_var.len()
+            && (root_right as usize) < root_to_var.len()
+            && root_to_var[root_left as usize] != usize::MAX
+            && root_to_var[root_right as usize] != usize::MAX
+        {
+            let eps_left = self.tree_eps(root_left);
+            let eps_right = self.tree_eps(root_right);
+
+            if let Some(e_idx) = self.scheduler_tree_edge_min_pq00_edge_for_duals(
+                tree_edge_idx,
+                root_left,
+                root_right,
+            ) {
+                pair_tree_eps00[tree_edge_idx] =
+                    self.edges[e_idx as usize].slack - eps_left - eps_right;
+            }
+            if let Some(e_idx) = self.scheduler_tree_edge_min_pq01_edge_for_duals(
+                tree_edge_idx,
+                0,
+                root_right,
+                root_left,
+            ) {
+                pair_tree_eps01_dir0[tree_edge_idx] =
+                    self.edges[e_idx as usize].slack - eps_right + eps_left;
+            }
+            if let Some(e_idx) = self.scheduler_tree_edge_min_pq01_edge_for_duals(
+                tree_edge_idx,
+                1,
+                root_left,
+                root_right,
+            ) {
+                pair_tree_eps01_dir1[tree_edge_idx] =
+                    self.edges[e_idx as usize].slack - eps_left + eps_right;
+            }
+        }
+
+        pair_tree_ready[tree_edge_idx] = true;
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn compute_dual_component_eps(
+        &mut self,
+        start: usize,
+        roots: &[u32],
+        root_to_var: &[usize],
+        local_caps: &[i64],
+        fixed_tree: usize,
+        inf_cap: i64,
+        deltas: &[i64],
+        pair_tree_eps00: &mut [i64],
+        pair_tree_eps01_dir0: &mut [i64],
+        pair_tree_eps01_dir1: &mut [i64],
+        pair_tree_ready: &mut [bool],
+        marks: &mut [usize],
+        queue: &mut Vec<usize>,
+        component: &mut Vec<usize>,
+    ) -> Option<i64> {
+        queue.clear();
+        component.clear();
+        queue.push(start);
+        component.push(start);
+        marks[start] = start;
+
+        let mut queue_head = 0usize;
+        let mut eps = local_caps[start];
+
+        while queue_head < queue.len() {
+            let t = queue[queue_head];
+            queue_head += 1;
+            let t_root = roots[t];
+            for dir in 0..2usize {
+                let mut pair_cursor = if (t_root as usize) < self.scheduler_trees.len() {
+                    self.scheduler_trees[t_root as usize].first[dir]
+                } else {
+                    None
+                };
+                while let Some(tree_edge_idx) = pair_cursor {
+                    let next_pair = self.scheduler_tree_edges[tree_edge_idx].next[dir];
+                    let Some(other_root) = self.scheduler_tree_edge_other(tree_edge_idx, t_root)
+                    else {
+                        pair_cursor = next_pair;
+                        continue;
+                    };
+                    if (other_root as usize) >= root_to_var.len() {
+                        pair_cursor = next_pair;
+                        continue;
+                    }
+                    let t2 = root_to_var[other_root as usize];
+                    if t2 == usize::MAX || t == t2 {
+                        pair_cursor = next_pair;
+                        continue;
+                    }
+
+                    self.ensure_dual_pair_tree_caps(
+                        tree_edge_idx,
+                        root_to_var,
+                        pair_tree_eps00,
+                        pair_tree_eps01_dir0,
+                        pair_tree_eps01_dir1,
+                        pair_tree_ready,
+                    );
+
+                    let eps00 = pair_tree_eps00[tree_edge_idx];
+                    if marks[t2] == start {
+                        if eps00 < inf_cap {
+                            eps = eps.min(eps00 / 2);
+                        }
+                        pair_cursor = next_pair;
+                        continue;
+                    }
+
+                    let eps01_forward = if dir == 0 {
+                        pair_tree_eps01_dir0[tree_edge_idx]
+                    } else {
+                        pair_tree_eps01_dir1[tree_edge_idx]
+                    };
+                    let reverse_dir = 1 - dir;
+                    let eps01_reverse = if reverse_dir == 0 {
+                        pair_tree_eps01_dir0[tree_edge_idx]
+                    } else {
+                        pair_tree_eps01_dir1[tree_edge_idx]
+                    };
+
+                    let eps2 = if marks[t2] == fixed_tree {
+                        deltas[t2]
+                    } else if eps01_forward > 0 && eps01_reverse > 0 {
+                        0
+                    } else {
+                        marks[t2] = start;
+                        queue.push(t2);
+                        component.push(t2);
+                        eps = eps.min(local_caps[t2]);
+                        if eps00 < inf_cap {
+                            eps = eps.min(eps00);
+                        }
+                        pair_cursor = next_pair;
+                        continue;
+                    };
+
+                    if eps00 < inf_cap {
+                        eps = eps.min(eps00 - eps2);
+                    }
+                    if eps01_forward < inf_cap {
+                        eps = eps.min(eps2 + eps01_forward);
+                    }
+
+                    pair_cursor = next_pair;
+                }
+            }
+        }
+
+        (eps < inf_cap).then_some(eps)
+    }
+
     /// Iterate edges of node `v` (both directions), calling `f(edge_idx,
     /// head_dir, &edge)`.
     fn for_each_edge(&self, v: u32, mut f: impl FnMut(u32, usize, &Edge)) {
@@ -1753,6 +1977,36 @@ where
     }
 
     #[inline]
+    fn take_edge_seen_scratch(&mut self) -> Vec<bool> {
+        core::mem::take(&mut self.scratch.edge_seen)
+    }
+
+    #[inline]
+    fn restore_edge_seen_scratch(&mut self, scratch: Vec<bool>) {
+        self.scratch.edge_seen = scratch;
+    }
+
+    #[inline]
+    fn take_node_seen_stamp_scratch(&mut self) -> Vec<u32> {
+        core::mem::take(&mut self.scratch.node_seen_stamp)
+    }
+
+    #[inline]
+    fn restore_node_seen_stamp_scratch(&mut self, scratch: Vec<u32>) {
+        self.scratch.node_seen_stamp = scratch;
+    }
+
+    #[inline]
+    fn next_node_seen_epoch(&mut self, stamps: &mut [u32]) -> u32 {
+        self.scratch.node_seen_epoch = self.scratch.node_seen_epoch.wrapping_add(1);
+        if self.scratch.node_seen_epoch == 0 {
+            stamps.fill(0);
+            self.scratch.node_seen_epoch = 1;
+        }
+        self.scratch.node_seen_epoch
+    }
+
+    #[inline]
     fn take_incident_pairs_scratch(&mut self) -> Vec<(usize, usize)> {
         core::mem::take(&mut self.scratch.incident_pairs)
     }
@@ -1761,6 +2015,16 @@ where
     fn restore_incident_pairs_scratch(&mut self, mut scratch: Vec<(usize, usize)>) {
         scratch.clear();
         self.scratch.incident_pairs = scratch;
+    }
+
+    #[inline]
+    fn take_pair_marks_scratch(&mut self) -> Vec<u8> {
+        core::mem::take(&mut self.scratch.pair_marks)
+    }
+
+    #[inline]
+    fn restore_pair_marks_scratch(&mut self, scratch: Vec<u8>) {
+        self.scratch.pair_marks = scratch;
     }
 
     #[inline]
@@ -1791,8 +2055,7 @@ where
     }
 
     #[inline]
-    fn restore_members_mask_scratch(&mut self, mut scratch: Vec<bool>) {
-        scratch.clear();
+    fn restore_members_mask_scratch(&mut self, scratch: Vec<bool>) {
         self.scratch.members_mask = scratch;
     }
 
@@ -1832,12 +2095,6 @@ where
     fn incident_edges(&self, v: u32) -> Vec<(u32, usize)> {
         let mut incident = Vec::new();
         self.for_each_edge(v, |e_idx, dir, _| incident.push((e_idx, dir)));
-        incident
-    }
-
-    fn raw_incident_edges(&self, v: u32) -> Vec<(u32, usize)> {
-        let mut incident = Vec::new();
-        self.collect_raw_incident_edges_into(v, &mut incident);
         incident
     }
 
@@ -2588,13 +2845,17 @@ where
 
     fn fill_current_root_list(&self, roots: &mut Vec<u32>, seen: &mut Vec<bool>) {
         roots.clear();
-        seen.clear();
-        seen.resize(self.nodes.len(), false);
+        if seen.len() != self.nodes.len() {
+            seen.resize(self.nodes.len(), false);
+        }
         let mut current = self.root_list_head;
         while current != NONE && (current as usize) < self.nodes.len() && !seen[current as usize] {
             seen[current as usize] = true;
             roots.push(current);
             current = self.nodes[current as usize].tree_sibling_next;
+        }
+        for &root in roots.iter() {
+            seen[root as usize] = false;
         }
     }
 
@@ -2853,23 +3114,28 @@ where
         self.ensure_scheduler_tree_slot(root);
         let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
+        let new_stamp = if preserve_stamp {
+            old_stamp
+        } else {
+            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
+            self.generic_queue_epoch
+        };
+        self.set_edge_queue_stamp(e_idx, new_stamp);
         Self::vec_push_edge(
             &mut self.scheduler_trees[root as usize].pq0,
             self.edge_queue_slot.as_mut_slice(),
             e_idx,
         );
-        self.scheduler_trees[root as usize].pq0_heap.add(
-            e_idx,
-            self.edges.as_mut_slice(),
-            self.pq_nodes.as_mut_slice(),
-        );
-        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq0 { root });
-        if preserve_stamp {
-            self.set_edge_queue_stamp(e_idx, old_stamp);
-        } else {
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
+        {
+            let mut keys =
+                EdgeQueueKeyStore::new(self.edges.as_mut_slice(), self.edge_queue_stamp.as_slice());
+            self.scheduler_trees[root as usize].pq0_heap.add(
+                e_idx,
+                &mut keys,
+                self.pq_nodes.as_mut_slice(),
+            );
         }
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq0 { root });
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
     }
@@ -2887,23 +3153,28 @@ where
         self.ensure_scheduler_tree_slot(root);
         let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
+        let new_stamp = if preserve_stamp {
+            old_stamp
+        } else {
+            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
+            self.generic_queue_epoch
+        };
+        self.set_edge_queue_stamp(e_idx, new_stamp);
         Self::vec_push_edge(
             &mut self.scheduler_trees[root as usize].pq_blossoms,
             self.edge_queue_slot.as_mut_slice(),
             e_idx,
         );
-        self.scheduler_trees[root as usize].pq_blossoms_heap.add(
-            e_idx,
-            self.edges.as_mut_slice(),
-            self.pq_nodes.as_mut_slice(),
-        );
-        self.set_edge_queue_owner(e_idx, GenericQueueState::PqBlossoms { root });
-        if preserve_stamp {
-            self.set_edge_queue_stamp(e_idx, old_stamp);
-        } else {
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
+        {
+            let mut keys =
+                EdgeQueueKeyStore::new(self.edges.as_mut_slice(), self.edge_queue_stamp.as_slice());
+            self.scheduler_trees[root as usize].pq_blossoms_heap.add(
+                e_idx,
+                &mut keys,
+                self.pq_nodes.as_mut_slice(),
+            );
         }
+        self.set_edge_queue_owner(e_idx, GenericQueueState::PqBlossoms { root });
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
     }
@@ -2916,23 +3187,28 @@ where
         self.ensure_scheduler_tree_slot(root);
         let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
+        let new_stamp = if preserve_stamp {
+            old_stamp
+        } else {
+            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
+            self.generic_queue_epoch
+        };
+        self.set_edge_queue_stamp(e_idx, new_stamp);
         Self::vec_push_edge(
             &mut self.scheduler_trees[root as usize].pq00_local,
             self.edge_queue_slot.as_mut_slice(),
             e_idx,
         );
-        self.scheduler_trees[root as usize].pq00_local_heap.add(
-            e_idx,
-            self.edges.as_mut_slice(),
-            self.pq_nodes.as_mut_slice(),
-        );
-        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Local { root });
-        if preserve_stamp {
-            self.set_edge_queue_stamp(e_idx, old_stamp);
-        } else {
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
+        {
+            let mut keys =
+                EdgeQueueKeyStore::new(self.edges.as_mut_slice(), self.edge_queue_stamp.as_slice());
+            self.scheduler_trees[root as usize].pq00_local_heap.add(
+                e_idx,
+                &mut keys,
+                self.pq_nodes.as_mut_slice(),
+            );
         }
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Local { root });
         #[cfg(test)]
         self.sync_generic_root_queues_from_scheduler(root);
     }
@@ -2950,19 +3226,25 @@ where
             self.remove_edge_from_generic_queue(e_idx);
             let pair_idx = self.ensure_generic_tree_edge(left_root, right_root);
             self.ensure_scheduler_tree_edge_slot(pair_idx);
+            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
+            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
             Self::vec_push_edge(
                 &mut self.scheduler_tree_edges[pair_idx].pq00,
                 self.edge_queue_slot.as_mut_slice(),
                 e_idx,
             );
-            self.scheduler_tree_edges[pair_idx].pq00_heap.add(
-                e_idx,
-                self.edges.as_mut_slice(),
-                self.pq_nodes.as_mut_slice(),
-            );
+            {
+                let mut keys = EdgeQueueKeyStore::new(
+                    self.edges.as_mut_slice(),
+                    self.edge_queue_stamp.as_slice(),
+                );
+                self.scheduler_tree_edges[pair_idx].pq00_heap.add(
+                    e_idx,
+                    &mut keys,
+                    self.pq_nodes.as_mut_slice(),
+                );
+            }
             self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Pair { pair_idx });
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
             #[cfg(test)]
             self.sync_generic_pair_queues_from_scheduler(pair_idx);
         }
@@ -3023,27 +3305,33 @@ where
         self.ensure_scheduler_tree_edge_slot(pair_idx);
         let old_stamp = self.edge_queue_stamp(e_idx);
         self.remove_edge_from_generic_queue(e_idx);
+        let new_stamp = if preserve_stamp {
+            old_stamp
+        } else {
+            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
+            self.generic_queue_epoch
+        };
+        self.set_edge_queue_stamp(e_idx, new_stamp);
         Self::vec_push_edge(
             &mut self.scheduler_tree_edges[pair_idx].pq01[dir],
             self.edge_queue_slot.as_mut_slice(),
             e_idx,
         );
-        self.scheduler_tree_edges[pair_idx].pq01_heap[dir].add(
-            e_idx,
-            self.edges.as_mut_slice(),
-            self.pq_nodes.as_mut_slice(),
-        );
-        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq01Pair { pair_idx, dir });
-        if preserve_stamp {
-            self.set_edge_queue_stamp(e_idx, old_stamp);
-        } else {
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
+        {
+            let mut keys =
+                EdgeQueueKeyStore::new(self.edges.as_mut_slice(), self.edge_queue_stamp.as_slice());
+            self.scheduler_tree_edges[pair_idx].pq01_heap[dir].add(
+                e_idx,
+                &mut keys,
+                self.pq_nodes.as_mut_slice(),
+            );
         }
+        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq01Pair { pair_idx, dir });
         #[cfg(test)]
         self.sync_generic_pair_queues_from_scheduler(pair_idx);
     }
 
+    #[allow(clippy::too_many_lines)]
     fn remove_edge_from_generic_queue(&mut self, e_idx: u32) {
         if (e_idx as usize) >= self.edge_num {
             return;
@@ -3054,9 +3342,13 @@ where
             GenericQueueState::Pq0 { root } => {
                 if (root as usize) < self.scheduler_trees.len() {
                     if self.pq_nodes[e_idx as usize].is_in_heap() {
+                        let mut keys = EdgeQueueKeyStore::new(
+                            self.edges.as_mut_slice(),
+                            self.edge_queue_stamp.as_slice(),
+                        );
                         self.scheduler_trees[root as usize].pq0_heap.remove(
                             e_idx,
-                            self.edges.as_mut_slice(),
+                            &mut keys,
                             self.pq_nodes.as_mut_slice(),
                         );
                     }
@@ -3072,9 +3364,13 @@ where
             GenericQueueState::Pq00Local { root } => {
                 if (root as usize) < self.scheduler_trees.len() {
                     if self.pq_nodes[e_idx as usize].is_in_heap() {
+                        let mut keys = EdgeQueueKeyStore::new(
+                            self.edges.as_mut_slice(),
+                            self.edge_queue_stamp.as_slice(),
+                        );
                         self.scheduler_trees[root as usize].pq00_local_heap.remove(
                             e_idx,
-                            self.edges.as_mut_slice(),
+                            &mut keys,
                             self.pq_nodes.as_mut_slice(),
                         );
                     }
@@ -3090,9 +3386,13 @@ where
             GenericQueueState::Pq00Pair { pair_idx } => {
                 if pair_idx < self.scheduler_tree_edges.len() {
                     if self.pq_nodes[e_idx as usize].is_in_heap() {
+                        let mut keys = EdgeQueueKeyStore::new(
+                            self.edges.as_mut_slice(),
+                            self.edge_queue_stamp.as_slice(),
+                        );
                         self.scheduler_tree_edges[pair_idx].pq00_heap.remove(
                             e_idx,
-                            self.edges.as_mut_slice(),
+                            &mut keys,
                             self.pq_nodes.as_mut_slice(),
                         );
                     }
@@ -3108,9 +3408,13 @@ where
             GenericQueueState::Pq01Pair { pair_idx, dir } => {
                 if pair_idx < self.scheduler_tree_edges.len() {
                     if self.pq_nodes[e_idx as usize].is_in_heap() {
+                        let mut keys = EdgeQueueKeyStore::new(
+                            self.edges.as_mut_slice(),
+                            self.edge_queue_stamp.as_slice(),
+                        );
                         self.scheduler_tree_edges[pair_idx].pq01_heap[dir].remove(
                             e_idx,
-                            self.edges.as_mut_slice(),
+                            &mut keys,
                             self.pq_nodes.as_mut_slice(),
                         );
                     }
@@ -3126,9 +3430,13 @@ where
             GenericQueueState::PqBlossoms { root } => {
                 if (root as usize) < self.scheduler_trees.len() {
                     if self.pq_nodes[e_idx as usize].is_in_heap() {
+                        let mut keys = EdgeQueueKeyStore::new(
+                            self.edges.as_mut_slice(),
+                            self.edge_queue_stamp.as_slice(),
+                        );
                         self.scheduler_trees[root as usize].pq_blossoms_heap.remove(
                             e_idx,
-                            self.edges.as_mut_slice(),
+                            &mut keys,
                             self.pq_nodes.as_mut_slice(),
                         );
                     }
@@ -3753,63 +4061,7 @@ where
         }
     }
 
-    fn requeue_processed_plus_edges_after_expand(&mut self, plus_node: u32) {
-        if plus_node == NONE
-            || (plus_node as usize) >= self.nodes.len()
-            || !self.nodes[plus_node as usize].is_outer
-            || self.nodes[plus_node as usize].flag != PLUS
-            || !self.nodes[plus_node as usize].is_processed
-        {
-            return;
-        }
-
-        let root = self.find_tree_root(plus_node);
-        if root == NONE {
-            return;
-        }
-
-        let mut incident = self.take_incident_scratch();
-        self.collect_incident_edges_into(plus_node, &mut incident);
-        for &(e_idx, dir) in &incident {
-            if !matches!(self.edge_queue_owner(e_idx), GenericQueueState::None) {
-                continue;
-            }
-
-            let other = self.edge_head_outer(e_idx, dir);
-            if other == NONE || other == plus_node || !self.nodes[other as usize].is_outer {
-                continue;
-            }
-
-            let other_root = self.find_tree_root(other);
-            match self.nodes[other as usize].flag {
-                FREE => self.set_generic_pq0(e_idx, root),
-                PLUS if self.nodes[other as usize].is_processed && other_root != NONE => {
-                    self.set_generic_pq00(e_idx, root, other_root);
-                }
-                MINUS if other_root != NONE && other_root != root => {
-                    self.set_generic_pq01(e_idx, root, other_root);
-                }
-                _ => {}
-            }
-        }
-        self.restore_incident_scratch(incident);
-
-        let minus = self.arc_head_outer(self.nodes[plus_node as usize].match_arc);
-        if minus != NONE
-            && (minus as usize) < self.nodes.len()
-            && self.nodes[minus as usize].is_blossom
-            && self.nodes[minus as usize].is_processed
-        {
-            let match_edge = arc_edge(self.nodes[plus_node as usize].match_arc);
-            if (match_edge as usize) < self.edge_num
-                && matches!(self.edge_queue_owner(match_edge), GenericQueueState::None)
-            {
-                self.set_generic_pq_blossoms_root_slot(match_edge, root, false);
-            }
-        }
-    }
-
-    fn requeue_edges_exposed_by_expand(&mut self, node: u32) {
+    fn requeue_edges_after_expand(&mut self, node: u32) {
         if node == NONE
             || (node as usize) >= self.nodes.len()
             || !self.nodes[node as usize].is_outer
@@ -3822,6 +4074,8 @@ where
             return;
         }
 
+        let is_processed_plus =
+            self.nodes[node as usize].flag == PLUS && self.nodes[node as usize].is_processed;
         let mut incident = self.take_incident_scratch();
         self.collect_incident_edges_into(node, &mut incident);
         for &(e_idx, dir) in &incident {
@@ -3835,6 +4089,24 @@ where
             }
 
             let other_root = self.find_tree_root(other);
+            if is_processed_plus {
+                match self.nodes[other as usize].flag {
+                    FREE => {
+                        self.set_generic_pq0(e_idx, root);
+                        continue;
+                    }
+                    PLUS if self.nodes[other as usize].is_processed && other_root != NONE => {
+                        self.set_generic_pq00(e_idx, root, other_root);
+                        continue;
+                    }
+                    MINUS if other_root != NONE && other_root != root => {
+                        self.set_generic_pq01(e_idx, root, other_root);
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+
             if other_root == NONE || other_root == root {
                 continue;
             }
@@ -3854,6 +4126,22 @@ where
             }
         }
         self.restore_incident_scratch(incident);
+
+        if is_processed_plus {
+            let minus = self.arc_head_outer(self.nodes[node as usize].match_arc);
+            if minus != NONE
+                && (minus as usize) < self.nodes.len()
+                && self.nodes[minus as usize].is_blossom
+                && self.nodes[minus as usize].is_processed
+            {
+                let match_edge = arc_edge(self.nodes[node as usize].match_arc);
+                if (match_edge as usize) < self.edge_num
+                    && matches!(self.edge_queue_owner(match_edge), GenericQueueState::None)
+                {
+                    self.set_generic_pq_blossoms_root_slot(match_edge, root, false);
+                }
+            }
+        }
     }
 
     // ===== AUGMENT =====
@@ -3915,6 +4203,10 @@ where
         let eps = self.tree_eps(root);
 
         let mut incident_pairs = self.take_incident_pairs_scratch();
+        let mut pair_marks = self.take_pair_marks_scratch();
+        if pair_marks.len() != self.scheduler_tree_edges.len() {
+            pair_marks.resize(self.scheduler_tree_edges.len(), 0);
+        }
         if (root as usize) < self.scheduler_trees.len() {
             for dir in 0..2usize {
                 let mut pair_cursor = self.scheduler_trees[root as usize].first[dir];
@@ -3922,7 +4214,9 @@ where
                     if pair_idx >= self.scheduler_tree_edges.len() {
                         break;
                     }
-                    if !incident_pairs.contains(&(pair_idx, dir)) {
+                    let seen_mask = 1u8 << dir;
+                    if pair_marks[pair_idx] & seen_mask == 0 {
+                        pair_marks[pair_idx] |= seen_mask;
                         incident_pairs.push((pair_idx, dir));
                     }
                     pair_cursor = self.scheduler_tree_edges[pair_idx].next[dir];
@@ -3950,8 +4244,9 @@ where
         }
 
         let mut members_mask = self.take_members_mask_scratch();
-        members_mask.clear();
-        members_mask.resize(self.nodes.len(), false);
+        if members_mask.len() != self.nodes.len() {
+            members_mask.resize(self.nodes.len(), false);
+        }
         for &v in members {
             members_mask[v as usize] = true;
         }
@@ -4112,9 +4407,16 @@ where
 
             current = self.next_tree_plus(plus, root).unwrap_or(NONE);
         }
+        for &v in members {
+            members_mask[v as usize] = false;
+        }
+        for &(pair_idx, _) in &incident_pairs {
+            pair_marks[pair_idx] = 0;
+        }
         self.restore_queue_edges_scratch(queue_edges);
         self.restore_members_mask_scratch(members_mask);
         self.restore_incident_pairs_scratch(incident_pairs);
+        self.restore_pair_marks_scratch(pair_marks);
     }
 
     /// Flip matching along the alternating path from node `v` to its tree root.
@@ -4203,6 +4505,13 @@ where
         let lca_is_tree_root = self.nodes[lca as usize].is_tree_root;
         let lca_sibling_prev = self.nodes[lca as usize].tree_sibling_prev;
         let lca_sibling_next = self.nodes[lca as usize].tree_sibling_next;
+        let mut root_members = if lca_is_tree_root {
+            let mut members = self.take_tree_members_u_scratch();
+            self.collect_tree_members_with_scratch(lca, &mut members);
+            Some(members)
+        } else {
+            None
+        };
 
         // Phase 1: Create blossom
         let b = (self.node_num + self.blossom_count) as u32;
@@ -4237,8 +4546,9 @@ where
         }
         cycle_set.push(lca);
         let mut in_cycle = self.take_members_mask_scratch();
-        in_cycle.clear();
-        in_cycle.resize(self.nodes.len(), false);
+        if in_cycle.len() != self.nodes.len() {
+            in_cycle.resize(self.nodes.len(), false);
+        }
         for &node in &cycle_set {
             in_cycle[node as usize] = true;
         }
@@ -4377,6 +4687,7 @@ where
         self.nodes[b as usize].flag = PLUS;
         self.nodes[b as usize].y = -shrink_eps;
         self.nodes[b as usize].is_processed = true;
+        self.nodes[b as usize].blossom_child = cycle_set[0];
         self.nodes[b as usize].is_tree_root = lca_is_tree_root;
         self.nodes[b as usize].first = [NONE; 2];
 
@@ -4388,10 +4699,9 @@ where
             self.nodes[b as usize].tree_sibling_next = lca_sibling_next;
             self.root_list_replace(lca, b);
             self.replace_generic_queue_root(lca, b);
-            // Update tree_root for all nodes in this tree
-            for j in 0..self.nodes.len() {
-                if self.nodes[j].tree_root == lca {
-                    self.nodes[j].tree_root = b;
+            if let Some(members) = root_members.as_ref() {
+                for &node in members {
+                    self.nodes[node as usize].tree_root = b;
                 }
             }
         } else {
@@ -4569,49 +4879,62 @@ where
         // reachable from the new outer blossom, just like in C++ Shrink().
         self.promote_boundary_edges_to_outer_blossom(b, &cycle_set);
         self.rebuild_generic_queue_membership_for_outer_blossom(b);
+        for &node in &cycle_set {
+            in_cycle[node as usize] = false;
+        }
+        if let Some(members) = root_members.take() {
+            self.restore_tree_members_u_scratch(members);
+        }
         self.restore_node_work_b_scratch(ext_children);
         self.restore_node_work_a_scratch(cycle_set);
         self.restore_members_mask_scratch(in_cycle);
     }
 
-    fn find_blossom_root_raw(&self, a0: u32) -> u32 {
+    fn find_blossom_root_raw(&mut self, a0: u32) -> u32 {
         let mut branch_nodes = [self.arc_head_raw(a0), self.arc_head_raw(arc_rev(a0))];
-        let mut marked = vec![false; self.nodes.len()];
+        let mut marked = self.take_node_seen_stamp_scratch();
+        if marked.len() != self.nodes.len() {
+            marked.resize(self.nodes.len(), 0);
+        }
+        let epoch = self.next_node_seen_epoch(marked.as_mut_slice());
         let mut branch = 0usize;
 
-        loop {
+        let result = loop {
             let current = branch_nodes[branch];
             if current == NONE || (current as usize) >= self.nodes.len() {
-                return NONE;
+                break NONE;
             }
-            if marked[current as usize] {
-                return current;
+            if marked[current as usize] == epoch {
+                break current;
             }
-            marked[current as usize] = true;
+            marked[current as usize] = epoch;
 
             if self.nodes[current as usize].is_tree_root {
                 let mut other = branch_nodes[1 - branch];
                 while other != NONE
                     && (other as usize) < self.nodes.len()
-                    && !marked[other as usize]
+                    && marked[other as usize] != epoch
                 {
-                    marked[other as usize] = true;
+                    marked[other as usize] = epoch;
                     let minus = self.arc_head_raw(self.nodes[other as usize].match_arc);
                     if minus == NONE || (minus as usize) >= self.nodes.len() {
-                        return NONE;
+                        other = NONE;
+                        break;
                     }
                     other = self.arc_head_raw(self.nodes[minus as usize].tree_parent_arc);
                 }
-                return other;
+                break other;
             }
 
             let minus = self.arc_head_raw(self.nodes[current as usize].match_arc);
             if minus == NONE || (minus as usize) >= self.nodes.len() {
-                return NONE;
+                break NONE;
             }
             branch_nodes[branch] = self.arc_head_raw(self.nodes[minus as usize].tree_parent_arc);
             branch = 1 - branch;
-        }
+        };
+        self.restore_node_seen_stamp_scratch(marked);
+        result
     }
 
     fn promote_boundary_edges_to_outer_blossom(&mut self, blossom: u32, cycle_members: &[u32]) {
@@ -4625,15 +4948,23 @@ where
 
         let mut incident = self.take_incident_scratch();
         let mut edges = self.take_queue_edges_scratch();
+        let mut edge_seen = self.take_edge_seen_scratch();
+        if edge_seen.len() != self.edge_num {
+            edge_seen.resize(self.edge_num, false);
+        }
         for &node in cycle_members {
             if node == NONE || node as usize >= self.nodes.len() {
                 continue;
             }
             self.collect_raw_incident_edges_into(node, &mut incident);
-            edges.extend(incident.iter().map(|&(e_idx, _)| e_idx));
+            for &(e_idx, _) in &incident {
+                let idx = e_idx as usize;
+                if idx < edge_seen.len() && !edge_seen[idx] {
+                    edge_seen[idx] = true;
+                    edges.push(e_idx);
+                }
+            }
         }
-        edges.sort_unstable();
-        edges.dedup();
 
         for e_idx in edges.iter().copied() {
             let outer0 = self.edge_head_outer(e_idx, 0);
@@ -4656,6 +4987,10 @@ where
             }
         }
 
+        for &e_idx in &edges {
+            edge_seen[e_idx as usize] = false;
+        }
+        self.restore_edge_seen_scratch(edge_seen);
         self.restore_queue_edges_scratch(edges);
         self.restore_incident_scratch(incident);
     }
@@ -4675,10 +5010,18 @@ where
 
         let mut incident = self.take_incident_scratch();
         let mut edges = self.take_queue_edges_scratch();
+        let mut edge_seen = self.take_edge_seen_scratch();
+        if edge_seen.len() != self.edge_num {
+            edge_seen.resize(self.edge_num, false);
+        }
         self.collect_incident_edges_into(blossom, &mut incident);
-        edges.extend(incident.iter().map(|&(e_idx, _)| e_idx));
-        edges.sort_unstable();
-        edges.dedup();
+        for &(e_idx, _) in &incident {
+            let idx = e_idx as usize;
+            if idx < edge_seen.len() && !edge_seen[idx] {
+                edge_seen[idx] = true;
+                edges.push(e_idx);
+            }
+        }
 
         for e_idx in edges.iter().copied() {
             let outer0 = self.edge_head_outer(e_idx, 0);
@@ -4688,7 +5031,6 @@ where
             }
 
             let old_state = self.edge_queue_owner(e_idx);
-            let old_stamp = self.edge_queue_stamp(e_idx);
             self.remove_edge_from_generic_queue(e_idx);
 
             let pq_blossom_root = [outer0, outer1].into_iter().find_map(|cand| {
@@ -4716,9 +5058,6 @@ where
                     pq_root,
                     !matches!(old_state, GenericQueueState::None),
                 );
-                if !matches!(old_state, GenericQueueState::None) {
-                    self.set_edge_queue_stamp(e_idx, old_stamp);
-                }
                 continue;
             }
 
@@ -4729,8 +5068,7 @@ where
                 if matches!(old_state, GenericQueueState::Pq00Local { .. })
                     && self.edges[e_idx as usize].slack > 0
                 {
-                    self.set_generic_pq00(e_idx, root, root);
-                    self.set_edge_queue_stamp(e_idx, old_stamp);
+                    self.set_generic_pq00_local_slot(e_idx, root, true);
                 }
                 continue;
             }
@@ -4740,9 +5078,6 @@ where
                 FREE => {
                     let preserve_stamp = matches!(old_state, GenericQueueState::Pq0 { root: old_root } if old_root == root);
                     self.set_generic_pq0_root_slot(e_idx, root, preserve_stamp);
-                    if preserve_stamp {
-                        self.set_edge_queue_stamp(e_idx, old_stamp);
-                    }
                 }
                 PLUS => {
                     let other_root = self.find_tree_root(other);
@@ -4760,8 +5095,101 @@ where
             }
         }
 
+        for &e_idx in &edges {
+            edge_seen[e_idx as usize] = false;
+        }
+        self.restore_edge_seen_scratch(edge_seen);
         self.restore_queue_edges_scratch(edges);
         self.restore_incident_scratch(incident);
+    }
+
+    fn find_direct_blossom_child(&self, blossom: u32, mut node: u32) -> u32 {
+        let mut limit = self.nodes.len();
+        while node != NONE && (node as usize) < self.nodes.len() && limit > 0 {
+            if self.nodes[node as usize].blossom_parent == blossom {
+                return node;
+            }
+            let parent = self.nodes[node as usize].blossom_parent;
+            if parent == NONE {
+                return NONE;
+            }
+            node = parent;
+            limit -= 1;
+        }
+        NONE
+    }
+
+    fn collect_expand_children_by_scan(&self, blossom: u32, children: &mut Vec<u32>) {
+        children.clear();
+        for i in 0..self.nodes.len() {
+            if self.nodes[i].blossom_parent == blossom && !self.nodes[i].is_outer {
+                children.push(i as u32);
+            }
+        }
+    }
+
+    fn collect_expand_children(
+        &self,
+        blossom: u32,
+        b_match: u32,
+        b_tp: u32,
+        children: &mut Vec<u32>,
+    ) {
+        children.clear();
+
+        let mut start = NONE;
+        if b_match != NONE && (arc_edge(b_match) as usize) < self.edge_num {
+            let md = arc_dir(b_match);
+            let tail = self.edges[arc_edge(b_match) as usize].head0[md];
+            start = self.find_direct_blossom_child(blossom, tail);
+        }
+        if start == NONE && b_tp != NONE && (arc_edge(b_tp) as usize) < self.edge_num {
+            let pd = arc_dir(b_tp);
+            let tail = self.edges[arc_edge(b_tp) as usize].head0[pd];
+            start = self.find_direct_blossom_child(blossom, tail);
+        }
+        if start == NONE {
+            let hint = self.nodes[blossom as usize].blossom_child;
+            if hint != NONE
+                && (hint as usize) < self.nodes.len()
+                && self.nodes[hint as usize].blossom_parent == blossom
+                && !self.nodes[hint as usize].is_outer
+            {
+                start = hint;
+            }
+        }
+
+        if start == NONE {
+            self.collect_expand_children_by_scan(blossom, children);
+            return;
+        }
+
+        let mut current = start;
+        let mut limit = self.nodes.len();
+        loop {
+            if current == NONE
+                || (current as usize) >= self.nodes.len()
+                || self.nodes[current as usize].blossom_parent != blossom
+                || self.nodes[current as usize].is_outer
+                || limit == 0
+            {
+                self.collect_expand_children_by_scan(blossom, children);
+                return;
+            }
+
+            children.push(current);
+            let sibling_arc = self.nodes[current as usize].blossom_sibling_arc;
+            if sibling_arc == NONE {
+                self.collect_expand_children_by_scan(blossom, children);
+                return;
+            }
+            let next = self.arc_head_raw(sibling_arc);
+            if next == start {
+                return;
+            }
+            current = next;
+            limit -= 1;
+        }
     }
 
     // ===== EXPAND =====
@@ -4794,12 +5222,14 @@ where
             NONE
         };
 
-        // Collect direct children of b
         let mut children = self.take_node_work_a_scratch();
-        for i in 0..self.nodes.len() {
-            if self.nodes[i].blossom_parent == b && !self.nodes[i].is_outer {
-                children.push(i as u32);
-            }
+        self.collect_expand_children(b, b_match, b_tp, &mut children);
+        let mut child_mask = self.take_members_mask_scratch();
+        if child_mask.len() != self.nodes.len() {
+            child_mask.resize(self.nodes.len(), false);
+        }
+        for &child in &children {
+            child_mask[child as usize] = true;
         }
 
         // C++ Expand() restores each child's blossom selfloops before the
@@ -4830,7 +5260,7 @@ where
             // head0 has opposite direction from head (edge_list_add swap)
             let tail = self.edges[arc_edge(b_match) as usize].head0[md];
             k = tail;
-            while !children.contains(&k) {
+            while k != NONE && (k as usize) < self.nodes.len() && !child_mask[k as usize] {
                 let p = self.nodes[k as usize].blossom_parent;
                 if p == NONE {
                     break;
@@ -4869,7 +5299,7 @@ where
             let pd = arc_dir(b_tp);
             let tp_tail = self.edges[arc_edge(b_tp) as usize].head0[pd];
             let mut tp = tp_tail;
-            while !children.contains(&tp) {
+            while tp != NONE && (tp as usize) < self.nodes.len() && !child_mask[tp as usize] {
                 let p = self.nodes[tp as usize].blossom_parent;
                 if p == NONE {
                     break;
@@ -5010,6 +5440,12 @@ where
         // Recreate the lazy-dual updates that C++ applies while expanding the
         // alternating branch inside the blossom.
         if k != NONE {
+            let mut incident = self.take_incident_scratch();
+            let mut marked_edges = self.take_queue_edges_scratch();
+            let mut edge_seen = self.take_edge_seen_scratch();
+            if edge_seen.len() != self.edge_num {
+                edge_seen.resize(self.edge_num, false);
+            }
             let mut minus = k;
             let mut limit = self.nodes.len();
             loop {
@@ -5025,23 +5461,30 @@ where
                     self.nodes[minus as usize].y = tmp;
                 }
 
-                let listed_minus = self.incident_edges(minus);
-                let mut seen_minus = vec![false; self.edge_num];
-                for (e_idx, dir) in listed_minus {
-                    seen_minus[e_idx as usize] = true;
+                incident.clear();
+                marked_edges.clear();
+                self.collect_incident_edges_into(minus, &mut incident);
+                for &(e_idx, dir) in &incident {
+                    edge_seen[e_idx as usize] = true;
+                    marked_edges.push(e_idx);
                     let other = self.edge_head_outer(e_idx, dir);
                     if other != NONE && self.nodes[other as usize].flag != PLUS {
                         self.edges[e_idx as usize].slack -= eps;
                     }
                 }
-                for (e_idx, dir) in self.raw_incident_edges(minus) {
-                    if seen_minus[e_idx as usize] {
+                incident.clear();
+                self.collect_raw_incident_edges_into(minus, &mut incident);
+                for &(e_idx, dir) in &incident {
+                    if edge_seen[e_idx as usize] {
                         continue;
                     }
                     let other = self.edges[e_idx as usize].head[1 - dir];
                     if other != NONE && self.nodes[other as usize].flag != PLUS {
                         self.edges[e_idx as usize].slack -= eps;
                     }
+                }
+                for &e_idx in &marked_edges {
+                    edge_seen[e_idx as usize] = false;
                 }
                 self.nodes[minus as usize].is_processed = true;
 
@@ -5050,10 +5493,12 @@ where
                 }
 
                 let plus = self.arc_head_raw(self.nodes[minus as usize].tree_parent_arc);
-                let listed_plus = self.incident_edges(plus);
-                let mut seen_plus = vec![false; self.edge_num];
-                for (e_idx, dir) in listed_plus {
-                    seen_plus[e_idx as usize] = true;
+                incident.clear();
+                marked_edges.clear();
+                self.collect_incident_edges_into(plus, &mut incident);
+                for &(e_idx, dir) in &incident {
+                    edge_seen[e_idx as usize] = true;
+                    marked_edges.push(e_idx);
                     let other = self.edge_head_outer(e_idx, dir);
                     if other == NONE {
                         continue;
@@ -5064,8 +5509,10 @@ where
                         self.edges[e_idx as usize].slack += 2 * eps;
                     }
                 }
-                for (e_idx, dir) in self.raw_incident_edges(plus) {
-                    if seen_plus[e_idx as usize] {
+                incident.clear();
+                self.collect_raw_incident_edges_into(plus, &mut incident);
+                for &(e_idx, dir) in &incident {
+                    if edge_seen[e_idx as usize] {
                         continue;
                     }
                     let other = self.edges[e_idx as usize].head[1 - dir];
@@ -5078,6 +5525,9 @@ where
                         self.edges[e_idx as usize].slack += 2 * eps;
                     }
                 }
+                for &e_idx in &marked_edges {
+                    edge_seen[e_idx as usize] = false;
+                }
                 self.nodes[plus as usize].is_processed = true;
 
                 if self.nodes[plus as usize].match_arc == NONE {
@@ -5085,6 +5535,9 @@ where
                 }
                 minus = self.arc_head_raw(self.nodes[plus as usize].match_arc);
             }
+            self.restore_edge_seen_scratch(edge_seen);
+            self.restore_queue_edges_scratch(marked_edges);
+            self.restore_incident_scratch(incident);
         }
 
         // Move edges from blossom back to original nodes
@@ -5125,8 +5578,6 @@ where
             } else {
                 None
             };
-            let old_stamp = self.edge_queue_stamp(e);
-
             self.clear_generic_queue_state(e);
 
             match self.nodes[new_owner as usize].flag {
@@ -5148,9 +5599,6 @@ where
                             b_tree_root,
                             preserve_same_root_blossom,
                         );
-                        if preserve_same_root_blossom {
-                            self.set_edge_queue_stamp(e, old_stamp);
-                        }
                     }
                 }
                 FREE => {
@@ -5196,15 +5644,19 @@ where
 
         self.nodes[b as usize].is_outer = false;
         self.nodes[b as usize].is_blossom = false;
+        self.nodes[b as usize].blossom_child = NONE;
         self.nodes[b as usize].first = [NONE; 2];
 
         // Expanding the blossom makes processed PLUS children expose outer
         // boundary edges again. Requeue those now that ownership is visible.
         for &child in &children {
-            self.requeue_processed_plus_edges_after_expand(child);
-            self.requeue_edges_exposed_by_expand(child);
+            self.requeue_edges_after_expand(child);
         }
 
+        for &child in &children {
+            child_mask[child as usize] = false;
+        }
+        self.restore_members_mask_scratch(child_mask);
         self.restore_edge_moves_scratch(moves);
         self.restore_node_work_a_scratch(children);
     }
@@ -5231,29 +5683,16 @@ where
         let result = if roots.is_empty() {
             false
         } else {
-            root_to_var.clear();
-            root_to_var.resize(self.nodes.len(), usize::MAX);
-            for (var, &root) in roots.iter().enumerate() {
-                root_to_var[root as usize] = var;
-            }
-
             let inf_cap = i64::MAX / 4;
-            local_caps.clear();
-            local_caps.resize(roots.len(), inf_cap);
-            for (var, &root) in roots.iter().enumerate() {
-                let local_abs_eps = self.compute_tree_local_eps(root);
-                if local_abs_eps != i64::MAX {
-                    local_caps[var] = local_caps[var].min(local_abs_eps - self.tree_eps(root));
-                }
-            }
-            pair_tree_eps00.clear();
-            pair_tree_eps01_dir0.clear();
-            pair_tree_eps01_dir1.clear();
-            pair_tree_ready.clear();
-            pair_tree_eps00.resize(self.scheduler_tree_edges.len(), inf_cap);
-            pair_tree_eps01_dir0.resize(self.scheduler_tree_edges.len(), inf_cap);
-            pair_tree_eps01_dir1.resize(self.scheduler_tree_edges.len(), inf_cap);
-            pair_tree_ready.resize(self.scheduler_tree_edges.len(), false);
+            self.build_dual_root_index(&roots, &mut root_to_var);
+            self.seed_dual_local_caps(&roots, inf_cap, &mut local_caps);
+            self.reset_dual_pair_tree_caps(
+                inf_cap,
+                &mut pair_tree_eps00,
+                &mut pair_tree_eps01_dir0,
+                &mut pair_tree_eps01_dir1,
+                &mut pair_tree_ready,
+            );
             deltas.clear();
             deltas.resize(roots.len(), 0);
             let all_roots_processed =
@@ -5270,145 +5709,25 @@ where
                     continue;
                 }
 
-                queue.clear();
-                component.clear();
-                queue.push(start);
-                component.push(start);
-                marks[start] = start;
-                let mut queue_head = 0usize;
-                let mut eps = local_caps[start];
-
-                while queue_head < queue.len() {
-                    let t = queue[queue_head];
-                    queue_head += 1;
-                    let t_root = roots[t];
-                    for dir in 0..2usize {
-                        let mut pair_cursor = if (t_root as usize) < self.scheduler_trees.len() {
-                            self.scheduler_trees[t_root as usize].first[dir]
-                        } else {
-                            None
-                        };
-                        while let Some(tree_edge_idx) = pair_cursor {
-                            let next_pair = self.scheduler_tree_edges[tree_edge_idx].next[dir];
-                            let Some(other_root) =
-                                self.scheduler_tree_edge_other(tree_edge_idx, t_root)
-                            else {
-                                pair_cursor = next_pair;
-                                continue;
-                            };
-                            if (other_root as usize) >= root_to_var.len() {
-                                pair_cursor = next_pair;
-                                continue;
-                            }
-                            let t2 = root_to_var[other_root as usize];
-                            if t2 == usize::MAX || t == t2 {
-                                pair_cursor = next_pair;
-                                continue;
-                            }
-
-                            if !pair_tree_ready[tree_edge_idx] {
-                                let root_left = self.scheduler_tree_edges[tree_edge_idx].head[0];
-                                let root_right = self.scheduler_tree_edges[tree_edge_idx].head[1];
-                                if root_left != NONE
-                                    && root_right != NONE
-                                    && (root_left as usize) < root_to_var.len()
-                                    && (root_right as usize) < root_to_var.len()
-                                    && root_to_var[root_left as usize] != usize::MAX
-                                    && root_to_var[root_right as usize] != usize::MAX
-                                {
-                                    let eps_left = self.tree_eps(root_left);
-                                    let eps_right = self.tree_eps(root_right);
-
-                                    if let Some(e_idx) = self
-                                        .scheduler_tree_edge_min_pq00_edge_for_duals(
-                                            tree_edge_idx,
-                                            root_left,
-                                            root_right,
-                                        )
-                                    {
-                                        pair_tree_eps00[tree_edge_idx] =
-                                            self.edges[e_idx as usize].slack - eps_left - eps_right;
-                                    }
-                                    if let Some(e_idx) = self
-                                        .scheduler_tree_edge_min_pq01_edge_for_duals(
-                                            tree_edge_idx,
-                                            0,
-                                            root_right,
-                                            root_left,
-                                        )
-                                    {
-                                        pair_tree_eps01_dir0[tree_edge_idx] =
-                                            self.edges[e_idx as usize].slack - eps_right + eps_left;
-                                    }
-                                    if let Some(e_idx) = self
-                                        .scheduler_tree_edge_min_pq01_edge_for_duals(
-                                            tree_edge_idx,
-                                            1,
-                                            root_left,
-                                            root_right,
-                                        )
-                                    {
-                                        pair_tree_eps01_dir1[tree_edge_idx] =
-                                            self.edges[e_idx as usize].slack - eps_left + eps_right;
-                                    }
-                                }
-                                pair_tree_ready[tree_edge_idx] = true;
-                            }
-
-                            let eps00 = pair_tree_eps00[tree_edge_idx];
-
-                            if marks[t2] == start {
-                                if eps00 < inf_cap {
-                                    eps = eps.min(eps00 / 2);
-                                }
-                                pair_cursor = next_pair;
-                                continue;
-                            }
-
-                            let eps01_forward = if dir == 0 {
-                                pair_tree_eps01_dir0[tree_edge_idx]
-                            } else {
-                                pair_tree_eps01_dir1[tree_edge_idx]
-                            };
-                            let reverse_dir = 1 - dir;
-                            let eps01_reverse = if reverse_dir == 0 {
-                                pair_tree_eps01_dir0[tree_edge_idx]
-                            } else {
-                                pair_tree_eps01_dir1[tree_edge_idx]
-                            };
-
-                            let eps2 = if marks[t2] == fixed_tree {
-                                deltas[t2]
-                            } else if eps01_forward > 0 && eps01_reverse > 0 {
-                                0
-                            } else {
-                                marks[t2] = start;
-                                queue.push(t2);
-                                component.push(t2);
-                                eps = eps.min(local_caps[t2]);
-                                if eps00 < inf_cap {
-                                    eps = eps.min(eps00);
-                                }
-                                pair_cursor = next_pair;
-                                continue;
-                            };
-
-                            if eps00 < inf_cap {
-                                eps = eps.min(eps00 - eps2);
-                            }
-                            if eps01_forward < inf_cap {
-                                eps = eps.min(eps2 + eps01_forward);
-                            }
-
-                            pair_cursor = next_pair;
-                        }
-                    }
-                }
-
-                if eps >= inf_cap {
+                let Some(eps) = self.compute_dual_component_eps(
+                    start,
+                    &roots,
+                    &root_to_var,
+                    &local_caps,
+                    fixed_tree,
+                    inf_cap,
+                    &deltas,
+                    &mut pair_tree_eps00,
+                    &mut pair_tree_eps01_dir0,
+                    &mut pair_tree_eps01_dir1,
+                    &mut pair_tree_ready,
+                    &mut marks,
+                    &mut queue,
+                    &mut component,
+                ) else {
                     unbounded_component = true;
                     break;
-                }
+                };
 
                 for &t in &component {
                     deltas[t] = eps;
@@ -5575,7 +5894,12 @@ where
             return Err(BlossomVError::NoPerfectMatching);
         }
 
-        let mut used = vec![false; self.node_num];
+        let mut used = self.take_members_mask_scratch();
+        if used.len() != self.node_num {
+            used.resize(self.node_num, false);
+        } else {
+            used.fill(false);
+        }
         for &(u, v) in &pairs {
             let uu: usize = u.as_();
             let vv: usize = v.as_();
