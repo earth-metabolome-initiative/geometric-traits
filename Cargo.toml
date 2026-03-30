@@ -22,6 +22,7 @@ lender = { version = "0.4.2", default-features = false }
 hashbrown = { version = "0.16.1", optional = true }
 bitvec = { version = "1", default-features = false, features = ["alloc"] }
 rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"], optional = true }
+mwmatching = { version = "0.1.1", optional = true }
 
 [lints.rust]
 missing_docs = "forbid"
@@ -66,7 +67,7 @@ alloc = [
     "hashbrown?/alloc",
     "dep:rand",
 ]
-arbitrary = ["dep:arbitrary", "std"]
+arbitrary = ["dep:arbitrary", "std", "dep:mwmatching"]
 serde = ["dep:serde", "multi_ranged/serde"]
 hashbrown = ["dep:hashbrown"]
 
@@ -78,6 +79,7 @@ serde_json = "1.0"
 flate2 = "1"
 blossom = "0.4.0"
 rayon = "1"
+mwmatching = "0.1.1"
 
 [[bench]]
 name = "wu_palmer"

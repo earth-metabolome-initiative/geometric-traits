@@ -79,6 +79,7 @@ dependencies = [
  "hashbrown",
  "lender",
  "multi_ranged",
+ "mwmatching",
  "num-traits",
  "rand",
  "serde",
@@ -161,6 +162,12 @@ dependencies = [
  "serde",
  "thiserror",
 ]
+
+[[package]]
+name = "mwmatching"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f13b50448d988736cc2c938a76ae336241fcb31a225017c0e3121bd349e7dc06"
 
 [[package]]
 name = "num-traits"

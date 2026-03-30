@@ -547,21 +547,6 @@ fn build_structured_blossom_v_case(case: &FuzzStructuredBlossomVCase) -> FuzzBlo
 
 #[must_use]
 #[inline]
-fn build_blossom_v_support_graph(
-    order: usize,
-    edges: &[(usize, usize, i32)],
-) -> FuzzBlossomVSupportGraph {
-    let undirected_edges = edges.iter().map(|&(u, v, _)| (u, v));
-    UndiEdgesBuilder::default()
-        .expected_shape(order)
-        .expected_number_of_edges(edges.len())
-        .edges(undirected_edges)
-        .build()
-        .expect("build Blossom V support graph")
-}
-
-#[must_use]
-#[inline]
 fn blossom_v_matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, usize)]) -> i64 {
     matching
         .iter()
@@ -655,6 +640,59 @@ fn brute_force_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Op
     solve((1usize << order) - 1, &weights, &mut memo)
 }
 
+#[must_use]
+fn mwmatching_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
+    if order == 0 {
+        return Some(0);
+    }
+
+    let mut incident = vec![false; order];
+    for &(u, v, _) in edges {
+        incident[u] = true;
+        incident[v] = true;
+    }
+    if incident.iter().any(|seen| !seen) {
+        return None;
+    }
+
+    let oracle_edges = edges
+        .iter()
+        .map(|&(u, v, weight)| {
+            (
+                u,
+                v,
+                weight
+                    .checked_neg()
+                    .expect("fuzz/regression Blossom V weights must be negatable for mwmatching"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mates = mwmatching::Matching::new(oracle_edges).max_cardinality().solve();
+    assert_eq!(
+        mates.len(),
+        order,
+        "mwmatching returned mate vector of length {} for order {order}",
+        mates.len()
+    );
+
+    let mut matching = Vec::with_capacity(order / 2);
+    for (u, &v) in mates.iter().enumerate() {
+        if v == mwmatching::SENTINEL {
+            continue;
+        }
+        assert!(v < order, "mwmatching returned out-of-bounds mate {v} for vertex {u}");
+        if u < v {
+            matching.push((u, v));
+        }
+    }
+
+    if matching.len() != order / 2 {
+        return None;
+    }
+
+    Some(blossom_v_matching_cost(edges, &matching))
+}
+
 /// Run Blossom V on a valid arbitrary undirected weighted graph and check that
 /// it either returns a valid perfect matching or correctly reports that none
 /// exists.
@@ -690,40 +728,40 @@ fn check_blossom_v_invariants_with_bruteforce_limit(
 ) {
     let order = usize::from(case.order);
     let (graph, edges) = build_blossom_v_graph(case);
-    let support_graph = build_blossom_v_support_graph(order, &edges);
-    let support_has_perfect_matching = support_graph.blossom().len() == order / 2;
+    let mwmatching_cost = mwmatching_blossom_v_cost(order, &edges);
+    let brute_force_cost = if order <= brute_force_limit {
+        Some(brute_force_blossom_v_cost(order, &edges))
+    } else {
+        None
+    };
+    if let Some(brute_force_cost) = brute_force_cost {
+        assert_eq!(
+            mwmatching_cost, brute_force_cost,
+            "mwmatching and brute-force disagree on graph {case:?}"
+        );
+    }
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| graph.blossom_v()));
 
     match result {
         Ok(Ok(matching)) => {
-            assert!(
-                support_has_perfect_matching,
-                "Blossom V returned a perfect matching for graph {case:?}, but support-graph feasibility says none exists"
-            );
-            validate_blossom_v_matching(order, &edges, &matching);
-            if order <= brute_force_limit {
-                let optimum = brute_force_blossom_v_cost(order, &edges)
-                    .expect("solver returned a perfect matching but brute-force found none");
-                let actual = blossom_v_matching_cost(&edges, &matching);
-                assert_eq!(
-                    actual, optimum,
-                    "Blossom V returned non-optimal cost {actual} for graph {case:?}; expected {optimum}"
+            let Some(optimum) = mwmatching_cost else {
+                panic!(
+                    "Blossom V returned a perfect matching for graph {case:?}, but mwmatching found none"
                 );
-            }
+            };
+            validate_blossom_v_matching(order, &edges, &matching);
+            let actual = blossom_v_matching_cost(&edges, &matching);
+            assert_eq!(
+                actual, optimum,
+                "Blossom V returned non-optimal cost {actual} for graph {case:?}; expected {optimum}"
+            );
         }
         Ok(Err(crate::traits::algorithms::BlossomVError::NoPerfectMatching)) => {
             assert!(
-                !support_has_perfect_matching,
-                "Blossom V reported no perfect matching for graph {case:?}, but support-graph feasibility says one exists"
+                mwmatching_cost.is_none(),
+                "Blossom V reported no perfect matching for graph {case:?}, but mwmatching found cost {:?}",
+                mwmatching_cost
             );
-            if order <= brute_force_limit {
-                let optimum = brute_force_blossom_v_cost(order, &edges);
-                assert!(
-                    optimum.is_none(),
-                    "Blossom V reported no perfect matching for graph {case:?}, but brute-force found cost {:?}",
-                    optimum
-                );
-            }
         }
         Err(payload) => {
             let msg = if let Some(s) = payload.downcast_ref::<&str>() {
@@ -734,7 +772,7 @@ fn check_blossom_v_invariants_with_bruteforce_limit(
                 "<non-string panic payload>".to_string()
             };
             panic!(
-                "Blossom V panicked for graph {case:?} (support perfect matching: {support_has_perfect_matching}): {msg}"
+                "Blossom V panicked for graph {case:?} (mwmatching optimum: {mwmatching_cost:?}): {msg}"
             );
         }
     }
