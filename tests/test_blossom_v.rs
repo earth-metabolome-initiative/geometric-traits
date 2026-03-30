@@ -2,9 +2,19 @@
 #![cfg(feature = "std")]
 #![allow(clippy::pedantic)]
 
+#[path = "support/blossom_v_regression_cases.rs"]
+mod blossom_v_regression_cases;
+
 use geometric_traits::{
     impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D},
     prelude::*,
+};
+use mwmatching::{Matching as MwMatching, SENTINEL as MWMATCHING_SENTINEL};
+
+use self::blossom_v_regression_cases::{
+    HONGGFUZZ_SIGABRT_CASE_1_EDGES, HONGGFUZZ_SIGABRT_CASE_1_ORDER, HONGGFUZZ_SIGABRT_CASE_2_EDGES,
+    HONGGFUZZ_SIGABRT_CASE_2_ORDER, HONGGFUZZ_SIGABRT_CASE_3_EDGES, HONGGFUZZ_SIGABRT_CASE_3_ORDER,
+    HONGGFUZZ_SIGABRT_CASE_4_EDGES, HONGGFUZZ_SIGABRT_CASE_4_ORDER,
 };
 
 type SupportGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
@@ -93,6 +103,89 @@ fn matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, usize)]) -> 
                 .expect("matched edge not found")
         })
         .sum()
+}
+
+fn mwmatching_oracle_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
+    if order == 0 {
+        return Some(0);
+    }
+
+    let mut incident = vec![false; order];
+    for &(u, v, _) in edges {
+        incident[u] = true;
+        incident[v] = true;
+    }
+    if incident.iter().any(|seen| !seen) {
+        return None;
+    }
+
+    let oracle_edges = edges
+        .iter()
+        .map(|&(u, v, weight)| {
+            (
+                u,
+                v,
+                weight
+                    .checked_neg()
+                    .expect("regression Blossom V weights must be negatable for mwmatching"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mates = MwMatching::new(oracle_edges).max_cardinality().solve();
+    assert_eq!(
+        mates.len(),
+        order,
+        "mwmatching returned mate vector of length {} for order {order}",
+        mates.len()
+    );
+
+    let mut matching = Vec::with_capacity(order / 2);
+    for (u, &v) in mates.iter().enumerate() {
+        if v == MWMATCHING_SENTINEL {
+            continue;
+        }
+        assert!(v < order, "mwmatching returned out-of-bounds mate {v} for vertex {u}");
+        if u < v {
+            matching.push((u, v));
+        }
+    }
+
+    if matching.len() != order / 2 {
+        return None;
+    }
+
+    Some(i64::from(matching_cost(edges, &matching)))
+}
+
+fn assert_blossom_v_matches_mwmatching(label: &str, order: usize, edges: &[(usize, usize, i32)]) {
+    let g = build_valued_graph(order, edges);
+    let oracle = mwmatching_oracle_cost(order, edges);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
+    match result {
+        Ok(Ok(matching)) => {
+            let optimum =
+                oracle.unwrap_or_else(|| panic!("{label}: mwmatching found no perfect matching"));
+            validate_matching(order, edges, &matching);
+            let actual = i64::from(matching_cost(edges, &matching));
+            assert_eq!(actual, optimum, "{label}: Blossom V returned non-optimal matching cost");
+        }
+        Ok(Err(BlossomVError::NoPerfectMatching)) => {
+            assert!(
+                oracle.is_none(),
+                "{label}: Blossom V reported no perfect matching incorrectly"
+            );
+        }
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            panic!("{label}: Blossom V panicked: {msg}");
+        }
+    }
 }
 
 // ===== Hand-crafted tests =====
@@ -416,6 +509,60 @@ fn test_blossom_v_generated_case_214() {
             (12, 16),
             (18, 20),
         ]
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_1() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 1",
+        HONGGFUZZ_SIGABRT_CASE_1_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_1_EDGES,
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_2() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 2",
+        HONGGFUZZ_SIGABRT_CASE_2_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_2_EDGES,
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_3() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 3",
+        HONGGFUZZ_SIGABRT_CASE_3_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_3_EDGES,
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_4() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 4",
+        HONGGFUZZ_SIGABRT_CASE_4_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_4_EDGES,
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_8() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 8",
+        HONGGFUZZ_SIGABRT_CASE_2_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_2_EDGES,
+    );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_15() {
+    assert_blossom_v_matches_mwmatching(
+        "honggfuzz sigabrt case 15",
+        HONGGFUZZ_SIGABRT_CASE_4_ORDER,
+        HONGGFUZZ_SIGABRT_CASE_4_EDGES,
     );
 }
 
@@ -811,6 +958,12 @@ fn test_blossom_v_honggfuzz_case_6() {
             (21, 24),
         ]
     );
+}
+
+#[test]
+fn test_blossom_v_regression_honggfuzz_sigabrt_case_16() {
+    // The saved case-16 replay decodes to the same normalized graph as case 6.
+    test_blossom_v_honggfuzz_case_6();
 }
 
 #[test]
