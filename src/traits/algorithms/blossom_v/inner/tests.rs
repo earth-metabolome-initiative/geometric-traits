@@ -5212,11 +5212,9 @@ fn test_rebuild_outer_blossom_queue_membership_preserves_existing_pq0_stamp_orde
     state.edges[1].head0 = [1, blossom];
     state.edges[1].slack = 7;
 
-    state.set_generic_pq0(0, blossom);
+    state.generic_queue_epoch = 9;
     state.set_generic_pq0(1, blossom);
-
-    state.set_edge_queue_stamp(0, 11);
-    state.set_edge_queue_stamp(1, 10);
+    state.set_generic_pq0(0, blossom);
 
     assert_eq!(state.scheduler_tree_best_pq0_edge(blossom), Some(0));
 
@@ -5225,6 +5223,88 @@ fn test_rebuild_outer_blossom_queue_membership_preserves_existing_pq0_stamp_orde
     assert_eq!(state.edge_queue_stamp(0), 11);
     assert_eq!(state.edge_queue_stamp(1), 10);
     assert_eq!(state.scheduler_tree_best_pq0_edge(blossom), Some(0));
+}
+
+#[test]
+fn test_scheduler_tree_best_pq_blossom_edge_preserves_existing_stamp_order() {
+    let g = build_graph(3, &[(0, 2, 1), (1, 2, 1)]);
+    let mut state = BlossomVState::new(&g);
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    let root = 2u32;
+    state.nodes[root as usize].is_blossom = true;
+    state.nodes[root as usize].flag = MINUS;
+    state.nodes[root as usize].is_tree_root = true;
+    state.nodes[root as usize].tree_root = root;
+    state.nodes[root as usize].is_processed = true;
+    state.nodes[root as usize].tree_eps = 5;
+
+    state.nodes[0].flag = PLUS;
+    state.nodes[0].tree_root = root;
+    state.nodes[0].is_processed = true;
+    state.nodes[0].match_arc = make_arc(0, 0);
+
+    state.nodes[1].flag = PLUS;
+    state.nodes[1].tree_root = root;
+    state.nodes[1].is_processed = true;
+    state.nodes[1].match_arc = make_arc(1, 0);
+
+    state.edges[0].head = [root, 0];
+    state.edges[0].head0 = [root, 0];
+    state.edges[0].slack = 7;
+    state.edges[1].head = [root, 1];
+    state.edges[1].head0 = [root, 1];
+    state.edges[1].slack = 7;
+
+    state.generic_queue_epoch = 9;
+    state.set_generic_pq_blossoms_root_slot(1, root, false);
+    state.set_generic_pq_blossoms_root_slot(0, root, false);
+
+    assert_eq!(state.scheduler_tree_best_pq_blossom_edge(root), Some(0));
+}
+
+#[test]
+fn test_scheduler_tree_edge_best_pq00_edge_preserves_existing_stamp_order() {
+    let g = build_graph(4, &[(0, 3, 1), (1, 2, 1)]);
+    let mut state = BlossomVState::new(&g);
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    let left_root = 0u32;
+    let right_root = 3u32;
+    state.nodes[left_root as usize].flag = PLUS;
+    state.nodes[left_root as usize].is_tree_root = true;
+    state.nodes[left_root as usize].tree_root = left_root;
+    state.nodes[left_root as usize].is_processed = true;
+
+    state.nodes[right_root as usize].flag = PLUS;
+    state.nodes[right_root as usize].is_tree_root = true;
+    state.nodes[right_root as usize].tree_root = right_root;
+    state.nodes[right_root as usize].is_processed = true;
+
+    state.edges[0].head = [left_root, right_root];
+    state.edges[0].head0 = [left_root, right_root];
+    state.edges[0].slack = 9;
+    state.edges[1].head = [left_root, right_root];
+    state.edges[1].head0 = [left_root, right_root];
+    state.edges[1].slack = 9;
+
+    state.generic_queue_epoch = 9;
+    state.set_generic_pq00(1, left_root, right_root);
+    state.set_generic_pq00(0, left_root, right_root);
+
+    let GenericQueueState::Pq00Pair { pair_idx } = state.edge_queue_owner(0) else {
+        panic!("edge 0 should be in a pq00 pair queue");
+    };
+
+    assert_eq!(state.scheduler_tree_edge_best_pq00_edge(pair_idx, left_root, right_root), Some(0));
 }
 
 #[test]

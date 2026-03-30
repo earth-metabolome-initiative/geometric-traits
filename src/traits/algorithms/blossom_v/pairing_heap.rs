@@ -19,6 +19,16 @@ pub(crate) trait PQKeyStore {
     fn set_key(&mut self, idx: u32, key: i64);
 
     #[inline]
+    fn less(&self, lhs: u32, rhs: u32) -> bool {
+        self.get_key(lhs) < self.get_key(rhs)
+    }
+
+    #[inline]
+    fn less_or_equal(&self, lhs: u32, rhs: u32) -> bool {
+        !self.less(rhs, lhs)
+    }
+
+    #[inline]
     fn add_to_key(&mut self, idx: u32, delta: i64) {
         let key = self.get_key(idx) + delta;
         self.set_key(idx, key);
@@ -125,7 +135,7 @@ impl PairingHeap {
         if self.root == NONE {
             self.root = i;
             nodes[i as usize].parent = i; // self-referencing = root
-        } else if keys.get_key(i) <= keys.get_key(self.root) {
+        } else if keys.less_or_equal(i, self.root) {
             nodes[self.root as usize].parent = i;
             nodes[i as usize].left = self.root;
             nodes[i as usize].right = NONE;
@@ -246,7 +256,7 @@ impl PairingHeap {
         if self.root == NONE {
             self.root = other.root;
         } else {
-            if keys.get_key(other.root) < keys.get_key(self.root) {
+            if keys.less(other.root, self.root) {
                 core::mem::swap(&mut self.root, &mut other.root);
             }
             nodes[other.root as usize].right = nodes[self.root as usize].left;
@@ -296,7 +306,7 @@ impl PairingHeap {
     fn link(a: u32, b: u32, keys: &(impl PQKeyStore + ?Sized), nodes: &mut [PQNode]) -> u32 {
         debug_assert_ne!(a, NONE);
         debug_assert_ne!(b, NONE);
-        if keys.get_key(a) <= keys.get_key(b) {
+        if keys.less_or_equal(a, b) {
             // a becomes root, b becomes child of a
             nodes[b as usize].right = nodes[a as usize].left;
             if nodes[b as usize].right != NONE {
