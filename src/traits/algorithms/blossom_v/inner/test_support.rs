@@ -79,17 +79,6 @@ pub(super) struct GenericPrimalStepTrace {
     pub(super) after: StrictParitySnapshot,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct GreedyInitSnapshot {
-    pub(super) y: Vec<i64>,
-    pub(super) slacks: Vec<i64>,
-    pub(super) matching: Vec<i32>,
-    pub(super) flags: Vec<u8>,
-    pub(super) is_outer: Vec<bool>,
-    pub(super) tree_eps_by_node: Vec<i64>,
-    pub(super) tree_num: usize,
-}
-
 pub(super) fn mark_tree_roots_processed<M>(state: &mut BlossomVState<M>)
 where
     M: SparseValuedMatrix2D + ?Sized,
@@ -100,102 +89,6 @@ where
     let roots = state.current_root_list();
     for root in roots {
         state.seed_tree_root_frontier(root);
-    }
-}
-
-pub(super) fn rebuild_scheduler_tree_mirror<M>(state: &mut BlossomVState<M>)
-where
-    M: SparseValuedMatrix2D + ?Sized,
-    M::Value: Number + AsPrimitive<i64>,
-    M::RowIndex: PositiveInteger,
-    M::ColumnIndex: PositiveInteger,
-{
-    for node in &mut state.pq_nodes {
-        *node = PQNode::RESET;
-    }
-    state.scheduler_trees = vec![PersistentTreeState::default(); state.nodes.len()];
-    state.scheduler_tree_edges =
-        vec![PersistentTreeEdgeState::default(); state.generic_pairs.len()];
-
-    for (pair_idx, pair) in state.generic_pairs.iter().enumerate() {
-        state.scheduler_tree_edges[pair_idx].head = pair.head;
-        state.scheduler_tree_edges[pair_idx].pq00 = pair.pq00.clone();
-        state.scheduler_tree_edges[pair_idx].pq01 = pair.pq01.clone();
-        for &e_idx in &pair.pq00 {
-            if (e_idx as usize) >= state.edge_num {
-                continue;
-            }
-            state.scheduler_tree_edges[pair_idx].pq00_heap.add(
-                e_idx,
-                state.edges.as_mut_slice(),
-                state.pq_nodes.as_mut_slice(),
-            );
-        }
-        for dir in 0..2usize {
-            for &e_idx in &pair.pq01[dir] {
-                if (e_idx as usize) >= state.edge_num {
-                    continue;
-                }
-                state.scheduler_tree_edges[pair_idx].pq01_heap[dir].add(
-                    e_idx,
-                    state.edges.as_mut_slice(),
-                    state.pq_nodes.as_mut_slice(),
-                );
-            }
-        }
-    }
-
-    for (root_idx, tree) in state.generic_trees.iter().enumerate() {
-        if root_idx >= state.scheduler_trees.len() {
-            break;
-        }
-        let root = root_idx as u32;
-        state.scheduler_trees[root_idx].root = root;
-        state.scheduler_trees[root_idx].eps = state.tree_eps(root);
-        state.scheduler_trees[root_idx].pq0 = tree.pq0.clone();
-        state.scheduler_trees[root_idx].pq00_local = tree.pq00_local.clone();
-        state.scheduler_trees[root_idx].pq_blossoms = tree.pq_blossoms.clone();
-        for &e_idx in &tree.pq0 {
-            if (e_idx as usize) >= state.edge_num {
-                continue;
-            }
-            state.scheduler_trees[root_idx].pq0_heap.add(
-                e_idx,
-                state.edges.as_mut_slice(),
-                state.pq_nodes.as_mut_slice(),
-            );
-        }
-        for &e_idx in &tree.pq00_local {
-            if (e_idx as usize) >= state.edge_num {
-                continue;
-            }
-            state.scheduler_trees[root_idx].pq00_local_heap.add(
-                e_idx,
-                state.edges.as_mut_slice(),
-                state.pq_nodes.as_mut_slice(),
-            );
-        }
-        for &e_idx in &tree.pq_blossoms {
-            if (e_idx as usize) >= state.edge_num {
-                continue;
-            }
-            state.scheduler_trees[root_idx].pq_blossoms_heap.add(
-                e_idx,
-                state.edges.as_mut_slice(),
-                state.pq_nodes.as_mut_slice(),
-            );
-        }
-
-        for dir in 0..2usize {
-            state.scheduler_trees[root_idx].first[dir] = tree.tree_edges[dir].first().copied();
-            for (pos, &pair_idx) in tree.tree_edges[dir].iter().enumerate() {
-                if pair_idx >= state.scheduler_tree_edges.len() {
-                    continue;
-                }
-                state.scheduler_tree_edges[pair_idx].next[dir] =
-                    tree.tree_edges[dir].get(pos + 1).copied();
-            }
-        }
     }
 }
 
@@ -283,109 +176,6 @@ where
         self.generic_pairs[pair_idx].head = self.scheduler_tree_edges[pair_idx].head;
     }
 
-    pub(super) fn queue_pair_touches_root(&self, pair_idx: usize, root: u32) -> bool {
-        if pair_idx >= self.scheduler_tree_edges.len() {
-            return false;
-        }
-        let head = self.scheduler_tree_edges[pair_idx].head;
-        head[0] == root || head[1] == root
-    }
-
-    pub(super) fn set_generic_pq00_pair_slot(
-        &mut self,
-        e_idx: u32,
-        pair_idx: usize,
-        preserve_stamp: bool,
-    ) {
-        if (e_idx as usize) >= self.edge_num || pair_idx >= self.scheduler_tree_edges.len() {
-            return;
-        }
-        self.ensure_scheduler_tree_edge_slot(pair_idx);
-        let old_stamp = self.edge_queue_stamp(e_idx);
-        self.remove_edge_from_generic_queue(e_idx);
-        if !self.scheduler_tree_edges[pair_idx].pq00.contains(&e_idx) {
-            self.scheduler_tree_edges[pair_idx].pq00.push(e_idx);
-        }
-        self.scheduler_tree_edges[pair_idx].pq00_heap.add(
-            e_idx,
-            self.edges.as_mut_slice(),
-            self.pq_nodes.as_mut_slice(),
-        );
-        self.set_edge_queue_owner(e_idx, GenericQueueState::Pq00Pair { pair_idx });
-        if preserve_stamp {
-            self.set_edge_queue_stamp(e_idx, old_stamp);
-        } else {
-            self.generic_queue_epoch = self.generic_queue_epoch.wrapping_add(1);
-            self.set_edge_queue_stamp(e_idx, self.generic_queue_epoch);
-        }
-        self.sync_generic_pair_queues_from_scheduler(pair_idx);
-    }
-
-    pub(super) fn clear_generic_queues_for_root(&mut self, root: u32) {
-        if root == NONE {
-            return;
-        }
-        let affected = (0..self.edge_num as u32)
-            .filter(|&e_idx| {
-                match self.edge_queue_owner(e_idx) {
-                    GenericQueueState::None => false,
-                    GenericQueueState::Pq0 { root: owner }
-                    | GenericQueueState::Pq00Local { root: owner }
-                    | GenericQueueState::PqBlossoms { root: owner } => owner == root,
-                    GenericQueueState::Pq00Pair { pair_idx }
-                    | GenericQueueState::Pq01Pair { pair_idx, .. } => {
-                        self.queue_pair_touches_root(pair_idx, root)
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
-        for e_idx in affected {
-            self.remove_edge_from_generic_queue(e_idx);
-        }
-        self.detach_scheduler_root_topology(root);
-        self.sync_generic_root_topology_from_scheduler(root);
-    }
-
-    pub(super) fn test_state_snapshot(&self) -> GreedyInitSnapshot {
-        let y = (0..self.node_num).map(|v| self.nodes[v].y).collect();
-        let slacks = (0..self.edge_num).map(|e| self.edges[e].slack).collect();
-        let matching = (0..self.node_num)
-            .map(|v| {
-                let arc = self.nodes[v].match_arc;
-                match (arc != NONE).then(|| {
-                    let e = arc_edge(arc) as usize;
-                    let dir = arc_dir(arc);
-                    self.edges[e].head[dir]
-                }) {
-                    Some(partner) => partner as i32,
-                    None => -1,
-                }
-            })
-            .collect();
-        let flags = (0..self.node_num).map(|v| self.nodes[v].flag).collect();
-        let is_outer = (0..self.node_num).map(|v| self.nodes[v].is_outer).collect();
-        let tree_eps_by_node = (0..self.node_num)
-            .map(|v| {
-                let node = &self.nodes[v];
-                if node.is_outer && node.flag != FREE && node.tree_root != NONE {
-                    self.tree_eps(node.tree_root)
-                } else {
-                    0
-                }
-            })
-            .collect();
-
-        GreedyInitSnapshot {
-            y,
-            slacks,
-            matching,
-            flags,
-            is_outer,
-            tree_eps_by_node,
-            tree_num: self.tree_num,
-        }
-    }
-
     pub(super) fn test_strict_parity_snapshot(&self) -> StrictParitySnapshot {
         let nodes = (0..self.node_num)
             .map(|v| {
@@ -435,14 +225,6 @@ where
         }
     }
 
-    pub(super) fn test_init_global_trace(&self) -> &[InitGlobalEvent] {
-        &self.init_global_trace
-    }
-
-    pub(super) fn test_init_global_steps(&self) -> &[InitGlobalStepTrace] {
-        &self.init_global_steps
-    }
-
     pub(super) fn test_generic_primal_steps(&self) -> &[GenericPrimalStepTrace] {
         &self.generic_primal_steps
     }
@@ -450,7 +232,6 @@ where
 
 pub(super) trait SchedulerMirrorTestExt {
     fn mark_tree_roots_processed(&mut self);
-    fn rebuild_scheduler_tree_mirror(&mut self);
 }
 
 impl<M> SchedulerMirrorTestExt for BlossomVState<M>
@@ -462,10 +243,6 @@ where
 {
     fn mark_tree_roots_processed(&mut self) {
         mark_tree_roots_processed(self);
-    }
-
-    fn rebuild_scheduler_tree_mirror(&mut self) {
-        rebuild_scheduler_tree_mirror(self);
     }
 }
 
@@ -479,7 +256,6 @@ pub(super) trait TestAccessorExt {
     fn test_is_tree_root(&self, v: usize) -> bool;
     fn test_flag(&self, v: usize) -> u8;
     fn test_degree(&self, v: usize) -> usize;
-    fn test_init_snapshot(&self) -> GreedyInitSnapshot;
 }
 
 impl<M> TestAccessorExt for BlossomVState<M>
@@ -531,9 +307,5 @@ where
         let mut count = 0;
         self.for_each_edge(v as u32, |_, _, _| count += 1);
         count
-    }
-
-    fn test_init_snapshot(&self) -> GreedyInitSnapshot {
-        self.test_state_snapshot()
     }
 }

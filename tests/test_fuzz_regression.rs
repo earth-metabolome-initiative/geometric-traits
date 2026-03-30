@@ -732,6 +732,20 @@ fn test_replay_blossom_v_honggfuzz_sigabrt_case_14() {
 }
 
 #[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_15() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_15.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 15", &pattern);
+}
+
+#[test]
+fn test_replay_blossom_v_honggfuzz_sigabrt_case_16() {
+    let pattern =
+        decode_hex_fixture(include_str!("fixtures/blossom_v_honggfuzz_sigabrt_case_16.hex"));
+    assert_blossom_v_honggfuzz_replay_ok("honggfuzz replay 16", &pattern);
+}
+
+#[test]
 fn test_replay_hopcroft_karp_corpus() {
     for instance in replay_shared_fixture::<TestCSR>() {
         let _ = instance.hopcroft_karp();
