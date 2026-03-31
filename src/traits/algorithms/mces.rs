@@ -517,7 +517,7 @@ where
 }
 
 const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
-const PARTIAL_STAGED_DFS_BUDGET: usize = 5_000;
+const PARTIAL_SEED_DFS_BUDGET: usize = 5_000;
 
 fn alternate_partition_info<'a>(partition: &PartitionInfo<'a>) -> PartitionInfo<'a> {
     let partition_side = match partition.partition_side {
@@ -546,7 +546,7 @@ fn partition_info_with_side<'a>(
     }
 }
 
-fn partial_baseline_seed_size<F>(
+fn partial_initial_seed_size<F>(
     matrix: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     initial_lower_bound: usize,
@@ -560,13 +560,13 @@ where
     let alternate_partition = alternate_partition_info(partition);
     let alternate_greedy =
         greedy_lower_bound(matrix, &alternate_partition, initial_lower_bound, &mut *accept_clique);
-    let baseline_seed_size =
+    let initial_seed_size =
         if alternate_greedy >= current_greedy.saturating_add(PARTIAL_GREEDY_DELTA_THRESHOLD) {
             alternate_greedy
         } else {
             current_greedy
         };
-    (baseline_seed_size, current_greedy, alternate_greedy)
+    (initial_seed_size, current_greedy, alternate_greedy)
 }
 
 fn partial_best_size_seed<F>(
@@ -579,27 +579,27 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     // Keep the shipped partition side and state lower bound unchanged. Only
-    // improve the incumbent seed. The staged pre-pass runs on the more
-    // promising side, but the real search still runs on the shipped order,
-    // side, and state lower bound.
-    let (baseline_seed_size, current_greedy, alternate_greedy) =
-        partial_baseline_seed_size(matrix, partition, initial_lower_bound, &mut *accept_clique);
-    let probe_side = if alternate_greedy > current_greedy {
+    // improve the incumbent seed. The seed search runs on the more promising
+    // side, but the real search still runs on the shipped order, side, and
+    // state lower bound.
+    let (initial_seed_size, current_greedy, alternate_greedy) =
+        partial_initial_seed_size(matrix, partition, initial_lower_bound, &mut *accept_clique);
+    let seed_side = if alternate_greedy > current_greedy {
         alternate_partition_info(partition).partition_side
     } else {
         partition.partition_side
     };
-    let probe_partition = partition_info_with_side(partition, probe_side);
-    let probe_best_size = partial_u32_best_size_with_budget(
+    let seed_partition = partition_info_with_side(partition, seed_side);
+    let seed_best_size = partial_u32_best_size_with_budget(
         matrix,
-        &probe_partition,
+        &seed_partition,
         initial_lower_bound,
-        baseline_seed_size.saturating_sub(1),
-        PARTIAL_STAGED_DFS_BUDGET,
+        initial_seed_size.saturating_sub(1),
+        PARTIAL_SEED_DFS_BUDGET,
         &mut *accept_clique,
     );
 
-    baseline_seed_size.max(probe_best_size).saturating_sub(1)
+    initial_seed_size.max(seed_best_size).saturating_sub(1)
 }
 
 /// Default ranker: fragment count → largest fragment.
@@ -726,7 +726,6 @@ pub struct McesBuilder<'g, G, PF, XC, EC, D, R> {
     search_mode: McesSearchMode,
     delta_y: bool,
     ignore_edge_values: bool,
-    partition_orientation_heuristic: bool,
     similarity_threshold: Option<f64>,
     distance_threshold: Option<f64>,
 }
@@ -758,7 +757,6 @@ impl<'g, G>
             search_mode: McesSearchMode::PartialEnumeration,
             delta_y: true,
             ignore_edge_values: false,
-            partition_orientation_heuristic: true,
             similarity_threshold: None,
             distance_threshold: None,
         }
@@ -810,7 +808,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             search_mode: self.search_mode,
             delta_y: self.delta_y,
             ignore_edge_values: self.ignore_edge_values,
-            partition_orientation_heuristic: self.partition_orientation_heuristic,
             similarity_threshold: self.similarity_threshold,
             distance_threshold: self.distance_threshold,
         }
@@ -838,7 +835,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             search_mode: self.search_mode,
             delta_y: self.delta_y,
             ignore_edge_values: self.ignore_edge_values,
-            partition_orientation_heuristic: self.partition_orientation_heuristic,
             similarity_threshold: self.similarity_threshold,
             distance_threshold: self.distance_threshold,
         }
@@ -863,7 +859,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             search_mode: self.search_mode,
             delta_y: self.delta_y,
             ignore_edge_values: self.ignore_edge_values,
-            partition_orientation_heuristic: self.partition_orientation_heuristic,
             similarity_threshold: self.similarity_threshold,
             distance_threshold: self.distance_threshold,
         }
@@ -1019,7 +1014,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             search_mode: self.search_mode,
             delta_y: self.delta_y,
             ignore_edge_values: self.ignore_edge_values,
-            partition_orientation_heuristic: self.partition_orientation_heuristic,
             similarity_threshold: self.similarity_threshold,
             distance_threshold: self.distance_threshold,
         }
@@ -1053,7 +1047,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
             search_mode: self.search_mode,
             delta_y: self.delta_y,
             ignore_edge_values: self.ignore_edge_values,
-            partition_orientation_heuristic: self.partition_orientation_heuristic,
             similarity_threshold: self.similarity_threshold,
             distance_threshold: self.distance_threshold,
         }
@@ -1119,19 +1112,6 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
     #[must_use]
     pub fn with_ignore_edge_values(mut self, enabled: bool) -> Self {
         self.ignore_edge_values = enabled;
-        self
-    }
-
-    /// Enables or disables RDKit-style partition-side selection.
-    ///
-    /// When enabled, the partition-aware clique search partitions on the
-    /// smaller line graph first. If both line graphs have the same number of
-    /// bond vertices, it falls back to the flatter initial partition profile
-    /// as a tie-breaker. When disabled, the search always partitions by the
-    /// first graph's bond ids.
-    #[must_use]
-    pub fn with_partition_orientation_heuristic(mut self, enabled: bool) -> Self {
-        self.partition_orientation_heuristic = enabled;
         self
     }
 
@@ -1235,11 +1215,10 @@ where
                 g1_labels: &g1_labels,
                 g2_labels: &g2_labels,
                 num_labels: 1,
-                partition_side: if self.partition_orientation_heuristic {
-                    choose_partition_side_by_atom_counts(first_vertices, second_vertices)
-                } else {
-                    PartitionSide::First
-                },
+                partition_side: choose_partition_side_by_atom_counts(
+                    first_vertices,
+                    second_vertices,
+                ),
             };
             match self.search_mode {
                 McesSearchMode::PartialEnumeration => {
@@ -1433,11 +1412,10 @@ where
                 g1_labels: &g1_label_indices,
                 g2_labels: &g2_label_indices,
                 num_labels,
-                partition_side: if self.partition_orientation_heuristic {
-                    choose_partition_side_by_atom_counts(first_vertices, second_vertices)
-                } else {
-                    PartitionSide::First
-                },
+                partition_side: choose_partition_side_by_atom_counts(
+                    first_vertices,
+                    second_vertices,
+                ),
             };
             match self.search_mode {
                 McesSearchMode::PartialEnumeration => {

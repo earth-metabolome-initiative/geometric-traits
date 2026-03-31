@@ -1,23 +1,39 @@
 #!/usr/bin/env python3
-"""Generate a larger default-config MCES ground truth corpus from MassSpecGym SMILES.
+"""Generate a default-config MCES ground truth corpus from MassSpecGym SMILES.
 
 Usage:
     uv run --with rdkit --with tqdm python3 tests/fixtures/generate_massspecgym_mces_ground_truth.py
+
+Examples:
+    PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+        tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+        --target-cases 1000 \
+        --output tests/fixtures/massspecgym_mces_default_1000.json.gz
+
+    PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+        tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+        --target-cases 10000 \
+        --output tests/fixtures/massspecgym_mces_default_10000.json.gz
+
+    PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+        tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+        --target-cases 200000 \
+        --output tests/fixtures/massspecgym_mces_default_200000.json.gz
 """
 
 from __future__ import annotations
 
-import argparse
 import csv
 import gzip
 import json
 import random
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 import statistics
 import time
 
-from rdkit import Chem, DataStructs
+from rdkit import Chem, DataStructs, rdBase
 from rdkit.Chem import rdFingerprintGenerator
 from rdkit.Chem.rdRascalMCES import FindMCES, RascalOptions
 from tqdm.auto import tqdm
@@ -34,6 +50,13 @@ PAIR_SIMILARITY_LOWER_CUTOFF = 0.6
 PAIR_SIMILARITY_UPPER_CUTOFF = 0.975
 MAX_BOND_MATCH_PAIRS = 10_000
 RNG_SEED = 20260324
+
+
+def suppress_rdkit_logs() -> None:
+    """Keep long fixture runs readable by silencing RDKit chatter."""
+    rdBase.DisableLog("rdApp.debug")
+    rdBase.DisableLog("rdApp.info")
+    rdBase.DisableLog("rdApp.warning")
 
 
 @dataclass(frozen=True)
@@ -229,6 +252,7 @@ def generate_cases(
 
 
 def main() -> None:
+    suppress_rdkit_logs()
     args = parse_args()
     reservoir_cases = (
         args.reservoir_cases

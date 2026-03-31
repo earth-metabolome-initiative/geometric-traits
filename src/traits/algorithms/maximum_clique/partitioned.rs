@@ -787,27 +787,6 @@ struct PruneUndo {
     swapped_vertex: Option<usize>,
 }
 
-/// Chooses the partition side by comparing the supplied side sizes.
-///
-/// This helper is used by diagnostics and experiments that want a generic
-/// "smaller side first" rule over two partition-size counts. The production
-/// MCES orientation heuristic uses original graph atom counts instead, to
-/// mirror RDKit's initial molecule swap rule.
-#[must_use]
-pub fn choose_partition_side(
-    _pairs: &[(usize, usize)],
-    g1_len: usize,
-    g2_len: usize,
-) -> PartitionSide {
-    if g1_len < g2_len {
-        return PartitionSide::First;
-    }
-    if g2_len < g1_len {
-        return PartitionSide::Second;
-    }
-    PartitionSide::First
-}
-
 /// Chooses the partition side using RDKit's initial molecule-swap rule.
 ///
 /// RASCAL swaps the two molecules only when the first has strictly more
@@ -1427,17 +1406,13 @@ mod tests {
     }
 
     #[test]
-    fn test_partition_side_keeps_first_side_when_graph_sizes_tie() {
-        let pairs = vec![(0, 0), (0, 1), (0, 2), (1, 0), (2, 1)];
-
-        assert_eq!(choose_partition_side(&pairs, 3, 3), PartitionSide::First);
+    fn test_partition_side_keeps_first_side_when_atom_counts_tie() {
+        assert_eq!(choose_partition_side_by_atom_counts(3, 3), PartitionSide::First);
     }
 
     #[test]
-    fn test_partition_side_prefers_smaller_graph_over_flatter_profile() {
-        let pairs = vec![(0, 0), (1, 0), (2, 1), (3, 1), (4, 2), (5, 2), (6, 3), (7, 3)];
-
-        assert_eq!(choose_partition_side(&pairs, 8, 4), PartitionSide::Second);
+    fn test_partition_side_prefers_smaller_atom_count() {
+        assert_eq!(choose_partition_side_by_atom_counts(8, 4), PartitionSide::Second);
     }
 
     #[test]

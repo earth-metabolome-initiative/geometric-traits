@@ -1,5 +1,30 @@
 use super::*;
 
+/// Fixture-loading helpers for the MCES ground-truth test suite.
+///
+/// Regenerate the committed large-corpus default fixtures with:
+///
+/// ```bash
+/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+///   --target-cases 1000 \
+///   --output tests/fixtures/massspecgym_mces_default_1000.json.gz
+///
+/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+///   --target-cases 10000 \
+///   --output tests/fixtures/massspecgym_mces_default_10000.json.gz
+/// ```
+///
+/// Regenerate the local-only full oracle with:
+///
+/// ```bash
+/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
+///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
+///   --target-cases 200000 \
+///   --output tests/fixtures/massspecgym_mces_default_200000.json.gz
+/// ```
+
 #[derive(serde::Deserialize)]
 pub(crate) struct GroundTruthFile {
     pub(crate) version: u32,
@@ -16,22 +41,15 @@ pub(crate) struct GraphData {
     pub(crate) aromatic_ring_contexts: Vec<Vec<String>>,
     pub(crate) atom_is_aromatic: Vec<bool>,
     #[serde(default)]
-    pub(crate) atom_total_hs: Vec<u8>,
-    #[serde(default)]
-    pub(crate) bond_orientations: Vec<[usize; 2]>,
-    #[serde(default)]
     pub(crate) bond_original_indices: Vec<usize>,
 }
 
 #[derive(serde::Deserialize)]
 pub(crate) struct GroundTruthCase {
     pub(crate) name: String,
-    pub(crate) smiles1: String,
-    pub(crate) smiles2: String,
     pub(crate) graph1: GraphData,
     pub(crate) graph2: GraphData,
     pub(crate) expected_bond_matches: usize,
-    pub(crate) expected_atom_matches: usize,
     pub(crate) expected_similarity: f64,
     pub(crate) timed_out: bool,
     pub(crate) options: Option<serde_json::Value>,
@@ -45,19 +63,10 @@ const MASSSPECGYM_GROUND_TRUTH_1000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_1000.json.gz");
 const MASSSPECGYM_GROUND_TRUTH_10000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_10000.json.gz");
-const MASSSPECGYM_GROUND_TRUTH_50000_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_50000.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_200000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_200000.json.gz");
 const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_100.json.gz");
-const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_1000.json.gz");
-const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_10000.json.gz");
-const MASSSPECGYM_ALL_BEST_HOLDOUTS_PATH: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/tests/fixtures/massspecgym_mces_all_best_holdouts.json.gz"
-);
-
 pub(crate) fn load_ground_truth_from_bytes(gz_bytes: &[u8]) -> Vec<GroundTruthCase> {
     let mut decoder = flate2::read::GzDecoder::new(gz_bytes);
     let mut json_str = String::new();
@@ -94,34 +103,12 @@ pub(crate) fn load_massspecgym_ground_truth_10000() -> Vec<GroundTruthCase> {
     load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_10000_PATH)
 }
 
-pub(crate) fn load_massspecgym_ground_truth_50000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_50000_PATH)
+pub(crate) fn load_massspecgym_ground_truth_200000() -> Vec<GroundTruthCase> {
+    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_200000_PATH)
 }
 
 pub(crate) fn load_massspecgym_all_best_ground_truth() -> Vec<GroundTruthCase> {
     load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH)
-}
-
-pub(crate) fn load_massspecgym_all_best_ground_truth_1000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_1000_PATH)
-}
-
-pub(crate) fn load_massspecgym_all_best_ground_truth_10000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_GROUND_TRUTH_10000_PATH)
-}
-
-pub(crate) fn load_massspecgym_all_best_holdouts() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_ALL_BEST_HOLDOUTS_PATH)
-}
-
-pub(crate) fn load_massspecgym_ground_truth_by_size(size: usize) -> Vec<GroundTruthCase> {
-    match size {
-        100 => load_massspecgym_ground_truth(),
-        1000 => load_massspecgym_ground_truth_1000(),
-        10000 => load_massspecgym_ground_truth_10000(),
-        50000 => load_massspecgym_ground_truth_50000(),
-        _ => panic!("unsupported MassSpecGym corpus size {size}"),
-    }
 }
 
 pub(crate) fn evenly_spaced_case_indices(len: usize, samples: usize) -> Vec<usize> {

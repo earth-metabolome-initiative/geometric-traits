@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a fast RDKit allBestMCESs=true oracle for the MassSpecGym corpus.
+"""Generate a RDKit allBestMCESs=true oracle for a MassSpecGym corpus.
 
 Usage:
     uv run --with rdkit python3 tests/fixtures/generate_massspecgym_mces_all_best_ground_truth.py
@@ -7,9 +7,9 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import gzip
 import json
+import argparse
 from pathlib import Path
 import statistics
 import time

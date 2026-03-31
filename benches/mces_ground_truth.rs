@@ -196,17 +196,13 @@ fn prepare_labeled_case(case: GroundTruthCase) -> PreparedLabeledCase {
     }
 }
 
-fn run_prepared_labeled_case(
-    case: &PreparedLabeledCase,
-    use_partition_orientation_heuristic: bool,
-) -> McesResult<usize> {
+fn run_prepared_labeled_case(case: &PreparedLabeledCase) -> McesResult<usize> {
     if case.use_edge_contexts {
         if let (Some(first_contexts), Some(second_contexts)) =
             (case.first_contexts.as_ref(), case.second_contexts.as_ref())
         {
             let builder = McesBuilder::new(&case.first, &case.second)
-                .with_edge_contexts(first_contexts, second_contexts)
-                .with_partition_orientation_heuristic(use_partition_orientation_heuristic);
+                .with_edge_contexts(first_contexts, second_contexts);
             let builder = if case.ignore_edge_values {
                 builder.with_ignore_edge_values(true)
             } else {
@@ -216,8 +212,7 @@ fn run_prepared_labeled_case(
         }
     }
 
-    let builder = McesBuilder::new(&case.first, &case.second)
-        .with_partition_orientation_heuristic(use_partition_orientation_heuristic);
+    let builder = McesBuilder::new(&case.first, &case.second);
     let builder =
         if case.ignore_edge_values { builder.with_ignore_edge_values(true) } else { builder };
     builder.compute_labeled()
@@ -239,16 +234,9 @@ fn bench_mces_ground_truth(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(2));
 
     for case in &cases {
-        group.bench_with_input(BenchmarkId::new("baseline", &case.name), case, |b, case| {
-            b.iter(|| black_box(run_prepared_labeled_case(case, false)));
+        group.bench_with_input(BenchmarkId::new("stable", &case.name), case, |b, case| {
+            b.iter(|| black_box(run_prepared_labeled_case(case)));
         });
-        group.bench_with_input(
-            BenchmarkId::new("orientation_heuristic", &case.name),
-            case,
-            |b, case| {
-                b.iter(|| black_box(run_prepared_labeled_case(case, true)));
-            },
-        );
     }
 
     group.finish();

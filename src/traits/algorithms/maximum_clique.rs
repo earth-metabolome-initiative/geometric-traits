@@ -16,7 +16,7 @@ use alloc::vec::Vec;
 
 pub(crate) use partitioned::partial_u32_best_size_with_budget;
 pub use partitioned::{
-    OwnedPartitionLabels, PartitionInfo, PartitionSide, all_best_search, choose_partition_side,
+    OwnedPartitionLabels, PartitionInfo, PartitionSide, all_best_search,
     choose_partition_side_by_atom_counts, greedy_lower_bound, partial_search, partial_search_u32,
     partial_search_u32_with_bounds, partial_search_with_bounds,
 };

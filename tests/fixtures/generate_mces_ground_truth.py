@@ -12,8 +12,15 @@ Usage:
 
 import gzip
 import json
-from rdkit import Chem
+from rdkit import Chem, rdBase
 from rdkit.Chem.rdRascalMCES import FindMCES, RascalOptions
+
+
+def suppress_rdkit_logs():
+    """Keep fixture generation readable by silencing RDKit chatter."""
+    rdBase.DisableLog("rdApp.debug")
+    rdBase.DisableLog("rdApp.info")
+    rdBase.DisableLog("rdApp.warning")
 
 
 def _normalize_aromatic_ring_smiles(smiles):
@@ -257,6 +264,7 @@ TEST_CASES = [
 
 
 def main():
+    suppress_rdkit_logs()
     cases = []
     skipped = 0
     for name, smi1, smi2, opts in TEST_CASES:
