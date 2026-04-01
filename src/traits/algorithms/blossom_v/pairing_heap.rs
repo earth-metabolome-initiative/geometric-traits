@@ -466,6 +466,26 @@ mod tests {
     }
 
     #[test]
+    fn test_default_heap_matches_new() {
+        let heap = PairingHeap::default();
+        assert!(heap.is_empty());
+        assert_eq!(heap.get_min(), None);
+    }
+
+    #[test]
+    fn test_pq_key_store_slice_and_vec_impls() {
+        let mut vec_keys = vec![5, 9];
+        assert_eq!(PQKeyStore::get_key(&vec_keys, 1), 9);
+        PQKeyStore::set_key(&mut vec_keys, 0, 7);
+        assert_eq!(vec_keys[0], 7);
+
+        let slice_keys: &mut [i64] = vec_keys.as_mut_slice();
+        assert_eq!(PQKeyStore::get_key(slice_keys, 0), 7);
+        PQKeyStore::set_key(slice_keys, 1, 11);
+        assert_eq!(slice_keys[1], 11);
+    }
+
+    #[test]
     fn test_add_single() {
         let (heap, keys, _nodes) = make_heap_with_items(&[(0, 42)]);
         assert!(!heap.is_empty());
@@ -605,11 +625,44 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_ignores_empty_other_heap() {
+        let (mut h1, mut keys, mut nodes) = make_heap_with_items(&[(0, 10), (1, 5)]);
+        let mut h2 = PairingHeap::new();
+
+        h1.merge(&mut h2, &mut keys, &mut nodes);
+
+        assert_eq!(h1.get_min(), Some(1));
+        assert_eq!(h1.get_min_key(&keys), Some(5));
+        assert!(h2.is_empty());
+    }
+
+    #[test]
+    fn test_merge_into_empty_heap_takes_other_root() {
+        let mut h1 = PairingHeap::new();
+        let (mut h2, mut keys, mut nodes) = make_heap_with_items(&[(0, 8), (1, 3)]);
+
+        h1.merge(&mut h2, &mut keys, &mut nodes);
+
+        assert_eq!(h1.get_min(), Some(1));
+        assert_eq!(h1.get_min_key(&keys), Some(3));
+        assert!(h2.is_empty());
+    }
+
+    #[test]
     fn test_for_each() {
         let (heap, _keys, nodes) = make_heap_with_items(&[(0, 10), (1, 5), (2, 20)]);
         let mut visited = vec![false; 3];
         heap.for_each(&nodes, |i| visited[i as usize] = true);
         assert!(visited.iter().all(|&v| v));
+    }
+
+    #[test]
+    fn test_for_each_empty_heap_does_not_visit_anything() {
+        let heap = PairingHeap::new();
+        let nodes = vec![PQNode::RESET; 1];
+        let mut visits = 0;
+        heap.for_each(&nodes, |_| visits += 1);
+        assert_eq!(visits, 0);
     }
 
     #[test]
@@ -622,6 +675,21 @@ mod tests {
         drained.sort_by_key(|&(i, _)| i);
         assert_eq!(drained, vec![(0, 110), (1, 105), (2, 120)]);
         // All nodes should be reset
+        assert!(nodes.iter().all(|n| !n.is_in_heap()));
+    }
+
+    #[test]
+    fn test_drain_empty_heap_is_noop() {
+        let mut heap = PairingHeap::new();
+        let mut keys = vec![1i64];
+        let mut nodes = vec![PQNode::RESET; 1];
+        let mut drained = Vec::new();
+
+        heap.drain(&mut keys, &mut nodes, |i, k| drained.push((i, k)));
+
+        assert!(drained.is_empty());
+        assert!(heap.is_empty());
+        assert_eq!(keys, vec![1]);
         assert!(nodes.iter().all(|n| !n.is_in_heap()));
     }
 
