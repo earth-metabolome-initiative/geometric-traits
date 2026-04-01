@@ -429,8 +429,8 @@ where
 
 impl<
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
-    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
-    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + Debug,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex> + Debug,
 > MatrixMut for CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
