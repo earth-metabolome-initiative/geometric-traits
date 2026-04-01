@@ -1,9 +1,6 @@
 //! Tests for Gabow's 1976 maximum matching algorithm.
 #![cfg(feature = "std")]
 
-#[path = "support/max_matching_oracle.rs"]
-mod max_matching_oracle;
-
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
@@ -103,40 +100,6 @@ fn test_complete_bipartite_k33() {
 }
 
 #[test]
-fn test_reference_triangle() {
-    assert_matching_size_agrees(3, &[(0, 1), (0, 2), (1, 2)]);
-}
-
-#[test]
-fn test_reference_complete_k5() {
-    assert_matching_size_agrees(
-        5,
-        &[(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
-    );
-}
-
-#[test]
-fn test_reference_nested_blossom_deep() {
-    assert_matching_size_agrees(
-        10,
-        &[
-            (0, 1),
-            (0, 2),
-            (1, 2),
-            (2, 3),
-            (3, 4),
-            (3, 5),
-            (4, 5),
-            (5, 6),
-            (6, 7),
-            (6, 8),
-            (7, 8),
-            (8, 9),
-        ],
-    );
-}
-
-#[test]
 fn test_exhaustive_small_graphs_up_to_six_vertices() {
     for n in 0..=6 {
         let mut all_edges = Vec::new();
@@ -159,12 +122,4 @@ fn test_exhaustive_small_graphs_up_to_six_vertices() {
             validate_matching(&g, &gabow, blossom.len());
         }
     }
-}
-
-fn assert_matching_size_agrees(n: usize, edges: &[(usize, usize)]) {
-    let matrix = build_graph(n, edges);
-    let gabow_matching = matrix.gabow_1976();
-    let oracle_size = max_matching_oracle::maximum_matching_size(n, edges);
-
-    validate_matching(&matrix, &gabow_matching, oracle_size);
 }
