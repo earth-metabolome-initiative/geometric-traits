@@ -166,7 +166,8 @@ fn assert_blossom_v_matches_oracle_cost(
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
     match result {
         Ok(Ok(matching)) => {
-            let optimum = oracle.unwrap_or_else(|| panic!("{label}: oracle found no perfect matching"));
+            let optimum =
+                oracle.unwrap_or_else(|| panic!("{label}: oracle found no perfect matching"));
             validate_matching(order, edges, &matching);
             let actual = i64::from(matching_cost(edges, &matching));
             assert_eq!(actual, optimum, "{label}: Blossom V returned non-optimal matching cost");
