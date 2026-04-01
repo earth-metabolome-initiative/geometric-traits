@@ -1,6 +1,8 @@
 //! Consolidated tests for error types exposed by traits and builders.
 #![cfg(feature = "std")]
 
+use std::error::Error;
+
 use geometric_traits::{
     errors::{
         bipartite_graph_error::algorithms::BipartiteAlgorithmError,
@@ -33,6 +35,22 @@ fn test_lap_error_display_variants() {
         (LAPError::MaximalCostNotPositive, "The provided maximal cost is not a positive number."),
         (LAPError::PaddingValueNotFinite, "The provided padding value is not a finite number."),
         (LAPError::PaddingValueNotPositive, "The provided padding value is not a positive number."),
+        (
+            LAPError::PaddingCostTooSmall,
+            "The padding cost is too small: padding_cost / 2 must be strictly greater than the maximum sparse value.",
+        ),
+        (
+            LAPError::ExpandedMatrixBuildFailed,
+            "Failed to build the expanded sparse matrix from the provided sparse structure.",
+        ),
+        (
+            LAPError::IndexConversionFailed,
+            "Internal index conversion failed while processing the sparse wrapper.",
+        ),
+        (
+            LAPError::InfeasibleAssignment,
+            "The sparse structure has no perfect matching (infeasible assignment).",
+        ),
     ];
 
     for (error, expected_message) in cases {
@@ -45,6 +63,13 @@ fn test_lap_error_traits() {
     let error = LAPError::EmptyMatrix;
     assert!(format!("{:?}", LAPError::NonSquareMatrix).contains("NonSquareMatrix"));
     assert_eq!(error, error.clone());
+    assert_ne!(LAPError::EmptyMatrix, LAPError::NonSquareMatrix);
+}
+
+#[test]
+fn test_lap_error_is_std_error() {
+    fn check_is_error<E: Error>(_: E) {}
+    check_is_error(LAPError::NonSquareMatrix);
 }
 
 #[test]
