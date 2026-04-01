@@ -566,7 +566,7 @@ where
 
     /// Greedy initialization: set initial dual variables and matching.
     ///
-    /// For each node v, set y[v] = min incident edge cost (doubled).
+    /// For each node `v`, set `y[v]` to the doubled minimum incident edge cost.
     /// Then greedily match on zero-slack edges.
     fn init_greedy(&mut self) {
         let n = self.node_num;
