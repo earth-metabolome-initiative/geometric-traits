@@ -1,6 +1,9 @@
 //! Tests for Gabow's 1976 maximum matching algorithm.
 #![cfg(feature = "std")]
 
+#[path = "support/max_matching_oracle.rs"]
+mod max_matching_oracle;
+
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
@@ -161,26 +164,7 @@ fn test_exhaustive_small_graphs_up_to_six_vertices() {
 fn assert_matching_size_agrees(n: usize, edges: &[(usize, usize)]) {
     let matrix = build_graph(n, edges);
     let gabow_matching = matrix.gabow_1976();
+    let oracle_size = max_matching_oracle::maximum_matching_size(n, edges);
 
-    let adj: Vec<(usize, Vec<usize>)> = (0..n)
-        .map(|v| {
-            let neighbors: Vec<usize> = edges
-                .iter()
-                .filter_map(|&(a, b)| {
-                    if a == v {
-                        Some(b)
-                    } else if b == v {
-                        Some(a)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            (v, neighbors)
-        })
-        .collect();
-    let ref_graph: blossom::Graph = adj.iter().collect();
-    let ref_matching = ref_graph.maximum_matching();
-
-    validate_matching(&matrix, &gabow_matching, ref_matching.len());
+    validate_matching(&matrix, &gabow_matching, oracle_size);
 }

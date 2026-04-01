@@ -72,12 +72,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blossom"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d2a9a3b589aea8a51b1cd3c07e9de3486a13f708ae99a3873863e0edbb1ba65"
-
-[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,13 +289,11 @@ version = "0.1.0"
 dependencies = [
  "arbitrary",
  "bitvec",
- "blossom",
  "criterion",
  "flate2",
  "hashbrown",
  "lender",
  "multi_ranged",
- "mwmatching",
  "num-traits",
  "rand",
  "rayon",
@@ -400,12 +392,6 @@ dependencies = [
  "serde",
  "thiserror",
 ]
-
-[[package]]
-name = "mwmatching"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f13b50448d988736cc2c938a76ae336241fcb31a225017c0e3121bd349e7dc06"
 
 [[package]]
 name = "num-traits"

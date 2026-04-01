@@ -2,6 +2,9 @@
 //! Mirrors tests/test_micali_vazirani.rs with cross-validation against Blossom.
 #![cfg(feature = "std")]
 
+#[path = "support/max_matching_oracle.rs"]
+mod max_matching_oracle;
+
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
@@ -687,40 +690,22 @@ fn test_dandeh_lukovszki_figure2_case_2_3_i() {
 }
 
 // ============================================================================
-// Reference comparison (cross-validate with external blossom crate)
+// Reference comparison (cross-validate with exact oracle on small graphs)
 // ============================================================================
 
 fn assert_matching_size_agrees(n: usize, edges: &[(usize, usize)]) {
     let matrix = build_graph(n, edges);
     let blum_matching = matrix.blum();
     let bl_matching = matrix.blossom();
+    let oracle_size = max_matching_oracle::maximum_matching_size(n, edges);
 
-    let adj: Vec<(usize, Vec<usize>)> = (0..n)
-        .map(|v| {
-            let neighbors: Vec<usize> = edges
-                .iter()
-                .filter_map(|&(a, b)| {
-                    if a == v {
-                        Some(b)
-                    } else if b == v {
-                        Some(a)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            (v, neighbors)
-        })
-        .collect();
-    let ref_graph: blossom::Graph = adj.iter().collect();
-    let ref_matching = ref_graph.maximum_matching();
-
-    validate_matching(&matrix, &blum_matching, ref_matching.len());
+    validate_matching(&matrix, &blum_matching, oracle_size);
     assert_eq!(
         blum_matching.len(),
         bl_matching.len(),
         "Blum and Blossom disagree on matching size"
     );
+    assert_eq!(bl_matching.len(), oracle_size, "Blossom disagrees with the exact oracle");
 }
 
 #[test]

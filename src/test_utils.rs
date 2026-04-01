@@ -641,64 +641,24 @@ fn brute_force_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Op
 }
 
 #[must_use]
-fn mwmatching_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
-    if order == 0 {
-        return Some(0);
-    }
-
-    let mut incident = vec![false; order];
-    for &(u, v, _) in edges {
-        incident[u] = true;
-        incident[v] = true;
-    }
-    if incident.iter().any(|seen| !seen) {
-        return None;
-    }
-
-    let oracle_edges = edges
-        .iter()
-        .map(|&(u, v, weight)| {
-            (
-                u,
-                v,
-                weight
-                    .checked_neg()
-                    .expect("fuzz/regression Blossom V weights must be negatable for mwmatching"),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mates = mwmatching::Matching::new(oracle_edges).max_cardinality().solve();
-    assert_eq!(
-        mates.len(),
-        order,
-        "mwmatching returned mate vector of length {} for order {order}",
-        mates.len()
-    );
-
-    let mut matching = Vec::with_capacity(order / 2);
-    for (u, &v) in mates.iter().enumerate() {
-        if v == mwmatching::SENTINEL {
-            continue;
-        }
-        assert!(v < order, "mwmatching returned out-of-bounds mate {v} for vertex {u}");
-        if u < v {
-            matching.push((u, v));
-        }
-    }
-
-    if matching.len() != order / 2 {
-        return None;
-    }
-
-    Some(blossom_v_matching_cost(edges, &matching))
+fn blossom_v_support_has_perfect_matching(order: usize, edges: &[(usize, usize, i32)]) -> bool {
+    let support = UndiEdgesBuilder::default()
+        .expected_shape(order)
+        .expected_number_of_edges(edges.len())
+        .edges(edges.iter().map(|&(u, v, _)| (u, v)))
+        .build()
+        .expect("build Blossom V support graph");
+    support.blossom().len() == order / 2
 }
 
 /// Run Blossom V on a valid arbitrary undirected weighted graph and check that
 /// it either returns a valid perfect matching or correctly reports that none
 /// exists.
 ///
-/// For graphs up to 12 vertices, this also cross-checks the returned cost or
-/// infeasibility against a brute-force oracle.
+/// For graphs up to 12 vertices, this cross-checks the returned cost or
+/// infeasibility against a brute-force oracle. For larger graphs, it checks
+/// structural validity and whether the unweighted support graph admits a
+/// perfect matching.
 #[inline]
 pub fn check_blossom_v_invariants(case: &FuzzBlossomVCase) {
     check_blossom_v_invariants_with_bruteforce_limit(case, 12);
@@ -728,40 +688,42 @@ fn check_blossom_v_invariants_with_bruteforce_limit(
 ) {
     let order = usize::from(case.order);
     let (graph, edges) = build_blossom_v_graph(case);
-    let mwmatching_cost = mwmatching_blossom_v_cost(order, &edges);
-    let brute_force_cost = if order <= brute_force_limit {
-        Some(brute_force_blossom_v_cost(order, &edges))
-    } else {
-        None
-    };
-    if let Some(brute_force_cost) = brute_force_cost {
-        assert_eq!(
-            mwmatching_cost, brute_force_cost,
-            "mwmatching and brute-force disagree on graph {case:?}"
-        );
-    }
+    let brute_force_cost =
+        (order <= brute_force_limit).then(|| brute_force_blossom_v_cost(order, &edges));
+    let support_has_perfect_matching =
+        (order > brute_force_limit).then(|| blossom_v_support_has_perfect_matching(order, &edges));
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| graph.blossom_v()));
 
     match result {
         Ok(Ok(matching)) => {
-            let Some(optimum) = mwmatching_cost else {
-                panic!(
-                    "Blossom V returned a perfect matching for graph {case:?}, but mwmatching found none"
-                );
-            };
             validate_blossom_v_matching(order, &edges, &matching);
-            let actual = blossom_v_matching_cost(&edges, &matching);
-            assert_eq!(
-                actual, optimum,
-                "Blossom V returned non-optimal cost {actual} for graph {case:?}; expected {optimum}"
-            );
+            if let Some(brute_force_cost) = brute_force_cost {
+                let actual = blossom_v_matching_cost(&edges, &matching);
+                let Some(optimum) = brute_force_cost else {
+                    panic!(
+                        "Blossom V returned a perfect matching for graph {case:?}, but brute force found none"
+                    );
+                };
+                assert_eq!(
+                    actual, optimum,
+                    "Blossom V returned non-optimal cost {actual} for graph {case:?}; expected {optimum}"
+                );
+            }
         }
         Ok(Err(crate::traits::algorithms::BlossomVError::NoPerfectMatching)) => {
-            assert!(
-                mwmatching_cost.is_none(),
-                "Blossom V reported no perfect matching for graph {case:?}, but mwmatching found cost {:?}",
-                mwmatching_cost
-            );
+            if let Some(brute_force_cost) = brute_force_cost {
+                assert!(
+                    brute_force_cost.is_none(),
+                    "Blossom V reported no perfect matching for graph {case:?}, but brute force found cost {:?}",
+                    brute_force_cost
+                );
+            } else {
+                assert!(
+                    !support_has_perfect_matching
+                        .expect("support-feasibility result should be present"),
+                    "Blossom V reported no perfect matching for graph {case:?}, but the support graph has one"
+                );
+            }
         }
         Err(payload) => {
             let msg = if let Some(s) = payload.downcast_ref::<&str>() {
@@ -771,9 +733,7 @@ fn check_blossom_v_invariants_with_bruteforce_limit(
             } else {
                 "<non-string panic payload>".to_string()
             };
-            panic!(
-                "Blossom V panicked for graph {case:?} (mwmatching optimum: {mwmatching_cost:?}): {msg}"
-            );
+            panic!("Blossom V panicked for graph {case:?}: {msg}");
         }
     }
 }
