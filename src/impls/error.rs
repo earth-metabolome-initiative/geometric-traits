@@ -21,25 +21,32 @@ impl<M: Matrix2D> Debug for Error<M> {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, thiserror::Error)]
 /// Enumeration for the errors associated with failed mutable operations.
 pub enum MutabilityError<M: Matrix2D + ?Sized> {
     /// Unexpected coordinate.
+    #[error("Unordered coordinate: {0:?}")]
     UnorderedCoordinate(M::Coordinates),
     /// Duplicated entry.
+    #[error("Duplicated entry: {0:?}")]
     DuplicatedEntry(M::Coordinates),
     /// Entry out of bounds.
+    #[error("Entry out of expected bounds: {0:?}, expected within: {1:?} - {2}")]
     OutOfBounds(M::Coordinates, M::Coordinates, &'static str),
     /// When the row index type has been maxed out and it cannot
     /// be incremented anymore.
+    #[error("Row index type has been maxed out")]
     MaxedOutRowIndex,
     /// When the column index type has been maxed out and it cannot
     /// be incremented anymore.
+    #[error("Column index type has been maxed out")]
     MaxedOutColumnIndex,
     /// When the sparse index type has been maxed out and it cannot
     /// be incremented anymore.
+    #[error("Sparse index type has been maxed out")]
     MaxedOutSparseIndex,
     /// When a requested shape to apply is smaller than the current shape.
+    #[error("Requested shape is smaller than the current shape")]
     IncompatibleShape,
 }
 
@@ -47,40 +54,6 @@ impl<M: Matrix2D> Debug for MutabilityError<M> {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         <Self as core::fmt::Display>::fmt(self, f)
-    }
-}
-
-impl<M: Matrix2D> core::error::Error for MutabilityError<M> {}
-
-impl<M: Matrix2D> core::fmt::Display for MutabilityError<M> {
-    #[inline]
-    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        match self {
-            MutabilityError::UnorderedCoordinate(coordinates) => {
-                write!(f, "Unordered coordinate: {coordinates:?}")
-            }
-            MutabilityError::DuplicatedEntry(coordinates) => {
-                write!(f, "Duplicated entry: {coordinates:?}")
-            }
-            MutabilityError::OutOfBounds(coordinates, boundaries, context) => {
-                write!(
-                    f,
-                    "Entry out of expected bounds: {coordinates:?}, expected within: {boundaries:?} - {context}"
-                )
-            }
-            MutabilityError::MaxedOutRowIndex => {
-                write!(f, "Row index type has been maxed out")
-            }
-            MutabilityError::MaxedOutColumnIndex => {
-                write!(f, "Column index type has been maxed out")
-            }
-            MutabilityError::MaxedOutSparseIndex => {
-                write!(f, "Sparse index type has been maxed out")
-            }
-            MutabilityError::IncompatibleShape => {
-                write!(f, "Requested shape is smaller than the current shape")
-            }
-        }
     }
 }
 

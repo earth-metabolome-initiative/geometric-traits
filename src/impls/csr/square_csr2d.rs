@@ -331,6 +331,7 @@ impl<M> MatrixMut for SquareCSR2D<M>
 where
     M: MatrixMut<Entry = Self::Coordinates, Error = MutabilityError<M>>
         + Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+    M::RowIndex: Debug,
 {
     type Entry = Self::Coordinates;
     type Error = crate::impls::MutabilityError<Self>;

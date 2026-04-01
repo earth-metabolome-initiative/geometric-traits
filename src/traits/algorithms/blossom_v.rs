@@ -12,8 +12,6 @@
 //! nodes correspond to alternating trees. It uses greedy initialization.
 
 use alloc::vec::Vec;
-use core::fmt;
-
 mod inner;
 mod pairing_heap;
 
@@ -25,20 +23,11 @@ use crate::traits::{Number, PositiveInteger, SparseValuedMatrix2D};
 type MatchingResult<R, C> = Result<Vec<(R, C)>, BlossomVError>;
 
 /// Error type for the Blossom V algorithm.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum BlossomVError {
     /// The input graph does not contain a perfect matching of finite cost.
+    #[error("No perfect matching exists in the input graph")]
     NoPerfectMatching,
-}
-
-impl fmt::Display for BlossomVError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BlossomVError::NoPerfectMatching => {
-                write!(f, "No perfect matching exists in the input graph")
-            }
-        }
-    }
 }
 
 /// Minimum-cost perfect matching in general weighted graphs via the Edmonds
