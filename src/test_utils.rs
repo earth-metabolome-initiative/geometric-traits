@@ -565,13 +565,10 @@ fn blossom_v_matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, us
     matching
         .iter()
         .map(|&(u, v)| {
-            edges
-                .iter()
-                .find(|&&(a, b, _)| (a == u && b == v) || (a == v && b == u))
-                .map_or_else(
-                    || panic!("matched edge ({u}, {v}) not found in graph"),
-                    |&(_, _, w)| i64::from(w),
-                )
+            edges.iter().find(|&&(a, b, _)| (a == u && b == v) || (a == v && b == u)).map_or_else(
+                || panic!("matched edge ({u}, {v}) not found in graph"),
+                |&(_, _, w)| i64::from(w),
+            )
         })
         .sum()
 }

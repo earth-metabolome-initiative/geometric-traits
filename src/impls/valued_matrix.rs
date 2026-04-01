@@ -94,12 +94,7 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value>
 impl<
     SparseIndex: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + Debug,
-    ColumnIndex: Step
-        + TryFromUsize
-        + PositiveInteger
-        + AsPrimitive<usize>
-        + TryFrom<SparseIndex>
-        + Debug,
+    ColumnIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex> + Debug,
     Value,
     const ROWS: usize,
     const COLS: usize,
