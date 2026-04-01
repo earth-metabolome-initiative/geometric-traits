@@ -185,12 +185,6 @@ test = false
 doc = false
 
 [[bin]]
-name = "karp_sipser"
-path = "fuzz_targets/karp_sipser.rs"
-test = false
-doc = false
-
-[[bin]]
 name = "kocay"
 path = "fuzz_targets/kocay.rs"
 test = false

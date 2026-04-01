@@ -16,10 +16,9 @@ use geometric_traits::{
     test_utils::{
         self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, check_blossom_v_invariants,
         check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
-        check_kahn_ordering, check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
-        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
-        check_pairwise_bfs_matches_unit_floyd_warshall,
+        check_kahn_ordering, check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
+        check_leiden_invariants, check_louvain_invariants, check_padded_diagonal_invariants,
+        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
         check_structured_blossom_v_invariants, check_valued_matrix_invariants, from_bytes,
         replay_dir,
@@ -226,30 +225,6 @@ fn test_replay_root_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
 }
 
-// ============================================================================
-// Exact Karp-Sipser preprocessing
-// ============================================================================
-
-type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
-
-#[test]
-fn test_arbitrary_karp_sipser_invariants() {
-    for_each_instance::<TestSymmetricCSR, _>(|graph| {
-        if graph.order() as usize <= 64 {
-            check_karp_sipser_invariants(graph);
-        }
-    });
-}
-
-#[test]
-fn test_replay_karp_sipser_corpus() {
-    for instance in replay_shared_fixture::<TestSymmetricCSR>() {
-        if instance.order() as usize <= 64 {
-            check_karp_sipser_invariants(&instance);
-        }
-    }
-}
-
 #[test]
 fn test_replay_sink_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
@@ -258,6 +233,8 @@ fn test_replay_sink_nodes_corpus() {
 // ============================================================================
 // Gabow 1976 (mirrors fuzz/fuzz_targets/gabow_1976.rs)
 // ============================================================================
+
+type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
 
 #[test]
 fn test_arbitrary_gabow_1976() {
