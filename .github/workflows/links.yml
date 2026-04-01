@@ -23,6 +23,7 @@ jobs:
             --verbose
             --no-progress
             --exclude '^https://codecov\.io/gh/earth-metabolome-initiative/geometric-traits(/.*)?$'
+            --exclude '^https://doi\.org/10\.3115/981732\.981751/?$'
             './**/*.md'
             './**/*.html'
           fail: true
