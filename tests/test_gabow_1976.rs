@@ -36,16 +36,14 @@ fn validate_matching(
 }
 
 fn validate_gabow(
-    matrix: &(impl Blossom<Index = usize> + Blum + Gabow1976 + MicaliVazirani),
+    matrix: &(impl Blossom<Index = usize> + Gabow1976 + MicaliVazirani),
     expected_size: usize,
 ) {
     let gabow = matrix.gabow_1976();
     let blossom = matrix.blossom();
-    let blum = matrix.blum();
     let mv = matrix.micali_vazirani();
     validate_matching(matrix, &gabow, expected_size);
     assert_eq!(gabow.len(), blossom.len(), "Gabow and Blossom disagree on size");
-    assert_eq!(gabow.len(), blum.len(), "Gabow and Blum disagree on size");
     assert_eq!(gabow.len(), mv.len(), "Gabow and Micali-Vazirani disagree on size");
 }
 

@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 
 use crate::{
     impls::{CSR2D, SymmetricCSR2D},
-    traits::{Blossom, Blum, Gabow1976, MicaliVazirani, SparseSquareMatrix},
+    traits::{Blossom, Gabow1976, MicaliVazirani, SparseSquareMatrix},
 };
 
 mod inner;
@@ -91,13 +91,6 @@ pub trait KarpSipser: SparseSquareMatrix {
         rules: KarpSipserRules,
     ) -> Vec<(Self::Index, Self::Index)> {
         self.karp_sipser_kernel(rules).solve_with(MicaliVazirani::micali_vazirani)
-    }
-
-    /// Runs Blum's algorithm on the Karp-Sipser kernel and recovers the
-    /// result.
-    #[inline]
-    fn blum_with_karp_sipser(&self, rules: KarpSipserRules) -> Vec<(Self::Index, Self::Index)> {
-        self.karp_sipser_kernel(rules).solve_with(Blum::blum)
     }
 }
 

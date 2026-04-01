@@ -22,39 +22,39 @@ fn validate_matching(matrix: &impl SparseSquareMatrix<Index = usize>, matching: 
 
 fn assert_all_ks_exact(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let blossom = g.blossom();
+    let gabow = g.gabow_1976();
     let mv = g.micali_vazirani();
-    let blum = g.blum();
 
     let blossom_ks1 = g.blossom_with_karp_sipser(KarpSipserRules::Degree1);
     let blossom_ks12 = g.blossom_with_karp_sipser(KarpSipserRules::Degree1And2);
+    let gabow_ks1 = g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1);
+    let gabow_ks12 = g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1And2);
     let mv_ks1 = g.micali_vazirani_with_karp_sipser(KarpSipserRules::Degree1);
     let mv_ks12 = g.micali_vazirani_with_karp_sipser(KarpSipserRules::Degree1And2);
-    let blum_ks1 = g.blum_with_karp_sipser(KarpSipserRules::Degree1);
-    let blum_ks12 = g.blum_with_karp_sipser(KarpSipserRules::Degree1And2);
 
     for matching in [
         &blossom,
+        &gabow,
         &mv,
-        &blum,
         &blossom_ks1,
         &blossom_ks12,
+        &gabow_ks1,
+        &gabow_ks12,
         &mv_ks1,
         &mv_ks12,
-        &blum_ks1,
-        &blum_ks12,
     ] {
         validate_matching(g, matching);
     }
 
     let expected = blossom.len();
+    assert_eq!(gabow.len(), expected);
     assert_eq!(mv.len(), expected);
-    assert_eq!(blum.len(), expected);
     assert_eq!(blossom_ks1.len(), expected);
     assert_eq!(blossom_ks12.len(), expected);
+    assert_eq!(gabow_ks1.len(), expected);
+    assert_eq!(gabow_ks12.len(), expected);
     assert_eq!(mv_ks1.len(), expected);
     assert_eq!(mv_ks12.len(), expected);
-    assert_eq!(blum_ks1.len(), expected);
-    assert_eq!(blum_ks12.len(), expected);
 }
 
 #[test]
