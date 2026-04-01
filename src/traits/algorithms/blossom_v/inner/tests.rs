@@ -1,4 +1,4 @@
-use std::boxed::Box;
+use alloc::boxed::Box;
 
 use super::{
     test_support::{SchedulerMirrorTestExt, TestAccessorExt},
