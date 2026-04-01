@@ -763,7 +763,7 @@ impl<'g, G>
     }
 }
 
-impl<'g, G, PF, XC, EC, D> McesBuilder<'g, G, PF, XC, EC, D, DefaultRanker> {
+impl<G, PF, XC, EC, D> McesBuilder<'_, G, PF, XC, EC, D, DefaultRanker> {
     /// Chooses which fragment-size metric the built-in default ranker uses.
     ///
     /// This only affects the default tie-breaking chain
@@ -1160,6 +1160,7 @@ where
     ///    (partition-aware if enabled).
     /// 4. Builds `EagerCliqueInfo` for each clique (with vertex matching).
     /// 5. Ranks cliques and returns the best as `McesResult`.
+    #[allow(clippy::too_many_lines)]
     #[must_use]
     pub fn compute_unlabeled(mut self) -> McesResult<G::NodeId> {
         // 1. Build line graphs.
@@ -1337,6 +1338,7 @@ where
     /// enabled. Precomputed edge contexts, when provided, further restrict
     /// which original edge pairs are allowed into the product before any
     /// caller-provided pair filter runs.
+    #[allow(clippy::too_many_lines)]
     #[must_use]
     pub fn compute_labeled(mut self) -> McesResult<G::NodeId> {
         // 1. Build labeled line graphs.

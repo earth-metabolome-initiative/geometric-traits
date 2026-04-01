@@ -87,7 +87,10 @@ fn atom_type_to_shared_indices(
         atom_types
             .iter()
             .map(|atom_type| {
-                unique.iter().position(|candidate| *candidate == atom_type.as_str()).unwrap() as u8
+                u8::try_from(
+                    unique.iter().position(|candidate| *candidate == atom_type.as_str()).unwrap(),
+                )
+                .expect("shared atom label index must fit in u8")
             })
             .collect::<Vec<_>>()
     };

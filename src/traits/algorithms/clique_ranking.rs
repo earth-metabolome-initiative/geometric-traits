@@ -393,7 +393,7 @@ impl<I: CliqueInfo> CliqueRanker<I> for LargestFragmentMetricRanker {
 /// use geometric_traits::prelude::*;
 ///
 /// // Prefer cliques with more vertex matches.
-/// let _ranker = FnRanker::new(|a: &EagerCliqueInfo<u32, u32>, b: &EagerCliqueInfo<u32, u32>| {
+/// let _ranker = FnRanker::new(|a: &EagerCliqueInfo<u32>, b: &EagerCliqueInfo<u32>| {
 ///     b.vertex_matches().len().cmp(&a.vertex_matches().len())
 /// });
 /// ```

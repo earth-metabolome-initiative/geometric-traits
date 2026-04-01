@@ -463,7 +463,7 @@ fn test_default_mces_ranking_chain() {
     assert_eq!(CliqueRanker::compare(&ranker, &c3, &c2), Ordering::Less);
 
     // Sort: c1, c3, c2 (best to worst)
-    let mut cliques = vec![&c2, &c3, &c1];
+    let mut cliques = [&c2, &c3, &c1];
     cliques.sort_by(|a, b| CliqueRanker::compare(&ranker, *a, *b));
     assert_eq!(cliques[0].largest_fragment_size(), 3); // c1
     assert_eq!(cliques[1].largest_fragment_size(), 1); // c3

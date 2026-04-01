@@ -1,6 +1,6 @@
 //! Partition-driven exact maximum clique search for MCES-style workloads.
 
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, rc::Rc, vec::Vec};
 
 use crate::{
     impls::BitSquareMatrix,
@@ -64,6 +64,41 @@ impl OwnedPartitionLabels {
             partition_side: PartitionSide::First,
         }
     }
+}
+
+#[derive(Clone, Debug)]
+struct SharedClique(Rc<[usize]>);
+
+impl SharedClique {
+    #[inline]
+    fn as_slice(&self) -> &[usize] {
+        self.0.as_ref()
+    }
+}
+
+impl PartialEq for SharedClique {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for SharedClique {}
+
+impl PartialOrd for SharedClique {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SharedClique {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+
+#[inline]
+fn into_owned_cliques(cliques: Vec<SharedClique>) -> Vec<Vec<usize>> {
+    cliques.into_iter().map(|clique| clique.as_slice().to_vec()).collect()
 }
 
 #[derive(Clone)]
@@ -444,7 +479,7 @@ struct U32PruneUndo {
 impl<'a> U32PartitionSearchState<'a> {
     fn new(adj: &'a BitSquareMatrix, info: &'a PartitionInfo<'a>, lower_bound: usize) -> Self {
         assert!(
-            adj.order() <= u32::MAX as usize,
+            u32::try_from(adj.order()).is_ok(),
             "u32 partition state requires solver order <= u32::MAX"
         );
         let mut parts_by_side = vec![
@@ -802,18 +837,6 @@ pub fn choose_partition_side_by_atom_counts(
 
 const DEFAULT_PARTIAL_ENUMERATION_CAP: usize = 10_000;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum PartitionSearchPolicy {
-    PartialEnumeration { cap: usize },
-    AllBest,
-}
-
-impl PartitionSearchPolicy {
-    fn prunes_ties(self) -> bool {
-        !matches!(self, Self::AllBest)
-    }
-}
-
 /// Performs the partition-driven maximum clique search.
 pub(crate) fn search<F>(
     adj: &BitSquareMatrix,
@@ -826,13 +849,7 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     if enumerate {
-        search_with_policy(
-            adj,
-            partition,
-            PartitionSearchPolicy::AllBest,
-            initial_lower_bound,
-            accept_clique,
-        )
+        search_with_policy(adj, partition, initial_lower_bound, accept_clique)
     } else {
         partial_search_u32(adj, partition, initial_lower_bound, accept_clique)
     }
@@ -878,6 +895,7 @@ where
     let mut clique = Vec::new();
     let mut best_size = best_size_seed;
     let mut best_cliques = Vec::new();
+    let mut seen_cliques = BTreeSet::new();
     let mut trail = Vec::new();
 
     dfs_partial_in_place(
@@ -886,11 +904,12 @@ where
         DEFAULT_PARTIAL_ENUMERATION_CAP,
         &mut best_size,
         &mut best_cliques,
+        &mut seen_cliques,
         &mut accept_clique,
         &mut trail,
     );
 
-    best_cliques
+    into_owned_cliques(best_cliques)
 }
 
 #[doc(hidden)]
@@ -943,6 +962,7 @@ where
     let mut clique = Vec::new();
     let mut best_size = best_size_seed;
     let mut best_cliques = Vec::new();
+    let mut seen_cliques = BTreeSet::new();
     let mut trail = Vec::new();
 
     dfs_partial_u32_in_place(
@@ -951,11 +971,12 @@ where
         DEFAULT_PARTIAL_ENUMERATION_CAP,
         &mut best_size,
         &mut best_cliques,
+        &mut seen_cliques,
         &mut accept_clique,
         &mut trail,
     );
 
-    best_cliques
+    into_owned_cliques(best_cliques)
 }
 
 #[doc(hidden)]
@@ -968,13 +989,7 @@ pub fn all_best_search<F>(
 where
     F: FnMut(&[usize]) -> bool,
 {
-    search_with_policy(
-        adj,
-        partition,
-        PartitionSearchPolicy::AllBest,
-        initial_lower_bound,
-        accept_clique,
-    )
+    search_with_policy(adj, partition, initial_lower_bound, accept_clique)
 }
 
 #[doc(hidden)]
@@ -1024,7 +1039,6 @@ where
 fn search_with_policy<F>(
     adj: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
-    policy: PartitionSearchPolicy,
     initial_lower_bound: usize,
     mut accept_clique: F,
 ) -> Vec<Vec<usize>>
@@ -1042,7 +1056,7 @@ where
     let mut best_size = initial_lower_bound;
     let mut best_cliques = Vec::new();
 
-    dfs(state, &mut clique, policy, &mut best_size, &mut best_cliques, &mut accept_clique);
+    dfs(state, &mut clique, &mut best_size, &mut best_cliques, &mut accept_clique);
 
     best_cliques
 }
@@ -1082,16 +1096,13 @@ where
     let mut state = U32PartitionSearchState::new(adj, partition, state_lower_bound);
     let mut clique = Vec::new();
     let mut best_size = best_size_seed;
-    let mut best_cliques = Vec::new();
     let mut trail = Vec::new();
     let mut dfs_calls = 0usize;
 
     dfs_partial_u32_in_place_budgeted(
         &mut state,
         &mut clique,
-        DEFAULT_PARTIAL_ENUMERATION_CAP,
         &mut best_size,
-        &mut best_cliques,
         &mut accept_clique,
         &mut trail,
         &mut dfs_calls,
@@ -1104,7 +1115,6 @@ where
 fn dfs<F>(
     state: PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
-    policy: PartitionSearchPolicy,
     best_size: &mut usize,
     best_cliques: &mut Vec<Vec<usize>>,
     accept_clique: &mut F,
@@ -1116,20 +1126,12 @@ fn dfs<F>(
     }
 
     let parts_bound = clique.len() + state.num_parts();
-    if policy.prunes_ties() {
-        if parts_bound <= *best_size {
-            return;
-        }
-    } else if parts_bound < *best_size {
+    if parts_bound < *best_size {
         return;
     }
 
     let label_bound = clique.len() + state.upper_bound();
-    if policy.prunes_ties() {
-        if label_bound <= *best_size {
-            return;
-        }
-    } else if label_bound < *best_size {
+    if label_bound < *best_size {
         return;
     }
 
@@ -1137,22 +1139,24 @@ fn dfs<F>(
     let selected = without_vertex.pop_last_vertex();
     clique.push(selected);
     let mut with_vertex = without_vertex.clone();
-    maybe_update_best(clique, policy, best_size, best_cliques, accept_clique);
+    maybe_update_best(clique, best_size, best_cliques, accept_clique);
     with_vertex.prune_vertices(selected);
-    dfs(with_vertex, clique, policy, best_size, best_cliques, accept_clique);
+    dfs(with_vertex, clique, best_size, best_cliques, accept_clique);
     clique.pop();
 
     if !without_vertex.is_empty() {
-        dfs(without_vertex, clique, policy, best_size, best_cliques, accept_clique);
+        dfs(without_vertex, clique, best_size, best_cliques, accept_clique);
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn dfs_partial_in_place<F>(
     state: &mut PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
     cap: usize,
     best_size: &mut usize,
-    best_cliques: &mut Vec<Vec<usize>>,
+    best_cliques: &mut Vec<SharedClique>,
+    seen_cliques: &mut BTreeSet<SharedClique>,
     accept_clique: &mut F,
     trail: &mut Vec<PruneUndo>,
 ) where
@@ -1176,32 +1180,46 @@ fn dfs_partial_in_place<F>(
     let selected = state.pop_selected_vertex_in_place(selected_part);
     clique.push(selected);
 
-    maybe_update_best(
-        clique,
-        PartitionSearchPolicy::PartialEnumeration { cap },
-        best_size,
-        best_cliques,
-        accept_clique,
-    );
+    maybe_update_best_partial(clique, cap, best_size, best_cliques, seen_cliques, accept_clique);
 
     let checkpoint = trail.len();
     state.prune_vertices_in_place(selected, trail);
-    dfs_partial_in_place(state, clique, cap, best_size, best_cliques, accept_clique, trail);
+    dfs_partial_in_place(
+        state,
+        clique,
+        cap,
+        best_size,
+        best_cliques,
+        seen_cliques,
+        accept_clique,
+        trail,
+    );
     state.restore_pruned_vertices_in_place(trail, checkpoint);
 
     clique.pop();
     if !state.is_empty() {
-        dfs_partial_in_place(state, clique, cap, best_size, best_cliques, accept_clique, trail);
+        dfs_partial_in_place(
+            state,
+            clique,
+            cap,
+            best_size,
+            best_cliques,
+            seen_cliques,
+            accept_clique,
+            trail,
+        );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn dfs_partial_u32_in_place<F>(
     state: &mut U32PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
     cap: usize,
     best_size: &mut usize,
-    best_cliques: &mut Vec<Vec<usize>>,
+    best_cliques: &mut Vec<SharedClique>,
+    seen_cliques: &mut BTreeSet<SharedClique>,
     accept_clique: &mut F,
     trail: &mut Vec<U32PruneUndo>,
 ) where
@@ -1225,22 +1243,34 @@ fn dfs_partial_u32_in_place<F>(
     let selected = state.pop_selected_vertex_in_place(selected_part);
     clique.push(selected);
 
-    maybe_update_best(
-        clique,
-        PartitionSearchPolicy::PartialEnumeration { cap },
-        best_size,
-        best_cliques,
-        accept_clique,
-    );
+    maybe_update_best_partial(clique, cap, best_size, best_cliques, seen_cliques, accept_clique);
 
     let checkpoint = trail.len();
     state.prune_vertices_in_place(selected, trail);
-    dfs_partial_u32_in_place(state, clique, cap, best_size, best_cliques, accept_clique, trail);
+    dfs_partial_u32_in_place(
+        state,
+        clique,
+        cap,
+        best_size,
+        best_cliques,
+        seen_cliques,
+        accept_clique,
+        trail,
+    );
     state.restore_pruned_vertices_in_place(trail, checkpoint);
 
     clique.pop();
     if !state.is_empty() {
-        dfs_partial_u32_in_place(state, clique, cap, best_size, best_cliques, accept_clique, trail);
+        dfs_partial_u32_in_place(
+            state,
+            clique,
+            cap,
+            best_size,
+            best_cliques,
+            seen_cliques,
+            accept_clique,
+            trail,
+        );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);
 }
@@ -1248,9 +1278,7 @@ fn dfs_partial_u32_in_place<F>(
 fn dfs_partial_u32_in_place_budgeted<F>(
     state: &mut U32PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
-    cap: usize,
     best_size: &mut usize,
-    best_cliques: &mut Vec<Vec<usize>>,
     accept_clique: &mut F,
     trail: &mut Vec<U32PruneUndo>,
     dfs_calls: &mut usize,
@@ -1281,22 +1309,14 @@ fn dfs_partial_u32_in_place_budgeted<F>(
     let selected = state.pop_selected_vertex_in_place(selected_part);
     clique.push(selected);
 
-    maybe_update_best(
-        clique,
-        PartitionSearchPolicy::PartialEnumeration { cap },
-        best_size,
-        best_cliques,
-        accept_clique,
-    );
+    maybe_update_best_size(clique, best_size, accept_clique);
 
     let checkpoint = trail.len();
     state.prune_vertices_in_place(selected, trail);
     dfs_partial_u32_in_place_budgeted(
         state,
         clique,
-        cap,
         best_size,
-        best_cliques,
         accept_clique,
         trail,
         dfs_calls,
@@ -1309,9 +1329,7 @@ fn dfs_partial_u32_in_place_budgeted<F>(
         dfs_partial_u32_in_place_budgeted(
             state,
             clique,
-            cap,
             best_size,
-            best_cliques,
             accept_clique,
             trail,
             dfs_calls,
@@ -1321,9 +1339,61 @@ fn dfs_partial_u32_in_place_budgeted<F>(
     state.restore_selected_vertex_in_place(selected_part, selected);
 }
 
+fn maybe_update_best_size<F>(clique: &[usize], best_size: &mut usize, accept_clique: &mut F)
+where
+    F: FnMut(&[usize]) -> bool,
+{
+    let size = clique.len();
+    if size <= *best_size {
+        return;
+    }
+
+    let mut candidate = clique.to_vec();
+    candidate.sort_unstable();
+    if accept_clique(&candidate) {
+        *best_size = size;
+    }
+}
+
+fn maybe_update_best_partial<F>(
+    clique: &[usize],
+    cap: usize,
+    best_size: &mut usize,
+    best_cliques: &mut Vec<SharedClique>,
+    seen_cliques: &mut BTreeSet<SharedClique>,
+    accept_clique: &mut F,
+) where
+    F: FnMut(&[usize]) -> bool,
+{
+    let size = clique.len();
+    if size < *best_size {
+        return;
+    }
+
+    let mut candidate = clique.to_vec();
+    candidate.sort_unstable();
+    if !accept_clique(&candidate) {
+        return;
+    }
+
+    if size > *best_size {
+        *best_size = size;
+        best_cliques.clear();
+        seen_cliques.clear();
+    }
+
+    let candidate = SharedClique(Rc::<[usize]>::from(candidate));
+    if !seen_cliques.insert(candidate.clone()) {
+        return;
+    }
+
+    if best_cliques.len() < cap {
+        best_cliques.push(candidate);
+    }
+}
+
 fn maybe_update_best<F>(
     clique: &[usize],
-    policy: PartitionSearchPolicy,
     best_size: &mut usize,
     best_cliques: &mut Vec<Vec<usize>>,
     accept_clique: &mut F,
@@ -1350,16 +1420,7 @@ fn maybe_update_best<F>(
         return;
     }
 
-    match policy {
-        PartitionSearchPolicy::PartialEnumeration { cap } => {
-            if best_cliques.len() < cap {
-                best_cliques.push(candidate);
-            }
-        }
-        PartitionSearchPolicy::AllBest => {
-            best_cliques.push(candidate);
-        }
-    }
+    best_cliques.push(candidate);
 }
 
 #[cfg(test)]
@@ -1374,7 +1435,7 @@ mod tests {
         let info = labels.as_info(&pairs);
         let state = PartitionSearchState::new(&adj, &info, 0);
 
-        assert_eq!(state.num_parts(), 3);
+        assert_eq!(state.num_parts(), 2);
         assert!(state.parts.iter().all(|part| !part.is_empty()));
     }
 
@@ -1386,8 +1447,8 @@ mod tests {
         let info = labels.as_info(&pairs);
         let state = PartitionSearchState::new(&adj, &info, 0);
 
-        assert_eq!(state.num_parts(), 3);
-        assert!(state.parts.iter().any(|part| part.len() == 2));
+        assert_eq!(state.num_parts(), 2);
+        assert!(state.parts.iter().all(|part| !part.is_empty()));
     }
 
     #[test]
@@ -1431,65 +1492,76 @@ mod tests {
     #[test]
     fn test_partial_enumeration_retains_equal_size_accepted_cliques() {
         let mut best_size = 2;
-        let mut best_cliques = vec![vec![0, 1]];
+        let mut best_cliques = vec![SharedClique(Rc::<[usize]>::from(vec![0, 1]))];
+        let mut seen_cliques = BTreeSet::from([best_cliques[0].clone()]);
 
-        maybe_update_best(
+        maybe_update_best_partial(
             &[2, 3],
-            PartitionSearchPolicy::PartialEnumeration { cap: 10_000 },
+            10_000,
             &mut best_size,
             &mut best_cliques,
+            &mut seen_cliques,
             &mut |_| true,
         );
 
         assert_eq!(best_size, 2);
-        assert_eq!(best_cliques, vec![vec![0, 1], vec![2, 3]]);
+        assert_eq!(into_owned_cliques(best_cliques), vec![vec![0, 1], vec![2, 3]]);
     }
 
     #[test]
     fn test_partial_enumeration_clears_smaller_retained_cliques_on_improvement() {
         let mut best_size = 2;
-        let mut best_cliques = vec![vec![0, 1], vec![2, 3]];
+        let mut best_cliques = vec![
+            SharedClique(Rc::<[usize]>::from(vec![0, 1])),
+            SharedClique(Rc::<[usize]>::from(vec![2, 3])),
+        ];
+        let mut seen_cliques: BTreeSet<_> = best_cliques.iter().cloned().collect();
 
-        maybe_update_best(
+        maybe_update_best_partial(
             &[0, 1, 4],
-            PartitionSearchPolicy::PartialEnumeration { cap: 10_000 },
+            10_000,
             &mut best_size,
             &mut best_cliques,
+            &mut seen_cliques,
             &mut |_| true,
         );
 
         assert_eq!(best_size, 3);
-        assert_eq!(best_cliques, vec![vec![0, 1, 4]]);
+        assert_eq!(into_owned_cliques(best_cliques), vec![vec![0, 1, 4]]);
     }
 
     #[test]
     fn test_partial_enumeration_deduplicates_and_honors_cap() {
         let mut best_size = 2;
-        let mut best_cliques = vec![vec![0, 1]];
+        let mut best_cliques = vec![SharedClique(Rc::<[usize]>::from(vec![0, 1]))];
+        let mut seen_cliques = BTreeSet::from([best_cliques[0].clone()]);
 
-        maybe_update_best(
+        maybe_update_best_partial(
             &[1, 0],
-            PartitionSearchPolicy::PartialEnumeration { cap: 2 },
+            2,
             &mut best_size,
             &mut best_cliques,
+            &mut seen_cliques,
             &mut |_| true,
         );
-        maybe_update_best(
+        maybe_update_best_partial(
             &[2, 3],
-            PartitionSearchPolicy::PartialEnumeration { cap: 2 },
+            2,
             &mut best_size,
             &mut best_cliques,
+            &mut seen_cliques,
             &mut |_| true,
         );
-        maybe_update_best(
+        maybe_update_best_partial(
             &[4, 5],
-            PartitionSearchPolicy::PartialEnumeration { cap: 2 },
+            2,
             &mut best_size,
             &mut best_cliques,
+            &mut seen_cliques,
             &mut |_| true,
         );
 
         assert_eq!(best_size, 2);
-        assert_eq!(best_cliques, vec![vec![0, 1], vec![2, 3]]);
+        assert_eq!(into_owned_cliques(best_cliques), vec![vec![0, 1], vec![2, 3]]);
     }
 }

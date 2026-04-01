@@ -173,9 +173,9 @@ fn test_mces_result_similarities() {
     let t = result.edge_jaccard_similarity();
     let d = result.edge_dice_similarity();
 
-    assert!(j >= 0.0 && j <= 1.0, "Johnson out of range: {j}");
-    assert!(t >= 0.0 && t <= 1.0, "Tanimoto out of range: {t}");
-    assert!(d >= 0.0 && d <= 1.0, "Dice out of range: {d}");
+    assert!((0.0..=1.0).contains(&j), "Johnson out of range: {j}");
+    assert!((0.0..=1.0).contains(&t), "Tanimoto out of range: {t}");
+    assert!((0.0..=1.0).contains(&d), "Dice out of range: {d}");
     assert!(j > 0.0, "Should have positive similarity");
 }
 
@@ -649,7 +649,7 @@ fn test_mces_screening_zero_threshold_passes_all() {
     // Similarity threshold 0 → everything passes.
     let result = McesBuilder::new(&g1, &g2).with_similarity_threshold(0.0).compute_unlabeled();
 
-    assert!(result.matched_edges().len() >= 1);
+    assert!(!result.matched_edges().is_empty());
 }
 
 #[test]

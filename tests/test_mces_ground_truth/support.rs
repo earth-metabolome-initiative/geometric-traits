@@ -51,13 +51,19 @@ pub(super) type TypedGraph = geometric_traits::naive_structs::GenericGraph<
 pub(super) type GroundTruthBondLabel =
     (GroundTruthNodeLabel, GroundTruthEdgeValue, GroundTruthNodeLabel);
 
+type UndiBuilder<I> = geometric_traits::naive_structs::GenericUndirectedMonopartiteEdgesBuilder<
+    I,
+    geometric_traits::impls::UpperTriangularCSR2D<CSR2D<usize, usize, usize>>,
+    SymmetricCSR2D<CSR2D<usize, usize, usize>>,
+>;
+
 /// Maps atom type strings across both graphs to a shared sequential u8 space.
 pub(super) fn atom_type_to_shared_indices(
     first_atom_types: &[String],
     second_atom_types: &[String],
 ) -> (Vec<u8>, Vec<u8>) {
     let mut unique: Vec<&str> =
-        first_atom_types.iter().chain(second_atom_types.iter()).map(|s| s.as_str()).collect();
+        first_atom_types.iter().chain(second_atom_types.iter()).map(String::as_str).collect();
     unique.sort_unstable();
     unique.dedup();
 
@@ -69,13 +75,17 @@ pub(super) fn atom_type_to_shared_indices(
     let remap = |atom_types: &[String]| {
         atom_types
             .iter()
-            .map(|t| unique.iter().position(|&u| u == t.as_str()).unwrap() as u8)
+            .map(|t| {
+                u8::try_from(unique.iter().position(|&u| u == t.as_str()).unwrap())
+                    .expect("shared atom label index must fit in u8")
+            })
             .collect::<Vec<_>>()
     };
 
     (remap(first_atom_types), remap(second_atom_types))
 }
 
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 pub(super) fn build_typed_graph(
     n_atoms: usize,
     edges: &[[usize; 2]],
@@ -220,12 +230,6 @@ pub(super) fn build_unlabeled_graph(
     let mut sorted = edge_tuples;
     sorted.sort_unstable();
     sorted.dedup();
-
-    type UndiBuilder<I> = geometric_traits::naive_structs::GenericUndirectedMonopartiteEdgesBuilder<
-        I,
-        geometric_traits::impls::UpperTriangularCSR2D<CSR2D<usize, usize, usize>>,
-        SymmetricCSR2D<CSR2D<usize, usize, usize>>,
-    >;
 
     let undi: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiBuilder::default()
         .expected_number_of_edges(sorted.len())
