@@ -131,21 +131,6 @@ It is implemented for all structs implementing `SparseMatrix2D`.
 cargo hfuzz run hopcroft_karp
 ```
 
-### Karp-Sipser
-
-The Karp-Sipser harness validates exact kernelization and recovery against the
-existing general-graph exact matchers.
-
-```bash
-cargo hfuzz run karp_sipser
-```
-
-and to run the crash cases:
-
-```bash
-cargo hfuzz run-debug karp_sipser hfuzz_workspace/*/*.fuzz
-```
-
 ### Gabow 1976
 
 The Gabow 1976 harness validates the new paper-structured exact matcher
@@ -215,6 +200,30 @@ and to run the crash cases:
 
 ```bash
 cargo hfuzz run-debug johnson_cycle hfuzz_workspace/*/*.fuzz
+```
+
+### Blossom V
+
+The Blossom V harness fuzzes minimum-cost perfect matching on valid even-order
+undirected weighted graphs and checks that the solver never panics and any
+successful result is a valid perfect matching. For small graphs it also
+cross-checks the optimum against a brute-force oracle.
+
+There are now two Blossom V targets:
+- `blossom_v`: raw edge-bag mutations, which preserves compatibility with the
+  saved crash corpus
+- `blossom_v_structured`: seeded structured graph families plus richer weight
+  regimes, which is better for coverage growth when the raw target plateaus
+
+```bash
+cargo hfuzz run blossom_v
+cargo hfuzz run blossom_v_structured
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug blossom_v hfuzz_workspace/*/*.fuzz
 ```
 
 ### Floyd-Warshall

@@ -15,3 +15,11 @@ scripts/generate_modularity_ground_truth.py
 
 The fixture contains deterministic graph cases plus expected partitions/modularity
 for both algorithms.
+
+# Blossom V Ground-Truth Fixtures
+
+The large Blossom V ground-truth corpora are local-only inputs. They are not
+tracked in git.
+
+If you keep a local shard directory for manual sweeps, point
+`BLOSSOM_V_GROUND_TRUTH_SOURCE` at it.

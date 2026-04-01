@@ -320,12 +320,12 @@ where
 
 impl<
     SparseIndex: PositiveInteger + AsPrimitive<usize>,
-    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + Debug,
     R: MultiRanged,
 > MatrixMut for RangedCSR2D<SparseIndex, RowIndex, R>
 where
     Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = R::Step>,
-    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize,
+    R::Step: AsPrimitive<usize> + PositiveInteger + TryFromUsize + Debug,
     <R::Step as TryFrom<usize>>::Error: Debug,
     <RowIndex as TryFrom<usize>>::Error: Debug,
 {

@@ -112,21 +112,17 @@ mod gabow_1976;
 #[cfg(feature = "alloc")]
 pub use gabow_1976::*;
 #[cfg(feature = "alloc")]
-mod karp_sipser;
-#[cfg(feature = "alloc")]
-pub use karp_sipser::*;
-#[cfg(feature = "alloc")]
 mod micali_vazirani;
 #[cfg(feature = "alloc")]
 pub use micali_vazirani::*;
 #[cfg(feature = "alloc")]
-mod blum;
-#[cfg(feature = "alloc")]
-pub use blum::*;
-#[cfg(feature = "alloc")]
 mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;
+#[cfg(feature = "alloc")]
+mod blossom_v;
+#[cfg(feature = "alloc")]
+pub use blossom_v::*;
 #[cfg(feature = "alloc")]
 pub mod line_graph;
 #[cfg(feature = "alloc")]

@@ -93,8 +93,8 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value>
 
 impl<
     SparseIndex: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
-    RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize>,
-    ColumnIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + Debug,
+    ColumnIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex> + Debug,
     Value,
     const ROWS: usize,
     const COLS: usize,
@@ -386,7 +386,7 @@ where
     }
 }
 
-impl<SparseIndex: Zero, RowIndex: Zero, ColumnIndex: Zero, Value> MatrixMut
+impl<SparseIndex: Zero, RowIndex: Zero + Debug, ColumnIndex: Zero + Debug, Value> MatrixMut
     for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
 where
     CSR2D<SparseIndex, RowIndex, ColumnIndex>: MatrixMut<

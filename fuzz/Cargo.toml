@@ -155,14 +155,20 @@ test = false
 doc = false
 
 [[bin]]
-name = "blum"
-path = "fuzz_targets/blum.rs"
+name = "blossom"
+path = "fuzz_targets/blossom.rs"
 test = false
 doc = false
 
 [[bin]]
-name = "blossom"
-path = "fuzz_targets/blossom.rs"
+name = "blossom_v"
+path = "fuzz_targets/blossom_v.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "blossom_v_structured"
+path = "fuzz_targets/blossom_v_structured.rs"
 test = false
 doc = false
 
@@ -175,12 +181,6 @@ doc = false
 [[bin]]
 name = "gabow_1976"
 path = "fuzz_targets/gabow_1976.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "karp_sipser"
-path = "fuzz_targets/karp_sipser.rs"
 test = false
 doc = false
 

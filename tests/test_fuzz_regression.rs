@@ -6,19 +6,22 @@
 //! functions in `test_utils`).
 #![cfg(feature = "arbitrary")]
 
+use std::path::Path;
+
 use arbitrary::Arbitrary;
 use geometric_traits::{
     impls::{CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
-        check_kahn_ordering, check_karp_sipser_invariants, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
-        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
-        check_pairwise_bfs_matches_unit_floyd_warshall,
+        self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, check_blossom_v_invariants,
+        check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
+        check_kahn_ordering, check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
+        check_leiden_invariants, check_louvain_invariants, check_padded_diagonal_invariants,
+        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
-        check_valued_matrix_invariants, from_bytes,
+        check_structured_blossom_v_invariants, check_valued_matrix_invariants, from_bytes,
+        replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -102,7 +105,6 @@ where
         .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()));
     from_bytes::<T>(&bytes).into_iter().collect()
 }
-
 // ============================================================================
 // CSR2D (mirrors fuzz/fuzz_targets/csr2d.rs)
 // ============================================================================
@@ -223,30 +225,6 @@ fn test_replay_root_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
 }
 
-// ============================================================================
-// Exact Karp-Sipser preprocessing
-// ============================================================================
-
-type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
-
-#[test]
-fn test_arbitrary_karp_sipser_invariants() {
-    for_each_instance::<TestSymmetricCSR, _>(|graph| {
-        if graph.order() as usize <= 64 {
-            check_karp_sipser_invariants(graph);
-        }
-    });
-}
-
-#[test]
-fn test_replay_karp_sipser_corpus() {
-    for instance in replay_shared_fixture::<TestSymmetricCSR>() {
-        if instance.order() as usize <= 64 {
-            check_karp_sipser_invariants(&instance);
-        }
-    }
-}
-
 #[test]
 fn test_replay_sink_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
@@ -255,6 +233,8 @@ fn test_replay_sink_nodes_corpus() {
 // ============================================================================
 // Gabow 1976 (mirrors fuzz/fuzz_targets/gabow_1976.rs)
 // ============================================================================
+
+type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
 
 #[test]
 fn test_arbitrary_gabow_1976() {
@@ -302,6 +282,84 @@ fn test_arbitrary_hopcroft_karp() {
     for_each_instance::<TestCSR, _>(|csr| {
         let _ = csr.hopcroft_karp();
     });
+}
+
+// ============================================================================
+// Blossom V (mirrors fuzz/fuzz_targets/blossom_v.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_blossom_v_invariants() {
+    let patterns = test_byte_patterns();
+    let mut constructed = 0usize;
+
+    for pattern in &patterns {
+        if let Some(instance) = from_bytes::<FuzzBlossomVCase>(pattern) {
+            constructed += 1;
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                check_blossom_v_invariants(&instance);
+            }));
+            if let Err(payload) = result {
+                let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else if let Some(s) = payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "<non-string panic payload>".to_string()
+                };
+                panic!(
+                    "Blossom V arbitrary invariant failure for pattern {pattern:?} decoded as {instance:?}: {msg}"
+                );
+            }
+        }
+    }
+
+    assert!(constructed > 0, "No FuzzBlossomVCase instances could be constructed");
+}
+
+#[test]
+fn test_replay_blossom_v_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/blossom_v/input");
+    for instance in replay_dir::<FuzzBlossomVCase>(corpus_dir) {
+        check_blossom_v_invariants(&instance);
+    }
+}
+
+#[test]
+fn test_arbitrary_blossom_v_structured_invariants() {
+    let patterns = test_byte_patterns();
+    let mut constructed = 0usize;
+
+    for pattern in &patterns {
+        if let Some(instance) = from_bytes::<FuzzStructuredBlossomVCase>(pattern) {
+            constructed += 1;
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                check_structured_blossom_v_invariants(&instance);
+            }));
+            if let Err(payload) = result {
+                let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else if let Some(s) = payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "<non-string panic payload>".to_string()
+                };
+                panic!(
+                    "Structured Blossom V arbitrary invariant failure for pattern {pattern:?} decoded as {instance:?}: {msg}"
+                );
+            }
+        }
+    }
+
+    assert!(constructed > 0, "No FuzzStructuredBlossomVCase instances could be constructed");
+}
+
+#[test]
+fn test_replay_blossom_v_structured_corpus() {
+    let corpus_dir = Path::new("fuzz/hfuzz_workspace/blossom_v_structured/input");
+    for instance in replay_dir::<FuzzStructuredBlossomVCase>(corpus_dir) {
+        check_structured_blossom_v_invariants(&instance);
+    }
 }
 
 #[test]

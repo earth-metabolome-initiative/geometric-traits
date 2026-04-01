@@ -12,30 +12,79 @@ use hashbrown::HashSet;
 use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
 
+/// Error type for random regular graph generation.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RandomRegularGraphError {
+    /// The total number of configuration-model stubs must be even.
+    #[error("n * k must be even for a regular graph to exist (got n={n}, k={k})")]
+    OddStubCount {
+        /// Requested number of vertices.
+        n: usize,
+        /// Requested regular degree.
+        k: usize,
+    },
+    /// A simple k-regular graph requires `k < n`, except for the empty graph.
+    #[error("k must be strictly less than n for a simple regular graph (got n={n}, k={k})")]
+    DegreeTooLarge {
+        /// Requested number of vertices.
+        n: usize,
+        /// Requested regular degree.
+        k: usize,
+    },
+    /// The requested stub count overflowed `usize`.
+    #[error("n * k overflows usize for a regular graph request (got n={n}, k={k})")]
+    StubCountOverflow {
+        /// Requested number of vertices.
+        n: usize,
+        /// Requested regular degree.
+        k: usize,
+    },
+    /// Rejection sampling failed to produce a simple graph in the retry budget.
+    #[error(
+        "failed to generate a valid random regular graph after {attempts} attempts (n={n}, k={k})"
+    )]
+    GenerationAttemptsExceeded {
+        /// Requested number of vertices.
+        n: usize,
+        /// Requested regular degree.
+        k: usize,
+        /// Number of rejection-sampling attempts that were tried.
+        attempts: usize,
+    },
+}
+
 /// Generates a random `k`-regular graph on `n` vertices using the configuration
 /// model with rejection sampling.
 ///
-/// # Panics
-/// Panics if `n * k` is odd, if `k >= n`, or if generation fails after 1000
-/// attempts.
+/// # Errors
+/// Returns [`RandomRegularGraphError::OddStubCount`] if `n * k` is odd,
+/// [`RandomRegularGraphError::DegreeTooLarge`] if `k >= n` for a non-empty
+/// graph, [`RandomRegularGraphError::StubCountOverflow`] if `n * k` overflows
+/// `usize`, or [`RandomRegularGraphError::GenerationAttemptsExceeded`] if
+/// rejection sampling fails within the retry budget.
 #[allow(clippy::cast_possible_truncation, clippy::many_single_char_names)]
-#[must_use]
 pub fn random_regular_graph(
     seed: u64,
     n: usize,
     k: usize,
-) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
-    assert!((n * k) % 2 == 0, "n * k must be even for a regular graph to exist");
-    assert!(k < n || n == 0, "k must be strictly less than n");
-
-    if n == 0 || k == 0 {
-        return build_symmetric(n, Vec::new());
+) -> Result<SymmetricCSR2D<CSR2D<usize, usize, usize>>, RandomRegularGraphError> {
+    if n != 0 && k >= n {
+        return Err(RandomRegularGraphError::DegreeTooLarge { n, k });
     }
 
-    let num_stubs = n * k;
-    let num_pairs = num_stubs / 2;
+    let num_stubs = n.checked_mul(k).ok_or(RandomRegularGraphError::StubCountOverflow { n, k })?;
+    if num_stubs % 2 != 0 {
+        return Err(RandomRegularGraphError::OddStubCount { n, k });
+    }
 
-    for attempt in 0u64..1000 {
+    if n == 0 || k == 0 {
+        return Ok(build_symmetric(n, Vec::new()));
+    }
+
+    let num_pairs = num_stubs / 2;
+    let max_attempts = 1000usize;
+
+    for attempt in 0u64..u64::try_from(max_attempts).expect("attempt budget fits in u64") {
         let current_seed = seed.wrapping_add(attempt.wrapping_mul(0x9E37_79B9));
         let mut rng = XorShift64::from(XorShift64::normalize_seed(current_seed));
 
@@ -73,9 +122,9 @@ pub fn random_regular_graph(
         if valid {
             let mut edges: Vec<(usize, usize)> = edge_set.into_iter().collect();
             edges.sort_unstable();
-            return build_symmetric(n, edges);
+            return Ok(build_symmetric(n, edges));
         }
     }
 
-    panic!("random_regular_graph: failed to generate a valid graph after 1000 attempts");
+    Err(RandomRegularGraphError::GenerationAttemptsExceeded { n, k, attempts: max_attempts })
 }

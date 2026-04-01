@@ -36,16 +36,14 @@ fn validate_matching(
 }
 
 fn validate_gabow(
-    matrix: &(impl Blossom<Index = usize> + Blum + Gabow1976 + MicaliVazirani),
+    matrix: &(impl Blossom<Index = usize> + Gabow1976 + MicaliVazirani),
     expected_size: usize,
 ) {
     let gabow = matrix.gabow_1976();
     let blossom = matrix.blossom();
-    let blum = matrix.blum();
     let mv = matrix.micali_vazirani();
     validate_matching(matrix, &gabow, expected_size);
     assert_eq!(gabow.len(), blossom.len(), "Gabow and Blossom disagree on size");
-    assert_eq!(gabow.len(), blum.len(), "Gabow and Blum disagree on size");
     assert_eq!(gabow.len(), mv.len(), "Gabow and Micali-Vazirani disagree on size");
 }
 
@@ -100,40 +98,6 @@ fn test_complete_bipartite_k33() {
 }
 
 #[test]
-fn test_reference_triangle() {
-    assert_matching_size_agrees(3, &[(0, 1), (0, 2), (1, 2)]);
-}
-
-#[test]
-fn test_reference_complete_k5() {
-    assert_matching_size_agrees(
-        5,
-        &[(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
-    );
-}
-
-#[test]
-fn test_reference_nested_blossom_deep() {
-    assert_matching_size_agrees(
-        10,
-        &[
-            (0, 1),
-            (0, 2),
-            (1, 2),
-            (2, 3),
-            (3, 4),
-            (3, 5),
-            (4, 5),
-            (5, 6),
-            (6, 7),
-            (6, 8),
-            (7, 8),
-            (8, 9),
-        ],
-    );
-}
-
-#[test]
 fn test_exhaustive_small_graphs_up_to_six_vertices() {
     for n in 0..=6 {
         let mut all_edges = Vec::new();
@@ -156,31 +120,4 @@ fn test_exhaustive_small_graphs_up_to_six_vertices() {
             validate_matching(&g, &gabow, blossom.len());
         }
     }
-}
-
-fn assert_matching_size_agrees(n: usize, edges: &[(usize, usize)]) {
-    let matrix = build_graph(n, edges);
-    let gabow_matching = matrix.gabow_1976();
-
-    let adj: Vec<(usize, Vec<usize>)> = (0..n)
-        .map(|v| {
-            let neighbors: Vec<usize> = edges
-                .iter()
-                .filter_map(|&(a, b)| {
-                    if a == v {
-                        Some(b)
-                    } else if b == v {
-                        Some(a)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            (v, neighbors)
-        })
-        .collect();
-    let ref_graph: blossom::Graph = adj.iter().collect();
-    let ref_matching = ref_graph.maximum_matching();
-
-    validate_matching(&matrix, &gabow_matching, ref_matching.len());
 }

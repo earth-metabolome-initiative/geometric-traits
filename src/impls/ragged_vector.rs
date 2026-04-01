@@ -289,8 +289,8 @@ where
 impl<SparseIndex, RowIndex, ColumnIndex> MatrixMut
     for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
 where
-    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
-    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + Debug,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + Debug,
     SparseIndex: PositiveInteger + AsPrimitive<usize>,
 {
     type Entry = Self::Coordinates;
