@@ -228,17 +228,25 @@ impl StructuredFuzzRng {
 
     #[inline]
     fn next_usize(&mut self, upper: usize) -> usize {
-        if upper <= 1 { 0 } else { (self.next_u64() % upper as u64) as usize }
+        if upper <= 1 {
+            0
+        } else {
+            let upper_u64 = u64::try_from(upper).expect("usize upper bound fits into u64");
+            let raw = self.next_u64() % upper_u64;
+            usize::try_from(raw).expect("modulo upper bound always fits into usize")
+        }
     }
 
     #[inline]
     fn next_f64(&mut self) -> f64 {
-        (self.next_u64() as f64) / (u64::MAX as f64)
+        let raw = u32::try_from(self.next_u64() >> 32).expect("upper 32 bits fit in u32");
+        f64::from(raw) / f64::from(u32::MAX)
     }
 
     #[inline]
     fn next_i16(&mut self) -> i16 {
-        self.next_u64() as i16
+        let bytes = self.next_u64().to_ne_bytes();
+        i16::from_ne_bytes([bytes[0], bytes[1]])
     }
 }
 
@@ -416,15 +424,8 @@ fn blossom_barbell_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
 
 fn overlapping_odd_cycles_support_graph(order: usize) -> FuzzBlossomVSupportGraph {
     let n = order.max(6);
-    let mut edges = Vec::new();
-
     // Two triangles sharing a vertex, plus a tail/ring to propagate trees.
-    edges.push((0, 1));
-    edges.push((1, 2));
-    edges.push((0, 2));
-    edges.push((2, 3));
-    edges.push((3, 4));
-    edges.push((2, 4));
+    let mut edges = vec![(0, 1), (1, 2), (0, 2), (2, 3), (3, 4), (2, 4)];
 
     for u in 4..n.saturating_sub(1) {
         edges.push((u, u + 1));
@@ -491,13 +492,17 @@ fn structured_weight(weight_mode: u8, rng: &mut StructuredFuzzRng, is_backbone: 
         }
         3 => {
             if is_backbone {
-                -(8000 + (rng.next_usize(24000) as i32))
+                -(8000
+                    + i32::try_from(rng.next_usize(24000))
+                        .expect("bounded backbone weight offset fits in i32"))
             } else {
-                (rng.next_usize(2001) as i32) - 1000
+                i32::try_from(rng.next_usize(2001)).expect("bounded weight offset fits in i32")
+                    - 1000
             }
         }
         _ => {
-            let base = (rng.next_usize(33) as i32) - 16;
+            let base =
+                i32::try_from(rng.next_usize(33)).expect("bounded base weight fits in i32") - 16;
             if rng.next_usize(4) == 0 { base * 2048 } else { base }
         }
     }
@@ -540,7 +545,16 @@ fn build_structured_blossom_v_case(case: &FuzzStructuredBlossomVCase) -> FuzzBlo
         overlay_perfect_matching_backbone(&mut by_pair, order, case.weight_mode, &mut rng);
     }
 
-    let edges = by_pair.into_iter().map(|((u, v), w)| (u as u8, v as u8, w)).collect();
+    let edges = by_pair
+        .into_iter()
+        .map(|((u, v), w)| {
+            (
+                u8::try_from(u).expect("structured fuzz case vertex id fits in u8"),
+                u8::try_from(v).expect("structured fuzz case vertex id fits in u8"),
+                w,
+            )
+        })
+        .collect();
 
     FuzzBlossomVCase { order: case.order, edges }
 }
@@ -554,8 +568,10 @@ fn blossom_v_matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, us
             edges
                 .iter()
                 .find(|&&(a, b, _)| (a == u && b == v) || (a == v && b == u))
-                .map(|&(_, _, w)| i64::from(w))
-                .unwrap_or_else(|| panic!("matched edge ({u}, {v}) not found in graph"))
+                .map_or_else(
+                    || panic!("matched edge ({u}, {v}) not found in graph"),
+                    |&(_, _, w)| i64::from(w),
+                )
         })
         .sum()
 }
@@ -590,25 +606,21 @@ fn validate_blossom_v_matching(
 
 #[must_use]
 fn brute_force_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
-    if order == 0 {
-        return Some(0);
-    }
-
-    let mut weights = vec![vec![None; order]; order];
-    for &(u, v, weight) in edges {
-        weights[u][v] = Some(i64::from(weight));
-        weights[v][u] = Some(i64::from(weight));
+    #[derive(Clone, Copy)]
+    enum BruteForceMemoEntry {
+        Uncomputed,
+        Computed(Option<i64>),
     }
 
     fn solve(
         mask: usize,
         weights: &[Vec<Option<i64>>],
-        memo: &mut [Option<Option<i64>>],
+        memo: &mut [BruteForceMemoEntry],
     ) -> Option<i64> {
         if mask == 0 {
             return Some(0);
         }
-        if let Some(cached) = memo[mask] {
+        if let BruteForceMemoEntry::Computed(cached) = memo[mask] {
             return cached;
         }
 
@@ -632,11 +644,21 @@ fn brute_force_blossom_v_cost(order: usize, edges: &[(usize, usize, i32)]) -> Op
             }
         }
 
-        memo[mask] = Some(best);
+        memo[mask] = BruteForceMemoEntry::Computed(best);
         best
     }
 
-    let mut memo = vec![None; 1usize << order];
+    if order == 0 {
+        return Some(0);
+    }
+
+    let mut weights = vec![vec![None; order]; order];
+    for &(u, v, weight) in edges {
+        weights[u][v] = Some(i64::from(weight));
+        weights[v][u] = Some(i64::from(weight));
+    }
+
+    let mut memo = vec![BruteForceMemoEntry::Uncomputed; 1usize << order];
     solve((1usize << order) - 1, &weights, &mut memo)
 }
 
@@ -714,8 +736,7 @@ fn check_blossom_v_invariants_with_bruteforce_limit(
             if let Some(brute_force_cost) = brute_force_cost {
                 assert!(
                     brute_force_cost.is_none(),
-                    "Blossom V reported no perfect matching for graph {case:?}, but brute force found cost {:?}",
-                    brute_force_cost
+                    "Blossom V reported no perfect matching for graph {case:?}, but brute force found cost {brute_force_cost:?}"
                 );
             } else {
                 assert!(
