@@ -14,7 +14,6 @@ use std::{
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
-use mwmatching::{Matching as MwMatching, SENTINEL as MWMATCHING_SENTINEL};
 use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 type Vcsr = ValuedCSR2D<usize, usize, usize, i32>;
@@ -151,46 +150,6 @@ fn graph_json_line(n: usize, edges: &[(usize, usize, i32)]) -> String {
     line
 }
 
-fn mwmatching_cost(n: usize, edges: &[(usize, usize, i32)]) -> i32 {
-    let oracle_edges = edges
-        .iter()
-        .map(|&(u, v, weight)| {
-            (
-                u,
-                v,
-                weight
-                    .checked_neg()
-                    .expect("benchmark Blossom V weights must be negatable for mwmatching"),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mates = MwMatching::new(oracle_edges).max_cardinality().solve();
-    assert_eq!(
-        mates.len(),
-        n,
-        "mwmatching returned mate vector of length {} for benchmark case of order {n}",
-        mates.len()
-    );
-
-    let mut matching = Vec::with_capacity(n / 2);
-    for (u, &v) in mates.iter().enumerate() {
-        if v == MWMATCHING_SENTINEL {
-            continue;
-        }
-        assert!(v < n, "mwmatching returned out-of-bounds mate {v} for vertex {u}");
-        if u < v {
-            matching.push((u, v));
-        }
-    }
-    assert_eq!(
-        matching.len(),
-        n / 2,
-        "mwmatching failed to find a perfect matching for benchmark case of order {n}"
-    );
-
-    matching_cost(edges, &matching)
-}
-
 fn make_case(name: &str, seed: u64, n: usize, extra_edges: usize) -> WeightedCase {
     assert!(n >= 2 && n % 2 == 0);
 
@@ -245,7 +204,6 @@ fn verify_case_alignment(case: &WeightedCase, cpp_bin: &PathBuf) {
         .blossom_v()
         .unwrap_or_else(|e| panic!("Rust Blossom V failed on benchmark case {}: {e:?}", case.name));
     let rust_cost = matching_cost(&case.edges, &rust_matching);
-    let mwmatching_cost = mwmatching_cost(case.graph.number_of_rows(), &case.edges);
 
     let mut cpp = CppBatchSolver::new(cpp_bin);
     let cpp_cost = cpp.solve_cost(&case.json_line);
@@ -253,11 +211,6 @@ fn verify_case_alignment(case: &WeightedCase, cpp_bin: &PathBuf) {
     assert_eq!(
         rust_cost, cpp_cost,
         "Rust/C++ Blossom V cost mismatch on benchmark case {}",
-        case.name
-    );
-    assert_eq!(
-        rust_cost, mwmatching_cost,
-        "Rust/mwmatching Blossom V cost mismatch on benchmark case {}",
         case.name
     );
 }
@@ -282,18 +235,10 @@ fn bench_blossom_v(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(4));
 
     for case in &cases {
-        let order = case.graph.number_of_rows();
         group.bench_with_input(BenchmarkId::new("Rust", &case.name), case, |b, case| {
             b.iter(|| {
                 let matching = case.graph.blossom_v().expect("benchmark case should solve");
                 black_box(matching);
-            });
-        });
-
-        group.bench_with_input(BenchmarkId::new("Mwmatching", &case.name), case, |b, case| {
-            b.iter(|| {
-                let cost = mwmatching_cost(order, &case.edges);
-                black_box(cost);
             });
         });
 

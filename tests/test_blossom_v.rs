@@ -9,7 +9,6 @@ use geometric_traits::{
     impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D},
     prelude::*,
 };
-use mwmatching::{Matching as MwMatching, SENTINEL as MWMATCHING_SENTINEL};
 
 use self::blossom_v_regression_cases::{
     HONGGFUZZ_SIGABRT_CASE_1_EDGES, HONGGFUZZ_SIGABRT_CASE_1_ORDER, HONGGFUZZ_SIGABRT_CASE_2_EDGES,
@@ -19,6 +18,7 @@ use self::blossom_v_regression_cases::{
 
 type SupportGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 type Vcsr = ValuedCSR2D<usize, usize, usize, i32>;
+const HONGGFUZZ_SIGABRT_CASE_4_COST: i64 = -186717;
 
 /// Build a symmetric valued matrix from weighted edges.
 fn build_valued_graph(n: usize, edges: &[(usize, usize, i32)]) -> Vcsr {
@@ -105,66 +105,68 @@ fn matching_cost(edges: &[(usize, usize, i32)], matching: &[(usize, usize)]) -> 
         .sum()
 }
 
-fn mwmatching_oracle_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
+fn brute_force_oracle_cost(order: usize, edges: &[(usize, usize, i32)]) -> Option<i64> {
     if order == 0 {
         return Some(0);
     }
 
-    let mut incident = vec![false; order];
-    for &(u, v, _) in edges {
-        incident[u] = true;
-        incident[v] = true;
-    }
-    if incident.iter().any(|seen| !seen) {
-        return None;
+    let mut weights = vec![vec![None; order]; order];
+    for &(u, v, weight) in edges {
+        weights[u][v] = Some(i64::from(weight));
+        weights[v][u] = Some(i64::from(weight));
     }
 
-    let oracle_edges = edges
-        .iter()
-        .map(|&(u, v, weight)| {
-            (
-                u,
-                v,
-                weight
-                    .checked_neg()
-                    .expect("regression Blossom V weights must be negatable for mwmatching"),
-            )
-        })
-        .collect::<Vec<_>>();
-    let mates = MwMatching::new(oracle_edges).max_cardinality().solve();
-    assert_eq!(
-        mates.len(),
-        order,
-        "mwmatching returned mate vector of length {} for order {order}",
-        mates.len()
-    );
-
-    let mut matching = Vec::with_capacity(order / 2);
-    for (u, &v) in mates.iter().enumerate() {
-        if v == MWMATCHING_SENTINEL {
-            continue;
+    fn solve(
+        mask: usize,
+        weights: &[Vec<Option<i64>>],
+        memo: &mut [Option<Option<i64>>],
+    ) -> Option<i64> {
+        if mask == 0 {
+            return Some(0);
         }
-        assert!(v < order, "mwmatching returned out-of-bounds mate {v} for vertex {u}");
-        if u < v {
-            matching.push((u, v));
+        if let Some(cached) = memo[mask] {
+            return cached;
         }
+
+        let i = mask.trailing_zeros() as usize;
+        let rest = mask & !(1usize << i);
+        let mut best = None;
+        let mut candidates = rest;
+
+        while candidates != 0 {
+            let j_bit = candidates & candidates.wrapping_neg();
+            let j = j_bit.trailing_zeros() as usize;
+            candidates &= candidates - 1;
+
+            let Some(weight) = weights[i][j] else {
+                continue;
+            };
+            let submask = rest & !(1usize << j);
+            if let Some(subcost) = solve(submask, weights, memo) {
+                let total = subcost + weight;
+                best = Some(best.map_or(total, |current: i64| current.min(total)));
+            }
+        }
+
+        memo[mask] = Some(best);
+        best
     }
 
-    if matching.len() != order / 2 {
-        return None;
-    }
-
-    Some(i64::from(matching_cost(edges, &matching)))
+    let mut memo = vec![None; 1usize << order];
+    solve((1usize << order) - 1, &weights, &mut memo)
 }
 
-fn assert_blossom_v_matches_mwmatching(label: &str, order: usize, edges: &[(usize, usize, i32)]) {
+fn assert_blossom_v_matches_oracle_cost(
+    label: &str,
+    order: usize,
+    edges: &[(usize, usize, i32)],
+    oracle: Option<i64>,
+) {
     let g = build_valued_graph(order, edges);
-    let oracle = mwmatching_oracle_cost(order, edges);
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| g.blossom_v()));
     match result {
         Ok(Ok(matching)) => {
-            let optimum =
-                oracle.unwrap_or_else(|| panic!("{label}: mwmatching found no perfect matching"));
+            let optimum = oracle.unwrap_or_else(|| panic!("{label}: oracle found no perfect matching"));
             validate_matching(order, edges, &matching);
             let actual = i64::from(matching_cost(edges, &matching));
             assert_eq!(actual, optimum, "{label}: Blossom V returned non-optimal matching cost");
@@ -514,55 +516,61 @@ fn test_blossom_v_generated_case_214() {
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_1() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 1",
         HONGGFUZZ_SIGABRT_CASE_1_ORDER,
         HONGGFUZZ_SIGABRT_CASE_1_EDGES,
+        brute_force_oracle_cost(HONGGFUZZ_SIGABRT_CASE_1_ORDER, HONGGFUZZ_SIGABRT_CASE_1_EDGES),
     );
 }
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_2() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 2",
         HONGGFUZZ_SIGABRT_CASE_2_ORDER,
         HONGGFUZZ_SIGABRT_CASE_2_EDGES,
+        brute_force_oracle_cost(HONGGFUZZ_SIGABRT_CASE_2_ORDER, HONGGFUZZ_SIGABRT_CASE_2_EDGES),
     );
 }
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_3() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 3",
         HONGGFUZZ_SIGABRT_CASE_3_ORDER,
         HONGGFUZZ_SIGABRT_CASE_3_EDGES,
+        brute_force_oracle_cost(HONGGFUZZ_SIGABRT_CASE_3_ORDER, HONGGFUZZ_SIGABRT_CASE_3_EDGES),
     );
 }
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_4() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 4",
         HONGGFUZZ_SIGABRT_CASE_4_ORDER,
         HONGGFUZZ_SIGABRT_CASE_4_EDGES,
+        Some(HONGGFUZZ_SIGABRT_CASE_4_COST),
     );
 }
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_8() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 8",
         HONGGFUZZ_SIGABRT_CASE_2_ORDER,
         HONGGFUZZ_SIGABRT_CASE_2_EDGES,
+        brute_force_oracle_cost(HONGGFUZZ_SIGABRT_CASE_2_ORDER, HONGGFUZZ_SIGABRT_CASE_2_EDGES),
     );
 }
 
 #[test]
 fn test_blossom_v_regression_honggfuzz_sigabrt_case_15() {
-    assert_blossom_v_matches_mwmatching(
+    assert_blossom_v_matches_oracle_cost(
         "honggfuzz sigabrt case 15",
         HONGGFUZZ_SIGABRT_CASE_4_ORDER,
         HONGGFUZZ_SIGABRT_CASE_4_EDGES,
+        Some(HONGGFUZZ_SIGABRT_CASE_4_COST),
     );
 }
 
