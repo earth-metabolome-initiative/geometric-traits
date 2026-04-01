@@ -331,8 +331,7 @@ fn test_arbitrary_blossom_v_invariants() {
                     "<non-string panic payload>".to_string()
                 };
                 panic!(
-                    "Blossom V arbitrary invariant failure for pattern {:?} decoded as {:?}: {msg}",
-                    pattern, instance
+                    "Blossom V arbitrary invariant failure for pattern {pattern:?} decoded as {instance:?}: {msg}"
                 );
             }
         }
@@ -369,8 +368,7 @@ fn test_arbitrary_blossom_v_structured_invariants() {
                     "<non-string panic payload>".to_string()
                 };
                 panic!(
-                    "Structured Blossom V arbitrary invariant failure for pattern {:?} decoded as {:?}: {msg}",
-                    pattern, instance
+                    "Structured Blossom V arbitrary invariant failure for pattern {pattern:?} decoded as {instance:?}: {msg}"
                 );
             }
         }

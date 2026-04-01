@@ -1,15 +1,4 @@
 pub(crate) fn maximum_matching_size(order: usize, edges: &[(usize, usize)]) -> usize {
-    assert!(
-        order < usize::BITS as usize,
-        "maximum-matching oracle only supports graphs smaller than the machine word size"
-    );
-
-    let mut adjacency = vec![0usize; order];
-    for &(u, v) in edges {
-        adjacency[u] |= 1usize << v;
-        adjacency[v] |= 1usize << u;
-    }
-
     fn solve(mask: usize, adjacency: &[usize], memo: &mut [Option<usize>]) -> usize {
         if mask == 0 {
             return 0;
@@ -31,6 +20,17 @@ pub(crate) fn maximum_matching_size(order: usize, edges: &[(usize, usize)]) -> u
 
         memo[mask] = Some(best);
         best
+    }
+
+    assert!(
+        order < usize::BITS as usize,
+        "maximum-matching oracle only supports graphs smaller than the machine word size"
+    );
+
+    let mut adjacency = vec![0usize; order];
+    for &(u, v) in edges {
+        adjacency[u] |= 1usize << v;
+        adjacency[v] |= 1usize << u;
     }
 
     let mut memo = vec![None; 1usize << order];
