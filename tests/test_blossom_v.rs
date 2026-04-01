@@ -358,6 +358,15 @@ fn test_blossom_v_odd_vertices_panics() {
 }
 
 #[test]
+#[should_panic(expected = "square matrix")]
+fn test_blossom_v_non_square_matrix_panics() {
+    let mut g: Vcsr = SparseMatrixMut::with_sparse_shaped_capacity((2, 3), 2);
+    MatrixMut::add(&mut g, (0, 1, 1)).unwrap();
+    MatrixMut::add(&mut g, (1, 2, 1)).unwrap();
+    let _ = g.blossom_v();
+}
+
+#[test]
 fn test_blossom_v_empty_graph() {
     let g: Vcsr = SparseMatrixMut::with_sparse_shaped_capacity((0, 0), 0);
     assert!(g.blossom_v().expect("trivial").is_empty());

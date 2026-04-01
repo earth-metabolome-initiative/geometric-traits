@@ -819,6 +819,12 @@ fn test_random_regular_degree_too_large_error() {
 }
 
 #[test]
+fn test_random_regular_stub_count_overflow_error() {
+    let err = random_regular_graph(42, usize::MAX, 2).unwrap_err();
+    assert_eq!(err, RandomRegularGraphError::StubCountOverflow { n: usize::MAX, k: 2 });
+}
+
+#[test]
 fn test_watts_strogatz_full_rewiring() {
     // beta = 1.0 → all edges rewired, high chance of hitting bail-out
     let g = watts_strogatz(42, 10, 4, 1.0);

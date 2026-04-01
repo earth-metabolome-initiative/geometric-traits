@@ -2947,6 +2947,218 @@ mod tests {
         check_bit_square_matrix_invariants(&matrix, &[]);
     }
 
+    #[test]
+    fn test_build_blossom_v_graph_normalizes_and_symmetrizes_edges() {
+        let case = FuzzBlossomVCase {
+            order: 4,
+            edges: vec![(0, 0, 99), (4, 1, 13), (1, 0, 7), (0, 1, -3), (2, 3, 5), (3, 2, 9)],
+        };
+
+        let (graph, edges) = build_blossom_v_graph(&case);
+
+        assert_eq!(edges, vec![(0, 1, -3), (2, 3, 9)]);
+        assert_eq!(graph.number_of_rows(), 4);
+        assert_eq!(graph.number_of_columns(), 4);
+        assert_eq!(graph.number_of_defined_values(), 4);
+        assert_eq!(graph.sparse_row(0).collect::<Vec<_>>(), vec![1]);
+        assert_eq!(graph.sparse_row(1).collect::<Vec<_>>(), vec![0]);
+        assert_eq!(graph.sparse_row(2).collect::<Vec<_>>(), vec![3]);
+        assert_eq!(graph.sparse_row(3).collect::<Vec<_>>(), vec![2]);
+    }
+
+    #[test]
+    fn test_fuzz_blossom_v_case_arbitrary_produces_even_order() {
+        let mut u = arbitrary::Unstructured::new(&[0x7f; 256]);
+        let case = FuzzBlossomVCase::arbitrary(&mut u).expect("arbitrary Blossom V case");
+
+        assert_eq!(case.order % 2, 0);
+        for &(a, b, _) in &case.edges {
+            assert!(a < case.order);
+            assert!(b < case.order);
+        }
+    }
+
+    #[test]
+    fn test_structured_blossom_v_case_arbitrary_ranges() {
+        let mut u = arbitrary::Unstructured::new(&[0x55; 128]);
+        let case = FuzzStructuredBlossomVCase::arbitrary(&mut u)
+            .expect("arbitrary structured Blossom V case");
+
+        assert_eq!(case.order % 2, 0);
+        assert!((1..=20).contains(&case.order));
+        assert!(case.family <= 13);
+        assert!(case.weight_mode <= 4);
+    }
+
+    #[test]
+    fn test_structured_fuzz_rng_small_upper_bounds() {
+        let mut rng = StructuredFuzzRng::new(0x1234_5678);
+        assert_eq!(rng.next_usize(0), 0);
+        assert_eq!(rng.next_usize(1), 0);
+        assert!((0.0..=1.0).contains(&rng.next_f64()));
+        let _ = rng.next_i16();
+    }
+
+    #[test]
+    fn test_build_blossom_v_graph_empty_case() {
+        let case = FuzzBlossomVCase { order: 0, edges: vec![] };
+        let (graph, edges) = build_blossom_v_graph(&case);
+        assert!(edges.is_empty());
+        assert_eq!(graph.number_of_rows(), 0);
+        assert_eq!(graph.number_of_columns(), 0);
+        assert_eq!(graph.number_of_defined_values(), 0);
+    }
+
+    #[test]
+    fn test_structured_support_graph_covers_all_families() {
+        for family in 0..=13 {
+            let case = FuzzStructuredBlossomVCase {
+                order: 8,
+                family,
+                weight_mode: 0,
+                ensure_perfect_support: false,
+                seed: 0xdecafbad_u64 + u64::from(family),
+            };
+            let support = structured_support_graph(&case);
+
+            assert_eq!(support.number_of_rows(), 8);
+            assert_eq!(support.number_of_columns(), 8);
+            for row in support.row_indices() {
+                for column in support.sparse_row(row) {
+                    assert_ne!(row, column, "family {family} produced a self-loop at {row}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_build_structured_blossom_v_case_backbone_covers_all_weight_modes() {
+        for weight_mode in 0..=4 {
+            let case = FuzzStructuredBlossomVCase {
+                order: 8,
+                family: 10,
+                weight_mode,
+                ensure_perfect_support: true,
+                seed: 0x1234_5678_9abc_def0,
+            };
+            let derived = build_structured_blossom_v_case(&case);
+            let normalized = normalize_blossom_v_edges(&derived);
+
+            assert_eq!(derived.order, case.order);
+            assert!(
+                blossom_v_support_has_perfect_matching(usize::from(derived.order), &normalized),
+                "weight_mode={weight_mode} should preserve a perfect matching backbone"
+            );
+        }
+    }
+
+    #[test]
+    fn test_check_blossom_v_invariants_fuzz_returns_early_for_large_inputs() {
+        let oversized_order = FuzzBlossomVCase { order: 22, edges: vec![(0, 1, -7)] };
+        check_blossom_v_invariants_fuzz(&oversized_order);
+
+        let mut dense_edges = Vec::new();
+        'outer: for u in 0..20u8 {
+            for v in (u + 1)..20u8 {
+                dense_edges.push((u, v, i32::from(u) - i32::from(v)));
+                if dense_edges.len() == 97 {
+                    break 'outer;
+                }
+            }
+        }
+        let oversized_dense = FuzzBlossomVCase { order: 20, edges: dense_edges };
+        check_blossom_v_invariants_fuzz(&oversized_dense);
+    }
+
+    #[test]
+    fn test_blossom_v_matching_cost_panics_on_missing_edge() {
+        let result = std::panic::catch_unwind(|| blossom_v_matching_cost(&[(0, 1, 3)], &[(0, 2)]));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_blossom_v_matching_rejects_wrong_cardinality() {
+        let result = std::panic::catch_unwind(|| {
+            validate_blossom_v_matching(4, &[(0, 1, 3), (2, 3, 4)], &[(0, 1)]);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_blossom_v_matching_rejects_out_of_bounds_vertices() {
+        let result = std::panic::catch_unwind(|| {
+            validate_blossom_v_matching(4, &[(0, 1, 3), (1, 2, 4)], &[(0, 4), (1, 2)]);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_blossom_v_matching_rejects_duplicate_vertices() {
+        let result = std::panic::catch_unwind(|| {
+            validate_blossom_v_matching(4, &[(0, 1, 3), (0, 2, 4)], &[(0, 1), (0, 2)]);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_validate_blossom_v_matching_rejects_non_edges() {
+        let result = std::panic::catch_unwind(|| {
+            validate_blossom_v_matching(4, &[(0, 1, 3), (2, 3, 4)], &[(0, 2), (1, 3)]);
+        });
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_check_blossom_v_invariants_with_bruteforce_limit_accepts_small_optimal_case() {
+        let case = FuzzBlossomVCase {
+            order: 4,
+            edges: vec![(0, 1, 1), (2, 3, 1), (0, 2, 10), (1, 3, 10)],
+        };
+        check_blossom_v_invariants_with_bruteforce_limit(&case, 12);
+    }
+
+    #[test]
+    fn test_check_blossom_v_invariants_with_bruteforce_limit_handles_small_infeasible_case() {
+        let case = FuzzBlossomVCase { order: 4, edges: vec![(0, 1, 1)] };
+        check_blossom_v_invariants_with_bruteforce_limit(&case, 12);
+    }
+
+    #[test]
+    fn test_check_blossom_v_invariants_with_bruteforce_limit_handles_large_infeasible_case() {
+        let case = FuzzBlossomVCase { order: 14, edges: vec![(0, 1, 1), (2, 3, 1)] };
+        check_blossom_v_invariants_with_bruteforce_limit(&case, 10);
+    }
+
+    #[test]
+    fn test_check_blossom_v_invariants_with_bruteforce_limit_wraps_panics() {
+        let case = FuzzBlossomVCase { order: 3, edges: vec![(0, 1, 1)] };
+        let result = std::panic::catch_unwind(|| {
+            check_blossom_v_invariants_with_bruteforce_limit(&case, 12);
+        });
+
+        let panic = result.expect_err("odd-order case should panic");
+        let msg = if let Some(s) = panic.downcast_ref::<String>() {
+            s.clone()
+        } else if let Some(s) = panic.downcast_ref::<&str>() {
+            (*s).to_string()
+        } else {
+            String::new()
+        };
+        assert!(msg.contains("Blossom V panicked"));
+    }
+
+    #[test]
+    fn test_check_structured_blossom_v_invariants_smoke() {
+        let case = FuzzStructuredBlossomVCase {
+            order: 8,
+            family: 13,
+            weight_mode: 3,
+            ensure_perfect_support: true,
+            seed: 0x3141_5926_5358_9793,
+        };
+        check_structured_blossom_v_invariants(&case);
+    }
+
     mod coverage_submodule {
         use super::*;
 

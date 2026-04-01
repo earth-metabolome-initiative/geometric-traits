@@ -5757,6 +5757,363 @@ fn test_into_pairs_checked_rejects_duplicate_vertex_usage() {
 }
 
 #[test]
+fn test_vec_remove_edge_repairs_stale_slot_and_ignores_missing_edge() {
+    let mut edges = vec![7u32, 9u32];
+    let mut slots = vec![usize::MAX; 10];
+    slots[7] = usize::MAX;
+    slots[9] = 1;
+
+    BlossomVState::<Vcsr>::vec_remove_edge(&mut edges, slots.as_mut_slice(), 7);
+    assert_eq!(edges, vec![9]);
+    assert_eq!(slots[7], usize::MAX);
+    assert_eq!(slots[9], 0);
+
+    BlossomVState::<Vcsr>::vec_remove_edge(&mut edges, slots.as_mut_slice(), 8);
+    assert_eq!(edges, vec![9]);
+    assert_eq!(slots[8], usize::MAX);
+    assert_eq!(slots[9], 0);
+}
+
+#[test]
+fn test_set_generic_pq01_other_side_reuses_existing_scheduler_pair() {
+    let g = build_graph(3, &[(0, 2, 5)]);
+    let mut state = BlossomVState::new(&g);
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    state.nodes[0].flag = PLUS;
+    state.nodes[0].is_tree_root = true;
+    state.nodes[0].tree_root = 0;
+
+    state.nodes[1].flag = PLUS;
+    state.nodes[1].is_tree_root = true;
+    state.nodes[1].tree_root = 1;
+
+    state.edges[0].head = [0, 2];
+    state.edges[0].head0 = [0, 2];
+
+    let pair_idx = state.add_generic_tree_edge(0, 1);
+    assert_eq!(state.scheduler_tree_edges.len(), 1);
+
+    state.set_generic_pq01_other_side(0, 0, 1);
+
+    assert_eq!(state.scheduler_tree_edges.len(), 1);
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq01Pair { pair_idx, dir: 0 });
+    assert_eq!(state.scheduler_tree_edges[pair_idx].pq01[0], vec![0]);
+    assert_eq!(state.test_state.generic_pairs[pair_idx].pq01[0], vec![0]);
+}
+
+#[test]
+fn test_replace_generic_queue_root_moves_all_root_owned_queues_and_topology() {
+    let g = build_graph(4, &[(0, 3, 1), (0, 2, 2), (1, 3, 3)]);
+    let mut state = BlossomVState::new(&g);
+    let old_root = 0u32;
+    let other_root = 1u32;
+    let new_root = 2u32;
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    state.nodes[old_root as usize].flag = PLUS;
+    state.nodes[old_root as usize].is_tree_root = true;
+    state.nodes[old_root as usize].tree_root = old_root;
+
+    state.nodes[other_root as usize].flag = PLUS;
+    state.nodes[other_root as usize].is_tree_root = true;
+    state.nodes[other_root as usize].tree_root = other_root;
+
+    state.nodes[new_root as usize].flag = PLUS;
+    state.nodes[new_root as usize].tree_root = new_root;
+
+    state.edges[0].head = [old_root, 3];
+    state.edges[0].head0 = [old_root, 3];
+    state.edges[1].head = [old_root, other_root];
+    state.edges[1].head0 = [old_root, other_root];
+    state.edges[2].head = [old_root, 3];
+    state.edges[2].head0 = [old_root, 3];
+
+    let pair_idx = state.add_generic_tree_edge(old_root, other_root);
+    state.set_generic_pq0(0, old_root);
+    state.set_generic_pq00_local_slot(1, old_root, false);
+    state.set_generic_pq_blossoms_root_slot(2, old_root, false);
+
+    state.replace_generic_queue_root(old_root, new_root);
+
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::Pq0 { root: new_root });
+    assert_eq!(state.edge_queue_owner(1), GenericQueueState::Pq00Local { root: new_root });
+    assert_eq!(state.edge_queue_owner(2), GenericQueueState::PqBlossoms { root: new_root });
+    assert!(state.test_generic_tree(new_root as usize).unwrap().pq0.contains(&0));
+    assert!(state.test_generic_tree(new_root as usize).unwrap().pq00_local.contains(&1));
+    assert!(state.test_generic_tree(new_root as usize).unwrap().pq_blossoms.contains(&2));
+    assert!(state.test_generic_tree(old_root as usize).unwrap().pq0.is_empty());
+    assert!(state.test_generic_tree(old_root as usize).unwrap().pq00_local.is_empty());
+    assert!(state.test_generic_tree(old_root as usize).unwrap().pq_blossoms.is_empty());
+    assert_eq!(state.scheduler_tree_edges[pair_idx].head, [other_root, new_root]);
+    assert_eq!(state.scheduler_tree_edge_other(pair_idx, new_root), Some(other_root));
+    assert_eq!(state.scheduler_tree_edge_dir(pair_idx, old_root), None);
+}
+
+#[test]
+fn test_detach_generic_root_after_augment_clears_root_owned_queues_and_topology() {
+    let g = build_graph(4, &[(0, 3, 1), (0, 2, 2), (1, 3, 3)]);
+    let mut state = BlossomVState::new(&g);
+    let root = 0u32;
+    let other_root = 1u32;
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    state.nodes[root as usize].flag = PLUS;
+    state.nodes[root as usize].is_tree_root = true;
+    state.nodes[root as usize].tree_root = root;
+
+    state.nodes[other_root as usize].flag = PLUS;
+    state.nodes[other_root as usize].is_tree_root = true;
+    state.nodes[other_root as usize].tree_root = other_root;
+
+    state.edges[0].head = [root, 3];
+    state.edges[0].head0 = [root, 3];
+    state.edges[1].head = [root, other_root];
+    state.edges[1].head0 = [root, other_root];
+    state.edges[2].head = [root, 3];
+    state.edges[2].head0 = [root, 3];
+
+    let pair_idx = state.add_generic_tree_edge(root, other_root);
+    state.set_generic_pq0(0, root);
+    state.set_generic_pq00_local_slot(1, root, false);
+    state.set_generic_pq_blossoms_root_slot(2, root, false);
+
+    state.detach_generic_root_after_augment(root);
+
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
+    assert_eq!(state.edge_queue_owner(1), GenericQueueState::None);
+    assert_eq!(state.edge_queue_owner(2), GenericQueueState::None);
+    assert!(state.test_generic_tree(root as usize).unwrap().pq0.is_empty());
+    assert!(state.test_generic_tree(root as usize).unwrap().pq00_local.is_empty());
+    assert!(state.test_generic_tree(root as usize).unwrap().pq_blossoms.is_empty());
+    assert_eq!(state.scheduler_tree_edge_dir(pair_idx, root), None);
+    assert_eq!(state.scheduler_tree_edge_other(pair_idx, other_root), None);
+    assert_eq!(state.scheduler_trees[root as usize].current, SchedulerCurrent::None);
+}
+
+#[test]
+fn test_generic_queue_helpers_ignore_invalid_roots_and_indices() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+
+    state.set_generic_pq0_root_slot(99, 0, false);
+    state.set_generic_pq_blossoms_root_slot(99, 0, false);
+    state.set_generic_pq00_local_slot(99, 0, false);
+    state.set_generic_pq00(99, 0, 1);
+    state.set_generic_pq01(99, 0, 1);
+    state.set_generic_pq01_other_side(99, 0, 1);
+    state.set_generic_pq01_pair_slot(0, 99, 0, false);
+    state.set_generic_pq01_pair_slot(0, 0, 2, false);
+    state.set_generic_pq0_root_slot(0, NONE, false);
+    state.set_generic_pq_blossoms_root_slot(0, NONE, false);
+    state.set_generic_pq00_local_slot(0, NONE, false);
+    state.set_generic_pq01(0, 0, 0);
+    state.set_generic_pq01_other_side(0, 0, 0);
+
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
+    assert_eq!(state.edge_queue_stamp(0), 0);
+}
+
+#[test]
+fn test_remove_edge_from_generic_queue_ignores_invalid_and_unowned_edges() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+
+    state.remove_edge_from_generic_queue(99);
+    state.remove_edge_from_generic_queue(0);
+
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
+    assert_eq!(state.edge_queue_slot[0], usize::MAX);
+}
+
+#[test]
+fn test_replace_and_detach_generic_queue_ignore_invalid_roots() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+
+    state.replace_generic_queue_root(NONE, 0);
+    state.replace_generic_queue_root(0, NONE);
+    state.replace_generic_queue_root(0, 0);
+    state.detach_generic_root_after_augment(NONE);
+    state.detach_generic_root_after_augment(99);
+
+    assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
+}
+
+#[test]
+fn test_update_duals_returns_false_without_any_roots() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+    assert!(!state.update_duals());
+}
+
+#[test]
+fn test_init_global_ported_returns_early_without_trees() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+    state.tree_num = 0;
+    state.init_global_ported();
+    assert_eq!(state.tree_num, 0);
+}
+
+#[test]
+fn test_init_global_process_root_returns_false_for_non_root() {
+    let g = build_graph(2, &[(0, 1, 1)]);
+    let mut state = BlossomVState::new(&g);
+    let mut best_edge = Vec::new();
+
+    state.nodes[0].is_tree_root = false;
+
+    assert!(!state.init_global_process_root(0, &mut best_edge));
+}
+
+#[test]
+fn test_apply_init_global_grow_records_trace_step() {
+    let g = build_graph(4, &[(0, 1, 4), (1, 2, 1)]);
+    let mut state = BlossomVState::new(&g);
+    let root = 0u32;
+    let free = 1u32;
+    let partner = 2u32;
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    state.nodes[root as usize].flag = PLUS;
+    state.nodes[root as usize].is_tree_root = true;
+    state.nodes[root as usize].tree_root = root;
+
+    state.nodes[free as usize].flag = FREE;
+    state.nodes[free as usize].match_arc = make_arc(1, 0);
+
+    state.edges[0].head = [root, free];
+    state.edges[0].head0 = [root, free];
+    state.edges[1].head = [partner, free];
+    state.edges[1].head0 = [partner, free];
+
+    state.apply_init_global_grow(0, root, free);
+
+    assert_eq!(state.test_state.init_global_steps.len(), 1);
+    assert_eq!(
+        state.test_state.init_global_steps[0].event,
+        InitGlobalEvent::Grow { edge: (0, 1), plus: root, free }
+    );
+    assert_eq!(state.nodes[free as usize].flag, MINUS);
+    assert_eq!(state.nodes[partner as usize].flag, PLUS);
+    assert_eq!(state.nodes[root as usize].first_tree_child, partner);
+}
+
+#[test]
+fn test_apply_init_global_augment_records_trace_step() {
+    let g = build_graph(2, &[(0, 1, 4)]);
+    let mut state = BlossomVState::new(&g);
+    let left = 0u32;
+    let right = 1u32;
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+
+    state.nodes[left as usize].flag = PLUS;
+    state.nodes[left as usize].is_tree_root = true;
+    state.nodes[left as usize].tree_root = left;
+
+    state.nodes[right as usize].flag = PLUS;
+    state.nodes[right as usize].is_tree_root = true;
+    state.nodes[right as usize].tree_root = right;
+
+    state.tree_num = 2;
+    state.root_list_head = NONE;
+    state.root_list_append(left);
+    state.root_list_append(right);
+
+    state.edges[0].head = [left, right];
+    state.edges[0].head0 = [left, right];
+
+    state.apply_init_global_augment(0, left, right, left);
+
+    assert_eq!(state.test_state.init_global_steps.len(), 1);
+    assert_eq!(
+        state.test_state.init_global_steps[0].event,
+        InitGlobalEvent::Augment { edge: (0, 1), left, right }
+    );
+    assert_ne!(state.nodes[left as usize].match_arc, NONE);
+    assert_ne!(state.nodes[right as usize].match_arc, NONE);
+    assert_eq!(state.tree_num, 0);
+}
+
+#[test]
+fn test_apply_init_global_shrink_records_trace_step() {
+    let g = build_graph(4, &[(0, 1, 1), (0, 2, 1), (0, 3, 1)]);
+    let mut state = BlossomVState::new(&g);
+    let root = 0u32;
+    let endpoint = 1u32;
+    let minus = 2u32;
+    let shrink_edge = 0u32;
+    let match_edge = 1u32;
+    let parent_edge = 2u32;
+
+    for node in &mut state.nodes {
+        *node = Node::new_vertex();
+        node.is_outer = true;
+    }
+    for edge in &mut state.edges {
+        edge.head = [0, 1];
+        edge.head0 = [0, 1];
+        edge.next = [NONE; 2];
+        edge.prev = [NONE; 2];
+        edge.slack = 0;
+    }
+
+    state.nodes[root as usize].flag = PLUS;
+    state.nodes[root as usize].is_tree_root = true;
+    state.nodes[root as usize].tree_root = root;
+    state.nodes[root as usize].tree_eps = 3;
+    state.nodes[root as usize].first_tree_child = endpoint;
+
+    state.nodes[endpoint as usize].flag = PLUS;
+    state.nodes[endpoint as usize].tree_root = root;
+    state.nodes[endpoint as usize].match_arc = make_arc(match_edge, 0);
+    state.nodes[endpoint as usize].tree_sibling_prev = endpoint;
+    state.nodes[endpoint as usize].tree_sibling_next = NONE;
+
+    state.nodes[minus as usize].flag = MINUS;
+    state.nodes[minus as usize].tree_root = root;
+    state.nodes[minus as usize].tree_parent_arc = make_arc(parent_edge, 0);
+
+    state.edges[shrink_edge as usize].head = [endpoint, root];
+    state.edges[shrink_edge as usize].head0 = [endpoint, root];
+    state.edges[match_edge as usize].head = [minus, endpoint];
+    state.edges[match_edge as usize].head0 = [endpoint, minus];
+    state.edges[parent_edge as usize].head = [root, minus];
+    state.edges[parent_edge as usize].head0 = [minus, root];
+
+    state.apply_init_global_shrink(shrink_edge, endpoint, root, root);
+
+    assert_eq!(state.test_state.init_global_steps.len(), 1);
+    assert_eq!(
+        state.test_state.init_global_steps[0].event,
+        InitGlobalEvent::Shrink { edge: (0, 1), left: endpoint, right: root }
+    );
+    assert!(!state.nodes[root as usize].is_tree_root);
+    assert_eq!(state.nodes[root as usize].tree_eps, 0);
+}
+
+#[test]
 fn test_k4_has_tight_grow_edge() {
     // After greedy: (0,1) matched, 2 and 3 are tree roots
     // Edge (0,2) should be tight (slack=0), enabling GROW
