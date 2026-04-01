@@ -7,9 +7,6 @@
 //! - Gabow 1976+KS1 / Gabow 1976+KS12
 //! - Micali-Vazirani (O(√V·E))
 //! - Micali-Vazirani+KS1 / Micali-Vazirani+KS12
-//! - Blum (implementation worst case O(V·(V+E)); paper phased bound
-//!   O(√V·(V+E)))
-//! - Blum+KS1 / Blum+KS12
 
 use std::{hint::black_box, time::Duration};
 
@@ -120,18 +117,6 @@ fn bench_exact_matchers(
 
     group.bench_with_input(BenchmarkId::new("MicaliVazirani+KS12", label), g, |b, g| {
         b.iter(|| black_box(g.micali_vazirani_with_karp_sipser(KarpSipserRules::Degree1And2)));
-    });
-
-    group.bench_with_input(BenchmarkId::new("Blum", label), g, |b, g| {
-        b.iter(|| black_box(g.blum()));
-    });
-
-    group.bench_with_input(BenchmarkId::new("Blum+KS1", label), g, |b, g| {
-        b.iter(|| black_box(g.blum_with_karp_sipser(KarpSipserRules::Degree1)));
-    });
-
-    group.bench_with_input(BenchmarkId::new("Blum+KS12", label), g, |b, g| {
-        b.iter(|| black_box(g.blum_with_karp_sipser(KarpSipserRules::Degree1And2)));
     });
 }
 

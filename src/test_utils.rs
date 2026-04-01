@@ -997,20 +997,12 @@ where
 #[inline]
 pub fn check_karp_sipser_invariants<M>(graph: &M)
 where
-    M: SparseSquareMatrix + Blossom + Blum + KarpSipser + MicaliVazirani,
+    M: SparseSquareMatrix + Blossom + KarpSipser + MicaliVazirani,
     M::Index: AsPrimitive<usize> + Ord + Copy + Debug,
 {
     let blossom_matching = graph.blossom();
     check_matching_valid(graph, &blossom_matching);
     let expected_size = blossom_matching.len();
-
-    let plain_blum_matching = graph.blum();
-    check_matching_valid(graph, &plain_blum_matching);
-    assert_eq!(
-        plain_blum_matching.len(),
-        expected_size,
-        "plain Blum disagrees with Blossom before Karp-Sipser is applied",
-    );
 
     for rules in [KarpSipserRules::Degree1, KarpSipserRules::Degree1And2] {
         let kernel = graph.karp_sipser_kernel(rules);
@@ -1042,14 +1034,6 @@ where
             mv_matching.len(),
             expected_size,
             "Karp-Sipser Micali-Vazirani wrapper changed the matching size",
-        );
-
-        let blum_matching = graph.blum_with_karp_sipser(rules);
-        check_matching_valid(graph, &blum_matching);
-        assert_eq!(
-            blum_matching.len(),
-            expected_size,
-            "Karp-Sipser Blum wrapper changed the matching size",
         );
     }
 }

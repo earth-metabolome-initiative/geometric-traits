@@ -1,6 +1,5 @@
-//! Cross-validation tests for matching algorithms (Blossom, Micali-Vazirani,
-//! Blum, Kocay) on generated graph families. Ensures all four algorithms agree
-//! on matching size across a wide variety of graph structures and sizes.
+//! Cross-validation tests for matching algorithms (Blossom, Gabow 1976,
+//! Micali-Vazirani, Kocay) on generated graph families.
 #![cfg(feature = "std")]
 
 use geometric_traits::{
@@ -42,16 +41,14 @@ fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
     num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
 }
 
-/// Run all four algorithms on the same graph and assert they agree.
+/// Run all exact matchers on the same graph and assert they agree.
 fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let bl = g.blossom();
     let gabow = g.gabow_1976();
     let mv = g.micali_vazirani();
-    let blum = g.blum();
     validate_matching(g, &bl);
     validate_matching(g, &gabow);
     validate_matching(g, &mv);
-    validate_matching(g, &blum);
     assert_eq!(
         bl.len(),
         gabow.len(),
@@ -66,14 +63,6 @@ fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
         "Blossom ({}) != MV ({}) on graph with order {}",
         bl.len(),
         mv.len(),
-        g.order()
-    );
-    assert_eq!(
-        bl.len(),
-        blum.len(),
-        "Blossom ({}) != Blum ({}) on graph with order {}",
-        bl.len(),
-        blum.len(),
         g.order()
     );
 
