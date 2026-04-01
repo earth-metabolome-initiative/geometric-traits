@@ -5494,12 +5494,12 @@ fn test_prepare_tree_for_augment_requeues_pair_edge_into_other_roots_pq0() {
 
     state.edges[e_idx as usize].head = [1, 2];
     state.set_generic_pq00(e_idx, 0, 3);
-    state.generic_pairs[0].pq00.clear();
+    state.test_generic_pair_mut(0).unwrap().pq00.clear();
 
     state.prepare_tree_for_augment(0, &[0]);
 
     assert_eq!(state.edge_queue_owner(e_idx), GenericQueueState::Pq0 { root: 3 });
-    assert!(state.generic_trees[3].pq0.contains(&e_idx));
+    assert!(state.test_generic_tree(3).unwrap().pq0.contains(&e_idx));
     assert!(state.scheduler_trees[3].pq0.contains(&e_idx));
 }
 
@@ -5531,13 +5531,13 @@ fn test_prepare_tree_for_augment_uses_scheduler_root_queues_when_shadow_is_stale
     state.edges[e_idx as usize].slack = 7;
 
     state.set_generic_pq0(e_idx, 0);
-    state.generic_trees[0].pq0.clear();
+    state.test_generic_tree_mut(0).unwrap().pq0.clear();
 
     state.prepare_tree_for_augment(0, &[0]);
 
     assert_eq!(state.edge_queue_owner(e_idx), GenericQueueState::None);
     assert!(state.scheduler_trees[0].pq0.is_empty());
-    assert!(state.generic_trees[0].pq0.is_empty());
+    assert!(state.test_generic_tree(0).unwrap().pq0.is_empty());
     assert_eq!(state.edges[e_idx as usize].slack, 3);
 }
 

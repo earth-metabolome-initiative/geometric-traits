@@ -121,6 +121,8 @@ fn test_seeded_random_graph_families() {
     }
 
     for &(n, k) in &[(10, 3), (12, 3), (16, 4), (18, 3)] {
-        assert_all_ks_exact(&random_regular_graph(55 + n as u64, n, k));
+        let g = random_regular_graph(55 + n as u64, n, k)
+            .expect("cross-validation inputs should admit a simple regular graph");
+        assert_all_ks_exact(&g);
     }
 }

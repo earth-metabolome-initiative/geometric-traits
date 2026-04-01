@@ -79,6 +79,21 @@ pub(super) struct GenericPrimalStepTrace {
     pub(super) after: StrictParitySnapshot,
 }
 
+#[derive(Default)]
+pub(super) struct BlossomVTestState {
+    pub(super) generic_trees: Vec<GenericTreeQueues>,
+    pub(super) generic_pairs: Vec<GenericPairQueues>,
+    pub(super) init_global_trace: Vec<InitGlobalEvent>,
+    pub(super) init_global_steps: Vec<InitGlobalStepTrace>,
+    pub(super) generic_primal_steps: Vec<GenericPrimalStepTrace>,
+}
+
+impl BlossomVTestState {
+    pub(super) fn with_node_capacity(node_num: usize) -> Self {
+        Self { generic_trees: vec![GenericTreeQueues::default(); node_num], ..Self::default() }
+    }
+}
+
 pub(super) fn mark_tree_roots_processed<M>(state: &mut BlossomVState<M>)
 where
     M: SparseValuedMatrix2D + ?Sized,
@@ -101,8 +116,8 @@ where
 {
     pub(super) fn ensure_generic_tree_slot(&mut self, root: u32) {
         let needed = root as usize + 1;
-        if self.generic_trees.len() < needed {
-            self.generic_trees.resize_with(needed, GenericTreeQueues::default);
+        if self.test_state.generic_trees.len() < needed {
+            self.test_state.generic_trees.resize_with(needed, GenericTreeQueues::default);
         }
     }
 
@@ -112,7 +127,7 @@ where
         }
         self.ensure_generic_tree_slot(root);
         if (root as usize) >= self.scheduler_trees.len() {
-            self.generic_trees[root as usize].tree_edges = [Vec::new(), Vec::new()];
+            self.test_state.generic_trees[root as usize].tree_edges = [Vec::new(), Vec::new()];
             return;
         }
 
@@ -130,7 +145,7 @@ where
                 cursor = self.scheduler_tree_edges[pair_idx].next[dir];
                 safety -= 1;
             }
-            self.generic_trees[root as usize].tree_edges[dir] = edges;
+            self.test_state.generic_trees[root as usize].tree_edges[dir] = edges;
         }
     }
 
@@ -140,40 +155,43 @@ where
         }
         self.ensure_generic_tree_slot(root);
         if (root as usize) >= self.scheduler_trees.len() {
-            self.generic_trees[root as usize].pq0.clear();
-            self.generic_trees[root as usize].pq00_local.clear();
-            self.generic_trees[root as usize].pq_blossoms.clear();
+            self.test_state.generic_trees[root as usize].pq0.clear();
+            self.test_state.generic_trees[root as usize].pq00_local.clear();
+            self.test_state.generic_trees[root as usize].pq_blossoms.clear();
             return;
         }
-        self.generic_trees[root as usize].pq0 = self.scheduler_trees[root as usize].pq0.clone();
-        self.generic_trees[root as usize].pq00_local =
+        self.test_state.generic_trees[root as usize].pq0 =
+            self.scheduler_trees[root as usize].pq0.clone();
+        self.test_state.generic_trees[root as usize].pq00_local =
             self.scheduler_trees[root as usize].pq00_local.clone();
-        self.generic_trees[root as usize].pq_blossoms =
+        self.test_state.generic_trees[root as usize].pq_blossoms =
             self.scheduler_trees[root as usize].pq_blossoms.clone();
     }
 
     pub(super) fn sync_generic_pair_queues_from_scheduler(&mut self, pair_idx: usize) {
-        if pair_idx >= self.generic_pairs.len() {
+        if pair_idx >= self.test_state.generic_pairs.len() {
             return;
         }
         if pair_idx >= self.scheduler_tree_edges.len() {
-            self.generic_pairs[pair_idx].pq00.clear();
-            self.generic_pairs[pair_idx].pq01 = [Vec::new(), Vec::new()];
+            self.test_state.generic_pairs[pair_idx].pq00.clear();
+            self.test_state.generic_pairs[pair_idx].pq01 = [Vec::new(), Vec::new()];
             return;
         }
-        self.generic_pairs[pair_idx].pq00 = self.scheduler_tree_edges[pair_idx].pq00.clone();
-        self.generic_pairs[pair_idx].pq01 = self.scheduler_tree_edges[pair_idx].pq01.clone();
+        self.test_state.generic_pairs[pair_idx].pq00 =
+            self.scheduler_tree_edges[pair_idx].pq00.clone();
+        self.test_state.generic_pairs[pair_idx].pq01 =
+            self.scheduler_tree_edges[pair_idx].pq01.clone();
     }
 
     pub(super) fn sync_generic_pair_head_from_scheduler(&mut self, pair_idx: usize) {
-        if pair_idx >= self.generic_pairs.len() {
+        if pair_idx >= self.test_state.generic_pairs.len() {
             return;
         }
         if pair_idx >= self.scheduler_tree_edges.len() {
-            self.generic_pairs[pair_idx].head = [NONE, NONE];
+            self.test_state.generic_pairs[pair_idx].head = [NONE, NONE];
             return;
         }
-        self.generic_pairs[pair_idx].head = self.scheduler_tree_edges[pair_idx].head;
+        self.test_state.generic_pairs[pair_idx].head = self.scheduler_tree_edges[pair_idx].head;
     }
 
     pub(super) fn test_strict_parity_snapshot(&self) -> StrictParitySnapshot {
@@ -226,7 +244,22 @@ where
     }
 
     pub(super) fn test_generic_primal_steps(&self) -> &[GenericPrimalStepTrace] {
-        &self.generic_primal_steps
+        &self.test_state.generic_primal_steps
+    }
+
+    pub(super) fn test_generic_tree(&self, root: usize) -> Option<&GenericTreeQueues> {
+        self.test_state.generic_trees.get(root)
+    }
+
+    pub(super) fn test_generic_tree_mut(&mut self, root: usize) -> Option<&mut GenericTreeQueues> {
+        self.test_state.generic_trees.get_mut(root)
+    }
+
+    pub(super) fn test_generic_pair_mut(
+        &mut self,
+        pair_idx: usize,
+    ) -> Option<&mut GenericPairQueues> {
+        self.test_state.generic_pairs.get_mut(pair_idx)
     }
 }
 

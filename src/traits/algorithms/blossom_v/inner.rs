@@ -23,7 +23,7 @@ mod test_support;
 
 #[cfg(test)]
 use self::test_support::{
-    GenericPairQueues, GenericPrimalEvent, GenericPrimalStepTrace, GenericTreeQueues,
+    BlossomVTestState, GenericPairQueues, GenericPrimalEvent, GenericPrimalStepTrace,
     InitGlobalEvent, InitGlobalStepTrace,
 };
 
@@ -370,21 +370,13 @@ pub(super) struct BlossomVState<M: SparseValuedMatrix2D + ?Sized> {
     pq_nodes: Vec<PQNode>,
     root_list_head: u32,
     #[cfg(test)]
-    generic_trees: Vec<GenericTreeQueues>,
-    #[cfg(test)]
-    generic_pairs: Vec<GenericPairQueues>,
+    test_state: BlossomVTestState,
     scheduler_trees: Vec<PersistentTreeState>,
     scheduler_tree_edges: Vec<PersistentTreeEdgeState>,
     scratch: BlossomVScratch,
     generic_queue_epoch: u64,
     tree_num: usize,
     blossom_count: usize,
-    #[cfg(test)]
-    init_global_trace: Vec<InitGlobalEvent>,
-    #[cfg(test)]
-    init_global_steps: Vec<InitGlobalStepTrace>,
-    #[cfg(test)]
-    generic_primal_steps: Vec<GenericPrimalStepTrace>,
 }
 
 impl<M: SparseValuedMatrix2D + ?Sized> BlossomVState<M>
@@ -551,21 +543,13 @@ where
             pq_nodes,
             root_list_head: NONE,
             #[cfg(test)]
-            generic_trees: vec![GenericTreeQueues::default(); n],
-            #[cfg(test)]
-            generic_pairs: Vec::new(),
+            test_state: BlossomVTestState::with_node_capacity(n),
             scheduler_trees: Vec::new(),
             scheduler_tree_edges: Vec::new(),
             scratch: BlossomVScratch::default(),
             generic_queue_epoch: 0,
             tree_num: 0,
             blossom_count: 0,
-            #[cfg(test)]
-            init_global_trace: Vec::new(),
-            #[cfg(test)]
-            init_global_steps: Vec::new(),
-            #[cfg(test)]
-            generic_primal_steps: Vec::new(),
         };
 
         if n > 0 {
@@ -682,8 +666,8 @@ where
     fn init_global(&mut self) {
         #[cfg(test)]
         {
-            self.init_global_trace.clear();
-            self.init_global_steps.clear();
+            self.test_state.init_global_trace.clear();
+            self.test_state.init_global_steps.clear();
         }
 
         if self.tree_num == 0 {
@@ -2511,8 +2495,8 @@ where
         let before = self.test_strict_parity_snapshot();
         self.init_grow(e_idx, plus, free);
         let after = self.test_strict_parity_snapshot();
-        self.init_global_trace.push(event.clone());
-        self.init_global_steps.push(InitGlobalStepTrace { event, before, after });
+        self.test_state.init_global_trace.push(event.clone());
+        self.test_state.init_global_steps.push(InitGlobalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2558,8 +2542,8 @@ where
         self.nodes[left as usize].match_arc = make_arc(e_idx, u_dir);
         self.nodes[right as usize].match_arc = make_arc(e_idx, 1 - u_dir);
         let after = self.test_strict_parity_snapshot();
-        self.init_global_trace.push(event.clone());
-        self.init_global_steps.push(InitGlobalStepTrace { event, before, after });
+        self.test_state.init_global_trace.push(event.clone());
+        self.test_state.init_global_steps.push(InitGlobalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2583,8 +2567,8 @@ where
         let before = self.test_strict_parity_snapshot();
         self.init_shrink(e_idx, root);
         let after = self.test_strict_parity_snapshot();
-        self.init_global_trace.push(event.clone());
-        self.init_global_steps.push(InitGlobalStepTrace { event, before, after });
+        self.test_state.init_global_trace.push(event.clone());
+        self.test_state.init_global_steps.push(InitGlobalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2606,7 +2590,7 @@ where
             self.augment(augment_edge, left, right);
         }
         let after = self.test_strict_parity_snapshot();
-        self.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
+        self.test_state.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2629,7 +2613,7 @@ where
         let before = self.test_strict_parity_snapshot();
         self.shrink(e_idx, left, right);
         let after = self.test_strict_parity_snapshot();
-        self.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
+        self.test_state.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2648,7 +2632,7 @@ where
         let before = self.test_strict_parity_snapshot();
         self.augment(e_idx, left, right);
         let after = self.test_strict_parity_snapshot();
-        self.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
+        self.test_state.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2673,7 +2657,7 @@ where
         let before = self.test_strict_parity_snapshot();
         self.perform_generic_expand(b);
         let after = self.test_strict_parity_snapshot();
-        self.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
+        self.test_state.generic_primal_steps.push(GenericPrimalStepTrace { event, before, after });
     }
 
     #[cfg(not(test))]
@@ -2975,10 +2959,10 @@ where
         {
             self.ensure_generic_tree_slot(current_root);
             self.ensure_generic_tree_slot(other_root);
-            if self.generic_pairs.len() <= idx {
-                self.generic_pairs.resize_with(idx + 1, GenericPairQueues::default);
+            if self.test_state.generic_pairs.len() <= idx {
+                self.test_state.generic_pairs.resize_with(idx + 1, GenericPairQueues::default);
             }
-            self.generic_pairs[idx] = GenericPairQueues::new(current_root, other_root);
+            self.test_state.generic_pairs[idx] = GenericPairQueues::new(current_root, other_root);
         }
         self.ensure_scheduler_tree_slot(current_root);
         self.ensure_scheduler_tree_slot(other_root);

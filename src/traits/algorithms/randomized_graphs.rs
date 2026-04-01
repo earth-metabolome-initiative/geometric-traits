@@ -125,7 +125,7 @@ pub use watts_strogatz::watts_strogatz;
 #[cfg(all(feature = "alloc", any(feature = "std", feature = "hashbrown")))]
 mod random_regular;
 #[cfg(all(feature = "alloc", any(feature = "std", feature = "hashbrown")))]
-pub use random_regular::random_regular_graph;
+pub use random_regular::{RandomRegularGraphError, random_regular_graph};
 
 #[cfg(feature = "alloc")]
 mod stochastic_block_model;

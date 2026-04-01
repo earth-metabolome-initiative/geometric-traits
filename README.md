@@ -100,7 +100,7 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 | **Erdős–Rényi** G(n, p) | `erdos_renyi_gnp(seed, n, p)` | n = vertices, p = edge probability | Gilbert (1959); geometric skip: Batagelj & Brandes (2005) |
 | **Barabási–Albert** | `barabasi_albert(seed, n, m)` | n = vertices, m = edges/step; initial clique size = m + 1 | Barabási & Albert (1999) |
 | **Watts–Strogatz** | `watts_strogatz(seed, n, k, beta)` | n = vertices, k = neighbours, β = rewiring prob. | Watts & Strogatz (1998) |
-| **Random Regular** | `random_regular_graph(seed, n, k)` | n = vertices, k = degree | Configuration model; Wormald (1999) |
+| **Random Regular** | `random_regular_graph(seed, n, k) -> Result<_, _>` | n = vertices, k = degree | Configuration model; Wormald (1999) |
 | **Stochastic Block Model** | `stochastic_block_model(seed, sizes, p_intra, p_inter)` | community sizes, within-community p, between-community p | Holland, Laskey & Leinhardt (1983) |
 | **Configuration Model** | `configuration_model(seed, degrees)` | degree sequence | Molloy & Reed (1995) |
 | **Chung–Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
