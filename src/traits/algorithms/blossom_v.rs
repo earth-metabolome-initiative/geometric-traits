@@ -82,6 +82,39 @@ where
     /// Returns [`BlossomVError::NoPerfectMatching`] if no perfect matching
     /// exists.
     ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::{impls::ValuedCSR2D, prelude::*};
+    ///
+    /// type Graph = ValuedCSR2D<usize, usize, usize, i32>;
+    ///
+    /// let mut graph: Graph = SparseMatrixMut::with_sparse_shaped_capacity((4, 4), 8);
+    /// for edge in
+    ///     [(0, 1, 1), (0, 2, 9), (1, 0, 1), (1, 3, 9), (2, 0, 9), (2, 3, 1), (3, 1, 9), (3, 2, 1)]
+    /// {
+    ///     MatrixMut::add(&mut graph, edge).unwrap();
+    /// }
+    ///
+    /// let mut matching = graph.blossom_v().unwrap();
+    /// matching.sort_unstable();
+    /// assert_eq!(matching, vec![(0, 1), (2, 3)]);
+    /// ```
+    ///
+    /// ```
+    /// use geometric_traits::{impls::ValuedCSR2D, prelude::*};
+    ///
+    /// type Graph = ValuedCSR2D<usize, usize, usize, i32>;
+    ///
+    /// let mut graph: Graph = SparseMatrixMut::with_sparse_shaped_capacity((4, 4), 6);
+    /// for edge in [(0, 1, 1), (0, 2, 1), (0, 3, 1), (1, 0, 1), (2, 0, 1), (3, 0, 1)] {
+    ///     MatrixMut::add(&mut graph, edge).unwrap();
+    /// }
+    ///
+    /// let err = graph.blossom_v().unwrap_err();
+    /// assert_eq!(err, BlossomVError::NoPerfectMatching);
+    /// ```
+    ///
     /// # Panics
     ///
     /// Panics if the matrix is not square or has an odd number of vertices.
