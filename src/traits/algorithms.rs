@@ -112,10 +112,6 @@ mod gabow_1976;
 #[cfg(feature = "alloc")]
 pub use gabow_1976::*;
 #[cfg(feature = "alloc")]
-mod karp_sipser;
-#[cfg(feature = "alloc")]
-pub use karp_sipser::*;
-#[cfg(feature = "alloc")]
 mod micali_vazirani;
 #[cfg(feature = "alloc")]
 pub use micali_vazirani::*;

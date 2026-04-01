@@ -2,11 +2,8 @@
 //! undirected graphs of varying sizes and densities:
 //!
 //! - Blossom (O(V²E))
-//! - Blossom+KS1 / Blossom+KS12
 //! - Gabow 1976 (O(V^3))
-//! - Gabow 1976+KS1 / Gabow 1976+KS12
 //! - Micali-Vazirani (O(√V·E))
-//! - Micali-Vazirani+KS1 / Micali-Vazirani+KS12
 
 use std::{hint::black_box, time::Duration};
 
@@ -87,36 +84,12 @@ fn bench_exact_matchers(
         b.iter(|| black_box(g.blossom()));
     });
 
-    group.bench_with_input(BenchmarkId::new("Blossom+KS1", label), g, |b, g| {
-        b.iter(|| black_box(g.blossom_with_karp_sipser(KarpSipserRules::Degree1)));
-    });
-
-    group.bench_with_input(BenchmarkId::new("Blossom+KS12", label), g, |b, g| {
-        b.iter(|| black_box(g.blossom_with_karp_sipser(KarpSipserRules::Degree1And2)));
-    });
-
     group.bench_with_input(BenchmarkId::new("Gabow1976", label), g, |b, g| {
         b.iter(|| black_box(g.gabow_1976()));
     });
 
-    group.bench_with_input(BenchmarkId::new("Gabow1976+KS1", label), g, |b, g| {
-        b.iter(|| black_box(g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1)));
-    });
-
-    group.bench_with_input(BenchmarkId::new("Gabow1976+KS12", label), g, |b, g| {
-        b.iter(|| black_box(g.gabow_1976_with_karp_sipser(KarpSipserRules::Degree1And2)));
-    });
-
     group.bench_with_input(BenchmarkId::new("MicaliVazirani", label), g, |b, g| {
         b.iter(|| black_box(g.micali_vazirani()));
-    });
-
-    group.bench_with_input(BenchmarkId::new("MicaliVazirani+KS1", label), g, |b, g| {
-        b.iter(|| black_box(g.micali_vazirani_with_karp_sipser(KarpSipserRules::Degree1)));
-    });
-
-    group.bench_with_input(BenchmarkId::new("MicaliVazirani+KS12", label), g, |b, g| {
-        b.iter(|| black_box(g.micali_vazirani_with_karp_sipser(KarpSipserRules::Degree1And2)));
     });
 }
 
