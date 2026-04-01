@@ -217,7 +217,8 @@ fn bench_matching_sparse_random(c: &mut Criterion) {
                 0xA11C_E003_u64.wrapping_add((n as u64) << 8).wrapping_add(k as u64),
                 n,
                 k,
-            );
+            )
+            .expect("benchmark regular graph inputs should be valid");
             let regular_label = format!("regular_n={n}_k={k}");
             bench_exact_matchers(&mut group, &regular, &regular_label);
         }

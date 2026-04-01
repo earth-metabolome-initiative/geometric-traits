@@ -517,15 +517,15 @@ fn test_watts_strogatz_deterministic() {
 
 #[test]
 fn test_random_regular_graph_basic() {
-    let g = random_regular_graph(42, 10, 4);
+    let g = random_regular_graph(42, 10, 4).expect("10-vertex 4-regular graph should exist");
     assert_eq!(g.order(), 10);
     assert_eq!(edge_count(&g), 20); // n*k/2
 }
 
 #[test]
 fn test_random_regular_graph_deterministic() {
-    let g1 = random_regular_graph(42, 12, 4);
-    let g2 = random_regular_graph(42, 12, 4);
+    let g1 = random_regular_graph(42, 12, 4).expect("12-vertex 4-regular graph should exist");
+    let g2 = random_regular_graph(42, 12, 4).expect("12-vertex 4-regular graph should exist");
     assert_eq!(
         geometric_traits::traits::Edges::number_of_edges(&g1),
         geometric_traits::traits::Edges::number_of_edges(&g2)
@@ -779,21 +779,21 @@ fn test_configuration_model_n0() {
 
 #[test]
 fn test_random_regular_k0() {
-    let g = random_regular_graph(42, 5, 0);
+    let g = random_regular_graph(42, 5, 0).expect("zero-degree regular graph should exist");
     assert_eq!(g.order(), 5);
     assert_eq!(edge_count(&g), 0);
 }
 
 #[test]
 fn test_random_regular_n0() {
-    let g = random_regular_graph(42, 0, 0);
+    let g = random_regular_graph(42, 0, 0).expect("empty regular graph should exist");
     assert_eq!(g.order(), 0);
 }
 
 #[test]
 fn test_random_regular_3reg() {
     // 3-regular on 8 vertices
-    let g = random_regular_graph(42, 8, 3);
+    let g = random_regular_graph(42, 8, 3).expect("8-vertex 3-regular graph should exist");
     assert_eq!(g.order(), 8);
     assert_eq!(edge_count(&g), 12); // n*k/2
 }
@@ -801,9 +801,21 @@ fn test_random_regular_3reg() {
 #[test]
 fn test_random_regular_k2() {
     // k = 2 → random 2-regular graph (union of cycles)
-    let g = random_regular_graph(42, 6, 2);
+    let g = random_regular_graph(42, 6, 2).expect("6-vertex 2-regular graph should exist");
     assert_eq!(g.order(), 6);
     assert_eq!(edge_count(&g), 6); // n*k/2
+}
+
+#[test]
+fn test_random_regular_odd_stub_count_error() {
+    let err = random_regular_graph(42, 5, 3).unwrap_err();
+    assert_eq!(err, RandomRegularGraphError::OddStubCount { n: 5, k: 3 });
+}
+
+#[test]
+fn test_random_regular_degree_too_large_error() {
+    let err = random_regular_graph(42, 5, 5).unwrap_err();
+    assert_eq!(err, RandomRegularGraphError::DegreeTooLarge { n: 5, k: 5 });
 }
 
 #[test]
@@ -1061,7 +1073,7 @@ fn test_mv_watts_strogatz_various() {
 fn test_mv_random_regular_various() {
     // Regular graphs: uniform degree.
     for seed in 1..=5 {
-        let g = random_regular_graph(seed, 20, 4);
+        let g = random_regular_graph(seed, 20, 4).expect("20-vertex 4-regular graph should exist");
         let blossom = g.blossom();
         let mv = g.micali_vazirani();
         assert_eq!(blossom.len(), mv.len(), "RRG seed={seed}");

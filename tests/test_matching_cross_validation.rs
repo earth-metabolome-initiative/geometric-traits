@@ -377,7 +377,8 @@ fn test_watts_strogatz() {
 fn test_random_regular() {
     // k must divide n*k evenly (n*k even)
     for &(n, k) in &[(10, 3), (12, 3), (20, 4), (15, 4), (30, 3)] {
-        let g = random_regular_graph(55, n, k);
+        let g = random_regular_graph(55, n, k)
+            .expect("cross-validation inputs should admit a simple regular graph");
         assert_all_agree(&g);
     }
 }

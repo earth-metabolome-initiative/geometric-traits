@@ -5,11 +5,11 @@
 #![cfg(feature = "std")]
 
 use geometric_traits::{
-    impls::{CSR2D, ValuedCSR2D},
+    impls::{CSR2D, GenericMatrix2DWithPaddedDiagonal, ValuedCSR2D},
     prelude::*,
     traits::{
-        EdgesBuilder, EmptyRows, MatrixMut, SizedRowsSparseMatrix2D, SparseMatrix, SparseMatrix2D,
-        SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
+        EdgesBuilder, EmptyRows, MatrixMut, SizedRowsSparseMatrix2D, SizedSparseMatrix2D,
+        SparseMatrix, SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D,
     },
 };
 
@@ -35,6 +35,10 @@ fn build_csr_with_shape(rows: usize, cols: usize, entries: Vec<(usize, usize)>) 
         MatrixMut::add(&mut csr, entry).unwrap();
     }
     csr
+}
+
+fn usize_to_f64(value: usize) -> f64 {
+    f64::from(u32::try_from(value).expect("test indices should fit in u32"))
 }
 
 // ============================================================================
@@ -506,4 +510,52 @@ fn test_empty_valued_csr_sparse_values_are_safe_and_empty() {
     assert_eq!(sparse_values.len(), 0);
     assert_eq!(sparse_values.next(), None);
     assert_eq!(sparse_values.next_back(), None);
+}
+
+#[test]
+fn test_view_exact_size_with_empty_middle_rows() {
+    let csr = build_csr_with_shape(4, 4, vec![(0, 0), (3, 3)]);
+    let iter = SparseMatrix::sparse_coordinates(&csr);
+    assert_eq!(iter.len(), 2);
+}
+
+#[test]
+fn test_padded_columns_forward_and_backward() {
+    let inner: TestValCSR = GenericEdgesBuilder::<_, TestValCSR>::default()
+        .expected_number_of_edges(2)
+        .expected_shape((2, 2))
+        .edges(vec![(0usize, 0usize, 5.0), (0, 1, 1.0)].into_iter())
+        .build()
+        .unwrap();
+    let padded =
+        GenericMatrix2DWithPaddedDiagonal::new(inner, |row: usize| usize_to_f64(row + 1) * 10.0)
+            .unwrap();
+
+    let cols: Vec<usize> = padded.sparse_columns().collect();
+    assert_eq!(cols, vec![0, 1, 1]);
+
+    let back: Vec<usize> = padded.sparse_columns().rev().take(1).collect();
+    assert_eq!(back, vec![1]);
+}
+
+#[test]
+fn test_sparse_row_values_bidirectional() {
+    let vcsr = build_valued_csr(2, 4, vec![(0, 0, 1.0), (0, 1, 2.0), (0, 2, 3.0), (0, 3, 4.0)]);
+
+    let rev: Vec<f64> = vcsr.sparse_row_values(0).rev().collect();
+    assert_eq!(rev, vec![4.0, 3.0, 2.0, 1.0]);
+
+    let mut iter = vcsr.sparse_row_values(0);
+    assert_eq!(iter.next(), Some(1.0));
+    assert_eq!(iter.next_back(), Some(4.0));
+    assert_eq!(iter.next(), Some(2.0));
+    assert_eq!(iter.next_back(), Some(3.0));
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_rank_row_beyond_offsets() {
+    let csr = build_csr_with_shape(4, 4, vec![(0, 0), (0, 1)]);
+    assert_eq!(csr.rank_row(3), 2);
+    assert_eq!(csr.rank_row(4), 2);
 }
