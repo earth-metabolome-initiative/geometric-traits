@@ -18,6 +18,20 @@ fn build_graph(n: usize, edges: &[(usize, usize)]) -> SymmetricCSR2D<CSR2D<usize
         .unwrap()
 }
 
+fn build_directed_square_graph(
+    n: usize,
+    edges: &[(usize, usize)],
+) -> SquareCSR2D<CSR2D<usize, usize, usize>> {
+    let mut sorted_edges: Vec<(usize, usize)> = edges.to_vec();
+    sorted_edges.sort_unstable();
+    GenericEdgesBuilder::<_, SquareCSR2D<CSR2D<usize, usize, usize>>>::default()
+        .expected_number_of_edges(sorted_edges.len())
+        .expected_shape(n)
+        .edges(sorted_edges.into_iter())
+        .build()
+        .unwrap()
+}
+
 fn validate_matching(
     matrix: &impl SparseSquareMatrix<Index = usize>,
     matching: &[(usize, usize)],
@@ -42,7 +56,7 @@ fn validate_mv(
     _edges: &[(usize, usize)],
     expected_size: usize,
 ) {
-    let mv = matrix.micali_vazirani();
+    let mv = matrix.micali_vazirani().unwrap();
     let bl = matrix.blossom();
     validate_matching(matrix, &mv, expected_size);
     assert_eq!(mv.len(), bl.len(), "MV and Blossom disagree on matching size");
@@ -333,6 +347,16 @@ fn test_grid_2x3() {
     validate_mv(&g, &[], 3);
 }
 
+#[test]
+fn test_micali_vazirani_rejects_non_symmetric_matrices() {
+    let g = build_directed_square_graph(3, &[(0, 1), (1, 2)]);
+    let error = g.micali_vazirani().unwrap_err();
+    assert!(matches!(
+        error,
+        MicaliVaziraniError::NonSymmetricEdge { source_id: 0, destination_id: 1 }
+    ));
+}
+
 // ============================================================================
 // Minimal reproducer from fuzz crash
 // ============================================================================
@@ -360,7 +384,7 @@ fn run_fuzz_input(data: &[u8]) {
         if n > 128 {
             return;
         }
-        let mv = csr.micali_vazirani();
+        let mv = csr.micali_vazirani().unwrap();
         let bl = csr.blossom();
         assert_eq!(mv.len(), bl.len(), "MV({}) != Blossom({}) for n={n}", mv.len(), bl.len());
     }

@@ -28,12 +28,28 @@ impl<M: SquareMatrix> SquareMatrix for &M {
 pub trait SparseSquareMatrix: SquareMatrix + SparseMatrix2D {
     /// Returns the number of defined values in the main diagonal.
     fn number_of_defined_diagonal_values(&self) -> Self::Index;
+
+    /// Returns whether the matrix is symmetric.
+    ///
+    /// The default implementation checks that every off-diagonal entry
+    /// `(row, column)` has a matching reverse entry `(column, row)`.
+    #[inline]
+    fn is_symmetric(&self) -> bool {
+        self.row_indices().all(|row| {
+            self.sparse_row(row).all(|column| row == column || self.has_entry(column, row))
+        })
+    }
 }
 
 impl<M: SparseSquareMatrix> SparseSquareMatrix for &M {
     #[inline]
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         (*self).number_of_defined_diagonal_values()
+    }
+
+    #[inline]
+    fn is_symmetric(&self) -> bool {
+        (*self).is_symmetric()
     }
 }
 

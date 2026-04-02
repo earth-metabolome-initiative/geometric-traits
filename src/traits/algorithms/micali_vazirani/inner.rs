@@ -8,6 +8,7 @@ use alloc::{collections::VecDeque, vec, vec::Vec};
 
 use num_traits::AsPrimitive;
 
+use super::MicaliVaziraniError;
 use crate::traits::SparseSquareMatrix;
 
 const INF: usize = usize::MAX / 2;
@@ -163,10 +164,10 @@ pub(super) struct MVState<'a, M: SparseSquareMatrix + ?Sized> {
 }
 
 impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
-    pub(super) fn new(matrix: &'a M) -> Self {
+    pub(super) fn try_new(matrix: &'a M) -> Result<Self, MicaliVaziraniError> {
         let n: usize = matrix.order().as_();
-        let adj = Self::build_adjacency(matrix, n);
-        Self {
+        let adj = Self::build_adjacency(matrix, n)?;
+        Ok(Self {
             matrix,
             n,
             adj,
@@ -182,7 +183,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
             children_in_ddfs_tree: Vec::new(),
             my_bridge: Vec::new(),
             removed_queue: VecDeque::new(),
-        }
+        })
     }
 
     /// Build internal adjacency list with reverse-edge indices.
@@ -191,7 +192,25 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
     /// both `(u, v)` and `(v, u)` with linked reverse indices. Edges are
     /// discovered by scanning `sparse_row(u)` for `v > u` only, relying on
     /// symmetry to avoid duplicates.
-    fn build_adjacency(matrix: &M, n: usize) -> Vec<Vec<InternalEdge>> {
+    fn build_adjacency(
+        matrix: &M,
+        n: usize,
+    ) -> Result<Vec<Vec<InternalEdge>>, MicaliVaziraniError> {
+        if !matrix.is_symmetric() {
+            for u in matrix.row_indices() {
+                let ui: usize = u.as_();
+                for v in matrix.sparse_row(u) {
+                    let vi: usize = v.as_();
+                    if ui != vi && !matrix.has_entry(v, u) {
+                        return Err(MicaliVaziraniError::NonSymmetricEdge {
+                            source_id: ui,
+                            destination_id: vi,
+                        });
+                    }
+                }
+            }
+        }
+
         let mut adj: Vec<Vec<InternalEdge>> = vec![Vec::new(); n];
 
         for u in matrix.row_indices() {
@@ -216,7 +235,7 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
             }
         }
 
-        adj
+        Ok(adj)
     }
 
     pub(super) fn solve(mut self) -> Vec<(M::Index, M::Index)> {
@@ -637,15 +656,31 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
 
     /// Even-level augmentation: follow the unique predecessor chain.
     fn augment_even(&mut self, au: usize, av: usize, stack: &mut Vec<AugFrame>) {
-        debug_assert_eq!(self.predecessors[au].len(), 1);
+        assert_eq!(
+            self.predecessors[au].len(),
+            1,
+            "MV invariant broken: even-level vertex {au} should have exactly one predecessor, found {}.",
+            self.predecessors[au].len()
+        );
         let x = self.predecessors[au][0];
 
-        let mut idx = 0;
-        while self.bud.bud(self.predecessors[x][idx]) != self.bud.bud(x) {
-            idx += 1;
+        let bud_x = self.bud.bud(x);
+        let mut next_u = None;
+        for &candidate in &self.predecessors[x] {
+            if self.bud.bud(candidate) == bud_x {
+                next_u = Some(candidate);
+                break;
+            }
         }
-        let next_u = self.predecessors[x][idx];
-        debug_assert!(!self.removed[next_u]);
+        let next_u = next_u.unwrap_or_else(|| {
+            panic!(
+                "MV invariant broken: predecessor chain for vertex {x} could not be reopened inside bud {bud_x}."
+            )
+        });
+        assert!(
+            !self.removed[next_u],
+            "MV invariant broken: attempted to augment through removed vertex {next_u}."
+        );
         self.flip(x, next_u);
 
         stack.push(AugFrame::Augment { u: next_u, v: av, initial: false });
@@ -662,7 +697,11 @@ impl<'a, M: SparseSquareMatrix + ?Sized> MVState<'a, M> {
 
         self.flip(u3, v3);
 
-        let v4 = self.bud.direct_parent[au].unwrap();
+        let v4 = self.bud.direct_parent[au].unwrap_or_else(|| {
+            panic!(
+                "MV invariant broken: blossom vertex {au} has no direct parent during bridge augmentation."
+            )
+        });
 
         // Push in reverse order for correct execution.
         stack.push(AugFrame::Augment { u: v4, v: av, initial: false });
