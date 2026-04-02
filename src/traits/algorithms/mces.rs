@@ -1013,8 +1013,10 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
     /// edge count. In other words, the maximum clique search still optimizes
     /// matched edges first; the ranker only breaks ties afterward.
     ///
-    /// For ad-hoc policies, use [`FnRanker`]. For reusable lexicographic
-    /// policies, chain rankers with [`CliqueRankerExt::then`].
+    /// For ad-hoc policies, use
+    /// [`FnRanker`](crate::traits::algorithms::clique_ranking::FnRanker). For
+    /// reusable lexicographic policies, chain rankers with
+    /// [`CliqueRankerExt::then`].
     ///
     /// Note that `matched_edges().len()` is already identical across the
     /// cliques being ranked. If you want an edge-centric tiebreaker, rank by a
@@ -1472,8 +1474,8 @@ where
     /// Runs the labeled MCES pipeline.
     ///
     /// Uses [`LabeledLineGraph`] to construct line graphs with node-type edge
-    /// labels, then [`labeled_modular_product_filtered`] with the configured
-    /// edge comparator.
+    /// labels, then [`ModularProduct::labeled_modular_product_filtered`] with
+    /// the configured edge comparator.
     ///
     /// Only bond-label-compatible pairs enter the modular product. The current
     /// bond label is the canonical endpoint node-type pair together with the

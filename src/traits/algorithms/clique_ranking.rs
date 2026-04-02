@@ -7,7 +7,7 @@
 //! - [`EagerCliqueInfo`] — concrete implementation that eagerly computes
 //!   matched edges, vertex matches, and fragment structure.
 //! - [`CliqueRanker`] — trait for comparing two cliques; composable via
-//!   [`then`](CliqueRanker::then) into zero-cost [`ChainedRanker`] chains.
+//!   [`then`](CliqueRankerExt::then) into zero-cost [`ChainedRanker`] chains.
 //! - [`FragmentCountRanker`] — ranks by number of connected fragments (fewer =
 //!   better).
 //!
@@ -265,7 +265,7 @@ fn compute_fragments<N: Eq + Copy + Ord>(edges: &[(N, N)]) -> (usize, usize, usi
 
 /// Trait for comparing two cliques to determine ranking order.
 ///
-/// Composable via [`then`](CliqueRanker::then) into zero-cost
+/// Composable via [`then`](CliqueRankerExt::then) into zero-cost
 /// [`ChainedRanker`] chains. The entire chain is monomorphized at
 /// compile time — no dynamic dispatch.
 pub trait CliqueRanker<I: CliqueInfo> {
@@ -291,7 +291,7 @@ impl<T> CliqueRankerExt for T {}
 
 /// A chained pair of rankers applied lexicographically.
 ///
-/// Created by [`CliqueRanker::then`]. Fully monomorphized — the compiler
+/// Created by [`CliqueRankerExt::then`]. Fully monomorphized — the compiler
 /// inlines both comparisons.
 pub struct ChainedRanker<R1, R2> {
     first: R1,
