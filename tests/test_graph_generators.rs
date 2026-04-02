@@ -664,7 +664,7 @@ fn test_erdos_renyi_blossom_vs_mv() {
     for seed in 1..=5 {
         let g = erdos_renyi_gnm(seed, 30, 50);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "seed={seed} matching size mismatch");
     }
 }
@@ -674,7 +674,7 @@ fn test_barabasi_albert_blossom_vs_mv() {
     for seed in 1..=5 {
         let g = barabasi_albert(seed, 30, 3);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "seed={seed} matching size mismatch");
     }
 }
@@ -887,7 +887,7 @@ fn test_mv_deeply_nested_blossoms() {
         ],
     );
     let blossom = g.blossom();
-    let mv = g.micali_vazirani();
+    let mv = g.micali_vazirani().unwrap();
     assert_eq!(blossom.len(), mv.len());
 }
 
@@ -915,7 +915,7 @@ fn test_mv_interlocking_blossoms() {
         ],
     );
     let blossom = g.blossom();
-    let mv = g.micali_vazirani();
+    let mv = g.micali_vazirani().unwrap();
     assert_eq!(blossom.len(), mv.len());
 }
 
@@ -925,7 +925,7 @@ fn test_mv_large_random_graphs() {
     for seed in 10..=25 {
         let g = erdos_renyi_gnm(seed, 50, 80);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "seed={seed}");
     }
 }
@@ -936,7 +936,7 @@ fn test_mv_dense_random_graphs() {
     for seed in 1..=10 {
         let g = erdos_renyi_gnm(seed, 30, 120);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "seed={seed}");
     }
 }
@@ -947,7 +947,7 @@ fn test_mv_on_complete_graphs() {
     for n in 3..=12 {
         let g = complete_graph(n);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "K_{n}");
     }
 }
@@ -958,7 +958,7 @@ fn test_mv_on_crown_graphs() {
     for n in 2..=8 {
         let g = crown_graph(n);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "Cr_{n}");
     }
 }
@@ -969,7 +969,7 @@ fn test_mv_on_friendship_graphs() {
     for n in 1..=8 {
         let g = friendship_graph(n);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "F_{n}");
     }
 }
@@ -980,7 +980,7 @@ fn test_mv_on_windmill_graphs() {
         for clique_size in 2..=5 {
             let g = windmill_graph(num_cliques, clique_size);
             let blossom = g.blossom();
-            let mv = g.micali_vazirani();
+            let mv = g.micali_vazirani().unwrap();
             assert_eq!(blossom.len(), mv.len(), "windmill({num_cliques},{clique_size})");
         }
     }
@@ -992,7 +992,7 @@ fn test_mv_on_wheel_graphs() {
     for n in 3..=12 {
         let g = wheel_graph(n);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "W_{n}");
     }
 }
@@ -1009,7 +1009,7 @@ fn test_mv_blossom_with_tail_variations() {
         }
         let g = build_graph(n, &edges);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "tri+tail({tail_len})");
     }
 }
@@ -1049,7 +1049,7 @@ fn test_mv_multiple_disjoint_odd_cycles() {
         ],
     );
     let blossom = g.blossom();
-    let mv = g.micali_vazirani();
+    let mv = g.micali_vazirani().unwrap();
     assert_eq!(blossom.len(), mv.len());
 }
 
@@ -1059,7 +1059,7 @@ fn test_mv_barabasi_albert_various() {
     for seed in 1..=15 {
         let g = barabasi_albert(seed, 40, 3);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "BA seed={seed}");
     }
 }
@@ -1070,7 +1070,7 @@ fn test_mv_watts_strogatz_various() {
     for seed in 1..=10 {
         let g = watts_strogatz(seed, 30, 4, 0.3);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "WS seed={seed}");
     }
 }
@@ -1081,7 +1081,7 @@ fn test_mv_random_regular_various() {
     for seed in 1..=5 {
         let g = random_regular_graph(seed, 20, 4).expect("20-vertex 4-regular graph should exist");
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "RRG seed={seed}");
     }
 }
@@ -1090,7 +1090,7 @@ fn test_mv_random_regular_various() {
 fn test_mv_on_petersen() {
     let g = petersen_graph();
     let blossom = g.blossom();
-    let mv = g.micali_vazirani();
+    let mv = g.micali_vazirani().unwrap();
     assert_eq!(blossom.len(), mv.len());
     assert_eq!(mv.len(), 5);
 }
@@ -1100,7 +1100,7 @@ fn test_mv_on_hypercubes() {
     for d in 1..=5 {
         let g = hypercube_graph(d);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "Q_{d}");
     }
 }
@@ -1111,7 +1111,7 @@ fn test_mv_on_barbell() {
     for p in 0..=5 {
         let g = barbell_graph(4, p);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "barbell(4,{p})");
     }
 }
@@ -1122,7 +1122,7 @@ fn test_mv_on_grid_graphs() {
         for c in 2..=6 {
             let g = grid_graph(r, c);
             let blossom = g.blossom();
-            let mv = g.micali_vazirani();
+            let mv = g.micali_vazirani().unwrap();
             assert_eq!(blossom.len(), mv.len(), "grid({r},{c})");
         }
     }
@@ -1134,7 +1134,7 @@ fn test_mv_on_hexagonal_lattice_graphs() {
         for cols in 1..=4 {
             let g = hexagonal_lattice_graph(rows, cols);
             let blossom = g.blossom();
-            let mv = g.micali_vazirani();
+            let mv = g.micali_vazirani().unwrap();
             assert_eq!(blossom.len(), mv.len(), "hexagonal({rows},{cols})");
         }
     }
@@ -1146,7 +1146,7 @@ fn test_mv_on_torus_graphs() {
         for c in 3..=6 {
             let g = torus_graph(r, c);
             let blossom = g.blossom();
-            let mv = g.micali_vazirani();
+            let mv = g.micali_vazirani().unwrap();
             assert_eq!(blossom.len(), mv.len(), "torus({r},{c})");
         }
     }
@@ -1159,7 +1159,7 @@ fn test_mv_on_turan_graphs() {
         for r in 2..=n.min(5) {
             let g = turan_graph(n, r);
             let blossom = g.blossom();
-            let mv = g.micali_vazirani();
+            let mv = g.micali_vazirani().unwrap();
             assert_eq!(blossom.len(), mv.len(), "turan({n},{r})");
         }
     }
@@ -1171,7 +1171,7 @@ fn test_mv_many_random_seeds() {
     for seed in 1..=50 {
         let g = erdos_renyi_gnm(seed, 25, 45);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "gnm seed={seed}");
     }
 }
@@ -1182,7 +1182,7 @@ fn test_mv_sparse_random() {
     for seed in 1..=30 {
         let g = erdos_renyi_gnm(seed, 40, 30);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "sparse seed={seed}");
     }
 }
@@ -1193,7 +1193,7 @@ fn test_mv_gnp_medium_density() {
     for seed in 1..=20 {
         let g = erdos_renyi_gnp(seed, 30, 0.2);
         let blossom = g.blossom();
-        let mv = g.micali_vazirani();
+        let mv = g.micali_vazirani().unwrap();
         assert_eq!(blossom.len(), mv.len(), "gnp seed={seed}");
     }
 }

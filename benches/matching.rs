@@ -89,7 +89,7 @@ fn bench_exact_matchers(
     });
 
     group.bench_with_input(BenchmarkId::new("MicaliVazirani", label), g, |b, g| {
-        b.iter(|| black_box(g.micali_vazirani()));
+        b.iter(|| black_box(g.micali_vazirani().unwrap()));
     });
 }
 

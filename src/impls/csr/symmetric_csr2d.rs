@@ -73,6 +73,11 @@ where
     fn number_of_defined_diagonal_values(&self) -> Self::Index {
         self.matrix.number_of_defined_diagonal_values()
     }
+
+    #[inline]
+    fn is_symmetric(&self) -> bool {
+        true
+    }
 }
 
 impl<M> AsRef<SquareCSR2D<M>> for SymmetricCSR2D<M>

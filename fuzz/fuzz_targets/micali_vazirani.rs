@@ -10,7 +10,7 @@ fn main() {
             if n > 128 {
                 return;
             }
-            let mv_matching = csr.micali_vazirani();
+            let mv_matching = csr.micali_vazirani().unwrap();
             let bl_matching = csr.blossom();
 
             assert_eq!(

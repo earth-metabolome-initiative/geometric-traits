@@ -200,7 +200,7 @@ fn test_blossom_reference_corpus() {
 
 #[test]
 fn test_micali_vazirani_reference_corpus() {
-    assert_reference_corpus_matches("micali_vazirani", MicaliVazirani::micali_vazirani);
+    assert_reference_corpus_matches("micali_vazirani", |graph| graph.micali_vazirani().unwrap());
 }
 
 #[test]

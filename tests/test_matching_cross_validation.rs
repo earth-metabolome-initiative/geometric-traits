@@ -45,7 +45,7 @@ fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
 fn assert_all_agree(g: &SymmetricCSR2D<CSR2D<usize, usize, usize>>) {
     let bl = g.blossom();
     let gabow = g.gabow_1976();
-    let mv = g.micali_vazirani();
+    let mv = g.micali_vazirani().unwrap();
     validate_matching(g, &bl);
     validate_matching(g, &gabow);
     validate_matching(g, &mv);
