@@ -81,6 +81,13 @@ impl BitSquareMatrix {
         &self.rows[row]
     }
 
+    /// Returns the raw machine-word slice backing a row.
+    #[inline]
+    #[must_use]
+    pub fn row_raw_slice(&self, row: usize) -> &[usize] {
+        self.rows[row].as_raw_slice()
+    }
+
     /// Returns `|N(i) ∩ N(j)|`: the number of common neighbors of `i`
     /// and `j`, computed as word-level AND + popcount with zero allocation.
     #[inline]

@@ -49,25 +49,23 @@ pub fn shared_endpoint<N: Eq + Copy>(edge1: (N, N), edge2: (N, N)) -> Option<N> 
     }
 }
 
-/// Inserts a vertex match into the map, asserting consistency on conflict.
+/// Inserts a vertex match into the map if the key is not already present.
+///
+/// Returns `true` if the insertion succeeded (key was vacant), `false` if the
+/// key was already mapped (possibly to a different value). Conflicts are
+/// expected for symmetric graphs where the same vertex participates in
+/// multiple matched edges with ambiguous mappings.
 #[inline]
-fn try_insert<N1, N2>(map: &mut BTreeMap<N1, N2>, n1: N1, n2: N2)
+fn try_insert<N>(map: &mut BTreeMap<N, N>, n1: N, n2: N) -> bool
 where
-    N1: Eq + Copy + Ord + core::fmt::Debug,
-    N2: Eq + Copy + Ord + core::fmt::Debug,
+    N: Eq + Copy + Ord,
 {
     match map.entry(n1) {
         Entry::Vacant(e) => {
             e.insert(n2);
+            true
         }
-        Entry::Occupied(e) => {
-            debug_assert_eq!(
-                *e.get(),
-                n2,
-                "conflicting vertex match: {n1:?} already mapped to {:?}, cannot map to {n2:?}",
-                e.get()
-            );
-        }
+        Entry::Occupied(_) => false,
     }
 }
 
@@ -99,7 +97,7 @@ where
 ///
 /// # Returns
 ///
-/// A sorted `Vec<(N1, N2)>` of matched vertex pairs, deduplicated.
+/// A sorted `Vec<(N, N)>` of matched vertex pairs, deduplicated.
 ///
 /// # Complexity
 ///
@@ -128,24 +126,23 @@ where
 /// assert_eq!(matches, vec![(0, 10), (1, 11), (2, 12)]);
 /// ```
 #[must_use]
-pub fn infer_vertex_matches<N1, N2, F>(
+pub fn infer_vertex_matches<N, F>(
     clique: &[usize],
     vertex_pairs: &[(usize, usize)],
-    edge_map_first: &[(N1, N1)],
-    edge_map_second: &[(N2, N2)],
+    edge_map_first: &[(N, N)],
+    edge_map_second: &[(N, N)],
     mut disambiguate: F,
-) -> Vec<(N1, N2)>
+) -> Vec<(N, N)>
 where
-    N1: Eq + Copy + Ord + core::fmt::Debug,
-    N2: Eq + Copy + Ord + core::fmt::Debug,
-    F: FnMut(N1, N1, N2, N2) -> bool,
+    N: Eq + Copy + Ord + core::fmt::Debug,
+    F: FnMut(N, N, N, N) -> bool,
 {
     if clique.is_empty() {
         return Vec::new();
     }
 
     // Decode: map clique indices to original edge pairs.
-    let matched_edges: Vec<((N1, N1), (N2, N2))> = clique
+    let matched_edges: Vec<((N, N), (N, N))> = clique
         .iter()
         .map(|&k| {
             let (lg1, lg2) = vertex_pairs[k];
@@ -153,7 +150,7 @@ where
         })
         .collect();
 
-    let mut vertex_map: BTreeMap<N1, N2> = BTreeMap::new();
+    let mut vertex_map: BTreeMap<N, N> = BTreeMap::new();
 
     // Phase 1: shared endpoints between adjacent matched edges.
     for (i, &(e1_i, e2_i)) in matched_edges.iter().enumerate() {

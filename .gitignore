@@ -23,6 +23,16 @@ cobertura.xml
 tarpaulin-report.json
 coverage_output
 
+# Python cache artifacts
+__pycache__/
+*.pyc
+
+# Local large-corpus MCES artifacts
+tests/fixtures/massspecgym_mces_default_200000.json.gz
+docs/mces_200k_runtime_histograms.png
+docs/mces_200k_runtime_histograms.svg
+docs/mces_200k_runtime_summary.json
+
 # Reference papers
 papers/
 

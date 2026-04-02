@@ -15,6 +15,10 @@ pub use sorted_vec::SortedVec;
 mod bit_square_matrix;
 #[cfg(feature = "alloc")]
 pub use bit_square_matrix::BitSquareMatrix;
+#[cfg(feature = "alloc")]
+mod edge_contexts;
+#[cfg(feature = "alloc")]
+pub use edge_contexts::EdgeContexts;
 
 mod array;
 mod implicit_numeric_vocabularies;
