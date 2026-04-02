@@ -29,6 +29,16 @@ fn test_ground_truth_fixture_metadata() {
 }
 
 #[test]
+fn test_ground_truth_similarity_threshold_option() {
+    let cases = load_ground_truth();
+    let case = find_case(&cases, "very_small_similarity_threshold_reject");
+    let result = run_labeled_case(case);
+
+    assert_eq!(case_similarity_threshold(case), Some(0.99));
+    assert_labeled_result_matches_ground_truth(case, &result, "similarity threshold");
+}
+
+#[test]
 fn test_ground_truth_ignore_bond_orders_option() {
     let cases = load_ground_truth();
     let case = find_case(&cases, "ignore_bond_orders");

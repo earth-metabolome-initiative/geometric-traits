@@ -619,6 +619,31 @@ fn test_mces_similarity_threshold_rejects() {
 }
 
 #[test]
+fn test_mces_similarity_threshold_equal_bound_passes() {
+    // K6 vs P2 gives the tier-1 bound vg1g2=2, eg1g2=1,
+    // similarity=(2+1)^2/((6+15)*(2+1))=1/7.
+    let g1 = wrap_undi(complete_graph(6));
+    let g2 = wrap_undi(path_graph(2));
+
+    let result =
+        McesBuilder::new(&g1, &g2).with_similarity_threshold(1.0 / 7.0).compute_unlabeled();
+
+    assert_eq!(result.matched_edges().len(), 1);
+}
+
+#[test]
+fn test_mces_similarity_threshold_above_bound_rejects() {
+    let g1 = wrap_undi(complete_graph(6));
+    let g2 = wrap_undi(path_graph(2));
+
+    let result = McesBuilder::new(&g1, &g2)
+        .with_similarity_threshold((1.0 / 7.0) + 1.0e-12)
+        .compute_unlabeled();
+
+    assert_eq!(result.matched_edges().len(), 0);
+}
+
+#[test]
 fn test_mces_distance_threshold_passes() {
     // Identical graphs → distance bound = 0 → any threshold > 0 passes.
     let g1 = wrap_undi(path_graph(4));
@@ -639,6 +664,17 @@ fn test_mces_distance_threshold_rejects() {
 
     // distance bound > 0 for different graphs → rejected.
     assert_eq!(result.matched_edges().len(), 0);
+}
+
+#[test]
+fn test_mces_distance_threshold_equal_bound_passes() {
+    // K6 vs P2 gives the tier-1 distance bound 15 + 1 - 2 = 14.
+    let g1 = wrap_undi(complete_graph(6));
+    let g2 = wrap_undi(path_graph(2));
+
+    let result = McesBuilder::new(&g1, &g2).with_distance_threshold(14.0).compute_unlabeled();
+
+    assert_eq!(result.matched_edges().len(), 1);
 }
 
 #[test]

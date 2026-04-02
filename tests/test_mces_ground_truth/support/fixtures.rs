@@ -179,6 +179,13 @@ pub(crate) fn case_respects_atom_aromaticity(case: &GroundTruthCase) -> bool {
     )
 }
 
+pub(crate) fn case_similarity_threshold(case: &GroundTruthCase) -> Option<f64> {
+    case.options
+        .as_ref()
+        .and_then(|options| options.get("similarityThreshold"))
+        .and_then(serde_json::Value::as_f64)
+}
+
 pub(crate) fn build_edge_contexts(graph: &GraphData) -> Option<EdgeContexts<String>> {
     if graph.aromatic_ring_contexts.is_empty() {
         return None;

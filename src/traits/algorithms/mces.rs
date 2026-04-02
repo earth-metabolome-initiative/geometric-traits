@@ -33,12 +33,14 @@ use super::{
         partial_search_u32_with_bounds, partial_u32_best_size_with_budget,
     },
     modular_product::ModularProduct,
+    weighted_assignment::Crouse,
 };
 use crate::{
-    impls::{BitSquareMatrix, EdgeContexts},
+    impls::{BitSquareMatrix, EdgeContexts, ValuedCSR2D},
     traits::{
-        Edges, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger, SparseMatrix2D,
-        SparseValuedMatrix2D, SquareMatrix, TypedNode, ValuedMatrix,
+        Edges, MatrixMut, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger,
+        SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix2D, SquareMatrix, TypedNode,
+        ValuedMatrix,
     },
 };
 
@@ -331,6 +333,147 @@ where
         degs.sort_unstable_by(|a, b| b.cmp(a));
     }
     groups
+}
+
+/// Extracts per-label degree sequences together with atom indices.
+fn extract_degree_sequences<G, L, F>(graph: &G, vertex_label: F) -> BTreeMap<L, Vec<(usize, usize)>>
+where
+    G: crate::traits::MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize>,
+    L: Ord,
+    F: Fn(G::NodeId) -> L,
+{
+    let mut groups: BTreeMap<L, Vec<(usize, usize)>> = BTreeMap::new();
+    for node_id in graph.node_ids() {
+        let label = vertex_label(node_id);
+        let degree = graph.out_degree(node_id).as_();
+        groups.entry(label).or_default().push((degree, node_id.as_()));
+    }
+    for seq in groups.values_mut() {
+        seq.sort_unstable_by(|left, right| right.0.cmp(&left.0).then(left.1.cmp(&right.1)));
+    }
+    groups
+}
+
+fn build_incident_bond_labels<N: Copy + AsPrimitive<usize>>(
+    num_nodes: usize,
+    edge_map: &[(N, N)],
+    bond_label_indices: &[usize],
+) -> Vec<Vec<usize>> {
+    let mut incident = vec![Vec::new(); num_nodes];
+    for (&(src, dst), &label_index) in edge_map.iter().zip(bond_label_indices) {
+        incident[src.as_()].push(label_index);
+        incident[dst.as_()].push(label_index);
+    }
+    for labels in &mut incident {
+        labels.sort_unstable();
+    }
+    incident
+}
+
+fn incident_label_overlap(first: &[usize], second: &[usize]) -> usize {
+    let mut first_index = 0usize;
+    let mut second_index = 0usize;
+    let mut overlap = 0usize;
+
+    while first_index < first.len() && second_index < second.len() {
+        match first[first_index].cmp(&second[second_index]) {
+            core::cmp::Ordering::Less => {
+                first_index += 1;
+            }
+            core::cmp::Ordering::Greater => {
+                second_index += 1;
+            }
+            core::cmp::Ordering::Equal => {
+                let label = first[first_index];
+                let first_start = first_index;
+                while first_index < first.len() && first[first_index] == label {
+                    first_index += 1;
+                }
+                let second_start = second_index;
+                while second_index < second.len() && second[second_index] == label {
+                    second_index += 1;
+                }
+                overlap += (first_index - first_start).min(second_index - second_start);
+            }
+        }
+    }
+
+    overlap
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn assignment_score_via_crouse(
+    first_atoms: &[(usize, usize)],
+    second_atoms: &[(usize, usize)],
+    first_incident_bond_labels: &[Vec<usize>],
+    second_incident_bond_labels: &[Vec<usize>],
+) -> usize {
+    if first_atoms.is_empty() || second_atoms.is_empty() {
+        return 0;
+    }
+
+    let rows = first_atoms.len();
+    let columns = second_atoms.len();
+    let mut scores = vec![0usize; rows * columns];
+    let mut max_score = 0usize;
+
+    for (row_index, &(_, first_atom_index)) in first_atoms.iter().enumerate() {
+        for (column_index, &(_, second_atom_index)) in second_atoms.iter().enumerate() {
+            let score = incident_label_overlap(
+                &first_incident_bond_labels[first_atom_index],
+                &second_incident_bond_labels[second_atom_index],
+            );
+            scores[row_index * columns + column_index] = score;
+            max_score = max_score.max(score);
+        }
+    }
+
+    let mut matrix: ValuedCSR2D<usize, usize, usize, f64> =
+        SparseMatrixMut::with_sparse_shaped_capacity((rows, columns), rows * columns);
+    let max_real_cost = (max_score + 1) as f64;
+
+    for row_index in 0..rows {
+        for column_index in 0..columns {
+            let score = scores[row_index * columns + column_index];
+            let cost = max_real_cost - score as f64;
+            MatrixMut::add(&mut matrix, (row_index, column_index, cost))
+                .expect("tier2 assignment matrix must be built in sorted row-major order");
+        }
+    }
+
+    let non_edge_cost = max_real_cost + 1.0;
+    let max_cost = non_edge_cost + 1.0;
+    matrix
+        .crouse(non_edge_cost, max_cost)
+        .expect("dense tier2 assignment must be feasible")
+        .into_iter()
+        .map(|(row_index, column_index)| scores[row_index * columns + column_index])
+        .sum()
+}
+
+fn tier2_screening<L: Ord>(
+    degrees_by_label_first: &BTreeMap<L, Vec<(usize, usize)>>,
+    degrees_by_label_second: &BTreeMap<L, Vec<(usize, usize)>>,
+    first_incident_bond_labels: &[Vec<usize>],
+    second_incident_bond_labels: &[Vec<usize>],
+) -> ScreeningEstimate {
+    let mut vg1g2 = 0usize;
+    let mut eg1g2_times2 = 0usize;
+
+    for (label, atoms1) in degrees_by_label_first {
+        if let Some(atoms2) = degrees_by_label_second.get(label) {
+            vg1g2 += atoms1.len().min(atoms2.len());
+            eg1g2_times2 += assignment_score_via_crouse(
+                atoms1,
+                atoms2,
+                first_incident_bond_labels,
+                second_incident_bond_labels,
+            );
+        }
+    }
+
+    ScreeningEstimate { vg1g2, eg1g2_times2 }
 }
 
 type BondLabel<G> = (
@@ -1351,13 +1494,37 @@ where
         let second_vertices: usize = self.second.number_of_nodes().as_();
         let second_edges = lg2.number_of_vertices();
 
-        // 1b. Pre-screening (tier 1).
-        // TODO: group by node type for tighter labeled screening.
-        // Currently uses unlabeled grouping (all vertices in one group).
+        // 1b. Compute bond labels once and reuse them for screening,
+        // vertex-pair filtering, and the partition-aware clique bound.
+        let g1_bond_labels =
+            compute_bond_labels(self.first, lg1.edge_map(), self.ignore_edge_values);
+        let g2_bond_labels =
+            compute_bond_labels(self.second, lg2.edge_map(), self.ignore_edge_values);
+        let (g1_label_indices, g2_label_indices, num_labels) =
+            intern_shared_labels(&g1_bond_labels, &g2_bond_labels);
+
+        // 1c. Pre-screening (tier 2).
+        // Mirror RDKit's second screening stage: within each atom bucket,
+        // solve a rectangular assignment over incident bond-label overlap.
         if self.similarity_threshold.is_some() || self.distance_threshold.is_some() {
-            let groups1 = extract_degree_groups(self.first, |_| ());
-            let groups2 = extract_degree_groups(self.second, |_| ());
-            let estimate = tier1_screening(&groups1, &groups2);
+            let first_node_types: Vec<_> =
+                self.first.nodes().map(|symbol| symbol.node_type()).collect();
+            let second_node_types: Vec<_> =
+                self.second.nodes().map(|symbol| symbol.node_type()).collect();
+            let groups1 =
+                extract_degree_sequences(self.first, |node_id| first_node_types[node_id.as_()]);
+            let groups2 =
+                extract_degree_sequences(self.second, |node_id| second_node_types[node_id.as_()]);
+            let first_incident_bond_labels =
+                build_incident_bond_labels(first_vertices, lg1.edge_map(), &g1_label_indices);
+            let second_incident_bond_labels =
+                build_incident_bond_labels(second_vertices, lg2.edge_map(), &g2_label_indices);
+            let estimate = tier2_screening(
+                &groups1,
+                &groups2,
+                &first_incident_bond_labels,
+                &second_incident_bond_labels,
+            );
             if estimate.is_rejected(
                 first_vertices,
                 first_edges,
@@ -1376,14 +1543,7 @@ where
             }
         }
 
-        // 2. Compute bond labels once and reuse them for vertex-pair filtering
-        // and the partition-aware clique bound.
-        let g1_bond_labels =
-            compute_bond_labels(self.first, lg1.edge_map(), self.ignore_edge_values);
-        let g2_bond_labels =
-            compute_bond_labels(self.second, lg2.edge_map(), self.ignore_edge_values);
-        let (g1_label_indices, g2_label_indices, num_labels) =
-            intern_shared_labels(&g1_bond_labels, &g2_bond_labels);
+        // 2. Reuse the bond labels for the partition-aware clique bound.
         self.edge_contexts.validate(first_edges, second_edges);
 
         // 2. Labeled modular product.
@@ -1549,7 +1709,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::intern_shared_labels;
+    use alloc::collections::BTreeMap;
+
+    use super::{
+        ScreeningEstimate, incident_label_overlap, intern_shared_labels, tier1_screening,
+        tier2_screening,
+    };
 
     #[test]
     fn test_intern_shared_labels_reuses_equal_labels() {
@@ -1561,5 +1726,48 @@ mod tests {
         assert_eq!(num_labels, 3);
         assert_eq!(first_indices[1], second_indices[0]);
         assert_ne!(first_indices[0], second_indices[1]);
+    }
+
+    #[test]
+    fn test_screening_estimate_threshold_boundaries_are_inclusive() {
+        let estimate = ScreeningEstimate { vg1g2: 2, eg1g2_times2: 2 };
+        let similarity = estimate.similarity(6, 15, 2, 1);
+        let distance = estimate.distance(15, 1);
+
+        assert!((similarity - (1.0 / 7.0)).abs() < 1.0e-12);
+        assert_eq!(distance, 14);
+        assert!(!estimate.is_rejected(6, 15, 2, 1, Some(similarity), Some(14.0)));
+        assert!(estimate.is_rejected(6, 15, 2, 1, Some(similarity + 1.0e-12), None));
+        assert!(estimate.is_rejected(6, 15, 2, 1, None, Some(13.0)));
+    }
+
+    #[test]
+    fn test_tier1_screening_pairs_degrees_within_matching_labels() {
+        let first = BTreeMap::from([('a', vec![4, 2]), ('b', vec![3]), ('c', vec![10])]);
+        let second = BTreeMap::from([('a', vec![3, 1]), ('b', vec![5]), ('d', vec![7])]);
+
+        let estimate = tier1_screening(&first, &second);
+
+        assert_eq!(estimate.vg1g2, 3);
+        assert_eq!(estimate.eg1g2_times2, 7);
+    }
+
+    #[test]
+    fn test_incident_label_overlap_counts_multiset_intersection() {
+        assert_eq!(incident_label_overlap(&[0, 0, 1, 3], &[0, 1, 1, 2, 3]), 3);
+        assert_eq!(incident_label_overlap(&[2, 2], &[1, 1]), 0);
+    }
+
+    #[test]
+    fn test_tier2_screening_uses_rectangular_assignment_score() {
+        let first = BTreeMap::from([('c', vec![(3, 0), (1, 1)])]);
+        let second = BTreeMap::from([('c', vec![(2, 0), (1, 1), (1, 2)])]);
+        let first_incident = vec![vec![0, 0, 1], vec![2]];
+        let second_incident = vec![vec![0, 1], vec![0, 2], vec![2]];
+
+        let estimate = tier2_screening(&first, &second, &first_incident, &second_incident);
+
+        assert_eq!(estimate.vg1g2, 2);
+        assert_eq!(estimate.eg1g2_times2, 3);
     }
 }

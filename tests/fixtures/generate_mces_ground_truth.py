@@ -177,6 +177,8 @@ def compute_mces(smiles1, smiles2, **kwargs):
 TEST_CASES = [
     # Simple pairs
     ("very_small", "OCC(=O)N", "NC(=O)C=O", {}),
+    ("very_small_similarity_threshold_reject", "OCC(=O)N", "NC(=O)C=O",
+     {"similarityThreshold": 0.99}),
     ("delta_y_small", "CC1CC1", "CC(C)(C)C", {}),
     ("delta_y_large", "C1CCCCC12CC2", "C1CCCCC1(C)(C)", {}),
     ("chloro_vs_fluoro_benzene", "c1ccccc1Cl", "c1ccccc1F", {}),
@@ -295,7 +297,7 @@ def main():
             "expected_atom_matches": atom_matches,
             "expected_similarity": round(similarity, 6),
             "timed_out": timed_out,
-            "options": {k: v for k, v in opts.items() if k != "similarityThreshold"},
+            "options": opts,
         }
         cases.append(case)
         print(f"{name}: {bond_matches} bonds, {atom_matches} atoms, sim={similarity:.4f}"

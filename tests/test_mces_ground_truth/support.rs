@@ -386,24 +386,24 @@ pub(super) fn run_labeled_case_with_search_mode(
         if let (Some(graph1_contexts), Some(graph2_contexts)) =
             (prepared.first_contexts.as_ref(), prepared.second_contexts.as_ref())
         {
-            return configure_rdkit_raw_pair_order(
-                McesBuilder::new(&prepared.first, &prepared.second)
-                    .with_edge_contexts(graph1_contexts, graph2_contexts)
-                    .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
-                    .with_search_mode(search_mode),
-                case,
-            )
-            .compute_labeled();
+            let mut builder = McesBuilder::new(&prepared.first, &prepared.second)
+                .with_edge_contexts(graph1_contexts, graph2_contexts)
+                .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
+                .with_search_mode(search_mode);
+            if let Some(threshold) = case_similarity_threshold(case) {
+                builder = builder.with_similarity_threshold(threshold);
+            }
+            return configure_rdkit_raw_pair_order(builder, case).compute_labeled();
         }
     }
 
-    configure_rdkit_raw_pair_order(
-        McesBuilder::new(&prepared.first, &prepared.second)
-            .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
-            .with_search_mode(search_mode),
-        case,
-    )
-    .compute_labeled()
+    let mut builder = McesBuilder::new(&prepared.first, &prepared.second)
+        .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
+        .with_search_mode(search_mode);
+    if let Some(threshold) = case_similarity_threshold(case) {
+        builder = builder.with_similarity_threshold(threshold);
+    }
+    configure_rdkit_raw_pair_order(builder, case).compute_labeled()
 }
 
 pub(super) fn assert_labeled_result_matches_ground_truth(
