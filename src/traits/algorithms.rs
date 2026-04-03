@@ -148,8 +148,15 @@ mod vertex_match_inference;
 #[cfg(feature = "alloc")]
 pub use vertex_match_inference::{infer_vertex_matches, shared_endpoint};
 pub mod graph_similarities;
+#[cfg(feature = "alloc")]
+pub mod vf2;
 pub use graph_similarities::{
     GraphSimilarities, braun_blanquet_similarity, cosine_similarity, dice_similarity,
     johnson_similarity, kulczynski_similarity, mcconnaughey_similarity, overlap_similarity,
     sokal_sneath_similarity, tanimoto_similarity, tversky_similarity,
+};
+#[cfg(feature = "alloc")]
+pub use vf2::{
+    AcceptAllEdgeMatcher, AcceptAllFinalMatcher, AcceptAllNodeMatcher, PrepareVf2,
+    PreparedVf2Builder, PreparedVf2Graph, Vf2, Vf2Builder, Vf2Match, Vf2Mode,
 };
