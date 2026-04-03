@@ -63,7 +63,15 @@ pub enum Vf2Mode {
     /// Require an induced subgraph isomorphism from query into target.
     InducedSubgraphIsomorphism,
     /// Require a non-induced subgraph isomorphism from query into target.
+    ///
+    /// In this crate's current simple-graph setting, this preserves query
+    /// edges injectively but allows extra target edges among matched nodes.
     SubgraphIsomorphism,
+    /// Require a graph monomorphism from query into target.
+    ///
+    /// In this crate's current simple-graph setting, this has the same
+    /// feasibility semantics as [`Self::SubgraphIsomorphism`].
+    Monomorphism,
 }
 
 /// A single VF2 node mapping.
@@ -706,7 +714,9 @@ fn passes_global_precheck_counts(
                 && query_edges == target_edges
                 && query_loops == target_loops
         }
-        Vf2Mode::InducedSubgraphIsomorphism | Vf2Mode::SubgraphIsomorphism => {
+        Vf2Mode::InducedSubgraphIsomorphism
+        | Vf2Mode::SubgraphIsomorphism
+        | Vf2Mode::Monomorphism => {
             query_nodes <= target_nodes
                 && query_edges <= target_edges
                 && query_loops <= target_loops
@@ -1293,7 +1303,7 @@ impl FutureNeighborCounts {
                     && self.predecessor_total <= other.predecessor_total
                     && self.successor_total <= other.successor_total
             }
-            Vf2Mode::SubgraphIsomorphism => {
+            Vf2Mode::SubgraphIsomorphism | Vf2Mode::Monomorphism => {
                 self.predecessor_in <= other.predecessor_in
                     && self.successor_in <= other.successor_in
                     && self.predecessor_out <= other.predecessor_out
@@ -1932,7 +1942,7 @@ where
                 return false;
             }
         }
-        Vf2Mode::SubgraphIsomorphism => {
+        Vf2Mode::SubgraphIsomorphism | Vf2Mode::Monomorphism => {
             if query_mapped_neighbor_counts.predecessors
                 > target_mapped_neighbor_counts.predecessors
                 || query_mapped_neighbor_counts.successors
@@ -2760,6 +2770,9 @@ mod tests {
     fn test_vf2_mode_variants_are_distinct() {
         assert_ne!(Vf2Mode::Isomorphism, Vf2Mode::InducedSubgraphIsomorphism);
         assert_ne!(Vf2Mode::InducedSubgraphIsomorphism, Vf2Mode::SubgraphIsomorphism);
+        assert_ne!(Vf2Mode::Isomorphism, Vf2Mode::Monomorphism);
+        assert_ne!(Vf2Mode::InducedSubgraphIsomorphism, Vf2Mode::Monomorphism);
+        assert_ne!(Vf2Mode::SubgraphIsomorphism, Vf2Mode::Monomorphism);
     }
 
     #[test]

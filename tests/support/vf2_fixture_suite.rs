@@ -174,6 +174,7 @@ pub fn parse_match_mode(mode: &str) -> Vf2Mode {
         "graph_isomorphism" => Vf2Mode::Isomorphism,
         "induced_subgraph_isomorphism" => Vf2Mode::InducedSubgraphIsomorphism,
         "subgraph_isomorphism" => Vf2Mode::SubgraphIsomorphism,
+        "monomorphism" => Vf2Mode::Monomorphism,
         _ => panic!("unknown VF2 match mode `{mode}` in fixture"),
     }
 }

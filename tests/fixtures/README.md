@@ -35,6 +35,7 @@ It merges the old split VF2 corpora into one gzip-compressed JSON file with:
 - equality-labeled boolean cases
 - exact-embedding structural cases
 - exact-embedding equality-labeled cases
+- explicit monomorphism cases alongside isomorphism and subgraph modes
 - directed and undirected coverage
 - self-loop coverage
 - per-case stored `NetworkX` timing in nanoseconds

@@ -37,6 +37,26 @@ fn count_cases(
         .count()
 }
 
+fn count_cases_with_mode(
+    cases: &[FixtureCase],
+    oracle_kind: OracleKind,
+    semantic_match: SemanticMatch,
+    directed: bool,
+    self_loops: bool,
+    match_mode: &str,
+) -> usize {
+    cases
+        .iter()
+        .filter(|case| {
+            case.oracle_kind == oracle_kind
+                && case.semantic_match == semantic_match
+                && case.directed == directed
+                && case.self_loops == self_loops
+                && case.match_mode == match_mode
+        })
+        .count()
+}
+
 fn assert_boolean_case(case: &FixtureCase) {
     match (case.directed, case.semantic_match) {
         (false, SemanticMatch::None) => {
@@ -216,101 +236,138 @@ fn assert_embedding_results(case: &FixtureCase, actual_matches: &[Vec<[usize; 2]
 }
 
 #[test]
-fn test_vf2_networkx_fixture_suite_metadata() {
+fn test_vf2_networkx_fixture_suite_metadata_header() {
     let suite = fixture();
     assert_eq!(suite.schema_version, 1);
     assert_eq!(suite.generator, "networkx");
     assert_eq!(suite.networkx_timing_unit, "ns");
-    assert_eq!(suite.cases.len(), 30_600);
+    assert_eq!(suite.cases.len(), 40_792);
     assert!(
         suite.cases.iter().all(|case| case.networkx_ns > 0),
         "every merged NetworkX oracle case should have a non-zero timing"
     );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, false, false),
-        10_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, true, false),
-        10_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, false, true),
-        2_500
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, true, true),
-        2_500
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, false, false,),
-        1_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, false, true,),
-        1_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, true, false,),
-        1_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, true, true,),
-        1_000
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, false, false),
-        200
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, true, false),
-        200
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, false, true),
-        200
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, true, true),
-        200
-    );
-    assert_eq!(
-        count_cases(
-            &suite.cases,
-            OracleKind::Embeddings,
-            SemanticMatch::LabelEquality,
-            false,
-            false,
-        ),
-        200
-    );
-    assert_eq!(
-        count_cases(
-            &suite.cases,
-            OracleKind::Embeddings,
-            SemanticMatch::LabelEquality,
-            false,
-            true,
-        ),
-        200
-    );
-    assert_eq!(
-        count_cases(
-            &suite.cases,
-            OracleKind::Embeddings,
-            SemanticMatch::LabelEquality,
-            true,
-            false,
-        ),
-        200
-    );
-    assert_eq!(
-        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::LabelEquality, true, true,),
-        200
-    );
     assert!(
         Duration::from_nanos(suite.cases.iter().map(|case| case.networkx_ns).sum::<u64>())
             > Duration::ZERO
+    );
+}
+
+#[test]
+fn test_vf2_networkx_fixture_suite_boolean_family_counts() {
+    let suite = fixture();
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, false, false),
+        13_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, true, false),
+        13_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, false, true),
+        3_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::None, true, true),
+        3_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, false, false,),
+        1_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, false, true,),
+        1_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, true, false,),
+        1_333
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Boolean, SemanticMatch::LabelEquality, true, true,),
+        1_333
+    );
+}
+
+#[test]
+fn test_vf2_networkx_fixture_suite_embedding_family_counts() {
+    let suite = fixture();
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, false, false),
+        266
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, true, false),
+        266
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, false, true),
+        266
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::None, true, true),
+        266
+    );
+    assert_eq!(
+        count_cases(
+            &suite.cases,
+            OracleKind::Embeddings,
+            SemanticMatch::LabelEquality,
+            false,
+            false,
+        ),
+        266
+    );
+    assert_eq!(
+        count_cases(
+            &suite.cases,
+            OracleKind::Embeddings,
+            SemanticMatch::LabelEquality,
+            false,
+            true,
+        ),
+        266
+    );
+    assert_eq!(
+        count_cases(
+            &suite.cases,
+            OracleKind::Embeddings,
+            SemanticMatch::LabelEquality,
+            true,
+            false,
+        ),
+        266
+    );
+    assert_eq!(
+        count_cases(&suite.cases, OracleKind::Embeddings, SemanticMatch::LabelEquality, true, true,),
+        266
+    );
+}
+
+#[test]
+fn test_vf2_networkx_fixture_suite_monomorphism_counts() {
+    let suite = fixture();
+    assert_eq!(
+        count_cases_with_mode(
+            &suite.cases,
+            OracleKind::Boolean,
+            SemanticMatch::None,
+            false,
+            false,
+            "monomorphism",
+        ),
+        3_333
+    );
+    assert_eq!(
+        count_cases_with_mode(
+            &suite.cases,
+            OracleKind::Embeddings,
+            SemanticMatch::LabelEquality,
+            true,
+            true,
+            "monomorphism",
+        ),
+        66
     );
 }
 

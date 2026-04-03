@@ -770,7 +770,7 @@ pub fn check_structured_blossom_v_invariants(case: &FuzzStructuredBlossomVCase) 
 /// Arbitrary small-graph family for VF2 fuzzing.
 ///
 /// The generated graphs stay small enough for an exact brute-force oracle, and
-/// they can toggle directedness, simple equality labels, and the three VF2
+/// they can toggle directedness, simple equality labels, and the four VF2
 /// match modes.
 #[derive(Clone, Debug)]
 pub struct FuzzVf2Case {
@@ -780,7 +780,8 @@ pub struct FuzzVf2Case {
     pub use_labels: bool,
     /// Match-mode selector: `0 = isomorphism`,
     /// `1 = induced subgraph isomorphism`,
-    /// `2 = non-induced subgraph isomorphism`.
+    /// `2 = non-induced subgraph isomorphism`,
+    /// `3 = monomorphism`.
     pub mode_selector: u8,
     /// Number of query nodes.
     pub query_node_count: u8,
@@ -800,7 +801,7 @@ impl<'a> Arbitrary<'a> for FuzzVf2Case {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         let directed = bool::arbitrary(u)?;
         let use_labels = bool::arbitrary(u)?;
-        let mode_selector = u.int_in_range(0..=2)?;
+        let mode_selector = u.int_in_range(0..=3)?;
         let query_node_count = u.int_in_range(0..=4)?;
         let target_node_count = u.int_in_range(0..=5)?;
         let query_order = usize::from(query_node_count);
@@ -893,11 +894,12 @@ fn vf2_max_unique_edges(node_count: usize, directed: bool) -> usize {
 #[must_use]
 #[inline]
 fn vf2_mode_from_selector(selector: u8) -> Vf2Mode {
-    match selector % 3 {
+    match selector % 4 {
         0 => Vf2Mode::Isomorphism,
         1 => Vf2Mode::InducedSubgraphIsomorphism,
         2 => Vf2Mode::SubgraphIsomorphism,
-        _ => unreachable!("selector modulo 3 is always in range"),
+        3 => Vf2Mode::Monomorphism,
+        _ => unreachable!("selector modulo 4 is always in range"),
     }
 }
 
@@ -1123,7 +1125,7 @@ fn canonicalize_vf2_mapping(pairs: &[(usize, usize)]) -> Vec<[usize; 2]> {
 /// pair.
 ///
 /// This validates `has_match()`, `first_match()`, and exhaustive
-/// `for_each_match(...)` enumeration for all three match modes, both directed
+/// `for_each_match(...)` enumeration for all four match modes, both directed
 /// and undirected graphs, and optional equality-based node/edge labels.
 ///
 /// # Panics
@@ -1192,6 +1194,525 @@ fn assert_vf2_search_results(
     );
 }
 
+fn assert_vf2_mapping_results(
+    case: &FuzzVf2Case,
+    direction: &str,
+    expected_matches: &[Vec<[usize; 2]>],
+    exhausted: bool,
+    mut actual_matches: Vec<Vec<[usize; 2]>>,
+) {
+    assert!(
+        exhausted,
+        "VF2 {direction} mapping enumeration should exhaust the search for case {case:?}"
+    );
+    actual_matches.sort_unstable();
+    assert_eq!(
+        actual_matches, expected_matches,
+        "VF2 {direction} borrowed mappings disagreed with the brute-force oracle for case {case:?}"
+    );
+}
+
+fn assert_vf2_early_stop_behavior(
+    case: &FuzzVf2Case,
+    direction: &str,
+    expected_matches: &[Vec<[usize; 2]>],
+    exhausted: bool,
+    visitor_calls: usize,
+) {
+    if expected_matches.is_empty() {
+        assert!(
+            exhausted,
+            "VF2 {direction} early-stop enumeration should report exhaustion when no matches exist for case {case:?}"
+        );
+        assert_eq!(
+            visitor_calls, 0,
+            "VF2 {direction} early-stop enumeration unexpectedly visited a mapping for case {case:?}"
+        );
+    } else {
+        assert!(
+            !exhausted,
+            "VF2 {direction} early-stop enumeration should stop early when a match exists for case {case:?}"
+        );
+        assert_eq!(
+            visitor_calls, 1,
+            "VF2 {direction} early-stop enumeration should stop after the first mapping for case {case:?}"
+        );
+    }
+}
+
+#[must_use]
+fn vf2_final_match_accepts_pairs(mapping: &[(usize, usize)]) -> bool {
+    let checksum = mapping.iter().fold(0usize, |acc, &(query_node, target_node)| {
+        acc.wrapping_mul(131)
+            .wrapping_add(query_node.wrapping_mul(7))
+            .wrapping_add(target_node.wrapping_mul(11))
+            .wrapping_add(1)
+    });
+    checksum % 2 == 0
+}
+
+#[must_use]
+fn vf2_final_match_accepts_canonical(mapping: &[[usize; 2]]) -> bool {
+    let checksum = mapping.iter().fold(0usize, |acc, [query_node, target_node]| {
+        acc.wrapping_mul(131)
+            .wrapping_add(query_node.wrapping_mul(7))
+            .wrapping_add(target_node.wrapping_mul(11))
+            .wrapping_add(1)
+    });
+    checksum % 2 == 0
+}
+
+#[must_use]
+fn filter_vf2_final_matches(expected_matches: &[Vec<[usize; 2]>]) -> Vec<Vec<[usize; 2]>> {
+    expected_matches
+        .iter()
+        .filter(|mapping| vf2_final_match_accepts_canonical(mapping))
+        .cloned()
+        .collect()
+}
+
+macro_rules! assert_vf2_builder_extensions {
+    ($builder:expr, $case:expr, $direction:expr, $expected_matches:expr) => {{
+        let mut borrowed_matches = Vec::new();
+        let borrowed_exhausted = $builder.for_each_mapping(|mapping| {
+            borrowed_matches.push(canonicalize_vf2_mapping(mapping));
+            true
+        });
+        assert_vf2_mapping_results(
+            $case,
+            concat!($direction, " borrowed"),
+            $expected_matches,
+            borrowed_exhausted,
+            borrowed_matches,
+        );
+
+        let expected_final_matches = filter_vf2_final_matches($expected_matches);
+        let final_has_match = $builder.with_final_match(vf2_final_match_accepts_pairs).has_match();
+        let final_first_match =
+            $builder.with_final_match(vf2_final_match_accepts_pairs).first_match();
+        let mut final_matches = Vec::new();
+        let final_exhausted =
+            $builder.with_final_match(vf2_final_match_accepts_pairs).for_each_mapping(|mapping| {
+                final_matches.push(canonicalize_vf2_mapping(mapping));
+                true
+            });
+        assert_vf2_search_results(
+            $case,
+            concat!($direction, " final"),
+            &expected_final_matches,
+            final_has_match,
+            final_first_match,
+            final_exhausted,
+            final_matches,
+        );
+
+        let mut early_stop_calls = 0usize;
+        let early_stop_exhausted = $builder.for_each_mapping(|_| {
+            early_stop_calls += 1;
+            false
+        });
+        assert_vf2_early_stop_behavior(
+            $case,
+            concat!($direction, " early-stop"),
+            $expected_matches,
+            early_stop_exhausted,
+            early_stop_calls,
+        );
+    }};
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn run_labeled_directed_vf2_surface_checks(
+    case: &FuzzVf2Case,
+    query: &NormalizedVf2Graph,
+    target: &NormalizedVf2Graph,
+    query_graph: &DiGraph<usize>,
+    target_graph: &DiGraph<usize>,
+    prepared_query: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    prepared_target: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    mode: Vf2Mode,
+    expected_matches: &[Vec<[usize; 2]>],
+) {
+    let has_match = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .has_match();
+    let first_match = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .first_match();
+    let mut actual_matches = Vec::new();
+    let exhausted = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .for_each_match(|mapping| {
+            actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "directed",
+        expected_matches,
+        has_match,
+        first_match,
+        exhausted,
+        actual_matches,
+    );
+
+    let prepared_has_match = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .has_match();
+    let prepared_first_match = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .first_match();
+    let mut prepared_matches = Vec::new();
+    let prepared_exhausted = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, true)
+                == target.edge_label(target_src, target_dst, true)
+        })
+        .for_each_match(|mapping| {
+            prepared_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "directed prepared",
+        expected_matches,
+        prepared_has_match,
+        prepared_first_match,
+        prepared_exhausted,
+        prepared_matches,
+    );
+
+    assert_vf2_builder_extensions!(
+        query_graph
+            .vf2(target_graph)
+            .with_mode(mode)
+            .with_node_match(|query_node, target_node| {
+                query.node_labels[query_node] == target.node_labels[target_node]
+            })
+            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+                query.edge_label(query_src, query_dst, true)
+                    == target.edge_label(target_src, target_dst, true)
+            }),
+        case,
+        "directed labeled",
+        expected_matches
+    );
+    assert_vf2_builder_extensions!(
+        prepared_query
+            .vf2(prepared_target)
+            .with_mode(mode)
+            .with_node_match(|query_node, target_node| {
+                query.node_labels[query_node] == target.node_labels[target_node]
+            })
+            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+                query.edge_label(query_src, query_dst, true)
+                    == target.edge_label(target_src, target_dst, true)
+            }),
+        case,
+        "directed prepared labeled",
+        expected_matches
+    );
+}
+
+fn run_unlabeled_directed_vf2_surface_checks(
+    case: &FuzzVf2Case,
+    query_graph: &DiGraph<usize>,
+    target_graph: &DiGraph<usize>,
+    prepared_query: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    prepared_target: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    mode: Vf2Mode,
+    expected_matches: &[Vec<[usize; 2]>],
+) {
+    let has_match = query_graph.vf2(target_graph).with_mode(mode).has_match();
+    let first_match = query_graph.vf2(target_graph).with_mode(mode).first_match();
+    let mut actual_matches = Vec::new();
+    let exhausted = query_graph.vf2(target_graph).with_mode(mode).for_each_match(|mapping| {
+        actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+        true
+    });
+    assert_vf2_search_results(
+        case,
+        "directed",
+        expected_matches,
+        has_match,
+        first_match,
+        exhausted,
+        actual_matches,
+    );
+
+    let prepared_has_match = prepared_query.vf2(prepared_target).with_mode(mode).has_match();
+    let prepared_first_match = prepared_query.vf2(prepared_target).with_mode(mode).first_match();
+    let mut prepared_matches = Vec::new();
+    let prepared_exhausted =
+        prepared_query.vf2(prepared_target).with_mode(mode).for_each_match(|mapping| {
+            prepared_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "directed prepared",
+        expected_matches,
+        prepared_has_match,
+        prepared_first_match,
+        prepared_exhausted,
+        prepared_matches,
+    );
+
+    assert_vf2_builder_extensions!(
+        query_graph.vf2(target_graph).with_mode(mode),
+        case,
+        "directed",
+        expected_matches
+    );
+    assert_vf2_builder_extensions!(
+        prepared_query.vf2(prepared_target).with_mode(mode),
+        case,
+        "directed prepared",
+        expected_matches
+    );
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn run_labeled_undirected_vf2_surface_checks(
+    case: &FuzzVf2Case,
+    query: &NormalizedVf2Graph,
+    target: &NormalizedVf2Graph,
+    query_graph: &UndiGraph<usize>,
+    target_graph: &UndiGraph<usize>,
+    prepared_query: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    prepared_target: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    mode: Vf2Mode,
+    expected_matches: &[Vec<[usize; 2]>],
+) {
+    let has_match = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .has_match();
+    let first_match = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .first_match();
+    let mut actual_matches = Vec::new();
+    let exhausted = query_graph
+        .vf2(target_graph)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .for_each_match(|mapping| {
+            actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "undirected",
+        expected_matches,
+        has_match,
+        first_match,
+        exhausted,
+        actual_matches,
+    );
+
+    let prepared_has_match = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .has_match();
+    let prepared_first_match = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .first_match();
+    let mut prepared_matches = Vec::new();
+    let prepared_exhausted = prepared_query
+        .vf2(prepared_target)
+        .with_mode(mode)
+        .with_node_match(|query_node, target_node| {
+            query.node_labels[query_node] == target.node_labels[target_node]
+        })
+        .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+            query.edge_label(query_src, query_dst, false)
+                == target.edge_label(target_src, target_dst, false)
+        })
+        .for_each_match(|mapping| {
+            prepared_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "undirected prepared",
+        expected_matches,
+        prepared_has_match,
+        prepared_first_match,
+        prepared_exhausted,
+        prepared_matches,
+    );
+
+    assert_vf2_builder_extensions!(
+        query_graph
+            .vf2(target_graph)
+            .with_mode(mode)
+            .with_node_match(|query_node, target_node| {
+                query.node_labels[query_node] == target.node_labels[target_node]
+            })
+            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+                query.edge_label(query_src, query_dst, false)
+                    == target.edge_label(target_src, target_dst, false)
+            }),
+        case,
+        "undirected labeled",
+        expected_matches
+    );
+    assert_vf2_builder_extensions!(
+        prepared_query
+            .vf2(prepared_target)
+            .with_mode(mode)
+            .with_node_match(|query_node, target_node| {
+                query.node_labels[query_node] == target.node_labels[target_node]
+            })
+            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
+                query.edge_label(query_src, query_dst, false)
+                    == target.edge_label(target_src, target_dst, false)
+            }),
+        case,
+        "undirected prepared labeled",
+        expected_matches
+    );
+}
+
+fn run_unlabeled_undirected_vf2_surface_checks(
+    case: &FuzzVf2Case,
+    query_graph: &UndiGraph<usize>,
+    target_graph: &UndiGraph<usize>,
+    prepared_query: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    prepared_target: &crate::traits::algorithms::PreparedVf2Graph<usize>,
+    mode: Vf2Mode,
+    expected_matches: &[Vec<[usize; 2]>],
+) {
+    let has_match = query_graph.vf2(target_graph).with_mode(mode).has_match();
+    let first_match = query_graph.vf2(target_graph).with_mode(mode).first_match();
+    let mut actual_matches = Vec::new();
+    let exhausted = query_graph.vf2(target_graph).with_mode(mode).for_each_match(|mapping| {
+        actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+        true
+    });
+    assert_vf2_search_results(
+        case,
+        "undirected",
+        expected_matches,
+        has_match,
+        first_match,
+        exhausted,
+        actual_matches,
+    );
+
+    let prepared_has_match = prepared_query.vf2(prepared_target).with_mode(mode).has_match();
+    let prepared_first_match = prepared_query.vf2(prepared_target).with_mode(mode).first_match();
+    let mut prepared_matches = Vec::new();
+    let prepared_exhausted =
+        prepared_query.vf2(prepared_target).with_mode(mode).for_each_match(|mapping| {
+            prepared_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
+            true
+        });
+    assert_vf2_search_results(
+        case,
+        "undirected prepared",
+        expected_matches,
+        prepared_has_match,
+        prepared_first_match,
+        prepared_exhausted,
+        prepared_matches,
+    );
+
+    assert_vf2_builder_extensions!(
+        query_graph.vf2(target_graph).with_mode(mode),
+        case,
+        "undirected",
+        expected_matches
+    );
+    assert_vf2_builder_extensions!(
+        prepared_query.vf2(prepared_target).with_mode(mode),
+        case,
+        "undirected prepared",
+        expected_matches
+    );
+}
+
 fn check_directed_vf2_invariants(
     case: &FuzzVf2Case,
     query: &NormalizedVf2Graph,
@@ -1201,70 +1722,30 @@ fn check_directed_vf2_invariants(
 ) {
     let query_graph = build_vf2_digraph(query);
     let target_graph = build_vf2_digraph(target);
+    let prepared_query = query_graph.prepare_vf2();
+    let prepared_target = target_graph.prepare_vf2();
 
     if case.use_labels {
-        let has_match = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, true)
-                    == target.edge_label(target_src, target_dst, true)
-            })
-            .has_match();
-        let first_match = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, true)
-                    == target.edge_label(target_src, target_dst, true)
-            })
-            .first_match();
-        let mut actual_matches = Vec::new();
-        let exhausted = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, true)
-                    == target.edge_label(target_src, target_dst, true)
-            })
-            .for_each_match(|mapping| {
-                actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
-                true
-            });
-        assert_vf2_search_results(
+        run_labeled_directed_vf2_surface_checks(
             case,
-            "directed",
+            query,
+            target,
+            &query_graph,
+            &target_graph,
+            &prepared_query,
+            &prepared_target,
+            mode,
             expected_matches,
-            has_match,
-            first_match,
-            exhausted,
-            actual_matches,
         );
     } else {
-        let has_match = query_graph.vf2(&target_graph).with_mode(mode).has_match();
-        let first_match = query_graph.vf2(&target_graph).with_mode(mode).first_match();
-        let mut actual_matches = Vec::new();
-        let exhausted = query_graph.vf2(&target_graph).with_mode(mode).for_each_match(|mapping| {
-            actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
-            true
-        });
-        assert_vf2_search_results(
+        run_unlabeled_directed_vf2_surface_checks(
             case,
-            "directed",
+            &query_graph,
+            &target_graph,
+            &prepared_query,
+            &prepared_target,
+            mode,
             expected_matches,
-            has_match,
-            first_match,
-            exhausted,
-            actual_matches,
         );
     }
 }
@@ -1278,70 +1759,30 @@ fn check_undirected_vf2_invariants(
 ) {
     let query_graph = build_vf2_undigraph(query);
     let target_graph = build_vf2_undigraph(target);
+    let prepared_query = query_graph.prepare_vf2();
+    let prepared_target = target_graph.prepare_vf2();
 
     if case.use_labels {
-        let has_match = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, false)
-                    == target.edge_label(target_src, target_dst, false)
-            })
-            .has_match();
-        let first_match = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, false)
-                    == target.edge_label(target_src, target_dst, false)
-            })
-            .first_match();
-        let mut actual_matches = Vec::new();
-        let exhausted = query_graph
-            .vf2(&target_graph)
-            .with_mode(mode)
-            .with_node_match(|query_node, target_node| {
-                query.node_labels[query_node] == target.node_labels[target_node]
-            })
-            .with_edge_match(|query_src, query_dst, target_src, target_dst| {
-                query.edge_label(query_src, query_dst, false)
-                    == target.edge_label(target_src, target_dst, false)
-            })
-            .for_each_match(|mapping| {
-                actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
-                true
-            });
-        assert_vf2_search_results(
+        run_labeled_undirected_vf2_surface_checks(
             case,
-            "undirected",
+            query,
+            target,
+            &query_graph,
+            &target_graph,
+            &prepared_query,
+            &prepared_target,
+            mode,
             expected_matches,
-            has_match,
-            first_match,
-            exhausted,
-            actual_matches,
         );
     } else {
-        let has_match = query_graph.vf2(&target_graph).with_mode(mode).has_match();
-        let first_match = query_graph.vf2(&target_graph).with_mode(mode).first_match();
-        let mut actual_matches = Vec::new();
-        let exhausted = query_graph.vf2(&target_graph).with_mode(mode).for_each_match(|mapping| {
-            actual_matches.push(canonicalize_vf2_mapping(mapping.pairs()));
-            true
-        });
-        assert_vf2_search_results(
+        run_unlabeled_undirected_vf2_surface_checks(
             case,
-            "undirected",
+            &query_graph,
+            &target_graph,
+            &prepared_query,
+            &prepared_target,
+            mode,
             expected_matches,
-            has_match,
-            first_match,
-            exhausted,
-            actual_matches,
         );
     }
 }

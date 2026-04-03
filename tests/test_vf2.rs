@@ -89,6 +89,14 @@ fn test_vf2_subgraph_accepts_path_inside_triangle() {
 }
 
 #[test]
+fn test_vf2_monomorphism_accepts_path_inside_triangle() {
+    let query = build_undigraph(3, vec![(0, 1), (1, 2)]);
+    let target = build_undigraph(3, vec![(0, 1), (0, 2), (1, 2)]);
+
+    assert!(query.vf2(&target).with_mode(Vf2Mode::Monomorphism).has_match());
+}
+
+#[test]
 fn test_vf2_subgraph_accepts_sparse_graph_inside_clique() {
     let query = build_undigraph(4, vec![(0, 1), (1, 3), (2, 3)]);
     let target = build_undigraph(4, vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]);
@@ -145,6 +153,21 @@ fn test_vf2_subgraph_counts_two_isolated_nodes_inside_triangle() {
             visited += 1;
             true
         });
+
+    assert!(exhausted);
+    assert_eq!(visited, 6);
+}
+
+#[test]
+fn test_vf2_monomorphism_counts_two_isolated_nodes_inside_triangle() {
+    let query = build_undigraph(2, Vec::new());
+    let target = build_undigraph(3, vec![(0, 1), (0, 2), (1, 2)]);
+    let mut visited = 0usize;
+
+    let exhausted = query.vf2(&target).with_mode(Vf2Mode::Monomorphism).for_each_match(|_| {
+        visited += 1;
+        true
+    });
 
     assert!(exhausted);
     assert_eq!(visited, 6);
@@ -416,6 +439,7 @@ fn test_vf2_subgraph_allows_target_self_loop_when_query_has_none_but_induced_rej
     let target = build_digraph(1, vec![(0, 0)]);
 
     assert!(query.vf2(&target).with_mode(Vf2Mode::SubgraphIsomorphism).has_match());
+    assert!(query.vf2(&target).with_mode(Vf2Mode::Monomorphism).has_match());
     assert!(!query.vf2(&target).with_mode(Vf2Mode::InducedSubgraphIsomorphism).has_match());
 }
 

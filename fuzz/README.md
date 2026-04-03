@@ -220,6 +220,33 @@ cargo hfuzz run blossom_v
 cargo hfuzz run blossom_v_structured
 ```
 
+### VF2
+
+The VF2 harness fuzzes the generic matcher against the shared brute-force
+oracle in `src/test_utils.rs`. It covers:
+
+- directed and undirected graphs
+- labeled and unlabeled cases
+- self-loops
+- `isomorphism`, `induced_subgraph_isomorphism`,
+  `subgraph_isomorphism`, and `monomorphism`
+- both the direct builder path and the prepared-graph path
+
+```bash
+cargo hfuzz run vf2
+```
+
+Before starting a new VF2 honggfuzz run, make sure there is not already
+another `vf2` campaign writing into `hfuzz_workspace/vf2`. Concurrent runs in
+the same workspace can collide on coverage files and produce spurious
+`File exists` write errors.
+
+For deterministic replay in the test suite, use:
+
+```bash
+cargo test --features arbitrary --test test_fuzz_regression vf2
+```
+
 and to run the crash cases:
 
 ```bash
@@ -281,8 +308,10 @@ exact brute-force oracle. It checks:
 
 - `has_match()`
 - `first_match()`
+- borrowed `for_each_mapping(...)`
 - exhaustive `for_each_match(...)` enumeration
-- all three match modes
+- `final_match` filtering
+- all four match modes
 - optional node/edge equality labels through the semantic hooks
 
 ```bash
