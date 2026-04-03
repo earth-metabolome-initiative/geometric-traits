@@ -23,3 +23,21 @@ tracked in git.
 
 If you keep a local shard directory for manual sweeps, point
 `BLOSSOM_V_GROUND_TRUTH_SOURCE` at it.
+
+# VF2 Ground-Truth Fixtures
+
+`vf2_networkx_fixture_suite.json.gz` is the checked-in `NetworkX` oracle suite
+for the generic VF2 core.
+
+It merges the old split VF2 corpora into one gzip-compressed JSON file with:
+
+- large boolean structural cases
+- equality-labeled boolean cases
+- exact-embedding structural cases
+- exact-embedding equality-labeled cases
+- directed and undirected coverage
+- self-loop coverage
+- per-case stored `NetworkX` timing in nanoseconds
+
+This fixture is consumed by `tests/test_vf2_fixture_suite.rs` and
+`benches/vf2.rs`.
