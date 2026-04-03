@@ -1,7 +1,7 @@
 //! Regression tests that exercise the same code paths as fuzz targets.
 //!
 //! These tests construct instances via the `Arbitrary` trait from fixed byte
-//! patterns and from a stable checked-in raw fixture, then run the same
+//! patterns and from stable checked-in hex fixtures, then run the same
 //! invariant checks that the corresponding honggfuzz targets use (via shared
 //! functions in `test_utils`).
 #![cfg(feature = "arbitrary")]
@@ -14,14 +14,15 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     test_utils::{
-        self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, check_blossom_v_invariants,
-        check_floyd_warshall_invariants, check_gabow_1976_invariants, check_gth_invariants,
-        check_kahn_ordering, check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
-        check_leiden_invariants, check_louvain_invariants, check_padded_diagonal_invariants,
-        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
+        self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, FuzzVf2Case,
+        check_blossom_v_invariants, check_floyd_warshall_invariants, check_gabow_1976_invariants,
+        check_gth_invariants, check_kahn_ordering, check_lap_sparse_wrapper_invariants,
+        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
+        check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
-        check_structured_blossom_v_invariants, check_valued_matrix_invariants, from_bytes,
-        replay_dir,
+        check_structured_blossom_v_invariants, check_valued_matrix_invariants,
+        check_vf2_invariants, from_bytes, replay_dir,
     },
     traits::MonopartiteGraph,
 };
@@ -71,6 +72,15 @@ fn test_byte_patterns() -> Vec<Vec<u8>> {
     patterns
 }
 
+const SHARED_REPLAY_BYTES: &[u8] = &[0x05, 0x05, 0x03, 0x00, 0x00, 0x01, 0x01, 0x02, 0x02];
+
+const VF2_REPLAY_BYTES: &[&[u8]] = &[
+    b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn",
+    b"AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNN",
+    b"!@#$%^&*()_+-=[]{}|;:',.<>/?`~0123456789ABCDEF",
+    b"vf2 fuzz seed corpus directed undirected labels loops mappings",
+];
+
 // ============================================================================
 // Helper: run a check on all patterns, skipping those that don't produce T
 // ============================================================================
@@ -99,11 +109,7 @@ fn replay_shared_fixture<T>() -> Vec<T>
 where
     T: for<'a> Arbitrary<'a>,
 {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/fuzz/sample.bin");
-    let bytes = std::fs::read(&path)
-        .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()));
-    from_bytes::<T>(&bytes).into_iter().collect()
+    from_bytes::<T>(SHARED_REPLAY_BYTES).into_iter().collect()
 }
 // ============================================================================
 // CSR2D (mirrors fuzz/fuzz_targets/csr2d.rs)
@@ -359,6 +365,45 @@ fn test_replay_blossom_v_structured_corpus() {
     let corpus_dir = Path::new("fuzz/hfuzz_workspace/blossom_v_structured/input");
     for instance in replay_dir::<FuzzStructuredBlossomVCase>(corpus_dir) {
         check_structured_blossom_v_invariants(&instance);
+    }
+}
+
+#[test]
+fn test_arbitrary_vf2_invariants() {
+    let patterns = test_byte_patterns();
+    let mut constructed = 0usize;
+
+    for pattern in &patterns {
+        if let Some(instance) = from_bytes::<FuzzVf2Case>(pattern) {
+            constructed += 1;
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                check_vf2_invariants(&instance);
+            }));
+            if let Err(payload) = result {
+                let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                    (*s).to_string()
+                } else if let Some(s) = payload.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "<non-string panic payload>".to_string()
+                };
+                panic!(
+                    "VF2 arbitrary invariant failure for pattern {pattern:?} decoded as {instance:?}: {msg}"
+                );
+            }
+        }
+    }
+
+    assert!(constructed > 0, "No FuzzVf2Case instances could be constructed");
+}
+
+#[test]
+fn test_replay_vf2_corpus() {
+    let cases: Vec<_> =
+        VF2_REPLAY_BYTES.iter().filter_map(|bytes| from_bytes::<FuzzVf2Case>(bytes)).collect();
+    assert!(!cases.is_empty(), "expected at least one inline VF2 fuzz replay case");
+    for instance in cases {
+        check_vf2_invariants(&instance);
     }
 }
 

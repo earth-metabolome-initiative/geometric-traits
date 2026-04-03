@@ -274,6 +274,27 @@ and to run the crash cases:
 cargo hfuzz run-debug pairwise_dijkstra hfuzz_workspace/*/*.fuzz
 ```
 
+### VF2
+
+The VF2 harness fuzzes small directed and undirected graph pairs against an
+exact brute-force oracle. It checks:
+
+- `has_match()`
+- `first_match()`
+- exhaustive `for_each_match(...)` enumeration
+- all three match modes
+- optional node/edge equality labels through the semantic hooks
+
+```bash
+cargo hfuzz run vf2
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug vf2 hfuzz_workspace/*/*.fuzz
+```
+
 ### GTH
 
 The GTH harness fuzzes the dense stationary-distribution solver. It checks
