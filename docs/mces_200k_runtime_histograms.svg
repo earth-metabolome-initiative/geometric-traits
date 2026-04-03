@@ -1,0 +1,244 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="920" viewBox="0 0 1280 920" style="font-family: sans-serif;">
+<rect width="100%" height="100%" fill="#f8f7f4"/>
+<text x="640" y="36" text-anchor="middle" font-size="24" font-weight="700" fill="#1d1d1f">MCES 200k runtime comparison</text>
+<text x="640" y="62" text-anchor="middle" font-size="14" fill="#555">Rust timings come from a fresh sequential parity run on the 200k corpus; RDKit timings are the per-case reference times recorded when that same corpus was generated.</text>
+<text x="640" y="84" text-anchor="middle" font-size="13"><tspan fill="#d1495b">Rust mean ± std: 7.19 ± 26.49 ms; median: 1.71 ms</tspan><tspan fill="#666"> | </tspan><tspan fill="#2f6690">RDKit mean ± std: 23.17 ± 143.49 ms; median: 1.07 ms</tspan></text>
+<text x="658.0" y="108" text-anchor="middle" font-size="16" font-weight="700">Per-case runtime distribution</text>
+<rect x="96" y="118" width="1124" height="288" fill="white" stroke="#222" stroke-width="1"/>
+<line x1="96" y1="406.00" x2="1220" y2="406.00" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="410.00" text-anchor="end" font-size="11" fill="#444">0</text>
+<line x1="96" y1="336.61" x2="1220" y2="336.61" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="340.61" text-anchor="end" font-size="11" fill="#444">10</text>
+<line x1="96" y1="272.45" x2="1220" y2="272.45" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="276.45" text-anchor="end" font-size="11" fill="#444">100</text>
+<line x1="96" y1="206.07" x2="1220" y2="206.07" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="210.07" text-anchor="end" font-size="11" fill="#444">1000</text>
+<line x1="96" y1="118.00" x2="1220" y2="118.00" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="122.00" text-anchor="end" font-size="11" fill="#444">20999</text>
+<line x1="96.00" y1="406" x2="96.00" y2="412" stroke="#222" stroke-width="1"/>
+<text x="96.00" y="428" text-anchor="middle" font-size="11" fill="#444">0.0196</text>
+<line x1="377.00" y1="406" x2="377.00" y2="412" stroke="#222" stroke-width="1"/>
+<text x="377.00" y="428" text-anchor="middle" font-size="11" fill="#444">0.499</text>
+<line x1="658.00" y1="406" x2="658.00" y2="412" stroke="#222" stroke-width="1"/>
+<text x="658.00" y="428" text-anchor="middle" font-size="11" fill="#444">12.71</text>
+<line x1="939.00" y1="406" x2="939.00" y2="412" stroke="#222" stroke-width="1"/>
+<text x="939.00" y="428" text-anchor="middle" font-size="11" fill="#444">323.9</text>
+<line x1="1220.00" y1="406" x2="1220.00" y2="412" stroke="#222" stroke-width="1"/>
+<text x="1220.00" y="428" text-anchor="middle" font-size="11" fill="#444">8.3e+3</text>
+<text x="658.0" y="444" text-anchor="middle" font-size="12" fill="#444">runtime (ms) (log bins)</text>
+<text x="54" y="262.0" text-anchor="middle" font-size="12" fill="#444" transform="rotate(-90 54,262.0)">count (log-scaled)</text>
+<rect x="96.00" y="339.37" width="11.24" height="66.63" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="108.18" y="406.00" width="11.24" height="0.00" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="119.42" y="307.58" width="11.24" height="98.42" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="131.59" y="406.00" width="11.24" height="0.00" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="142.83" y="299.25" width="11.24" height="106.75" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="155.01" y="385.94" width="11.24" height="20.06" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="166.25" y="274.22" width="11.24" height="131.78" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="178.43" y="304.82" width="11.24" height="101.18" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="189.67" y="253.71" width="11.24" height="152.29" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="201.84" y="264.05" width="11.24" height="141.95" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="213.08" y="221.92" width="11.24" height="184.08" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="225.26" y="244.53" width="11.24" height="161.47" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="236.50" y="202.62" width="11.24" height="203.38" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="248.68" y="217.01" width="11.24" height="188.99" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="259.92" y="185.81" width="11.24" height="220.19" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="272.09" y="183.34" width="11.24" height="222.66" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="283.33" y="169.35" width="11.24" height="236.65" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="295.51" y="159.25" width="11.24" height="246.75" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="306.75" y="159.38" width="11.24" height="246.62" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="318.93" y="146.50" width="11.24" height="259.50" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="330.17" y="149.87" width="11.24" height="256.13" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="342.34" y="136.82" width="11.24" height="269.18" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="353.58" y="137.77" width="11.24" height="268.23" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="365.76" y="125.50" width="11.24" height="280.50" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="377.00" y="133.53" width="11.24" height="272.47" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="389.18" y="119.71" width="11.24" height="286.29" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="400.42" y="134.00" width="11.24" height="272.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="412.59" y="118.00" width="11.24" height="288.00" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="423.83" y="127.35" width="11.24" height="278.65" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="436.01" y="121.70" width="11.24" height="284.30" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="447.25" y="120.75" width="11.24" height="285.25" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="459.43" y="129.49" width="11.24" height="276.51" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="470.67" y="121.14" width="11.24" height="284.86" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="482.84" y="137.99" width="11.24" height="268.01" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="494.08" y="129.14" width="11.24" height="276.86" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="506.26" y="135.63" width="11.24" height="270.37" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="517.50" y="134.65" width="11.24" height="271.35" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="529.68" y="137.60" width="11.24" height="268.40" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="540.92" y="141.43" width="11.24" height="264.57" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="553.09" y="147.52" width="11.24" height="258.48" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="564.33" y="137.59" width="11.24" height="268.41" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="576.51" y="149.61" width="11.24" height="256.39" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="587.75" y="132.90" width="11.24" height="273.10" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="599.93" y="155.36" width="11.24" height="250.64" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="611.17" y="145.88" width="11.24" height="260.12" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="623.34" y="161.94" width="11.24" height="244.06" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="634.58" y="148.08" width="11.24" height="257.92" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="646.76" y="169.03" width="11.24" height="236.97" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="658.00" y="158.97" width="11.24" height="247.03" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="670.18" y="171.60" width="11.24" height="234.40" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="681.42" y="173.21" width="11.24" height="232.79" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="693.59" y="178.19" width="11.24" height="227.81" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="704.83" y="181.12" width="11.24" height="224.88" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="717.01" y="185.93" width="11.24" height="220.07" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="728.25" y="191.33" width="11.24" height="214.67" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="740.43" y="187.41" width="11.24" height="218.59" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="751.67" y="198.91" width="11.24" height="207.09" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="763.84" y="191.35" width="11.24" height="214.65" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="775.08" y="203.16" width="11.24" height="202.84" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="787.26" y="191.73" width="11.24" height="214.27" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="798.50" y="213.67" width="11.24" height="192.33" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="810.68" y="201.58" width="11.24" height="204.42" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="821.92" y="219.47" width="11.24" height="186.53" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="834.09" y="205.16" width="11.24" height="200.84" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="845.33" y="223.67" width="11.24" height="182.33" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="857.51" y="208.93" width="11.24" height="197.07" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="868.75" y="231.28" width="11.24" height="174.72" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="880.93" y="209.09" width="11.24" height="196.91" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="892.17" y="232.62" width="11.24" height="173.38" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="904.34" y="211.95" width="11.24" height="194.05" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="915.58" y="232.69" width="11.24" height="173.31" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="927.76" y="218.08" width="11.24" height="187.92" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="939.00" y="242.94" width="11.24" height="163.06" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="951.18" y="220.26" width="11.24" height="185.74" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="962.42" y="281.45" width="11.24" height="124.55" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="974.59" y="221.18" width="11.24" height="184.82" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="985.83" y="345.82" width="11.24" height="60.18" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="998.01" y="223.04" width="11.24" height="182.96" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1009.25" y="385.94" width="11.24" height="20.06" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1021.43" y="228.64" width="11.24" height="177.36" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1032.67" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1044.84" y="232.98" width="11.24" height="173.02" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1056.08" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1068.26" y="231.00" width="11.24" height="175.00" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1079.50" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1091.68" y="237.92" width="11.24" height="168.08" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1102.92" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1115.09" y="302.30" width="11.24" height="103.70" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1126.33" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1138.51" y="327.63" width="11.24" height="78.37" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1149.75" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1161.93" y="322.36" width="11.24" height="83.64" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1173.17" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1185.34" y="385.94" width="11.24" height="20.06" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1196.58" y="406.00" width="11.24" height="0.00" fill="#d1495b" fill-opacity="0.55"/>
+<rect x="1208.76" y="365.88" width="11.24" height="40.12" fill="#2f6690" fill-opacity="0.55"/>
+<rect x="1020" y="132" width="180" height="48" rx="5" fill="#ffffff" fill-opacity="0.88" stroke="#d9d6cf" stroke-width="1"/>
+<rect x="1032" y="148" width="12" height="12" fill="#d1495b" fill-opacity="0.55"/>
+<text x="1050" y="158" font-size="12" fill="#1d1d1f">Rust</text>
+<rect x="1032" y="168" width="12" height="12" fill="#2f6690" fill-opacity="0.55"/>
+<text x="1050" y="178" font-size="12" fill="#1d1d1f">RDKit</text>
+<text x="658.0" y="458" text-anchor="middle" font-size="16" font-weight="700">Per-case speedup distribution</text>
+<rect x="96" y="468" width="1124" height="288" fill="white" stroke="#222" stroke-width="1"/>
+<line x1="96" y1="756.00" x2="1220" y2="756.00" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="760.00" text-anchor="end" font-size="11" fill="#444">0</text>
+<line x1="96" y1="689.99" x2="1220" y2="689.99" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="693.99" text-anchor="end" font-size="11" fill="#444">10</text>
+<line x1="96" y1="628.96" x2="1220" y2="628.96" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="632.96" text-anchor="end" font-size="11" fill="#444">100</text>
+<line x1="96" y1="565.82" x2="1220" y2="565.82" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="569.82" text-anchor="end" font-size="11" fill="#444">1000</text>
+<line x1="96" y1="468.00" x2="1220" y2="468.00" stroke="#ddd" stroke-width="1"/>
+<text x="88" y="472.00" text-anchor="end" font-size="11" fill="#444">34975</text>
+<line x1="96.00" y1="756" x2="96.00" y2="762" stroke="#222" stroke-width="1"/>
+<text x="96.00" y="778" text-anchor="middle" font-size="11" fill="#444">0.1456</text>
+<line x1="218.52" y1="756" x2="218.52" y2="762" stroke="#222" stroke-width="1"/>
+<text x="218.52" y="778" text-anchor="middle" font-size="11" fill="#444">0.3815</text>
+<line x1="341.04" y1="756" x2="341.04" y2="762" stroke="#222" stroke-width="1"/>
+<text x="341.04" y="778" text-anchor="middle" font-size="11" fill="#444">1</text>
+<line x1="780.52" y1="756" x2="780.52" y2="762" stroke="#222" stroke-width="1"/>
+<text x="780.52" y="778" text-anchor="middle" font-size="11" fill="#444">31.7</text>
+<line x1="1220.00" y1="756" x2="1220.00" y2="762" stroke="#222" stroke-width="1"/>
+<text x="1220.00" y="778" text-anchor="middle" font-size="11" fill="#444">1005</text>
+<text x="658.0" y="790" text-anchor="middle" font-size="12" fill="#444">speedup factor (RDKit / Rust, log bins)</text>
+<text x="54" y="612.0" text-anchor="middle" font-size="12" fill="#444" transform="rotate(-90 54,612.0)">count (log-scaled)</text>
+<rect x="96.00" y="736.92" width="23.42" height="19.08" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="119.42" y="736.92" width="23.42" height="19.08" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="142.83" y="685.39" width="23.42" height="70.61" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="166.25" y="627.63" width="23.42" height="128.37" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="189.67" y="555.68" width="23.42" height="200.32" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="213.08" y="477.25" width="23.42" height="278.75" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="236.50" y="468.00" width="23.42" height="288.00" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="259.92" y="471.95" width="23.42" height="284.05" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="283.33" y="480.62" width="23.42" height="275.38" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="306.75" y="486.74" width="23.42" height="269.26" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="330.17" y="491.84" width="23.42" height="264.16" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="353.58" y="496.13" width="23.42" height="259.87" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="377.00" y="502.88" width="23.42" height="253.12" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="400.42" y="510.78" width="23.42" height="245.22" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="423.83" y="515.52" width="23.42" height="240.48" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="447.25" y="527.02" width="23.42" height="228.98" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="470.67" y="534.27" width="23.42" height="221.73" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="494.08" y="536.88" width="23.42" height="219.12" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="517.50" y="538.27" width="23.42" height="217.73" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="540.92" y="548.80" width="23.42" height="207.20" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="564.33" y="575.24" width="23.42" height="180.76" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="587.75" y="588.20" width="23.42" height="167.80" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="611.17" y="596.87" width="23.42" height="159.13" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="634.58" y="598.72" width="23.42" height="157.28" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="658.00" y="605.02" width="23.42" height="150.98" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="681.42" y="613.05" width="23.42" height="142.95" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="704.83" y="611.71" width="23.42" height="144.29" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="728.25" y="616.64" width="23.42" height="139.36" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="751.67" y="628.42" width="23.42" height="127.58" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="775.08" y="641.52" width="23.42" height="114.48" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="798.50" y="650.61" width="23.42" height="105.39" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="821.92" y="658.93" width="23.42" height="97.07" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="845.33" y="669.69" width="23.42" height="86.31" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="868.75" y="666.31" width="23.42" height="89.69" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="892.17" y="666.31" width="23.42" height="89.69" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="915.58" y="681.46" width="23.42" height="74.54" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="939.00" y="678.01" width="23.42" height="77.99" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="962.42" y="692.62" width="23.42" height="63.38" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="985.83" y="698.76" width="23.42" height="57.24" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1009.25" y="706.68" width="23.42" height="49.32" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1032.67" y="711.70" width="23.42" height="44.30" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1056.08" y="725.76" width="23.42" height="30.24" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1079.50" y="756.00" width="23.42" height="0.00" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1102.92" y="756.00" width="23.42" height="0.00" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1126.33" y="736.92" width="23.42" height="19.08" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1149.75" y="756.00" width="23.42" height="0.00" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1173.17" y="756.00" width="23.42" height="0.00" fill="#3a7d44" fill-opacity="0.55"/>
+<rect x="1196.58" y="736.92" width="23.42" height="19.08" fill="#3a7d44" fill-opacity="0.55"/>
+<line x1="341.04" y1="468" x2="341.04" y2="756" stroke="#777" stroke-width="2" stroke-dasharray="6 4"/>
+<rect x="1020" y="482" width="180" height="48" rx="5" fill="#ffffff" fill-opacity="0.88" stroke="#d9d6cf" stroke-width="1"/>
+<rect x="1032" y="498" width="12" height="12" fill="#3a7d44" fill-opacity="0.55"/>
+<text x="1050" y="508" font-size="12" fill="#1d1d1f">RDKit / Rust</text>
+<line x1="1032" y1="518" x2="1044" y2="518" stroke="#777" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="1050" y="522" font-size="12" fill="#1d1d1f">parity = 1x</text>
+<rect x="60" y="792" width="1160" height="110" rx="6" fill="#ffffff" stroke="#d9d6cf" stroke-width="1"/>
+<rect x="60" y="792" width="1160" height="24" rx="6" fill="#ece8de"/>
+<line x1="60" y1="816" x2="1220" y2="816" stroke="#d9d6cf" stroke-width="1"/>
+<line x1="60" y1="838" x2="1220" y2="838" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="60" y1="860" x2="1220" y2="860" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="60" y1="882" x2="1220" y2="882" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="318" y1="792" x2="318" y2="902" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="600" y1="792" x2="600" y2="902" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="760" y1="792" x2="760" y2="902" stroke="#e6e2d8" stroke-width="1"/>
+<line x1="930" y1="792" x2="930" y2="902" stroke="#e6e2d8" stroke-width="1"/>
+<text x="72" y="808" font-size="13" font-weight="700" fill="#1d1d1f">Category</text>
+<text x="330" y="808" font-size="13" font-weight="700" fill="#1d1d1f">Case</text>
+<text x="612" y="808" font-size="13" font-weight="700" fill="#1d1d1f">Rust</text>
+<text x="772" y="808" font-size="13" font-weight="700" fill="#1d1d1f">RDKit</text>
+<text x="942" y="808" font-size="13" font-weight="700" fill="#1d1d1f">Ratio</text>
+<text x="72" y="831" font-size="13" font-weight="700" fill="#1d1d1f">Slowest Rust</text>
+<text x="330" y="831" font-size="13" fill="#1d1d1f">massspecgym_default_112290</text>
+<text x="612" y="831" font-size="13" fill="#1d1d1f">934.162ms</text>
+<text x="772" y="831" font-size="13" fill="#1d1d1f">1.814693s</text>
+<text x="942" y="831" font-size="13" fill="#1d1d1f">RDKit/Rust 1.94x</text>
+<text x="72" y="853" font-size="13" font-weight="700" fill="#1d1d1f">Slowest RDKit</text>
+<text x="330" y="853" font-size="13" fill="#1d1d1f">massspecgym_default_73480</text>
+<text x="612" y="853" font-size="13" fill="#1d1d1f">510.263ms</text>
+<text x="772" y="853" font-size="13" fill="#1d1d1f">8.251221s</text>
+<text x="942" y="853" font-size="13" fill="#1d1d1f">RDKit/Rust 16.17x</text>
+<text x="72" y="875" font-size="13" font-weight="700" fill="#1d1d1f">Best Rust advantage</text>
+<text x="330" y="875" font-size="13" fill="#1d1d1f">massspecgym_default_5464</text>
+<text x="612" y="875" font-size="13" fill="#1d1d1f">54.673µs</text>
+<text x="772" y="875" font-size="13" fill="#1d1d1f">54.953ms</text>
+<text x="942" y="875" font-size="13" fill="#1d1d1f">RDKit/Rust 1005.12x</text>
+<text x="72" y="897" font-size="13" font-weight="700" fill="#1d1d1f">Worst Rust disadvantage</text>
+<text x="330" y="897" font-size="13" fill="#1d1d1f">massspecgym_default_57518</text>
+<text x="612" y="897" font-size="13" fill="#1d1d1f">1.188ms</text>
+<text x="772" y="897" font-size="13" fill="#1d1d1f">173.000µs</text>
+<text x="942" y="897" font-size="13" fill="#1d1d1f">Rust/RDKit 6.87x</text>
+</svg>

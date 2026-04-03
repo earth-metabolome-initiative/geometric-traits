@@ -1,0 +1,48 @@
+{
+  "slowest_rust": {
+    "name": "massspecgym_default_112290",
+    "rust_s": 0.934161884,
+    "rdkit_s": 1.814693,
+    "expected_bond_matches": 23,
+    "expected_similarity": 0.470429,
+    "ratio_rdkit_over_rust": 1.9425894281081586,
+    "ratio_rust_over_rdkit": 0.5147768156927921
+  },
+  "slowest_rdkit": {
+    "name": "massspecgym_default_73480",
+    "rust_s": 0.510262668,
+    "rdkit_s": 8.251221,
+    "expected_bond_matches": 52,
+    "expected_similarity": 0.868177,
+    "ratio_rdkit_over_rust": 16.17053630895843,
+    "ratio_rust_over_rdkit": 0.06184086791518492
+  },
+  "best_rust_advantage": {
+    "name": "massspecgym_default_5464",
+    "rust_s": 5.4673e-05,
+    "rdkit_s": 0.054953,
+    "expected_bond_matches": 8,
+    "expected_similarity": 0.682105,
+    "ratio_rdkit_over_rust": 1005.1213578914637,
+    "ratio_rust_over_rdkit": 0.0009949047367750624
+  },
+  "worst_rust_disadvantage": {
+    "name": "massspecgym_default_57518",
+    "rust_s": 0.001188497,
+    "rdkit_s": 0.000173,
+    "expected_bond_matches": 14,
+    "expected_similarity": 0.527273,
+    "ratio_rdkit_over_rust": 0.14556199973580078,
+    "ratio_rust_over_rdkit": 6.869924855491329
+  },
+  "rust_total_s": 1437.988120075,
+  "rdkit_total_s": 4633.888776,
+  "rust_mean_ms": 7.1899406003749995,
+  "rust_median_ms": 1.7099435,
+  "rust_population_std_ms": 26.49035186278947,
+  "rdkit_mean_ms": 23.16944388,
+  "rdkit_median_ms": 1.072,
+  "rdkit_population_std_ms": 143.4862579152603,
+  "rust_faster_cases": 61170,
+  "rdkit_faster_cases": 138830
+}
