@@ -60,7 +60,7 @@ fn test_shared_endpoint_self_loop_shared() {
 
 #[test]
 fn test_infer_empty_clique() {
-    let result = infer_vertex_matches::<u32, u32, _>(&[], &[], &[], &[], |_, _, _, _| true);
+    let result = infer_vertex_matches::<u32, _>(&[], &[], &[], &[], |_, _, _, _| true);
     assert!(result.is_empty());
 }
 
@@ -231,6 +231,41 @@ fn test_infer_result_is_injective() {
         for j in (i + 1)..result.len() {
             assert_ne!(result[i].0, result[j].0, "duplicate N1 in result");
             assert_ne!(result[i].1, result[j].1, "duplicate N2 in result");
+        }
+    }
+}
+
+#[test]
+fn test_infer_conflicting_symmetric_does_not_panic() {
+    // Simulate a clique from K4 vs K4 that produces conflicting vertex
+    // mappings due to symmetry. This previously panicked with debug_assert.
+    //
+    // Matched edges (G1 → G2):
+    //   (0,1) → (0,2)   — edges share vertex 0 in G1
+    //   (0,2) → (1,3)   — edges share vertex 0 in G1
+    //   (0,3) → (2,3)   — edges share vertex 0 in G1
+    //
+    // Phase 1: edges (0,1)→(0,2) and (0,2)→(1,3) share vertex 0 in G1.
+    //   In G2: (0,2) and (1,3) share NO vertex → no mapping.
+    //   edges (0,1)→(0,2) and (0,3)→(2,3) share vertex 0 in G1.
+    //   In G2: (0,2) and (2,3) share vertex 2 → map 0→2.
+    //   edges (0,2)→(1,3) and (0,3)→(2,3) share vertex 0 in G1.
+    //   In G2: (1,3) and (2,3) share vertex 3 → map 0→3. CONFLICT with 0→2!
+    //
+    // The conflict should be silently skipped (keep 0→2).
+    let clique = [0, 1, 2];
+    let vertex_pairs = [(0_usize, 0_usize), (1, 1), (2, 2)];
+    let edge_map1 = [(0_u32, 1_u32), (0, 2), (0, 3)];
+    let edge_map2 = [(0_u32, 2_u32), (1, 3), (2, 3)];
+
+    // Should not panic.
+    let result =
+        infer_vertex_matches(&clique, &vertex_pairs, &edge_map1, &edge_map2, |_, _, _, _| true);
+
+    // The result should still be a valid (partial) mapping — no duplicate N1 keys.
+    for i in 0..result.len() {
+        for j in (i + 1)..result.len() {
+            assert_ne!(result[i].0, result[j].0, "duplicate N1 in result");
         }
     }
 }

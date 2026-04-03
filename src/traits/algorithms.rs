@@ -134,7 +134,9 @@ pub use modular_product::{ModularProduct, ModularProductResult};
 #[cfg(feature = "alloc")]
 pub mod maximum_clique;
 #[cfg(feature = "alloc")]
-pub use maximum_clique::MaximumClique;
+pub use maximum_clique::{
+    MaximumClique, OwnedPartitionLabels, PartitionInfo, PartitionedMaximumClique,
+};
 #[cfg(feature = "alloc")]
 pub mod delta_y_exchange;
 #[cfg(feature = "alloc")]
@@ -160,3 +162,14 @@ pub use vf2::{
     AcceptAllEdgeMatcher, AcceptAllFinalMatcher, AcceptAllNodeMatcher, PrepareVf2,
     PreparedVf2Builder, PreparedVf2Graph, Vf2, Vf2Builder, Vf2Match, Vf2Mode,
 };
+pub mod clique_ranking;
+#[cfg(feature = "alloc")]
+pub mod mces;
+#[cfg(feature = "alloc")]
+pub use clique_ranking::{
+    ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo, FnRanker,
+    FragmentCountRanker, LargestFragmentMetric, LargestFragmentMetricRanker, LargestFragmentRanker,
+    MatchedEdgePair,
+};
+#[cfg(feature = "alloc")]
+pub use mces::{McesBuilder, McesResult, McesSearchMode};

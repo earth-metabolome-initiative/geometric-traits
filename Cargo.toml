@@ -94,6 +94,10 @@ name = "matching"
 harness = false
 
 [[bench]]
+name = "mces_ground_truth"
+harness = false
+
+[[bench]]
 name = "gth"
 harness = false
 
