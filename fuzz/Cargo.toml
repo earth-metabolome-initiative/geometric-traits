@@ -225,3 +225,9 @@ name = "labeled_modular_product"
 path = "fuzz_targets/labeled_modular_product.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "vf2"
+path = "fuzz_targets/vf2.rs"
+test = false
+doc = false
