@@ -652,7 +652,7 @@ where
                 partition,
                 initial_lower_bound,
                 best_size_seed,
-                accept_clique,
+                &mut accept_clique,
             )
         }
         McesSearchMode::AllBest => all_best_search(matrix, partition, 0, accept_clique),
@@ -1351,7 +1351,6 @@ where
             lg2.edge_map(),
             self.product_vertex_ordering.as_mut(),
         );
-
         // 3. Maximum cliques (unlabeled: all bonds get label 0).
         let cliques = if self.use_partition {
             let g1_labels = vec![0usize; first_edges];
@@ -1568,7 +1567,6 @@ where
             lg2.edge_map(),
             self.product_vertex_ordering.as_mut(),
         );
-
         // 3. Maximum cliques (label-aware partition bound).
         let cliques = if self.use_partition {
             let info = PartitionInfo {

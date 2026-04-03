@@ -301,7 +301,9 @@ impl<'a> PartitionSearchState<'a> {
         let (selected_g1, selected_g2) = info.pairs[selected_vertex];
         let mut removed_count = 0usize;
 
-        for part_index in 0..self.parts.len() {
+        let mut active_index = 0usize;
+        while active_index < self.active_parts.len() {
+            let part_index = self.active_parts[active_index];
             let mut part_emptied = false;
             {
                 let part = &mut self.parts[part_index];
@@ -341,6 +343,8 @@ impl<'a> PartitionSearchState<'a> {
             if part_emptied {
                 self.non_empty_parts -= 1;
                 self.deactivate_part(part_index);
+            } else {
+                active_index += 1;
             }
         }
 
@@ -469,13 +473,21 @@ struct U32PartitionSearchState<'a> {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct U32PruneUndo {
-    part_index: u32,
+struct U32PruneEntry {
     index: u32,
     removed_vertex: u32,
-    swapped_vertex: Option<u32>,
+    swapped_vertex: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct U32PruneBlock {
+    part_index: u32,
+    entry_start: usize,
+    entry_end: usize,
+    became_empty: bool,
+}
+
+const NO_SWAPPED_VERTEX: u32 = u32::MAX;
 impl<'a> U32PartitionSearchState<'a> {
     fn new(adj: &'a BitSquareMatrix, info: &'a PartitionInfo<'a>, lower_bound: usize) -> Self {
         assert!(
@@ -493,11 +505,12 @@ impl<'a> U32PartitionSearchState<'a> {
         let mut g2_counts = vec![0; info.g2_labels.len()];
 
         for (vertex, &(g1, g2)) in info.pairs.iter().enumerate() {
+            let vertex_u32 = to_u32_index(vertex);
             let partition_index = match info.partition_side {
                 PartitionSide::First => g1,
                 PartitionSide::Second => g2,
             };
-            parts_by_side[partition_index].push(to_u32_index(vertex));
+            parts_by_side[partition_index].push(vertex_u32);
             g1_counts[g1] += 1;
             g2_counts[g2] += 1;
         }
@@ -607,14 +620,19 @@ impl<'a> U32PartitionSearchState<'a> {
     fn prune_vertices_in_place(
         &mut self,
         selected_vertex: usize,
-        trail: &mut Vec<U32PruneUndo>,
+        trail: &mut Vec<U32PruneEntry>,
+        blocks: &mut Vec<U32PruneBlock>,
     ) -> usize {
         let info = self.info;
         let selected_neighbors = self.adj.row_bitslice(selected_vertex);
         let (selected_g1, selected_g2) = info.pairs[selected_vertex];
         let mut removed_count = 0usize;
+        let trail_checkpoint = trail.len();
 
-        for part_index in 0..self.parts.len() {
+        let mut active_index = 0usize;
+        while active_index < self.active_parts.len() {
+            let part_index = to_usize_index(self.active_parts[active_index]);
+            let part_checkpoint = trail.len();
             let mut part_emptied = false;
             {
                 let part = &mut self.parts[part_index];
@@ -628,20 +646,12 @@ impl<'a> U32PartitionSearchState<'a> {
                         || !selected_neighbors[candidate]
                     {
                         let last_index = part.len() - 1;
-                        let swapped_vertex = (index != last_index).then(|| part[last_index]);
+                        let swapped_vertex =
+                            if index == last_index { NO_SWAPPED_VERTEX } else { part[last_index] };
                         part[index] = part[last_index];
                         part.pop();
                         part_emptied = part.is_empty();
-                        decrement_vertex_counts_raw(
-                            info,
-                            &mut self.g1_counts,
-                            &mut self.g2_counts,
-                            &mut self.g1_type_counts,
-                            &mut self.g2_type_counts,
-                            candidate,
-                        );
-                        trail.push(U32PruneUndo {
-                            part_index: to_u32_index(part_index),
+                        trail.push(U32PruneEntry {
                             index: to_u32_index(index),
                             removed_vertex: candidate_u32,
                             swapped_vertex,
@@ -652,10 +662,31 @@ impl<'a> U32PartitionSearchState<'a> {
                     }
                 }
             }
+            if trail.len() > part_checkpoint {
+                blocks.push(U32PruneBlock {
+                    part_index: to_u32_index(part_index),
+                    entry_start: part_checkpoint,
+                    entry_end: trail.len(),
+                    became_empty: part_emptied,
+                });
+            }
             if part_emptied {
                 self.non_empty_parts -= 1;
                 self.deactivate_part(part_index);
+            } else {
+                active_index += 1;
             }
+        }
+
+        for entry in &trail[trail_checkpoint..] {
+            decrement_vertex_counts_raw(
+                info,
+                &mut self.g1_counts,
+                &mut self.g2_counts,
+                &mut self.g1_type_counts,
+                &mut self.g2_type_counts,
+                to_usize_index(entry.removed_vertex),
+            );
         }
 
         removed_count
@@ -663,34 +694,41 @@ impl<'a> U32PartitionSearchState<'a> {
 
     fn restore_pruned_vertices_in_place(
         &mut self,
-        trail: &mut Vec<U32PruneUndo>,
+        trail: &mut Vec<U32PruneEntry>,
+        blocks: &mut Vec<U32PruneBlock>,
         checkpoint: usize,
+        block_checkpoint: usize,
     ) {
-        while trail.len() > checkpoint {
-            let undo = trail.pop().expect("trail checkpoint must be valid");
-            let part_index = to_usize_index(undo.part_index);
-            let was_empty = self.parts[part_index].is_empty();
-            if was_empty {
+        while blocks.len() > block_checkpoint {
+            let block = blocks.pop().expect("block checkpoint must be valid");
+            let part_index = to_usize_index(block.part_index);
+            if block.became_empty {
                 self.non_empty_parts += 1;
                 self.activate_part(part_index);
             }
             let part = &mut self.parts[part_index];
-            match undo.swapped_vertex {
-                Some(swapped_vertex) => {
-                    part.push(swapped_vertex);
-                    part[to_usize_index(undo.index)] = undo.removed_vertex;
+            for entry in trail[block.entry_start..block.entry_end].iter().rev() {
+                if entry.swapped_vertex == NO_SWAPPED_VERTEX {
+                    part.push(entry.removed_vertex);
+                } else {
+                    part.push(entry.swapped_vertex);
+                    part[to_usize_index(entry.index)] = entry.removed_vertex;
                 }
-                None => part.push(undo.removed_vertex),
             }
+        }
+
+        for entry in &trail[checkpoint..] {
             increment_vertex_counts_raw(
                 self.info,
                 &mut self.g1_counts,
                 &mut self.g2_counts,
                 &mut self.g1_type_counts,
                 &mut self.g2_type_counts,
-                to_usize_index(undo.removed_vertex),
+                to_usize_index(entry.removed_vertex),
             );
         }
+
+        trail.truncate(checkpoint);
     }
 
     #[inline]
@@ -774,7 +812,8 @@ fn to_usize_index(index: u32) -> usize {
     index as usize
 }
 
-#[inline]
+#[allow(clippy::inline_always)]
+#[inline(always)]
 fn decrement_vertex_counts_raw(
     info: &PartitionInfo<'_>,
     g1_counts: &mut [usize],
@@ -784,17 +823,29 @@ fn decrement_vertex_counts_raw(
     vertex: usize,
 ) {
     let (g1, g2) = info.pairs[vertex];
-    g1_counts[g1] -= 1;
-    if g1_counts[g1] == 0 {
-        g1_type_counts[info.g1_labels[g1]] -= 1;
-    }
-    g2_counts[g2] -= 1;
-    if g2_counts[g2] == 0 {
-        g2_type_counts[info.g2_labels[g2]] -= 1;
+    debug_assert!(g1 < g1_counts.len());
+    debug_assert!(g2 < g2_counts.len());
+    debug_assert!(g1 < info.g1_labels.len());
+    debug_assert!(g2 < info.g2_labels.len());
+    unsafe {
+        let g1_count = g1_counts.get_unchecked_mut(g1);
+        *g1_count -= 1;
+        if *g1_count == 0 {
+            let g1_label = *info.g1_labels.get_unchecked(g1);
+            *g1_type_counts.get_unchecked_mut(g1_label) -= 1;
+        }
+
+        let g2_count = g2_counts.get_unchecked_mut(g2);
+        *g2_count -= 1;
+        if *g2_count == 0 {
+            let g2_label = *info.g2_labels.get_unchecked(g2);
+            *g2_type_counts.get_unchecked_mut(g2_label) -= 1;
+        }
     }
 }
 
-#[inline]
+#[allow(clippy::inline_always)]
+#[inline(always)]
 fn increment_vertex_counts_raw(
     info: &PartitionInfo<'_>,
     g1_counts: &mut [usize],
@@ -804,14 +855,25 @@ fn increment_vertex_counts_raw(
     vertex: usize,
 ) {
     let (g1, g2) = info.pairs[vertex];
-    if g1_counts[g1] == 0 {
-        g1_type_counts[info.g1_labels[g1]] += 1;
+    debug_assert!(g1 < g1_counts.len());
+    debug_assert!(g2 < g2_counts.len());
+    debug_assert!(g1 < info.g1_labels.len());
+    debug_assert!(g2 < info.g2_labels.len());
+    unsafe {
+        let g1_count = g1_counts.get_unchecked_mut(g1);
+        if *g1_count == 0 {
+            let g1_label = *info.g1_labels.get_unchecked(g1);
+            *g1_type_counts.get_unchecked_mut(g1_label) += 1;
+        }
+        *g1_count += 1;
+
+        let g2_count = g2_counts.get_unchecked_mut(g2);
+        if *g2_count == 0 {
+            let g2_label = *info.g2_labels.get_unchecked(g2);
+            *g2_type_counts.get_unchecked_mut(g2_label) += 1;
+        }
+        *g2_count += 1;
     }
-    g1_counts[g1] += 1;
-    if g2_counts[g2] == 0 {
-        g2_type_counts[info.g2_labels[g2]] += 1;
-    }
-    g2_counts[g2] += 1;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -964,6 +1026,7 @@ where
     let mut best_cliques = Vec::new();
     let mut seen_cliques = BTreeSet::new();
     let mut trail = Vec::new();
+    let mut blocks = Vec::new();
 
     dfs_partial_u32_in_place(
         &mut state,
@@ -974,6 +1037,7 @@ where
         &mut seen_cliques,
         &mut accept_clique,
         &mut trail,
+        &mut blocks,
     );
 
     into_owned_cliques(best_cliques)
@@ -1097,6 +1161,7 @@ where
     let mut clique = Vec::new();
     let mut best_size = best_size_seed;
     let mut trail = Vec::new();
+    let mut blocks = Vec::new();
     let mut dfs_calls = 0usize;
 
     dfs_partial_u32_in_place_budgeted(
@@ -1105,6 +1170,7 @@ where
         &mut best_size,
         &mut accept_clique,
         &mut trail,
+        &mut blocks,
         &mut dfs_calls,
         max_dfs_calls,
     );
@@ -1221,7 +1287,8 @@ fn dfs_partial_u32_in_place<F>(
     best_cliques: &mut Vec<SharedClique>,
     seen_cliques: &mut BTreeSet<SharedClique>,
     accept_clique: &mut F,
-    trail: &mut Vec<U32PruneUndo>,
+    trail: &mut Vec<U32PruneEntry>,
+    blocks: &mut Vec<U32PruneBlock>,
 ) where
     F: FnMut(&[usize]) -> bool,
 {
@@ -1246,7 +1313,8 @@ fn dfs_partial_u32_in_place<F>(
     maybe_update_best_partial(clique, cap, best_size, best_cliques, seen_cliques, accept_clique);
 
     let checkpoint = trail.len();
-    state.prune_vertices_in_place(selected, trail);
+    let block_checkpoint = blocks.len();
+    state.prune_vertices_in_place(selected, trail, blocks);
     dfs_partial_u32_in_place(
         state,
         clique,
@@ -1256,8 +1324,9 @@ fn dfs_partial_u32_in_place<F>(
         seen_cliques,
         accept_clique,
         trail,
+        blocks,
     );
-    state.restore_pruned_vertices_in_place(trail, checkpoint);
+    state.restore_pruned_vertices_in_place(trail, blocks, checkpoint, block_checkpoint);
 
     clique.pop();
     if !state.is_empty() {
@@ -1270,17 +1339,20 @@ fn dfs_partial_u32_in_place<F>(
             seen_cliques,
             accept_clique,
             trail,
+            blocks,
         );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn dfs_partial_u32_in_place_budgeted<F>(
     state: &mut U32PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
     best_size: &mut usize,
     accept_clique: &mut F,
-    trail: &mut Vec<U32PruneUndo>,
+    trail: &mut Vec<U32PruneEntry>,
+    blocks: &mut Vec<U32PruneBlock>,
     dfs_calls: &mut usize,
     max_dfs_calls: usize,
 ) where
@@ -1312,17 +1384,19 @@ fn dfs_partial_u32_in_place_budgeted<F>(
     maybe_update_best_size(clique, best_size, accept_clique);
 
     let checkpoint = trail.len();
-    state.prune_vertices_in_place(selected, trail);
+    let block_checkpoint = blocks.len();
+    state.prune_vertices_in_place(selected, trail, blocks);
     dfs_partial_u32_in_place_budgeted(
         state,
         clique,
         best_size,
         accept_clique,
         trail,
+        blocks,
         dfs_calls,
         max_dfs_calls,
     );
-    state.restore_pruned_vertices_in_place(trail, checkpoint);
+    state.restore_pruned_vertices_in_place(trail, blocks, checkpoint, block_checkpoint);
 
     clique.pop();
     if !state.is_empty() {
@@ -1332,6 +1406,7 @@ fn dfs_partial_u32_in_place_budgeted<F>(
             best_size,
             accept_clique,
             trail,
+            blocks,
             dfs_calls,
             max_dfs_calls,
         );
