@@ -80,6 +80,8 @@ building blocks from `geometric_traits::traits::algorithms`.
 
 The crate's `2.2` degeneracy-with-degree ordering is exposed by composing
 `DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer)`.
+The Welsh-Powell ordering is exposed by
+`DescendingScoreSorter::new(DegreeScorer)`.
 The crate's `3.1` PageRank ordering is exposed by composing
 `DescendingScoreSorter::new(PageRankScorer::default())`.
 The triangle-count ordering is exposed by composing

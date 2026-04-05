@@ -47,7 +47,7 @@ This fixture is consumed by `tests/test_vf2_fixture_suite.rs` and
 
 `node_ordering_ground_truth.json.gz` is the checked-in 10k-case node-ordering
 oracle corpus for graph-level smallest-last / degeneracy ordering and the
-related `2.2` degeneracy-with-degree, `3.1` PageRank, Katz-centrality, and
+related Welsh-Powell, `2.2` degeneracy-with-degree, `3.1` PageRank, Katz-centrality, and
 betweenness-centrality, closeness-centrality, triangle-count, and
 local-clustering orders.
 
@@ -60,6 +60,8 @@ stores, per graph case:
 - node-id-indexed `NetworkX` core numbers
 - the deterministic `2.2` order
   `(core_number desc, degree desc, node_id asc)`
+- the deterministic Welsh-Powell order
+  `(degree desc, node_id asc)`
 - node-id-indexed `NetworkX` PageRank scores
 - the deterministic `3.1` order
   `(pagerank desc, node_id asc)`

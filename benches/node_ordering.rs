@@ -219,6 +219,54 @@ fn total_scaling_nodes(cases: &[&ScalingCase]) -> usize {
     cases.iter().map(|case| case.graph.number_of_nodes()).sum()
 }
 
+fn bench_sorter_scaling<S>(c: &mut Criterion, group_name: &str, cases: &[ScalingCase], sorter: S)
+where
+    S: NodeSorter<UndiGraph<usize>> + Copy,
+{
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group(group_name);
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let total = case_refs
+                    .iter()
+                    .map(|case| sorter.sort_nodes(&case.graph).len())
+                    .sum::<usize>();
+                black_box(total);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group = c.benchmark_group(format!("{group_name}_by_case"));
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let total = sorter.sort_nodes(&case.graph).len();
+                black_box(total);
+            });
+        });
+    }
+    size_group.finish();
+}
+
 fn bench_sorter<S>(
     c: &mut Criterion,
     group_name: &str,
@@ -1071,6 +1119,15 @@ fn bench_degeneracy_degree(c: &mut Criterion) {
     bench_sorter(c, "node_ordering_degeneracy_degree", &cases, sorter);
 }
 
+fn bench_welsh_powell(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    let sorter = DescendingScoreSorter::new(DegreeScorer);
+    assert_cases_match_exact_order(&cases, "node_ordering_welsh_powell", sorter, |case| {
+        &case.welsh_powell_descending
+    });
+    bench_sorter(c, "node_ordering_welsh_powell", &cases, sorter);
+}
+
 fn bench_pagerank_scorer(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     assert_cases_match_pagerank_scores(&cases, "node_ordering_pagerank_scorer");
@@ -1729,10 +1786,22 @@ fn bench_local_clustering_scaling(c: &mut Criterion) {
     size_group.finish();
 }
 
+fn bench_welsh_powell_scaling(c: &mut Criterion) {
+    let cases = centrality_scaling_cases();
+    bench_sorter_scaling(
+        c,
+        "node_ordering_welsh_powell_scaling",
+        &cases,
+        DescendingScoreSorter::new(DegreeScorer),
+    );
+}
+
 criterion_group!(
     benches,
     bench_degeneracy,
     bench_degeneracy_degree,
+    bench_welsh_powell,
+    bench_welsh_powell_scaling,
     bench_triangle_scorer,
     bench_triangle_sorter,
     bench_triangle_scaling,

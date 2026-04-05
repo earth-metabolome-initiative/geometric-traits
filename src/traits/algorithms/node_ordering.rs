@@ -73,6 +73,33 @@ impl<S> AscendingScoreSorter<S> {
 }
 
 /// Generic descending sorter built from a node scorer.
+///
+/// This also covers named largest-first orderings such as Welsh-Powell when
+/// composed with [`DegreeScorer`]:
+/// `DescendingScoreSorter::new(DegreeScorer)`.
+///
+/// # Examples
+/// ```
+/// use geometric_traits::{
+///     impls::{CSR2D, SortedVec, SymmetricCSR2D},
+///     prelude::*,
+///     traits::{
+///         SquareMatrix, VocabularyBuilder,
+///         algorithms::{DegreeScorer, DescendingScoreSorter, randomized_graphs::star_graph},
+///     },
+/// };
+///
+/// let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> = star_graph(5);
+/// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+///     .expected_number_of_symbols(matrix.order())
+///     .symbols((0..matrix.order()).enumerate())
+///     .build()
+///     .unwrap();
+/// let graph = UndiGraph::from((nodes, matrix));
+///
+/// let order = DescendingScoreSorter::new(DegreeScorer).sort_nodes(&graph);
+/// assert_eq!(order, vec![0, 1, 2, 3, 4]);
+/// ```
 #[derive(Clone, Copy, Debug, Default)]
 pub struct DescendingScoreSorter<S> {
     scorer: S,

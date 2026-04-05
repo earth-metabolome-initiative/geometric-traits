@@ -203,6 +203,12 @@ const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "cycle_4", graph: GraphFixture::Cycle(4) },
 ];
 
+const WELSH_POWELL_FIXTURES: &[OrderingFixture] = &[
+    OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
+    OrderingFixture { name: "star_5", graph: GraphFixture::Star(5) },
+    OrderingFixture { name: "triangle_with_tail", graph: GraphFixture::TriangleWithTail },
+];
+
 const SECOND_ORDER_DEGREE_FIXTURES: &[ScoringFixture] = &[
     ScoringFixture {
         name: "path_4",
@@ -461,6 +467,22 @@ fn test_degeneracy_sorter_fixtures() {
 }
 
 #[test]
+fn test_welsh_powell_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(DegreeScorer);
+
+    for fixture in WELSH_POWELL_FIXTURES {
+        let graph = fixture.graph.build();
+        let expected = DescendingScoreSorter::new(DegreeScorer).sort_nodes(&graph);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            expected,
+            "welsh-powell ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
 fn test_second_order_degree_scorer_fixtures() {
     for fixture in SECOND_ORDER_DEGREE_FIXTURES {
         let graph = fixture.graph.build();
@@ -658,6 +680,7 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.canonical_smallest_last.len() == case.n
             && case.core_numbers.len() == case.n
             && case.degeneracy_degree_descending.len() == case.n
+            && case.welsh_powell_descending.len() == case.n
             && case.pagerank_scores.len() == case.n
             && case.pagerank_descending.len() == case.n
             && case.katz_scores.len() == case.n
@@ -796,6 +819,22 @@ fn test_descending_lexicographic_core_degree_sorter_ground_truth() {
             sorter.sort_nodes(&graph),
             case.degeneracy_degree_descending,
             "degeneracy + degree ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_welsh_powell_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+    let sorter = DescendingScoreSorter::new(DegreeScorer);
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("welsh-powell order {} ({})", case.name, case.family);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.welsh_powell_descending,
+            "welsh-powell ground truth failed for {context}"
         );
     }
 }
