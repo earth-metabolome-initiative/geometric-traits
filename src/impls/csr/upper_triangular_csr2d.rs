@@ -5,7 +5,7 @@ use multi_ranged::Step;
 use num_traits::{AsPrimitive, Zero};
 
 use crate::{
-    impls::{MutabilityError, SquareCSR2D},
+    impls::{CSR2D, MutabilityError, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
     prelude::*,
     traits::{PositiveInteger, TryFromUsize},
 };
@@ -86,6 +86,19 @@ where
     #[inline]
     fn default() -> Self {
         Self { matrix: SquareCSR2D::default() }
+    }
+}
+
+impl<M: Matrix2D> UpperTriangularCSR2D<M> {
+    /// Creates a new `UpperTriangularCSR2D` from a `SquareCSR2D`.
+    ///
+    /// # Safety (logical)
+    /// The caller must guarantee that `matrix` stores only upper-triangular
+    /// entries, i.e. every stored coordinate `(row, column)` satisfies
+    /// `row <= column`.
+    #[inline]
+    pub fn from_parts(matrix: SquareCSR2D<M>) -> Self {
+        Self { matrix }
     }
 }
 
@@ -320,80 +333,114 @@ where
     }
 }
 
-impl<SparseIndex, Idx> Symmetrize<SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>>
-    for UpperTriangularCSR2D<CSR2D<SparseIndex, Idx, Idx>>
+fn symmetrize_sparse_coordinates<M, SparseIndex, Idx>(
+    matrix: &UpperTriangularCSR2D<M>,
+) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>
 where
+    M: SparseMatrix2D<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+{
+    let order = matrix.order();
+    let order_usize = order.as_();
+
+    // Pass 1: compute output row degrees for the symmetric matrix.
+    let mut row_degrees = vec![SparseIndex::zero(); order_usize];
+    for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(matrix) {
+        row_degrees[row.as_()] += SparseIndex::one();
+        if row != column {
+            row_degrees[column.as_()] += SparseIndex::one();
+        }
+    }
+
+    // Prefix-sum degrees to build offsets.
+    let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
+    let mut number_of_non_empty_rows = Idx::zero();
+    for row in 0..order_usize {
+        offsets[row + 1] = offsets[row] + row_degrees[row];
+        if row_degrees[row] > SparseIndex::zero() {
+            number_of_non_empty_rows += Idx::one();
+        }
+    }
+    let number_of_expected_column_indices = offsets[order_usize].as_();
+
+    let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
+        offsets,
+        number_of_columns: order,
+        number_of_rows: order,
+        column_indices: vec![Idx::zero(); number_of_expected_column_indices],
+        number_of_non_empty_rows,
+    };
+
+    // Pass 2: fill rows in-place using per-row write cursors.
+    let mut write_offsets = symmetric.offsets[..order_usize].to_vec();
+    for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(matrix) {
+        let row_index = row.as_();
+        let row_write_offset = write_offsets[row_index].as_();
+        symmetric.column_indices[row_write_offset] = column;
+        write_offsets[row_index] += SparseIndex::one();
+
+        if row != column {
+            let column_index = column.as_();
+            let column_write_offset = write_offsets[column_index].as_();
+            symmetric.column_indices[column_write_offset] = row;
+            write_offsets[column_index] += SparseIndex::one();
+        }
+    }
+
+    debug_assert!(
+        (0..order_usize).all(|row| write_offsets[row] == symmetric.offsets[row + 1]),
+        "Write cursors must end exactly at the row boundaries after symmetrization"
+    );
+
+    debug_assert_eq!(
+        symmetric.number_of_defined_values().as_(),
+        number_of_expected_column_indices,
+        "The number of inserted values is not the expected one. Diagonals: {}",
+        matrix.number_of_defined_diagonal_values()
+    );
+
+    SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(
+        symmetric,
+        matrix.number_of_defined_diagonal_values(),
+    ))
+}
+
+impl<M, SparseIndex, Idx> Symmetrize<SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>>
+    for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrix2D<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
     Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
     SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
 {
     #[inline]
     fn symmetrize(&self) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>> {
-        let order = self.order();
-        let order_usize = order.as_();
+        symmetrize_sparse_coordinates(self)
+    }
+}
 
-        // Pass 1: compute output row degrees for the symmetric matrix.
-        let mut row_degrees = vec![SparseIndex::zero(); order_usize];
-        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
-            row_degrees[row.as_()] += SparseIndex::one();
-            if row != column {
-                row_degrees[column.as_()] += SparseIndex::one();
-            }
-        }
-
-        // Prefix-sum degrees to build offsets.
-        let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
-        let mut number_of_non_empty_rows = Idx::zero();
-        for row in 0..order_usize {
-            offsets[row + 1] = offsets[row] + row_degrees[row];
-            if row_degrees[row] > SparseIndex::zero() {
-                number_of_non_empty_rows += Idx::one();
-            }
-        }
-        let number_of_expected_column_indices = offsets[order_usize].as_();
-
-        let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
-            offsets,
-            number_of_columns: order,
-            number_of_rows: order,
-            column_indices: vec![Idx::zero(); number_of_expected_column_indices],
-            number_of_non_empty_rows,
-        };
-
-        // Pass 2: fill rows in-place using per-row write cursors.
-        let mut write_offsets = symmetric.offsets[..order_usize].to_vec();
-        for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(self) {
-            let row_index = row.as_();
-            let row_write_offset = write_offsets[row_index].as_();
-            symmetric.column_indices[row_write_offset] = column;
-            write_offsets[row_index] += SparseIndex::one();
-
-            if row != column {
-                let column_index = column.as_();
-                let column_write_offset = write_offsets[column_index].as_();
-                symmetric.column_indices[column_write_offset] = row;
-                write_offsets[column_index] += SparseIndex::one();
-            }
-        }
-
-        debug_assert!(
-            (0..order_usize).all(|row| write_offsets[row] == symmetric.offsets[row + 1]),
-            "Write cursors must end exactly at the row boundaries after symmetrization"
-        );
-
-        debug_assert_eq!(
-            symmetric.number_of_defined_values().as_(),
-            number_of_expected_column_indices,
-            "The number of inserted values is not the expected one. Original number of values: {}. Diagonals: {}",
-            self.number_of_defined_values(),
-            self.number_of_defined_diagonal_values()
-        );
-
-        SymmetricCSR2D {
-            matrix: SquareCSR2D {
-                matrix: symmetric,
-                number_of_diagonal_values: self.number_of_defined_diagonal_values(),
-            },
-        }
+impl<M, SparseIndex, Idx>
+    Symmetrize<SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, <M as ValuedMatrix>::Value>>>
+    for UpperTriangularCSR2D<M>
+where
+    M: SparseValuedMatrix2DRef<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    <M as ValuedMatrix>::Value: Clone,
+{
+    #[inline]
+    fn symmetrize(
+        &self,
+    ) -> SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, <M as ValuedMatrix>::Value>> {
+        SymmetricCSR2D::from_sorted_upper_triangular_entries(
+            self.order(),
+            crate::traits::SparseMatrix::sparse_coordinates(self)
+                .zip(self.as_ref().sparse_values_ref())
+                .map(|((row, column), value)| (row, column, value.clone())),
+        )
+        .unwrap_or_else(|_| {
+            unreachable!("Upper triangular matrices already store sorted in-bounds entries")
+        })
     }
 }
 
@@ -402,10 +449,15 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::*;
-    use crate::{impls::CSR2D, traits::MatrixMut};
+    use crate::{
+        impls::{CSR2D, ValuedCSR2D},
+        traits::MatrixMut,
+    };
 
     type TestCSR2D = CSR2D<usize, usize, usize>;
     type TestUpperTriangular = UpperTriangularCSR2D<TestCSR2D>;
+    type TestValuedCSR2D = ValuedCSR2D<usize, usize, usize, i32>;
+    type TestValuedUpperTriangular = UpperTriangularCSR2D<TestValuedCSR2D>;
 
     #[test]
     fn test_upper_triangular_default() {
@@ -494,6 +546,25 @@ mod tests {
         assert!(sym.has_entry(0, 1));
         assert!(sym.has_entry(1, 0)); // Added by symmetrization
         assert!(sym.has_entry(1, 1));
+    }
+
+    #[test]
+    fn test_upper_triangular_valued_symmetrize() {
+        let mut valued: TestValuedCSR2D = SparseMatrixMut::with_sparse_shaped_capacity((3, 3), 3);
+        MatrixMut::add(&mut valued, (0, 1, 10)).unwrap();
+        MatrixMut::add(&mut valued, (1, 1, 20)).unwrap();
+        MatrixMut::add(&mut valued, (1, 2, 30)).unwrap();
+
+        let ut: TestValuedUpperTriangular =
+            UpperTriangularCSR2D::from_parts(SquareCSR2D::from_parts(valued, 1));
+        let sym: SymmetricCSR2D<TestValuedCSR2D> = ut.symmetrize();
+
+        assert_eq!(sym.number_of_defined_diagonal_values(), 1);
+        assert_eq!(sym.sparse_value_at(0, 1), Some(10));
+        assert_eq!(sym.sparse_value_at(1, 0), Some(10));
+        assert_eq!(sym.sparse_value_at(1, 1), Some(20));
+        assert_eq!(sym.sparse_value_at(1, 2), Some(30));
+        assert_eq!(sym.sparse_value_at(2, 1), Some(30));
     }
 
     #[test]

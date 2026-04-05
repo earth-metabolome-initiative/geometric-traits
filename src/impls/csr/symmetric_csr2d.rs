@@ -2,9 +2,14 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
+use multi_ranged::Step;
 use num_traits::AsPrimitive;
 
-use crate::{impls::SquareCSR2D, prelude::*};
+use crate::{
+    impls::{CSR2D, SquareCSR2D, ValuedCSR2D},
+    prelude::*,
+    traits::{PositiveInteger, TryFromUsize},
+};
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
@@ -281,6 +286,129 @@ impl<M: Matrix2D> SymmetricCSR2D<M> {
     #[inline]
     pub fn from_parts(matrix: SquareCSR2D<M>) -> Self {
         Self { matrix }
+    }
+}
+
+impl<SparseIndex, Idx, Value> SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, Value>>
+where
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    Value: Clone,
+{
+    /// Builds a symmetric valued CSR matrix from sorted upper-triangular
+    /// `(row, column, value)` entries.
+    ///
+    /// The input must be sorted in lexicographic `(row, column)` order,
+    /// deduplicated, and satisfy `row <= column < order`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MutabilityError`] when the input is unsorted, duplicated, out
+    /// of bounds, or not upper triangular.
+    #[inline]
+    pub fn from_sorted_upper_triangular_entries<I>(
+        order: Idx,
+        entries: I,
+    ) -> Result<Self, MutabilityError<Self>>
+    where
+        I: IntoIterator<Item = (Idx, Idx, Value)>,
+    {
+        let order_usize = order.as_();
+        let entries: Vec<(Idx, Idx, Value)> = entries.into_iter().collect();
+        let mut row_degrees = vec![SparseIndex::zero(); order_usize];
+        let mut number_of_diagonal_values = Idx::zero();
+        let mut previous_coordinates: Option<(Idx, Idx)> = None;
+
+        for &(row, column, _) in &entries {
+            if row >= order || column >= order {
+                return Err(MutabilityError::OutOfBounds(
+                    (row, column),
+                    (order, order),
+                    "Entries must fit within the requested square shape.",
+                ));
+            }
+            if row > column {
+                return Err(MutabilityError::OutOfBounds(
+                    (row, column),
+                    (order, order),
+                    "In an upper triangular matrix, row indices must be less than or equal to column indices.",
+                ));
+            }
+            if let Some((previous_row, previous_column)) = previous_coordinates {
+                if previous_row == row && previous_column == column {
+                    return Err(MutabilityError::DuplicatedEntry((row, column)));
+                }
+                if previous_row > row || (previous_row == row && previous_column > column) {
+                    return Err(MutabilityError::UnorderedCoordinate((row, column)));
+                }
+            }
+            previous_coordinates = Some((row, column));
+
+            row_degrees[row.as_()] += SparseIndex::one();
+            if row == column {
+                number_of_diagonal_values += Idx::one();
+            } else {
+                row_degrees[column.as_()] += SparseIndex::one();
+            }
+        }
+
+        let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
+        let mut number_of_non_empty_rows = Idx::zero();
+        for row in 0..order_usize {
+            offsets[row + 1] = offsets[row] + row_degrees[row];
+            if row_degrees[row] > SparseIndex::zero() {
+                number_of_non_empty_rows += Idx::one();
+            }
+        }
+
+        let mut rows: Vec<Vec<(Idx, Value)>> =
+            row_degrees.iter().map(|degree| Vec::with_capacity(degree.as_())).collect();
+
+        for (row, column, value) in entries {
+            if row == column {
+                rows[row.as_()].push((column, value));
+                continue;
+            }
+
+            rows[row.as_()].push((column, value.clone()));
+            rows[column.as_()].push((row, value));
+        }
+
+        let number_of_expected_values = offsets[order_usize].as_();
+        let mut column_indices = Vec::with_capacity(number_of_expected_values);
+        let mut values = Vec::with_capacity(number_of_expected_values);
+
+        for row_entries in rows {
+            for (column, value) in row_entries {
+                column_indices.push(column);
+                values.push(value);
+            }
+        }
+
+        debug_assert_eq!(
+            column_indices.len(),
+            number_of_expected_values,
+            "Constructed symmetric topology must match the computed row degrees",
+        );
+        debug_assert_eq!(
+            values.len(),
+            number_of_expected_values,
+            "Constructed values must match the computed row degrees",
+        );
+
+        let matrix = ValuedCSR2D::from_parts(
+            CSR2D {
+                offsets,
+                number_of_columns: order,
+                number_of_rows: order,
+                column_indices,
+                number_of_non_empty_rows,
+            },
+            values,
+        )
+        .unwrap_or_else(|_| unreachable!("constructed values must match the CSR topology"));
+
+        Ok(SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(matrix, number_of_diagonal_values)))
     }
 }
 

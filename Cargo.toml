@@ -108,3 +108,7 @@ harness = false
 [[bench]]
 name = "vf2"
 harness = false
+
+[[bench]]
+name = "valued_symmetric_builder"
+harness = false

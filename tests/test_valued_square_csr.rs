@@ -32,21 +32,7 @@ fn build_valued_symmetric(
     n: usize,
     upper_edges: &[(usize, usize, i32)],
 ) -> SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, i32>> {
-    let mut all: Vec<(usize, usize, i32)> = Vec::new();
-    for &(r, c, v) in upper_edges {
-        all.push((r, c, v));
-        if r != c {
-            all.push((c, r, v));
-        }
-    }
-    all.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-
-    let mut valued: ValuedCSR2D<usize, usize, usize, i32> =
-        SparseMatrixMut::with_sparse_shaped_capacity((n, n), all.len());
-    for (r, c, v) in all {
-        MatrixMut::add(&mut valued, (r, c, v)).unwrap();
-    }
-    SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(valued, 0))
+    SymmetricCSR2D::from_sorted_upper_triangular_entries(n, upper_edges.iter().copied()).unwrap()
 }
 
 fn to_i32(index: usize) -> i32 {

@@ -4,7 +4,9 @@
 use std::{string::String, vec::Vec};
 
 use geometric_traits::{
-    impls::{CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D, ValuedCsrPartsError},
+    impls::{
+        CSR2D, MutabilityError, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D, ValuedCsrPartsError,
+    },
     prelude::*,
     traits::{MatrixMut, SparseMatrix},
 };
@@ -127,4 +129,65 @@ fn test_symmetric_wrapper_preserves_inner_raw_value_order() {
     *symmetric.sparse_value_at_mut(2, 1).unwrap() = 77;
 
     assert_eq!(symmetric.as_ref().as_ref().values_ref(), &[10, 10, 20, 77]);
+}
+
+#[test]
+fn test_csr_with_values_attaches_values_in_storage_order() {
+    let valued = build_csr(&[(0, 1), (1, 0)], (2, 2)).with_values(vec![10, 20]).unwrap();
+
+    let entries: Vec<_> = SparseMatrix::sparse_coordinates(&valued)
+        .zip(valued.values_ref().iter().copied())
+        .collect();
+
+    assert_eq!(entries, vec![((0, 1), 10), ((1, 0), 20)]);
+}
+
+#[test]
+fn test_from_sorted_upper_triangular_entries_builds_expected_storage() {
+    let symmetric = TestSymmetric::from_sorted_upper_triangular_entries(
+        4,
+        vec![(0, 1, 10), (1, 1, 20), (1, 3, 30)],
+    )
+    .unwrap();
+
+    assert_eq!(
+        SparseMatrix::sparse_coordinates(&symmetric).collect::<Vec<_>>(),
+        vec![(0, 1), (1, 0), (1, 1), (1, 3), (3, 1)]
+    );
+    assert_eq!(symmetric.sparse_values().collect::<Vec<_>>(), vec![10, 10, 20, 30, 30]);
+    assert_eq!(symmetric.number_of_defined_diagonal_values(), 1);
+}
+
+#[test]
+fn test_from_sorted_upper_triangular_entries_rejects_unsorted_input() {
+    let error =
+        TestSymmetric::from_sorted_upper_triangular_entries(3, vec![(0, 2, 10), (0, 1, 20)])
+            .unwrap_err();
+
+    assert!(matches!(error, MutabilityError::UnorderedCoordinate((0, 1))));
+}
+
+#[test]
+fn test_from_sorted_upper_triangular_entries_rejects_duplicates() {
+    let error =
+        TestSymmetric::from_sorted_upper_triangular_entries(3, vec![(0, 1, 10), (0, 1, 20)])
+            .unwrap_err();
+
+    assert!(matches!(error, MutabilityError::DuplicatedEntry((0, 1))));
+}
+
+#[test]
+fn test_from_sorted_upper_triangular_entries_rejects_lower_triangular_input() {
+    let error =
+        TestSymmetric::from_sorted_upper_triangular_entries(3, vec![(2, 1, 10)]).unwrap_err();
+
+    assert!(matches!(error, MutabilityError::OutOfBounds((2, 1), (3, 3), _)));
+}
+
+#[test]
+fn test_from_sorted_upper_triangular_entries_rejects_out_of_bounds_input() {
+    let error =
+        TestSymmetric::from_sorted_upper_triangular_entries(3, vec![(0, 3, 10)]).unwrap_err();
+
+    assert!(matches!(error, MutabilityError::OutOfBounds((0, 3), (3, 3), _)));
 }

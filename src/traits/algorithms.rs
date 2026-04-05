@@ -162,6 +162,7 @@ pub use vf2::{
     AcceptAllEdgeMatcher, AcceptAllFinalMatcher, AcceptAllNodeMatcher, PrepareVf2,
     PreparedVf2Builder, PreparedVf2Graph, Vf2, Vf2Builder, Vf2Match, Vf2Mode,
 };
+#[cfg(feature = "alloc")]
 pub mod clique_ranking;
 #[cfg(feature = "alloc")]
 pub mod mces;
