@@ -85,6 +85,29 @@ struct FloatingScoringFixture {
     expected_descending: &'static [usize],
 }
 
+struct ConfigurableFloatingScoringFixture {
+    name: &'static str,
+    graph: GraphFixture,
+    alpha: f64,
+    beta: f64,
+    max_iter: usize,
+    tolerance: f64,
+    normalized: bool,
+    expected_scores: &'static [f64],
+    expected_descending: &'static [usize],
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct WrongLengthScorer;
+
+impl NodeScorer<UndiGraph<usize>> for WrongLengthScorer {
+    type Score = usize;
+
+    fn score_nodes(&self, _graph: &UndiGraph<usize>) -> Vec<Self::Score> {
+        vec![1]
+    }
+}
+
 fn assert_is_permutation(order: &[usize], n: usize, context: &str) {
     assert_eq!(order.len(), n, "ordering `{context}` does not contain exactly one entry per node");
     let mut seen = vec![false; n];
@@ -134,6 +157,8 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
         );
     }
 }
+
+const KATZ_TOLERANCE: f64 = 1.0e-11;
 
 const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
@@ -238,6 +263,37 @@ const PAGERANK_FIXTURES: &[FloatingScoringFixture] = &[
             0.12035409457687965,
         ],
         expected_descending: &[2, 3, 0, 1, 4],
+    },
+];
+
+const KATZ_FIXTURES: &[ConfigurableFloatingScoringFixture] = &[
+    ConfigurableFloatingScoringFixture {
+        name: "path_4_norm",
+        graph: GraphFixture::Path(4),
+        alpha: 0.25,
+        beta: 1.0,
+        max_iter: 1000,
+        tolerance: 1.0e-12,
+        normalized: true,
+        expected_scores: &[0.441726104299, 0.552157630374, 0.552157630374, 0.441726104299],
+        expected_descending: &[1, 2, 0, 3],
+    },
+    ConfigurableFloatingScoringFixture {
+        name: "triangle_tail_raw",
+        graph: GraphFixture::TriangleWithTail,
+        alpha: 0.2,
+        beta: 1.5,
+        max_iter: 1000,
+        tolerance: 1.0e-12,
+        normalized: false,
+        expected_scores: &[
+            2.639563106796,
+            2.639563106796,
+            3.058252427184,
+            2.51213592233,
+            2.002427184466,
+        ],
+        expected_descending: &[2, 0, 1, 3, 4],
     },
 ];
 
@@ -365,13 +421,37 @@ fn test_ascending_degree_sorter_fixtures() {
 }
 
 #[test]
+#[should_panic(expected = "node scorer must return one score per node")]
+fn test_score_sorter_panics_on_wrong_length() {
+    let graph = GraphFixture::Path(4).build();
+    let _ = DescendingScoreSorter::new(WrongLengthScorer).sort_nodes(&graph);
+}
+
+#[test]
+#[should_panic(expected = "primary node scorer must return one score per node")]
+fn test_lexicographic_sorter_panics_on_wrong_primary_length() {
+    let graph = GraphFixture::Path(4).build();
+    let _ =
+        DescendingLexicographicScoreSorter::new(WrongLengthScorer, DegreeScorer).sort_nodes(&graph);
+}
+
+#[test]
+#[should_panic(expected = "secondary node scorer must return one score per node")]
+fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
+    let graph = GraphFixture::Path(4).build();
+    let _ =
+        DescendingLexicographicScoreSorter::new(DegreeScorer, WrongLengthScorer).sort_nodes(&graph);
+}
+
+#[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 4);
+    assert_eq!(fixture.schema_version, 5);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
     assert_eq!(fixture.pagerank_rounding_decimals, 12);
+    assert_eq!(fixture.katz_rounding_decimals, 12);
     assert_eq!(fixture.cases.len(), 10_000);
     assert!(fixture.cases.iter().all(|case| {
         case.networkx_smallest_last.len() == case.n
@@ -380,10 +460,16 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.degeneracy_degree_descending.len() == case.n
             && case.pagerank_scores.len() == case.n
             && case.pagerank_descending.len() == case.n
+            && case.katz_scores.len() == case.n
+            && case.katz_descending.len() == case.n
             && case.pagerank_alpha > 0.0
             && case.pagerank_alpha < 1.0
             && case.pagerank_max_iter > 0
             && case.pagerank_tol > 0.0
+            && case.katz_alpha > 0.0
+            && case.katz_beta > 0.0
+            && case.katz_max_iter > 0
+            && case.katz_tol > 0.0
     }));
     let pagerank_parameter_sets: std::collections::BTreeSet<(u64, usize, u64)> = fixture
         .cases
@@ -395,6 +481,23 @@ fn test_node_ordering_ground_truth_metadata() {
     assert!(
         pagerank_parameter_sets.len() >= 4,
         "pagerank oracle should contain multiple distinct parameter sets"
+    );
+    let katz_parameter_sets: std::collections::BTreeSet<(u64, u64, usize, u64, bool)> = fixture
+        .cases
+        .iter()
+        .map(|case| {
+            (
+                case.katz_alpha.to_bits(),
+                case.katz_beta.to_bits(),
+                case.katz_max_iter,
+                case.katz_tol.to_bits(),
+                case.katz_normalized,
+            )
+        })
+        .collect();
+    assert!(
+        katz_parameter_sets.len() >= 4,
+        "katz oracle should contain multiple distinct parameter sets"
     );
 }
 
@@ -508,8 +611,96 @@ fn test_descending_pagerank_sorter_ground_truth() {
 }
 
 #[test]
+fn test_katz_centrality_scorer_fixtures() {
+    for fixture in KATZ_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("katz fixture {}", fixture.name);
+        let scorer = KatzCentralityScorerBuilder::default()
+            .alpha(fixture.alpha)
+            .beta(fixture.beta)
+            .max_iter(fixture.max_iter)
+            .tolerance(fixture.tolerance)
+            .normalized(fixture.normalized)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            fixture.expected_scores,
+            KATZ_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_katz_centrality_sorter_fixtures() {
+    for fixture in KATZ_FIXTURES {
+        let graph = fixture.graph.build();
+        let scorer = KatzCentralityScorerBuilder::default()
+            .alpha(fixture.alpha)
+            .beta(fixture.beta)
+            .max_iter(fixture.max_iter)
+            .tolerance(fixture.tolerance)
+            .normalized(fixture.normalized)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending katz centrality ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_katz_centrality_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("katz ground truth {} ({})", case.name, case.family);
+        let scorer = KatzCentralityScorerBuilder::default()
+            .alpha(case.katz_alpha)
+            .beta(case.katz_beta)
+            .max_iter(case.katz_max_iter)
+            .tolerance(case.katz_tol)
+            .normalized(case.katz_normalized)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            &case.katz_scores,
+            KATZ_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_katz_centrality_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("katz order {} ({})", case.name, case.family);
+        let scorer = KatzCentralityScorerBuilder::default()
+            .alpha(case.katz_alpha)
+            .beta(case.katz_beta)
+            .max_iter(case.katz_max_iter)
+            .tolerance(case.katz_tol)
+            .normalized(case.katz_normalized)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.katz_descending,
+            "katz descending order ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
 fn test_pagerank_builder_defaults_match_default() {
-    let scorer = PageRankScorerBuilder::default().build();
+    let scorer = PageRankScorer::builder().build();
     assert_eq!(scorer, PageRankScorer::default());
 }
 
@@ -532,4 +723,50 @@ fn test_pagerank_builder_custom_parameters_fixture() {
         [2, 3, 0, 1, 4],
         "pagerank builder custom ordering fixture failed"
     );
+}
+
+#[test]
+fn test_katz_builder_defaults_match_default() {
+    let scorer = KatzCentralityScorer::builder().build();
+    assert_eq!(scorer, KatzCentralityScorer::default());
+}
+
+#[test]
+#[should_panic(expected = "PageRankScorer failed to converge")]
+fn test_pagerank_scorer_panics_on_non_convergence() {
+    let graph = GraphFixture::Path(4).build();
+    let _ = PageRankScorerBuilder::default().max_iter(0).build().score_nodes(&graph);
+}
+
+#[test]
+fn test_katz_builder_custom_parameters_fixture() {
+    let graph = GraphFixture::TriangleWithTail.build();
+    let scorer = KatzCentralityScorerBuilder::default()
+        .alpha(0.2)
+        .beta(1.5)
+        .max_iter(1000)
+        .tolerance(1.0e-12)
+        .normalized(false)
+        .build();
+
+    assert_scores_close(
+        &scorer.score_nodes(&graph),
+        &[2.639563106796, 2.639563106796, 3.058252427184, 2.51213592233, 2.002427184466],
+        KATZ_TOLERANCE,
+        "katz builder custom fixture",
+    );
+
+    let sorter = DescendingScoreSorter::new(scorer);
+    assert_eq!(
+        sorter.sort_nodes(&graph),
+        [2, 0, 1, 3, 4],
+        "katz builder custom ordering fixture failed"
+    );
+}
+
+#[test]
+#[should_panic(expected = "KatzCentralityScorer failed to converge")]
+fn test_katz_scorer_panics_on_non_convergence() {
+    let graph = GraphFixture::Path(4).build();
+    let _ = KatzCentralityScorerBuilder::default().max_iter(0).build().score_nodes(&graph);
 }

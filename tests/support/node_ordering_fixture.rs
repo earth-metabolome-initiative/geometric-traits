@@ -20,6 +20,7 @@ pub struct NodeOrderingGroundTruthFixture {
     pub reference_ordering: String,
     pub tie_break: String,
     pub pagerank_rounding_decimals: u32,
+    pub katz_rounding_decimals: u32,
     pub cases: Vec<NodeOrderingGroundTruthCase>,
 }
 
@@ -38,6 +39,13 @@ pub struct NodeOrderingGroundTruthCase {
     pub pagerank_tol: f64,
     pub pagerank_scores: Vec<f64>,
     pub pagerank_descending: Vec<usize>,
+    pub katz_alpha: f64,
+    pub katz_beta: f64,
+    pub katz_max_iter: usize,
+    pub katz_tol: f64,
+    pub katz_normalized: bool,
+    pub katz_scores: Vec<f64>,
+    pub katz_descending: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -53,6 +61,13 @@ pub struct PreparedNodeOrderingCase {
     pub pagerank_tol: f64,
     pub pagerank_scores: Vec<f64>,
     pub pagerank_descending: Vec<usize>,
+    pub katz_alpha: f64,
+    pub katz_beta: f64,
+    pub katz_max_iter: usize,
+    pub katz_tol: f64,
+    pub katz_normalized: bool,
+    pub katz_scores: Vec<f64>,
+    pub katz_descending: Vec<usize>,
 }
 
 pub fn fixture_path(relative_path: &str) -> std::path::PathBuf {
@@ -106,6 +121,13 @@ pub fn prepare_cases(relative_path: &str) -> Vec<PreparedNodeOrderingCase> {
                 pagerank_tol: case.pagerank_tol,
                 pagerank_scores: case.pagerank_scores,
                 pagerank_descending: case.pagerank_descending,
+                katz_alpha: case.katz_alpha,
+                katz_beta: case.katz_beta,
+                katz_max_iter: case.katz_max_iter,
+                katz_tol: case.katz_tol,
+                katz_normalized: case.katz_normalized,
+                katz_scores: case.katz_scores,
+                katz_descending: case.katz_descending,
             }
         })
         .collect()

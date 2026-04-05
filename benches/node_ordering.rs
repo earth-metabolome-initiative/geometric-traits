@@ -12,9 +12,11 @@ use geometric_traits::{
     traits::{SquareMatrix, VocabularyBuilder, algorithms::randomized_graphs::erdos_renyi_gnp},
 };
 use node_ordering_fixture::{PreparedNodeOrderingCase, prepare_cases};
+use num_traits::cast;
 
 const FIXTURE_NAME: &str = "node_ordering_ground_truth.json.gz";
 const PAGERANK_TOLERANCE: f64 = 1.0e-12;
+const KATZ_TOLERANCE: f64 = 1.0e-11;
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 
@@ -112,6 +114,21 @@ fn assert_cases_match_pagerank_scores(cases: &[PreparedNodeOrderingCase], group_
         let pagerank_scores = scorer.score_nodes(&case.graph);
         let context = format!("{group_name}::{} ({})", case.name, case.family);
         assert_scores_close(&pagerank_scores, &case.pagerank_scores, PAGERANK_TOLERANCE, &context);
+    }
+}
+
+fn assert_cases_match_katz_scores(cases: &[PreparedNodeOrderingCase], group_name: &str) {
+    for case in cases {
+        let scorer = KatzCentralityScorerBuilder::default()
+            .alpha(case.katz_alpha)
+            .beta(case.katz_beta)
+            .max_iter(case.katz_max_iter)
+            .tolerance(case.katz_tol)
+            .normalized(case.katz_normalized)
+            .build();
+        let katz_scores = scorer.score_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_scores_close(&katz_scores, &case.katz_scores, KATZ_TOLERANCE, &context);
     }
 }
 
@@ -300,6 +317,101 @@ fn bench_pagerank_scorer_cases(
     family_group.finish();
 }
 
+fn bench_katz_scorer_cases(
+    c: &mut Criterion,
+    group_name: &str,
+    cases: &[PreparedNodeOrderingCase],
+) {
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group(group_name);
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        KatzCentralityScorerBuilder::default()
+                            .alpha(case.katz_alpha)
+                            .beta(case.katz_beta)
+                            .max_iter(case.katz_max_iter)
+                            .tolerance(case.katz_tol)
+                            .normalized(case.katz_normalized)
+                            .build()
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, |accumulator, case_checksum| {
+                        accumulator.wrapping_add(case_checksum)
+                    });
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group(format!("{group_name}_by_family"));
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let checksum = family_cases
+                        .iter()
+                        .map(|case| {
+                            KatzCentralityScorerBuilder::default()
+                                .alpha(case.katz_alpha)
+                                .beta(case.katz_beta)
+                                .max_iter(case.katz_max_iter)
+                                .tolerance(case.katz_tol)
+                                .normalized(case.katz_normalized)
+                                .build()
+                                .score_nodes(&case.graph)
+                                .into_iter()
+                                .map(f64::to_bits)
+                                .fold(0u64, u64::wrapping_add)
+                        })
+                        .fold(0u64, |accumulator, case_checksum| {
+                            accumulator.wrapping_add(case_checksum)
+                        });
+                    black_box(checksum);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
 fn bench_pagerank_scorer_scaling(c: &mut Criterion, group_name: &str, cases: &[ScalingCase]) {
     let case_refs: Vec<&ScalingCase> = cases.iter().collect();
     let mut total_group = c.benchmark_group(group_name);
@@ -357,7 +469,64 @@ fn bench_pagerank_scorer_scaling(c: &mut Criterion, group_name: &str, cases: &[S
     size_group.finish();
 }
 
-fn pagerank_scaling_cases() -> Vec<ScalingCase> {
+fn bench_katz_scorer_scaling(c: &mut Criterion, group_name: &str, cases: &[ScalingCase]) {
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group(group_name);
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        katz_scaling_scorer(&case.graph)
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, |accumulator, case_checksum| {
+                        accumulator.wrapping_add(case_checksum)
+                    });
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group = c.benchmark_group(format!("{group_name}_by_case"));
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let checksum = katz_scaling_scorer(&case.graph)
+                    .score_nodes(&case.graph)
+                    .into_iter()
+                    .map(f64::to_bits)
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        });
+    }
+    size_group.finish();
+}
+
+fn centrality_scaling_cases() -> Vec<ScalingCase> {
     let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (512, 0.05)];
     let dense = [(64usize, 0.20f64), (128, 0.20), (256, 0.20), (512, 0.20)];
 
@@ -377,6 +546,19 @@ fn pagerank_scaling_cases() -> Vec<ScalingCase> {
             }
         }))
         .collect()
+}
+
+fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
+    let max_degree = (0..graph.number_of_nodes()).map(|node| graph.degree(node)).max().unwrap_or(0);
+    let safe_denominator = cast::<usize, f64>(if max_degree == 0 { 1 } else { max_degree + 1 })
+        .expect("graph sizes and degrees must fit into f64 for Katz centrality scaling benchmarks");
+    KatzCentralityScorerBuilder::default()
+        .alpha(0.8 / safe_denominator)
+        .beta(1.5)
+        .max_iter(1200)
+        .tolerance(1.0e-12)
+        .normalized(true)
+        .build()
 }
 
 fn bench_degeneracy(c: &mut Criterion) {
@@ -500,9 +682,123 @@ fn bench_pagerank_sorter(c: &mut Criterion) {
     family_group.finish();
 }
 
+fn bench_katz_scorer(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_katz_scores(&cases, "node_ordering_katz_scorer");
+    bench_katz_scorer_cases(c, "node_ordering_katz_scorer", &cases);
+}
+
+fn bench_katz_sorter(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    for case in &cases {
+        let sorter = DescendingScoreSorter::new(
+            KatzCentralityScorerBuilder::default()
+                .alpha(case.katz_alpha)
+                .beta(case.katz_beta)
+                .max_iter(case.katz_max_iter)
+                .tolerance(case.katz_tol)
+                .normalized(case.katz_normalized)
+                .build(),
+        );
+        let order = sorter.sort_nodes(&case.graph);
+        let context = format!("node_ordering_katz_sorter::{} ({})", case.name, case.family);
+        assert_eq!(order, case.katz_descending, "benchmark ordering `{context}` mismatched oracle");
+    }
+
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_katz_sorter");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let total = case_refs
+                    .iter()
+                    .map(|case| {
+                        DescendingScoreSorter::new(
+                            KatzCentralityScorerBuilder::default()
+                                .alpha(case.katz_alpha)
+                                .beta(case.katz_beta)
+                                .max_iter(case.katz_max_iter)
+                                .tolerance(case.katz_tol)
+                                .normalized(case.katz_normalized)
+                                .build(),
+                        )
+                        .sort_nodes(&case.graph)
+                        .len()
+                    })
+                    .sum::<usize>();
+                black_box(total);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group("node_ordering_katz_sorter_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let total = family_cases
+                        .iter()
+                        .map(|case| {
+                            DescendingScoreSorter::new(
+                                KatzCentralityScorerBuilder::default()
+                                    .alpha(case.katz_alpha)
+                                    .beta(case.katz_beta)
+                                    .max_iter(case.katz_max_iter)
+                                    .tolerance(case.katz_tol)
+                                    .normalized(case.katz_normalized)
+                                    .build(),
+                            )
+                            .sort_nodes(&case.graph)
+                            .len()
+                        })
+                        .sum::<usize>();
+                    black_box(total);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
 fn bench_pagerank_scaling(c: &mut Criterion) {
-    let cases = pagerank_scaling_cases();
+    let cases = centrality_scaling_cases();
     bench_pagerank_scorer_scaling(c, "node_ordering_pagerank_scaling", &cases);
+}
+
+fn bench_katz_scaling(c: &mut Criterion) {
+    let cases = centrality_scaling_cases();
+    bench_katz_scorer_scaling(c, "node_ordering_katz_scaling", &cases);
 }
 
 criterion_group!(
@@ -511,6 +807,9 @@ criterion_group!(
     bench_degeneracy_degree,
     bench_pagerank_scorer,
     bench_pagerank_sorter,
-    bench_pagerank_scaling
+    bench_pagerank_scaling,
+    bench_katz_scorer,
+    bench_katz_sorter,
+    bench_katz_scaling
 );
 criterion_main!(benches);
