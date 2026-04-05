@@ -180,5 +180,5 @@ pub use mces::{McesBuilder, McesResult, McesSearchMode};
 pub use node_ordering::{
     AscendingScoreSorter, CoreNumberScorer, DegeneracySorter, DegreeScorer,
     DescendingLexicographicScoreSorter, DescendingScoreSorter, NodeScorer, NodeSorter,
-    SecondOrderDegreeScorer,
+    PageRankScorer, PageRankScorerBuilder, SecondOrderDegreeScorer,
 };

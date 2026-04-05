@@ -70,10 +70,13 @@ building blocks from `geometric_traits::traits::algorithms`.
 | **CoreNumberScorer** | k-core / shell score | O(V+E) | Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
 | **DegreeScorer** | node score | O(V+E) | Basic graph primitive. |
 | **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
+| **PageRankScorer** | centrality score | O(iterations · (V+E)) | Brin, S., & Page, L. (1998). *The Anatomy of a Large-Scale Hypertextual Web Search Engine*. Default parameters match `NetworkX` on undirected graphs: `alpha=0.85`, `max_iter=100`, `tol=1e-6`. |
 | **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
 
 The crate's `2.2` degeneracy-with-degree ordering is exposed by composing
 `DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer)`.
+The crate's `3.1` PageRank ordering is exposed by composing
+`DescendingScoreSorter::new(PageRankScorer::default())`.
 
 ### Undirected Graph Generators
 

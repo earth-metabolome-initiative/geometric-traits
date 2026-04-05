@@ -19,6 +19,7 @@ pub struct NodeOrderingGroundTruthFixture {
     pub python_version: String,
     pub reference_ordering: String,
     pub tie_break: String,
+    pub pagerank_rounding_decimals: u32,
     pub cases: Vec<NodeOrderingGroundTruthCase>,
 }
 
@@ -32,6 +33,11 @@ pub struct NodeOrderingGroundTruthCase {
     pub canonical_smallest_last: Vec<usize>,
     pub core_numbers: Vec<usize>,
     pub degeneracy_degree_descending: Vec<usize>,
+    pub pagerank_alpha: f64,
+    pub pagerank_max_iter: usize,
+    pub pagerank_tol: f64,
+    pub pagerank_scores: Vec<f64>,
+    pub pagerank_descending: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -42,6 +48,11 @@ pub struct PreparedNodeOrderingCase {
     pub canonical_smallest_last: Vec<usize>,
     pub core_numbers: Vec<usize>,
     pub degeneracy_degree_descending: Vec<usize>,
+    pub pagerank_alpha: f64,
+    pub pagerank_max_iter: usize,
+    pub pagerank_tol: f64,
+    pub pagerank_scores: Vec<f64>,
+    pub pagerank_descending: Vec<usize>,
 }
 
 pub fn fixture_path(relative_path: &str) -> std::path::PathBuf {
@@ -90,6 +101,11 @@ pub fn prepare_cases(relative_path: &str) -> Vec<PreparedNodeOrderingCase> {
                 canonical_smallest_last: case.canonical_smallest_last,
                 core_numbers: case.core_numbers,
                 degeneracy_degree_descending: case.degeneracy_degree_descending,
+                pagerank_alpha: case.pagerank_alpha,
+                pagerank_max_iter: case.pagerank_max_iter,
+                pagerank_tol: case.pagerank_tol,
+                pagerank_scores: case.pagerank_scores,
+                pagerank_descending: case.pagerank_descending,
             }
         })
         .collect()
