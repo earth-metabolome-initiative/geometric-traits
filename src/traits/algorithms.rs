@@ -178,8 +178,8 @@ pub use clique_ranking::{
 pub use mces::{McesBuilder, McesResult, McesSearchMode};
 #[cfg(feature = "alloc")]
 pub use node_ordering::{
-    AscendingScoreSorter, CoreNumberScorer, DegeneracySorter, DegreeScorer,
-    DescendingLexicographicScoreSorter, DescendingScoreSorter, KatzCentralityScorer,
-    KatzCentralityScorerBuilder, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
-    SecondOrderDegreeScorer,
+    AscendingScoreSorter, BetweennessCentralityScorer, BetweennessCentralityScorerBuilder,
+    CoreNumberScorer, DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter,
+    DescendingScoreSorter, KatzCentralityScorer, KatzCentralityScorerBuilder, NodeScorer,
+    NodeSorter, PageRankScorer, PageRankScorerBuilder, SecondOrderDegreeScorer,
 };

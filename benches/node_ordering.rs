@@ -17,6 +17,7 @@ use num_traits::cast;
 const FIXTURE_NAME: &str = "node_ordering_ground_truth.json.gz";
 const PAGERANK_TOLERANCE: f64 = 1.0e-12;
 const KATZ_TOLERANCE: f64 = 1.0e-11;
+const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 
@@ -129,6 +130,23 @@ fn assert_cases_match_katz_scores(cases: &[PreparedNodeOrderingCase], group_name
         let katz_scores = scorer.score_nodes(&case.graph);
         let context = format!("{group_name}::{} ({})", case.name, case.family);
         assert_scores_close(&katz_scores, &case.katz_scores, KATZ_TOLERANCE, &context);
+    }
+}
+
+fn assert_cases_match_betweenness_scores(cases: &[PreparedNodeOrderingCase], group_name: &str) {
+    for case in cases {
+        let scorer = BetweennessCentralityScorerBuilder::default()
+            .normalized(case.betweenness_normalized)
+            .endpoints(case.betweenness_endpoints)
+            .build();
+        let betweenness_scores = scorer.score_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_scores_close(
+            &betweenness_scores,
+            &case.betweenness_scores,
+            BETWEENNESS_TOLERANCE,
+            &context,
+        );
     }
 }
 
@@ -412,6 +430,95 @@ fn bench_katz_scorer_cases(
     family_group.finish();
 }
 
+fn bench_betweenness_scorer_cases(
+    c: &mut Criterion,
+    group_name: &str,
+    cases: &[PreparedNodeOrderingCase],
+) {
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group(group_name);
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        BetweennessCentralityScorerBuilder::default()
+                            .normalized(case.betweenness_normalized)
+                            .endpoints(case.betweenness_endpoints)
+                            .build()
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, |accumulator, case_checksum| {
+                        accumulator.wrapping_add(case_checksum)
+                    });
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group(format!("{group_name}_by_family"));
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let checksum = family_cases
+                        .iter()
+                        .map(|case| {
+                            BetweennessCentralityScorerBuilder::default()
+                                .normalized(case.betweenness_normalized)
+                                .endpoints(case.betweenness_endpoints)
+                                .build()
+                                .score_nodes(&case.graph)
+                                .into_iter()
+                                .map(f64::to_bits)
+                                .fold(0u64, u64::wrapping_add)
+                        })
+                        .fold(0u64, |accumulator, case_checksum| {
+                            accumulator.wrapping_add(case_checksum)
+                        });
+                    black_box(checksum);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
 fn bench_pagerank_scorer_scaling(c: &mut Criterion, group_name: &str, cases: &[ScalingCase]) {
     let case_refs: Vec<&ScalingCase> = cases.iter().collect();
     let mut total_group = c.benchmark_group(group_name);
@@ -548,6 +655,28 @@ fn centrality_scaling_cases() -> Vec<ScalingCase> {
         .collect()
 }
 
+fn betweenness_scaling_cases() -> Vec<ScalingCase> {
+    let sparse = [(32usize, 0.05f64), (64, 0.05), (96, 0.05), (128, 0.05)];
+    let dense = [(32usize, 0.20f64), (64, 0.20), (96, 0.20), (128, 0.20)];
+
+    sparse
+        .into_iter()
+        .enumerate()
+        .map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("betweenness_sparse_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_001, n, p)),
+            }
+        })
+        .chain(dense.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("betweenness_dense_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_101, n, p)),
+            }
+        }))
+        .collect()
+}
+
 fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
     let max_degree = (0..graph.number_of_nodes()).map(|node| graph.degree(node)).max().unwrap_or(0);
     let safe_denominator = cast::<usize, f64>(if max_degree == 0 { 1 } else { max_degree + 1 })
@@ -559,6 +688,10 @@ fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
         .tolerance(1.0e-12)
         .normalized(true)
         .build()
+}
+
+fn betweenness_scaling_scorer() -> BetweennessCentralityScorer {
+    BetweennessCentralityScorer::default()
 }
 
 fn bench_degeneracy(c: &mut Criterion) {
@@ -791,6 +924,109 @@ fn bench_katz_sorter(c: &mut Criterion) {
     family_group.finish();
 }
 
+fn bench_betweenness_scorer(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_betweenness_scores(&cases, "node_ordering_betweenness_scorer");
+    bench_betweenness_scorer_cases(c, "node_ordering_betweenness_scorer", &cases);
+}
+
+fn bench_betweenness_sorter(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    for case in &cases {
+        let sorter = DescendingScoreSorter::new(
+            BetweennessCentralityScorerBuilder::default()
+                .normalized(case.betweenness_normalized)
+                .endpoints(case.betweenness_endpoints)
+                .build(),
+        );
+        let order = sorter.sort_nodes(&case.graph);
+        let context = format!("node_ordering_betweenness_sorter::{} ({})", case.name, case.family);
+        assert_eq!(
+            order, case.betweenness_descending,
+            "benchmark ordering `{context}` mismatched oracle"
+        );
+    }
+
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_betweenness_sorter");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let total = case_refs
+                    .iter()
+                    .map(|case| {
+                        DescendingScoreSorter::new(
+                            BetweennessCentralityScorerBuilder::default()
+                                .normalized(case.betweenness_normalized)
+                                .endpoints(case.betweenness_endpoints)
+                                .build(),
+                        )
+                        .sort_nodes(&case.graph)
+                        .len()
+                    })
+                    .sum::<usize>();
+                black_box(total);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group("node_ordering_betweenness_sorter_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let total = family_cases
+                        .iter()
+                        .map(|case| {
+                            DescendingScoreSorter::new(
+                                BetweennessCentralityScorerBuilder::default()
+                                    .normalized(case.betweenness_normalized)
+                                    .endpoints(case.betweenness_endpoints)
+                                    .build(),
+                            )
+                            .sort_nodes(&case.graph)
+                            .len()
+                        })
+                        .sum::<usize>();
+                    black_box(total);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
 fn bench_pagerank_scaling(c: &mut Criterion) {
     let cases = centrality_scaling_cases();
     bench_pagerank_scorer_scaling(c, "node_ordering_pagerank_scaling", &cases);
@@ -799,6 +1035,64 @@ fn bench_pagerank_scaling(c: &mut Criterion) {
 fn bench_katz_scaling(c: &mut Criterion) {
     let cases = centrality_scaling_cases();
     bench_katz_scorer_scaling(c, "node_ordering_katz_scaling", &cases);
+}
+
+fn bench_betweenness_scaling(c: &mut Criterion) {
+    let cases = betweenness_scaling_cases();
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_betweenness_scaling");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        betweenness_scaling_scorer()
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, |accumulator, case_checksum| {
+                        accumulator.wrapping_add(case_checksum)
+                    });
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group = c.benchmark_group("node_ordering_betweenness_scaling_by_case");
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let checksum = betweenness_scaling_scorer()
+                    .score_nodes(&case.graph)
+                    .into_iter()
+                    .map(f64::to_bits)
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        });
+    }
+    size_group.finish();
 }
 
 criterion_group!(
@@ -810,6 +1104,9 @@ criterion_group!(
     bench_pagerank_scaling,
     bench_katz_scorer,
     bench_katz_sorter,
-    bench_katz_scaling
+    bench_katz_scaling,
+    bench_betweenness_scorer,
+    bench_betweenness_sorter,
+    bench_betweenness_scaling
 );
 criterion_main!(benches);

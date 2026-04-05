@@ -72,6 +72,7 @@ building blocks from `geometric_traits::traits::algorithms`.
 | **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
 | **PageRankScorer** | centrality score | O(iterations · (V+E)) | Brin, S., & Page, L. (1998). *The Anatomy of a Large-Scale Hypertextual Web Search Engine*. Default parameters match `NetworkX` on undirected graphs: `alpha=0.85`, `max_iter=100`, `tol=1e-6`. |
 | **KatzCentralityScorer** | centrality score | O(iterations · (V+E)) | Katz, L. (1953). *A New Status Index Derived from Sociometric Analysis*. Scalar-`beta`, unweighted parameters match `NetworkX` defaults: `alpha=0.1`, `beta=1.0`, `max_iter=1000`, `tol=1e-6`, `normalized=true`. Choose `alpha < 1 / lambda_max` for convergence. |
+| **BetweennessCentralityScorer** | centrality score | O(V · (V+E)) | Brandes, U. (2001). [A Faster Algorithm for Betweenness Centrality](https://doi.org/10.1080/0022250X.2001.9990249). Exact unweighted undirected scorer matching the `NetworkX` `normalized` and `endpoints` parameter behavior. |
 | **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
 
 The crate's `2.2` degeneracy-with-degree ordering is exposed by composing
@@ -80,6 +81,8 @@ The crate's `3.1` PageRank ordering is exposed by composing
 `DescendingScoreSorter::new(PageRankScorer::default())`.
 The Katz-centrality ordering is exposed by composing
 `DescendingScoreSorter::new(KatzCentralityScorer::builder().alpha(...).beta(...).build())`.
+The betweenness-centrality ordering is exposed by composing
+`DescendingScoreSorter::new(BetweennessCentralityScorer::default())`.
 
 ### Undirected Graph Generators
 

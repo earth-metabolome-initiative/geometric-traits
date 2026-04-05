@@ -97,6 +97,15 @@ struct ConfigurableFloatingScoringFixture {
     expected_descending: &'static [usize],
 }
 
+struct BetweennessScoringFixture {
+    name: &'static str,
+    graph: GraphFixture,
+    normalized: bool,
+    endpoints: bool,
+    expected_scores: &'static [f64],
+    expected_descending: &'static [usize],
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct WrongLengthScorer;
 
@@ -159,6 +168,7 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
 }
 
 const KATZ_TOLERANCE: f64 = 1.0e-11;
+const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 
 const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
@@ -294,6 +304,41 @@ const KATZ_FIXTURES: &[ConfigurableFloatingScoringFixture] = &[
             2.002427184466,
         ],
         expected_descending: &[2, 0, 1, 3, 4],
+    },
+];
+
+const BETWEENNESS_FIXTURES: &[BetweennessScoringFixture] = &[
+    BetweennessScoringFixture {
+        name: "path_4_default",
+        graph: GraphFixture::Path(4),
+        normalized: true,
+        endpoints: false,
+        expected_scores: &[0.0, 0.666666666667, 0.666666666667, 0.0],
+        expected_descending: &[1, 2, 0, 3],
+    },
+    BetweennessScoringFixture {
+        name: "complete_4_default",
+        graph: GraphFixture::Complete(4),
+        normalized: true,
+        endpoints: false,
+        expected_scores: &[0.0, 0.0, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    BetweennessScoringFixture {
+        name: "star_5_default",
+        graph: GraphFixture::Star(5),
+        normalized: true,
+        endpoints: false,
+        expected_scores: &[1.0, 0.0, 0.0, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3, 4],
+    },
+    BetweennessScoringFixture {
+        name: "triangle_with_tail_default",
+        graph: GraphFixture::TriangleWithTail,
+        normalized: true,
+        endpoints: false,
+        expected_scores: &[0.0, 0.0, 0.666666666667, 0.5, 0.0],
+        expected_descending: &[2, 3, 0, 1, 4],
     },
 ];
 
@@ -446,12 +491,13 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 5);
+    assert_eq!(fixture.schema_version, 6);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
     assert_eq!(fixture.pagerank_rounding_decimals, 12);
     assert_eq!(fixture.katz_rounding_decimals, 12);
+    assert_eq!(fixture.betweenness_rounding_decimals, 12);
     assert_eq!(fixture.cases.len(), 10_000);
     assert!(fixture.cases.iter().all(|case| {
         case.networkx_smallest_last.len() == case.n
@@ -462,6 +508,8 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.pagerank_descending.len() == case.n
             && case.katz_scores.len() == case.n
             && case.katz_descending.len() == case.n
+            && case.betweenness_scores.len() == case.n
+            && case.betweenness_descending.len() == case.n
             && case.pagerank_alpha > 0.0
             && case.pagerank_alpha < 1.0
             && case.pagerank_max_iter > 0
@@ -498,6 +546,16 @@ fn test_node_ordering_ground_truth_metadata() {
     assert!(
         katz_parameter_sets.len() >= 4,
         "katz oracle should contain multiple distinct parameter sets"
+    );
+    let betweenness_parameter_sets: std::collections::BTreeSet<(bool, bool)> = fixture
+        .cases
+        .iter()
+        .map(|case| (case.betweenness_normalized, case.betweenness_endpoints))
+        .collect();
+    assert_eq!(
+        betweenness_parameter_sets.len(),
+        4,
+        "betweenness oracle should contain all four normalized/endpoints parameter combinations"
     );
 }
 
@@ -699,6 +757,82 @@ fn test_descending_katz_centrality_sorter_ground_truth() {
 }
 
 #[test]
+fn test_betweenness_centrality_scorer_fixtures() {
+    for fixture in BETWEENNESS_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("betweenness fixture {}", fixture.name);
+        let scorer = BetweennessCentralityScorerBuilder::default()
+            .normalized(fixture.normalized)
+            .endpoints(fixture.endpoints)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            fixture.expected_scores,
+            BETWEENNESS_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_betweenness_centrality_sorter_fixtures() {
+    for fixture in BETWEENNESS_FIXTURES {
+        let graph = fixture.graph.build();
+        let scorer = BetweennessCentralityScorerBuilder::default()
+            .normalized(fixture.normalized)
+            .endpoints(fixture.endpoints)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending betweenness centrality ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_betweenness_centrality_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("betweenness ground truth {} ({})", case.name, case.family);
+        let scorer = BetweennessCentralityScorerBuilder::default()
+            .normalized(case.betweenness_normalized)
+            .endpoints(case.betweenness_endpoints)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            &case.betweenness_scores,
+            BETWEENNESS_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_betweenness_centrality_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("betweenness order {} ({})", case.name, case.family);
+        let scorer = BetweennessCentralityScorerBuilder::default()
+            .normalized(case.betweenness_normalized)
+            .endpoints(case.betweenness_endpoints)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.betweenness_descending,
+            "betweenness descending order ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
 fn test_pagerank_builder_defaults_match_default() {
     let scorer = PageRankScorer::builder().build();
     assert_eq!(scorer, PageRankScorer::default());
@@ -732,6 +866,12 @@ fn test_katz_builder_defaults_match_default() {
 }
 
 #[test]
+fn test_betweenness_builder_defaults_match_default() {
+    let scorer = BetweennessCentralityScorer::builder().build();
+    assert_eq!(scorer, BetweennessCentralityScorer::default());
+}
+
+#[test]
 #[should_panic(expected = "PageRankScorer failed to converge")]
 fn test_pagerank_scorer_panics_on_non_convergence() {
     let graph = GraphFixture::Path(4).build();
@@ -761,6 +901,27 @@ fn test_katz_builder_custom_parameters_fixture() {
         sorter.sort_nodes(&graph),
         [2, 0, 1, 3, 4],
         "katz builder custom ordering fixture failed"
+    );
+}
+
+#[test]
+fn test_betweenness_builder_custom_parameters_fixture() {
+    let graph = GraphFixture::TriangleWithTail.build();
+    let scorer =
+        BetweennessCentralityScorerBuilder::default().normalized(false).endpoints(true).build();
+
+    assert_scores_close(
+        &scorer.score_nodes(&graph),
+        &[4.0, 4.0, 8.0, 7.0, 4.0],
+        BETWEENNESS_TOLERANCE,
+        "betweenness builder custom fixture",
+    );
+
+    let sorter = DescendingScoreSorter::new(scorer);
+    assert_eq!(
+        sorter.sort_nodes(&graph),
+        [2, 3, 0, 1, 4],
+        "betweenness builder custom ordering fixture failed"
     );
 }
 

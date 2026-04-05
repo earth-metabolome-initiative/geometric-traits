@@ -21,6 +21,7 @@ pub struct NodeOrderingGroundTruthFixture {
     pub tie_break: String,
     pub pagerank_rounding_decimals: u32,
     pub katz_rounding_decimals: u32,
+    pub betweenness_rounding_decimals: u32,
     pub cases: Vec<NodeOrderingGroundTruthCase>,
 }
 
@@ -46,6 +47,10 @@ pub struct NodeOrderingGroundTruthCase {
     pub katz_normalized: bool,
     pub katz_scores: Vec<f64>,
     pub katz_descending: Vec<usize>,
+    pub betweenness_normalized: bool,
+    pub betweenness_endpoints: bool,
+    pub betweenness_scores: Vec<f64>,
+    pub betweenness_descending: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -68,6 +73,10 @@ pub struct PreparedNodeOrderingCase {
     pub katz_normalized: bool,
     pub katz_scores: Vec<f64>,
     pub katz_descending: Vec<usize>,
+    pub betweenness_normalized: bool,
+    pub betweenness_endpoints: bool,
+    pub betweenness_scores: Vec<f64>,
+    pub betweenness_descending: Vec<usize>,
 }
 
 pub fn fixture_path(relative_path: &str) -> std::path::PathBuf {
@@ -128,6 +137,10 @@ pub fn prepare_cases(relative_path: &str) -> Vec<PreparedNodeOrderingCase> {
                 katz_normalized: case.katz_normalized,
                 katz_scores: case.katz_scores,
                 katz_descending: case.katz_descending,
+                betweenness_normalized: case.betweenness_normalized,
+                betweenness_endpoints: case.betweenness_endpoints,
+                betweenness_scores: case.betweenness_scores,
+                betweenness_descending: case.betweenness_descending,
             }
         })
         .collect()
