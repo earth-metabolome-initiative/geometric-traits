@@ -879,6 +879,28 @@ fn closeness_scaling_cases() -> Vec<ScalingCase> {
         .collect()
 }
 
+fn dsatur_scaling_cases() -> Vec<ScalingCase> {
+    let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (512, 0.05)];
+    let dense = [(64usize, 0.20f64), (128, 0.20), (256, 0.20), (512, 0.20)];
+
+    sparse
+        .into_iter()
+        .enumerate()
+        .map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("dsatur_sparse_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_601, n, p)),
+            }
+        })
+        .chain(dense.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("dsatur_dense_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_701, n, p)),
+            }
+        }))
+        .collect()
+}
+
 fn triangle_scaling_cases() -> Vec<ScalingCase> {
     let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (512, 0.05)];
     let dense = [(64usize, 0.20f64), (96, 0.20), (128, 0.20), (160, 0.20)];
@@ -1126,6 +1148,14 @@ fn bench_welsh_powell(c: &mut Criterion) {
         &case.welsh_powell_descending
     });
     bench_sorter(c, "node_ordering_welsh_powell", &cases, sorter);
+}
+
+fn bench_dsatur(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_exact_order(&cases, "node_ordering_dsatur", DsaturSorter, |case| {
+        &case.dsatur_order
+    });
+    bench_sorter(c, "node_ordering_dsatur", &cases, DsaturSorter);
 }
 
 fn bench_pagerank_scorer(c: &mut Criterion) {
@@ -1796,12 +1826,19 @@ fn bench_welsh_powell_scaling(c: &mut Criterion) {
     );
 }
 
+fn bench_dsatur_scaling(c: &mut Criterion) {
+    let cases = dsatur_scaling_cases();
+    bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, DsaturSorter);
+}
+
 criterion_group!(
     benches,
     bench_degeneracy,
     bench_degeneracy_degree,
     bench_welsh_powell,
     bench_welsh_powell_scaling,
+    bench_dsatur,
+    bench_dsatur_scaling,
     bench_triangle_scorer,
     bench_triangle_sorter,
     bench_triangle_scaling,

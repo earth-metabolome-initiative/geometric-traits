@@ -181,7 +181,7 @@ pub use node_ordering::{
     AscendingScoreSorter, BetweennessCentralityScorer, BetweennessCentralityScorerBuilder,
     ClosenessCentralityScorer, ClosenessCentralityScorerBuilder, CoreNumberScorer,
     DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter, DescendingScoreSorter,
-    KatzCentralityScorer, KatzCentralityScorerBuilder, LocalClusteringCoefficientScorer,
-    NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder, SecondOrderDegreeScorer,
-    TriangleCountScorer,
+    DsaturSorter, KatzCentralityScorer, KatzCentralityScorerBuilder,
+    LocalClusteringCoefficientScorer, NodeScorer, NodeSorter, PageRankScorer,
+    PageRankScorerBuilder, SecondOrderDegreeScorer, TriangleCountScorer,
 };

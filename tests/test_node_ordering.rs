@@ -79,6 +79,12 @@ struct OrderingFixture {
     graph: GraphFixture,
 }
 
+struct ExactOrderingFixture {
+    name: &'static str,
+    graph: GraphFixture,
+    expected_order: &'static [usize],
+}
+
 struct ScoringFixture {
     name: &'static str,
     graph: GraphFixture,
@@ -207,6 +213,29 @@ const WELSH_POWELL_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
     OrderingFixture { name: "star_5", graph: GraphFixture::Star(5) },
     OrderingFixture { name: "triangle_with_tail", graph: GraphFixture::TriangleWithTail },
+];
+
+const DSATUR_FIXTURES: &[ExactOrderingFixture] = &[
+    ExactOrderingFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_order: &[1, 2, 0, 3],
+    },
+    ExactOrderingFixture {
+        name: "star_5",
+        graph: GraphFixture::Star(5),
+        expected_order: &[0, 1, 2, 3, 4],
+    },
+    ExactOrderingFixture {
+        name: "triangle_with_tail",
+        graph: GraphFixture::TriangleWithTail,
+        expected_order: &[2, 0, 1, 3, 4],
+    },
+    ExactOrderingFixture {
+        name: "path_with_isolated_node",
+        graph: GraphFixture::PathWithIsolatedNode,
+        expected_order: &[1, 0, 2, 3],
+    },
 ];
 
 const SECOND_ORDER_DEGREE_FIXTURES: &[ScoringFixture] = &[
@@ -483,6 +512,19 @@ fn test_welsh_powell_sorter_fixtures() {
 }
 
 #[test]
+fn test_dsatur_sorter_fixtures() {
+    for fixture in DSATUR_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            DsaturSorter.sort_nodes(&graph),
+            fixture.expected_order,
+            "dsatur ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
 fn test_second_order_degree_scorer_fixtures() {
     for fixture in SECOND_ORDER_DEGREE_FIXTURES {
         let graph = fixture.graph.build();
@@ -665,7 +707,7 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 8);
+    assert_eq!(fixture.schema_version, 9);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
@@ -681,6 +723,7 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.core_numbers.len() == case.n
             && case.degeneracy_degree_descending.len() == case.n
             && case.welsh_powell_descending.len() == case.n
+            && case.dsatur_order.len() == case.n
             && case.pagerank_scores.len() == case.n
             && case.pagerank_descending.len() == case.n
             && case.katz_scores.len() == case.n
@@ -835,6 +878,21 @@ fn test_welsh_powell_sorter_ground_truth() {
             sorter.sort_nodes(&graph),
             case.welsh_powell_descending,
             "welsh-powell ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_dsatur_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("dsatur order {} ({})", case.name, case.family);
+        assert_eq!(
+            DsaturSorter.sort_nodes(&graph),
+            case.dsatur_order,
+            "dsatur ground truth failed for {context}"
         );
     }
 }

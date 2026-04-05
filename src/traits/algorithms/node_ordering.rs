@@ -5,14 +5,16 @@
 //! - reusable per-node metrics, represented by [`NodeScorer`]
 //!
 //! Not every ordering is naturally "sort by one local score". For example,
-//! degeneracy is a procedural ordering and is therefore modeled directly as a
-//! sorter. Metrics such as second-order degree are modeled as scorers and can
-//! be paired with generic ascending or descending score sorters.
+//! degeneracy and DSATUR are procedural orderings and are therefore modeled
+//! directly as sorters. Metrics such as second-order degree are modeled as
+//! scorers and can be paired with generic ascending or descending score
+//! sorters.
 
 mod betweenness_centrality;
 mod closeness_centrality;
 mod degeneracy;
 mod degree;
+mod dsatur;
 mod katz_centrality;
 mod local_clustering;
 mod pagerank;
@@ -24,6 +26,7 @@ pub use betweenness_centrality::{BetweennessCentralityScorer, BetweennessCentral
 pub use closeness_centrality::{ClosenessCentralityScorer, ClosenessCentralityScorerBuilder};
 pub use degeneracy::{CoreNumberScorer, DegeneracySorter};
 pub use degree::{DegreeScorer, SecondOrderDegreeScorer};
+pub use dsatur::DsaturSorter;
 pub use katz_centrality::{KatzCentralityScorer, KatzCentralityScorerBuilder};
 pub use local_clustering::LocalClusteringCoefficientScorer;
 use num_traits::{AsPrimitive, cast};
