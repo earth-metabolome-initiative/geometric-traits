@@ -167,6 +167,8 @@ pub mod clique_ranking;
 #[cfg(feature = "alloc")]
 pub mod mces;
 #[cfg(feature = "alloc")]
+pub mod node_ordering;
+#[cfg(feature = "alloc")]
 pub use clique_ranking::{
     ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo, FnRanker,
     FragmentCountRanker, LargestFragmentMetric, LargestFragmentMetricRanker, LargestFragmentRanker,
@@ -174,3 +176,9 @@ pub use clique_ranking::{
 };
 #[cfg(feature = "alloc")]
 pub use mces::{McesBuilder, McesResult, McesSearchMode};
+#[cfg(feature = "alloc")]
+pub use node_ordering::{
+    AscendingScoreSorter, CoreNumberScorer, DegeneracySorter, DegreeScorer,
+    DescendingLexicographicScoreSorter, DescendingScoreSorter, NodeScorer, NodeSorter,
+    SecondOrderDegreeScorer,
+};

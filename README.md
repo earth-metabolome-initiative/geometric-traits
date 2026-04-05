@@ -59,6 +59,22 @@ All listed algorithms require the `alloc` feature.
 | **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401–419. |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
+### Node Ordering Primitives
+
+The crate also exports reusable graph-level node ordering and node scoring
+building blocks from `geometric_traits::traits::algorithms`.
+
+| Primitive | Kind | Complexity | Reference |
+|-----------|------|------------|-----------|
+| **DegeneracySorter** | smallest-last node ordering | O(V+E) | Matula, D. W., & Beck, L. L. (1983). [Smallest-last ordering and clustering and graph coloring algorithms](https://doi.org/10.1145/2402.322385). *Journal of the ACM*, 30(3), 417-427. See also Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
+| **CoreNumberScorer** | k-core / shell score | O(V+E) | Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
+| **DegreeScorer** | node score | O(V+E) | Basic graph primitive. |
+| **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
+| **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
+
+The crate's `2.2` degeneracy-with-degree ordering is exposed by composing
+`DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer)`.
+
 ### Undirected Graph Generators
 
 Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.

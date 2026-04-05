@@ -112,3 +112,7 @@ harness = false
 [[bench]]
 name = "valued_symmetric_builder"
 harness = false
+
+[[bench]]
+name = "node_ordering"
+harness = false
