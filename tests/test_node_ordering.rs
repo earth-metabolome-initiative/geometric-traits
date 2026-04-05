@@ -30,6 +30,7 @@ enum GraphFixture {
     Complete(usize),
     Star(usize),
     TriangleWithTail,
+    PathWithIsolatedNode,
 }
 
 impl GraphFixture {
@@ -50,6 +51,21 @@ impl GraphFixture {
                         .expected_number_of_edges(5)
                         .expected_shape(5)
                         .edges([(0, 1), (0, 2), (1, 2), (2, 3), (3, 4)].into_iter())
+                        .build()
+                        .unwrap();
+                UndiGraph::from((nodes, matrix))
+            }
+            Self::PathWithIsolatedNode => {
+                let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+                    .expected_number_of_symbols(4)
+                    .symbols((0..4).enumerate())
+                    .build()
+                    .unwrap();
+                let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+                    UndiEdgesBuilder::default()
+                        .expected_number_of_edges(2)
+                        .expected_shape(4)
+                        .edges([(0, 1), (1, 2)].into_iter())
                         .build()
                         .unwrap();
                 UndiGraph::from((nodes, matrix))
@@ -102,6 +118,14 @@ struct BetweennessScoringFixture {
     graph: GraphFixture,
     normalized: bool,
     endpoints: bool,
+    expected_scores: &'static [f64],
+    expected_descending: &'static [usize],
+}
+
+struct ClosenessScoringFixture {
+    name: &'static str,
+    graph: GraphFixture,
+    wf_improved: bool,
     expected_scores: &'static [f64],
     expected_descending: &'static [usize],
 }
@@ -169,6 +193,7 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
 
 const KATZ_TOLERANCE: f64 = 1.0e-11;
 const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
+const CLOSENESS_TOLERANCE: f64 = 1.0e-12;
 
 const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
@@ -342,6 +367,44 @@ const BETWEENNESS_FIXTURES: &[BetweennessScoringFixture] = &[
     },
 ];
 
+const CLOSENESS_FIXTURES: &[ClosenessScoringFixture] = &[
+    ClosenessScoringFixture {
+        name: "path_4_default",
+        graph: GraphFixture::Path(4),
+        wf_improved: true,
+        expected_scores: &[0.5, 0.75, 0.75, 0.5],
+        expected_descending: &[1, 2, 0, 3],
+    },
+    ClosenessScoringFixture {
+        name: "complete_4_default",
+        graph: GraphFixture::Complete(4),
+        wf_improved: true,
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    ClosenessScoringFixture {
+        name: "star_5_default",
+        graph: GraphFixture::Star(5),
+        wf_improved: true,
+        expected_scores: &[1.0, 0.571428571429, 0.571428571429, 0.571428571429, 0.571428571429],
+        expected_descending: &[0, 1, 2, 3, 4],
+    },
+    ClosenessScoringFixture {
+        name: "triangle_with_tail_default",
+        graph: GraphFixture::TriangleWithTail,
+        wf_improved: true,
+        expected_scores: &[0.571428571429, 0.571428571429, 0.8, 0.666666666667, 0.444444444444],
+        expected_descending: &[2, 3, 0, 1, 4],
+    },
+    ClosenessScoringFixture {
+        name: "path_with_isolated_node_default",
+        graph: GraphFixture::PathWithIsolatedNode,
+        wf_improved: true,
+        expected_scores: &[0.444444444444, 0.666666666667, 0.444444444444, 0.0],
+        expected_descending: &[1, 0, 2, 3],
+    },
+];
+
 #[test]
 fn test_degeneracy_sorter_fixtures() {
     for fixture in DEGENERACY_FIXTURES {
@@ -491,13 +554,14 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 6);
+    assert_eq!(fixture.schema_version, 7);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
     assert_eq!(fixture.pagerank_rounding_decimals, 12);
     assert_eq!(fixture.katz_rounding_decimals, 12);
     assert_eq!(fixture.betweenness_rounding_decimals, 12);
+    assert_eq!(fixture.closeness_rounding_decimals, 12);
     assert_eq!(fixture.cases.len(), 10_000);
     assert!(fixture.cases.iter().all(|case| {
         case.networkx_smallest_last.len() == case.n
@@ -510,6 +574,8 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.katz_descending.len() == case.n
             && case.betweenness_scores.len() == case.n
             && case.betweenness_descending.len() == case.n
+            && case.closeness_scores.len() == case.n
+            && case.closeness_descending.len() == case.n
             && case.pagerank_alpha > 0.0
             && case.pagerank_alpha < 1.0
             && case.pagerank_max_iter > 0
@@ -556,6 +622,13 @@ fn test_node_ordering_ground_truth_metadata() {
         betweenness_parameter_sets.len(),
         4,
         "betweenness oracle should contain all four normalized/endpoints parameter combinations"
+    );
+    let closeness_parameter_sets: std::collections::BTreeSet<bool> =
+        fixture.cases.iter().map(|case| case.closeness_wf_improved).collect();
+    assert_eq!(
+        closeness_parameter_sets.len(),
+        2,
+        "closeness oracle should contain both wf_improved parameter values"
     );
 }
 
@@ -833,6 +906,76 @@ fn test_descending_betweenness_centrality_sorter_ground_truth() {
 }
 
 #[test]
+fn test_closeness_centrality_scorer_fixtures() {
+    for fixture in CLOSENESS_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("closeness fixture {}", fixture.name);
+        let scorer =
+            ClosenessCentralityScorerBuilder::default().wf_improved(fixture.wf_improved).build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            fixture.expected_scores,
+            CLOSENESS_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_closeness_centrality_sorter_fixtures() {
+    for fixture in CLOSENESS_FIXTURES {
+        let graph = fixture.graph.build();
+        let scorer =
+            ClosenessCentralityScorerBuilder::default().wf_improved(fixture.wf_improved).build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending closeness centrality ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_closeness_centrality_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("closeness ground truth {} ({})", case.name, case.family);
+        let scorer = ClosenessCentralityScorerBuilder::default()
+            .wf_improved(case.closeness_wf_improved)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            &case.closeness_scores,
+            CLOSENESS_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_closeness_centrality_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("closeness order {} ({})", case.name, case.family);
+        let scorer = ClosenessCentralityScorerBuilder::default()
+            .wf_improved(case.closeness_wf_improved)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.closeness_descending,
+            "closeness descending order ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
 fn test_pagerank_builder_defaults_match_default() {
     let scorer = PageRankScorer::builder().build();
     assert_eq!(scorer, PageRankScorer::default());
@@ -869,6 +1012,12 @@ fn test_katz_builder_defaults_match_default() {
 fn test_betweenness_builder_defaults_match_default() {
     let scorer = BetweennessCentralityScorer::builder().build();
     assert_eq!(scorer, BetweennessCentralityScorer::default());
+}
+
+#[test]
+fn test_closeness_builder_defaults_match_default() {
+    let scorer = ClosenessCentralityScorer::builder().build();
+    assert_eq!(scorer, ClosenessCentralityScorer::default());
 }
 
 #[test]
@@ -922,6 +1071,26 @@ fn test_betweenness_builder_custom_parameters_fixture() {
         sorter.sort_nodes(&graph),
         [2, 3, 0, 1, 4],
         "betweenness builder custom ordering fixture failed"
+    );
+}
+
+#[test]
+fn test_closeness_builder_custom_parameters_fixture() {
+    let graph = GraphFixture::PathWithIsolatedNode.build();
+    let scorer = ClosenessCentralityScorerBuilder::default().wf_improved(false).build();
+
+    assert_scores_close(
+        &scorer.score_nodes(&graph),
+        &[0.666666666667, 1.0, 0.666666666667, 0.0],
+        CLOSENESS_TOLERANCE,
+        "closeness builder custom fixture",
+    );
+
+    let sorter = DescendingScoreSorter::new(scorer);
+    assert_eq!(
+        sorter.sort_nodes(&graph),
+        [1, 0, 2, 3],
+        "closeness builder custom ordering fixture failed"
     );
 }
 
