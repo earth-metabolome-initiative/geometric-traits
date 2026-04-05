@@ -78,29 +78,6 @@ building blocks from `geometric_traits::traits::algorithms`.
 | **ClosenessCentralityScorer** | centrality score | O(V · (V+E)) | Freeman, L. C. (1979). [Centrality in networks: I. Conceptual clarification](https://doi.org/10.1016/0378-8733(78)90021-7). Exact unweighted undirected scorer matching the `NetworkX` `wf_improved` parameter behavior. |
 | **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
 
-The crate's `2.2` degeneracy-with-degree ordering is exposed by composing
-`DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer)`.
-The Welsh-Powell ordering is exposed by
-`DescendingScoreSorter::new(DegreeScorer)`.
-The smallest-last coloring order is exposed by `DegeneracySorter`.
-The DSATUR coloring order is exposed by `DsaturSorter`.
-The BFS-from-max-degree ordering is exposed by
-`BfsTraversalSorter::new(TraversalSeedStrategy::MaxOutDegree, TraversalNeighborOrder::NodeIdAscending)`.
-The DFS-from-max-degree ordering is exposed by
-`DfsTraversalSorter::new(TraversalSeedStrategy::MaxOutDegree, TraversalNeighborOrder::NodeIdAscending)`.
-The crate's `3.1` PageRank ordering is exposed by composing
-`DescendingScoreSorter::new(PageRankScorer::default())`.
-The triangle-count ordering is exposed by composing
-`DescendingScoreSorter::new(TriangleCountScorer)`.
-The local-clustering ordering is exposed by composing
-`DescendingScoreSorter::new(LocalClusteringCoefficientScorer)`.
-The Katz-centrality ordering is exposed by composing
-`DescendingScoreSorter::new(KatzCentralityScorer::builder().alpha(...).beta(...).build())`.
-The betweenness-centrality ordering is exposed by composing
-`DescendingScoreSorter::new(BetweennessCentralityScorer::default())`.
-The closeness-centrality ordering is exposed by composing
-`DescendingScoreSorter::new(ClosenessCentralityScorer::default())`.
-
 ### Undirected Graph Generators
 
 Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.
