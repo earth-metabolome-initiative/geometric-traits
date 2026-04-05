@@ -923,6 +923,28 @@ fn triangle_scaling_cases() -> Vec<ScalingCase> {
         .collect()
 }
 
+fn traversal_scaling_cases() -> Vec<ScalingCase> {
+    let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (512, 0.05)];
+    let dense = [(64usize, 0.20f64), (128, 0.20), (256, 0.20), (512, 0.20)];
+
+    sparse
+        .into_iter()
+        .enumerate()
+        .map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("traversal_sparse_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_801, n, p)),
+            }
+        })
+        .chain(dense.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("traversal_dense_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_901, n, p)),
+            }
+        }))
+        .collect()
+}
+
 fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
     let max_degree = (0..graph.number_of_nodes()).map(|node| graph.degree(node)).max().unwrap_or(0);
     let safe_denominator = cast::<usize, f64>(if max_degree == 0 { 1 } else { max_degree + 1 })
@@ -1156,6 +1178,30 @@ fn bench_dsatur(c: &mut Criterion) {
         &case.dsatur_order
     });
     bench_sorter(c, "node_ordering_dsatur", &cases, DsaturSorter);
+}
+
+fn bench_bfs_from_max_degree(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+    assert_cases_match_exact_order(&cases, "node_ordering_bfs_from_max_degree", sorter, |case| {
+        &case.bfs_from_max_degree
+    });
+    bench_sorter(c, "node_ordering_bfs_from_max_degree", &cases, sorter);
+}
+
+fn bench_dfs_from_max_degree(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+    assert_cases_match_exact_order(&cases, "node_ordering_dfs_from_max_degree", sorter, |case| {
+        &case.dfs_from_max_degree
+    });
+    bench_sorter(c, "node_ordering_dfs_from_max_degree", &cases, sorter);
 }
 
 fn bench_pagerank_scorer(c: &mut Criterion) {
@@ -1831,6 +1877,24 @@ fn bench_dsatur_scaling(c: &mut Criterion) {
     bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, DsaturSorter);
 }
 
+fn bench_bfs_from_max_degree_scaling(c: &mut Criterion) {
+    let cases = traversal_scaling_cases();
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+    bench_sorter_scaling(c, "node_ordering_bfs_from_max_degree_scaling", &cases, sorter);
+}
+
+fn bench_dfs_from_max_degree_scaling(c: &mut Criterion) {
+    let cases = traversal_scaling_cases();
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+    bench_sorter_scaling(c, "node_ordering_dfs_from_max_degree_scaling", &cases, sorter);
+}
+
 criterion_group!(
     benches,
     bench_degeneracy,
@@ -1839,6 +1903,10 @@ criterion_group!(
     bench_welsh_powell_scaling,
     bench_dsatur,
     bench_dsatur_scaling,
+    bench_bfs_from_max_degree,
+    bench_bfs_from_max_degree_scaling,
+    bench_dfs_from_max_degree,
+    bench_dfs_from_max_degree_scaling,
     bench_triangle_scorer,
     bench_triangle_sorter,
     bench_triangle_scaling,

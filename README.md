@@ -84,6 +84,10 @@ The Welsh-Powell ordering is exposed by
 `DescendingScoreSorter::new(DegreeScorer)`.
 The smallest-last coloring order is exposed by `DegeneracySorter`.
 The DSATUR coloring order is exposed by `DsaturSorter`.
+The BFS-from-max-degree ordering is exposed by
+`BfsTraversalSorter::new(TraversalSeedStrategy::MaxOutDegree, TraversalNeighborOrder::NodeIdAscending)`.
+The DFS-from-max-degree ordering is exposed by
+`DfsTraversalSorter::new(TraversalSeedStrategy::MaxOutDegree, TraversalNeighborOrder::NodeIdAscending)`.
 The crate's `3.1` PageRank ordering is exposed by composing
 `DescendingScoreSorter::new(PageRankScorer::default())`.
 The triangle-count ordering is exposed by composing

@@ -179,9 +179,10 @@ pub use mces::{McesBuilder, McesResult, McesSearchMode};
 #[cfg(feature = "alloc")]
 pub use node_ordering::{
     AscendingScoreSorter, BetweennessCentralityScorer, BetweennessCentralityScorerBuilder,
-    ClosenessCentralityScorer, ClosenessCentralityScorerBuilder, CoreNumberScorer,
-    DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter, DescendingScoreSorter,
-    DsaturSorter, KatzCentralityScorer, KatzCentralityScorerBuilder,
-    LocalClusteringCoefficientScorer, NodeScorer, NodeSorter, PageRankScorer,
-    PageRankScorerBuilder, SecondOrderDegreeScorer, TriangleCountScorer,
+    BfsTraversalSorter, ClosenessCentralityScorer, ClosenessCentralityScorerBuilder,
+    CoreNumberScorer, DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter,
+    DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
+    KatzCentralityScorerBuilder, LocalClusteringCoefficientScorer, NodeScorer, NodeSorter,
+    PageRankScorer, PageRankScorerBuilder, SecondOrderDegreeScorer, TraversalNeighborOrder,
+    TraversalSeedStrategy, TriangleCountScorer,
 };

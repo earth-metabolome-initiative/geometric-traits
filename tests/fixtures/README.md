@@ -49,7 +49,8 @@ This fixture is consumed by `tests/test_vf2_fixture_suite.rs` and
 oracle corpus for graph-level smallest-last / degeneracy ordering and the
 related Welsh-Powell, DSATUR, `2.2` degeneracy-with-degree, `3.1` PageRank,
 Katz-centrality, and betweenness-centrality, closeness-centrality,
-triangle-count, and local-clustering orders.
+triangle-count, local-clustering, BFS-from-max-degree, and
+DFS-from-max-degree orders.
 
 The catalog's "smallest-last coloring" entry is represented by the same
 smallest-last / degeneracy order already stored here. No separate oracle field
@@ -68,6 +69,10 @@ stores, per graph case:
   `(degree desc, node_id asc)`
 - the deterministic DSATUR order
   `(saturation_degree desc, degree desc, node_id asc)`
+- the deterministic BFS-from-max-degree order
+  `(seed/restart by out_degree desc then node_id asc; neighbors in node_id asc)`
+- the deterministic DFS-from-max-degree order
+  `(seed/restart by out_degree desc then node_id asc; neighbors in node_id asc)`
 - node-id-indexed `NetworkX` PageRank scores
 - the deterministic `3.1` order
   `(pagerank desc, node_id asc)`
@@ -125,6 +130,11 @@ usual deterministic `(triangle_count desc, node_id asc)` tie break.
 The local-clustering oracle stores exact unweighted undirected scores from
 `NetworkX clustering()`. These scores are rounded to 12 decimal places before
 the stored `local_clustering_descending` order is derived.
+
+The BFS-from-max-degree and DFS-from-max-degree fields are deterministic local
+contract oracles rather than direct `NetworkX` outputs, because the crate uses
+explicit seed/restart and neighbor-order policies for these traversal-based
+orderings.
 
 This fixture is consumed by `tests/test_node_ordering.rs` and
 `benches/node_ordering.rs`.

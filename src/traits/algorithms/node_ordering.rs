@@ -18,6 +18,7 @@ mod dsatur;
 mod katz_centrality;
 mod local_clustering;
 mod pagerank;
+mod traversal;
 mod triangles;
 
 use alloc::vec::Vec;
@@ -31,6 +32,9 @@ pub use katz_centrality::{KatzCentralityScorer, KatzCentralityScorerBuilder};
 pub use local_clustering::LocalClusteringCoefficientScorer;
 use num_traits::{AsPrimitive, cast};
 pub use pagerank::{PageRankScorer, PageRankScorerBuilder};
+pub use traversal::{
+    BfsTraversalSorter, DfsTraversalSorter, TraversalNeighborOrder, TraversalSeedStrategy,
+};
 pub use triangles::TriangleCountScorer;
 
 use crate::traits::{MonopartiteGraph, TotalOrd};
@@ -133,6 +137,10 @@ impl<Primary, Secondary> DescendingLexicographicScoreSorter<Primary, Secondary> 
     }
 }
 
+fn assert_score_count(actual: usize, expected: usize, wrong_length_message: &str) {
+    assert!(actual == expected, "{wrong_length_message}");
+}
+
 fn sort_nodes_by_scores<G, S, F>(graph: &G, scorer: &S, compare_scores: F) -> Vec<G::NodeId>
 where
     G: MonopartiteGraph,
@@ -140,13 +148,11 @@ where
     S::Score: TotalOrd,
     F: Fn(&S::Score, &S::Score) -> core::cmp::Ordering,
 {
+    const WRONG_LENGTH_MESSAGE: &str = "node scorer must return one score per node";
+
     let node_scores = scorer.score_nodes(graph);
     let mut nodes: Vec<G::NodeId> = graph.node_ids().collect();
-    assert_eq!(
-        node_scores.len(),
-        graph.number_of_nodes().as_(),
-        "node scorer must return one score per node"
-    );
+    assert_score_count(node_scores.len(), graph.number_of_nodes().as_(), WRONG_LENGTH_MESSAGE);
 
     nodes.sort_unstable_by(|left, right| {
         let left_index = (*left).as_();
@@ -170,18 +176,22 @@ where
     Primary::Score: TotalOrd,
     Secondary::Score: TotalOrd,
 {
+    const WRONG_PRIMARY_LENGTH_MESSAGE: &str = "primary node scorer must return one score per node";
+    const WRONG_SECONDARY_LENGTH_MESSAGE: &str =
+        "secondary node scorer must return one score per node";
+
     let primary_scores = primary.score_nodes(graph);
     let secondary_scores = secondary.score_nodes(graph);
     let mut nodes: Vec<G::NodeId> = graph.node_ids().collect();
-    assert_eq!(
+    assert_score_count(
         primary_scores.len(),
         graph.number_of_nodes().as_(),
-        "primary node scorer must return one score per node"
+        WRONG_PRIMARY_LENGTH_MESSAGE,
     );
-    assert_eq!(
+    assert_score_count(
         secondary_scores.len(),
         graph.number_of_nodes().as_(),
-        "secondary node scorer must return one score per node"
+        WRONG_SECONDARY_LENGTH_MESSAGE,
     );
 
     nodes.sort_unstable_by(|left, right| {

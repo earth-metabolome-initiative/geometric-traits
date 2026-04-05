@@ -5,13 +5,14 @@
 mod node_ordering_fixture;
 
 use geometric_traits::{
-    impls::{CSR2D, SortedVec, SymmetricCSR2D},
+    impls::{CSR2D, SortedVec, SquareCSR2D, SymmetricCSR2D},
     prelude::*,
     traits::{SquareMatrix, VocabularyBuilder, algorithms::randomized_graphs::*},
 };
 use node_ordering_fixture::{build_undigraph, load_fixture_suite};
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
+type DirectedGraph = SquareCSR2D<CSR2D<usize, usize, usize>>;
 
 fn wrap_undi(g: UndirectedGraph) -> UndiGraph<usize> {
     let n = g.order();
@@ -23,12 +24,24 @@ fn wrap_undi(g: UndirectedGraph) -> UndiGraph<usize> {
     UndiGraph::from((nodes, g))
 }
 
+fn wrap_di(g: DirectedGraph) -> DiGraph<usize> {
+    let n = g.order();
+    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(n)
+        .symbols((0..n).enumerate())
+        .build()
+        .unwrap();
+    DiGraph::from((nodes, g))
+}
+
 #[derive(Clone, Copy, Debug)]
 enum GraphFixture {
     Path(usize),
     Cycle(usize),
     Complete(usize),
     Star(usize),
+    BranchingTree,
+    DegreeBiasedBranching,
     TriangleWithTail,
     PathWithIsolatedNode,
 }
@@ -40,6 +53,36 @@ impl GraphFixture {
             Self::Cycle(n) => wrap_undi(cycle_graph(n)),
             Self::Complete(n) => wrap_undi(complete_graph(n)),
             Self::Star(n) => wrap_undi(star_graph(n)),
+            Self::BranchingTree => {
+                let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+                    .expected_number_of_symbols(6)
+                    .symbols((0..6).enumerate())
+                    .build()
+                    .unwrap();
+                let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+                    UndiEdgesBuilder::default()
+                        .expected_number_of_edges(5)
+                        .expected_shape(6)
+                        .edges([(0, 1), (0, 2), (1, 3), (1, 4), (2, 5)].into_iter())
+                        .build()
+                        .unwrap();
+                UndiGraph::from((nodes, matrix))
+            }
+            Self::DegreeBiasedBranching => {
+                let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+                    .expected_number_of_symbols(6)
+                    .symbols((0..6).enumerate())
+                    .build()
+                    .unwrap();
+                let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> =
+                    UndiEdgesBuilder::default()
+                        .expected_number_of_edges(5)
+                        .expected_shape(6)
+                        .edges([(0, 1), (0, 2), (1, 3), (2, 4), (2, 5)].into_iter())
+                        .build()
+                        .unwrap();
+                UndiGraph::from((nodes, matrix))
+            }
             Self::TriangleWithTail => {
                 let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
                     .expected_number_of_symbols(5)
@@ -230,6 +273,42 @@ const DSATUR_FIXTURES: &[ExactOrderingFixture] = &[
         name: "triangle_with_tail",
         graph: GraphFixture::TriangleWithTail,
         expected_order: &[2, 0, 1, 3, 4],
+    },
+    ExactOrderingFixture {
+        name: "path_with_isolated_node",
+        graph: GraphFixture::PathWithIsolatedNode,
+        expected_order: &[1, 0, 2, 3],
+    },
+];
+
+const BFS_FROM_MAX_DEGREE_FIXTURES: &[ExactOrderingFixture] = &[
+    ExactOrderingFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_order: &[1, 0, 2, 3],
+    },
+    ExactOrderingFixture {
+        name: "branching_tree",
+        graph: GraphFixture::BranchingTree,
+        expected_order: &[1, 0, 3, 4, 2, 5],
+    },
+    ExactOrderingFixture {
+        name: "path_with_isolated_node",
+        graph: GraphFixture::PathWithIsolatedNode,
+        expected_order: &[1, 0, 2, 3],
+    },
+];
+
+const DFS_FROM_MAX_DEGREE_FIXTURES: &[ExactOrderingFixture] = &[
+    ExactOrderingFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_order: &[1, 0, 2, 3],
+    },
+    ExactOrderingFixture {
+        name: "branching_tree",
+        graph: GraphFixture::BranchingTree,
+        expected_order: &[1, 0, 2, 5, 3, 4],
     },
     ExactOrderingFixture {
         name: "path_with_isolated_node",
@@ -525,6 +604,133 @@ fn test_dsatur_sorter_fixtures() {
 }
 
 #[test]
+fn test_bfs_from_max_degree_sorter_fixtures() {
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+
+    for fixture in BFS_FROM_MAX_DEGREE_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_order,
+            "bfs-from-max-degree ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_dfs_from_max_degree_sorter_fixtures() {
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+
+    for fixture in DFS_FROM_MAX_DEGREE_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_order,
+            "dfs-from-max-degree ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_bfs_traversal_sorter_defaults_use_node_id_ascending() {
+    let graph = GraphFixture::BranchingTree.build();
+    let sorter = BfsTraversalSorter::default();
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn test_dfs_traversal_sorter_defaults_use_node_id_ascending() {
+    let graph = GraphFixture::BranchingTree.build();
+    let sorter = DfsTraversalSorter::default();
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 1, 3, 4, 2, 5]);
+}
+
+#[test]
+fn test_bfs_traversal_sorter_supports_descending_neighbor_order() {
+    let graph = GraphFixture::DegreeBiasedBranching.build();
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::NodeIdAscending,
+        TraversalNeighborOrder::NodeIdDescending,
+    );
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 2, 1, 5, 4, 3]);
+}
+
+#[test]
+fn test_dfs_traversal_sorter_supports_out_degree_descending_neighbors() {
+    let graph = GraphFixture::DegreeBiasedBranching.build();
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::NodeIdAscending,
+        TraversalNeighborOrder::OutDegreeDescending,
+    );
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 2, 4, 5, 1, 3]);
+}
+
+#[test]
+fn test_bfs_traversal_sorter_supports_out_degree_descending_neighbors() {
+    let graph = GraphFixture::DegreeBiasedBranching.build();
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::NodeIdAscending,
+        TraversalNeighborOrder::OutDegreeDescending,
+    );
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 2, 1, 4, 5, 3]);
+}
+
+#[test]
+fn test_dfs_traversal_sorter_supports_descending_neighbor_order() {
+    let graph = GraphFixture::DegreeBiasedBranching.build();
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::NodeIdAscending,
+        TraversalNeighborOrder::NodeIdDescending,
+    );
+    assert_eq!(sorter.sort_nodes(&graph), &[0, 2, 5, 4, 1, 3]);
+}
+
+#[test]
+fn test_traversal_sorters_handle_empty_graph() {
+    let directed_edges: DirectedGraph = DiEdgesBuilder::default()
+        .expected_number_of_edges(0)
+        .expected_shape(0)
+        .edges(core::iter::empty::<(usize, usize)>())
+        .build()
+        .unwrap();
+    let graph = wrap_di(directed_edges);
+
+    assert!(BfsTraversalSorter::default().sort_nodes(&graph).is_empty());
+    assert!(DfsTraversalSorter::default().sort_nodes(&graph).is_empty());
+}
+
+#[test]
+fn test_traversal_sorters_use_directed_out_degree_seed_policy() {
+    let edges: DirectedGraph = DiEdgesBuilder::default()
+        .expected_number_of_edges(4)
+        .expected_shape(6)
+        .edges([(0, 1), (0, 2), (2, 3), (4, 5)].into_iter())
+        .build()
+        .unwrap();
+    let graph = wrap_di(edges);
+
+    let bfs = BfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+    let dfs = DfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+
+    assert_eq!(bfs.sort_nodes(&graph), &[0, 1, 2, 3, 4, 5]);
+    assert_eq!(dfs.sort_nodes(&graph), &[0, 1, 2, 3, 4, 5]);
+}
+
+#[test]
 fn test_second_order_degree_scorer_fixtures() {
     for fixture in SECOND_ORDER_DEGREE_FIXTURES {
         let graph = fixture.graph.build();
@@ -707,7 +913,7 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 9);
+    assert_eq!(fixture.schema_version, 10);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
@@ -724,6 +930,8 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.degeneracy_degree_descending.len() == case.n
             && case.welsh_powell_descending.len() == case.n
             && case.dsatur_order.len() == case.n
+            && case.bfs_from_max_degree.len() == case.n
+            && case.dfs_from_max_degree.len() == case.n
             && case.pagerank_scores.len() == case.n
             && case.pagerank_descending.len() == case.n
             && case.katz_scores.len() == case.n
@@ -893,6 +1101,44 @@ fn test_dsatur_sorter_ground_truth() {
             DsaturSorter.sort_nodes(&graph),
             case.dsatur_order,
             "dsatur ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_bfs_from_max_degree_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+    let sorter = BfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("bfs-from-max-degree order {} ({})", case.name, case.family);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.bfs_from_max_degree,
+            "bfs-from-max-degree ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_dfs_from_max_degree_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+    let sorter = DfsTraversalSorter::new(
+        TraversalSeedStrategy::MaxOutDegree,
+        TraversalNeighborOrder::NodeIdAscending,
+    );
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("dfs-from-max-degree order {} ({})", case.name, case.family);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.dfs_from_max_degree,
+            "dfs-from-max-degree ground truth failed for {context}"
         );
     }
 }
