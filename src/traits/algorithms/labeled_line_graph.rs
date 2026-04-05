@@ -15,8 +15,8 @@ use num_traits::AsPrimitive;
 
 use super::line_graph::LineGraphResult;
 use crate::{
-    impls::{SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
-    traits::{MatrixMut, MonoplexMonopartiteGraph, SparseMatrixMut, TypedNode},
+    impls::{SymmetricCSR2D, ValuedCSR2D},
+    traits::{MonoplexMonopartiteGraph, TypedNode},
 };
 
 /// Trait providing labeled line graph construction for node-typed
@@ -62,9 +62,12 @@ where
         let m = edge_map.len();
 
         if m == 0 {
-            let valued: ValuedCSR2D<usize, usize, usize, NT<G>> =
-                SparseMatrixMut::with_sparse_shape((0, 0));
-            let graph = SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(valued, 0));
+            let graph =
+                SymmetricCSR2D::<ValuedCSR2D<usize, usize, usize, NT<G>>>::from_sorted_upper_triangular_entries(
+                    0,
+                    Vec::new(),
+                )
+                .expect("empty line graph must build successfully");
             return LineGraphResult::new(graph, edge_map);
         }
 
@@ -103,23 +106,12 @@ where
         lg_edges.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
         lg_edges.dedup_by(|a, b| a.0 == b.0 && a.1 == b.1);
 
-        // Step 6: Expand to symmetric storage and build ValuedCSR2D.
-        let num_upper = lg_edges.len();
-        let mut all_entries: Vec<(usize, usize, NT<G>)> = Vec::with_capacity(2 * num_upper);
-        for &(a, b, ref val) in &lg_edges {
-            all_entries.push((a, b, val.clone()));
-            all_entries.push((b, a, val.clone()));
-        }
-        all_entries.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-
-        let mut valued: ValuedCSR2D<usize, usize, usize, NT<G>> =
-            SparseMatrixMut::with_sparse_shaped_capacity((m, m), all_entries.len());
-        for (row, col, val) in all_entries {
-            MatrixMut::add(&mut valued, (row, col, val))
-                .expect("failed to add LG edge to ValuedCSR2D");
-        }
-
-        let graph = SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(valued, 0));
+        let graph =
+            SymmetricCSR2D::<ValuedCSR2D<usize, usize, usize, NT<G>>>::from_sorted_upper_triangular_entries(
+                m,
+                lg_edges,
+            )
+            .expect("labeled line graph edges must be sorted upper-triangular entries");
         LineGraphResult::new(graph, edge_map)
     }
 }

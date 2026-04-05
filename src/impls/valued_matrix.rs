@@ -91,6 +91,26 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value>
     }
 }
 
+impl<SparseIndex: AsPrimitive<usize>, RowIndex, ColumnIndex>
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>
+where
+    Self: SizedSparseMatrix<SparseIndex = SparseIndex>,
+{
+    /// Attaches values to the existing CSR topology in storage order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ValuedCsrPartsError::ValuesLengthMismatch`] when the provided
+    /// values do not match the number of sparse coordinates stored in `self`.
+    #[inline]
+    pub fn with_values<Value>(
+        self,
+        values: Vec<Value>,
+    ) -> Result<ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>, ValuedCsrPartsError> {
+        ValuedCSR2D::from_parts(self, values)
+    }
+}
+
 impl<
     SparseIndex: PositiveInteger + TryFromUsize + AsPrimitive<usize>,
     RowIndex: Step + TryFromUsize + PositiveInteger + AsPrimitive<usize> + Debug,
