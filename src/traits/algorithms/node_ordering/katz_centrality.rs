@@ -12,6 +12,14 @@ use crate::traits::UndirectedMonopartiteMonoplexGraph;
 /// `x_{k+1} = alpha * A * x_k + beta`, starting from the all-zero vector.
 /// When `normalized` is enabled, the converged score vector is rescaled to
 /// unit Euclidean norm.
+///
+/// The default parameters intentionally mirror `NetworkX`, including
+/// `alpha=0.1`. That default is not convergence-safe on arbitrary graphs:
+/// for undirected graphs, a sufficient condition is `alpha < 1 / Delta`,
+/// where `Delta` is the maximum degree. Use
+/// [`KatzCentralityScorer::safe_alpha_from_max_degree`] or
+/// [`KatzCentralityScorer::safe_alpha_for_graph`] when you want a conservative
+/// attenuation factor that converges across a wider range of graphs.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct KatzCentralityScorer {
     alpha: f64,
@@ -51,6 +59,32 @@ impl KatzCentralityScorer {
     pub const fn builder() -> KatzCentralityScorerBuilder {
         KatzCentralityScorerBuilder::new()
     }
+
+    /// Returns a conservative Katz attenuation factor from a maximum-degree
+    /// bound.
+    ///
+    /// For undirected graphs, `rho(A) <= Delta`, so `alpha < 1 / Delta` is a
+    /// sufficient convergence condition. This helper uses a 10% safety margin:
+    /// `0.9 / Delta`. When `max_degree == 0`, the adjacency matrix is zero and
+    /// Katz converges for any finite `alpha`; this helper returns `0.1`.
+    #[inline]
+    #[must_use]
+    pub fn safe_alpha_from_max_degree(max_degree: usize) -> f64 {
+        if max_degree == 0 { 0.1 } else { 0.9 / usize_to_f64(max_degree) }
+    }
+
+    /// Returns a conservative Katz attenuation factor for the given graph.
+    ///
+    /// This scans the graph's maximum degree and applies
+    /// [`KatzCentralityScorer::safe_alpha_from_max_degree`].
+    #[must_use]
+    pub fn safe_alpha_for_graph<G>(graph: &G) -> f64
+    where
+        G: UndirectedMonopartiteMonoplexGraph,
+    {
+        let max_degree = graph.node_ids().map(|node| graph.degree(node).as_()).max().unwrap_or(0);
+        Self::safe_alpha_from_max_degree(max_degree)
+    }
 }
 
 impl Default for KatzCentralityScorer {
@@ -61,7 +95,11 @@ impl Default for KatzCentralityScorer {
 }
 
 impl KatzCentralityScorerBuilder {
-    /// Creates a builder initialized with NetworkX-compatible defaults.
+    /// Creates a builder initialized with `NetworkX`-compatible defaults.
+    ///
+    /// Note that the default `alpha=0.1` is not guaranteed to converge on
+    /// arbitrary graphs. If you want a conservative graph-dependent value, use
+    /// [`KatzCentralityScorerBuilder::safe_alpha_from_graph`].
     #[inline]
     #[must_use]
     pub const fn new() -> Self {
@@ -73,6 +111,20 @@ impl KatzCentralityScorerBuilder {
     #[must_use]
     pub const fn alpha(mut self, alpha: f64) -> Self {
         self.alpha = alpha;
+        self
+    }
+
+    /// Sets `alpha` from the graph's maximum-degree bound.
+    ///
+    /// This uses [`KatzCentralityScorer::safe_alpha_for_graph`] and is the
+    /// recommended entry point when you want a conservative `alpha` without
+    /// estimating the spectral radius directly.
+    #[must_use]
+    pub fn safe_alpha_from_graph<G>(mut self, graph: &G) -> Self
+    where
+        G: UndirectedMonopartiteMonoplexGraph,
+    {
+        self.alpha = KatzCentralityScorer::safe_alpha_for_graph(graph);
         self
     }
 

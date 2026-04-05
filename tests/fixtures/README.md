@@ -110,7 +110,9 @@ The Katz oracle stores a per-case parameter tuple
 generator chooses `katz_alpha` from a safe max-degree-based bound, so the
 stored `NetworkX` runs converge on the full corpus. Katz scores are also
 rounded to 12 decimal places before the stored `katz_descending` order is
-derived, again to keep floating near-ties deterministic.
+derived, again to keep floating near-ties deterministic. The crate mirrors
+`NetworkX`'s `alpha=0.1` default, but also exposes conservative
+`safe_alpha_*` helpers for callers that want a max-degree-based choice.
 
 The betweenness oracle stores a per-case parameter pair
 `(betweenness_normalized, betweenness_endpoints)`, cycling over all four
