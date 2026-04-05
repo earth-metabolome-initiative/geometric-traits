@@ -59,6 +59,25 @@ All listed algorithms require the `alloc` feature.
 | **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401–419. |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
+### Node Ordering Primitives
+
+The crate also exports reusable graph-level node ordering and node scoring
+building blocks from `geometric_traits::traits::algorithms`.
+
+| Primitive | Kind | Complexity | Reference |
+|-----------|------|------------|-----------|
+| **DegeneracySorter** | smallest-last node ordering | O(V+E) | Matula, D. W., & Beck, L. L. (1983). [Smallest-last ordering and clustering and graph coloring algorithms](https://doi.org/10.1145/2402.322385). *Journal of the ACM*, 30(3), 417-427. See also Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
+| **CoreNumberScorer** | k-core / shell score | O(V+E) | Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
+| **DegreeScorer** | node score | O(V+E) | Basic graph primitive. |
+| **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
+| **TriangleCountScorer** | node score | O(∑₍u→v₎ outdeg(v)) | Exact triangle-count scorer using a degree-oriented forward-neighborhood traversal. Returns the number of triangles incident to each node. |
+| **LocalClusteringCoefficientScorer** | node score | O(∑₍u→v₎ outdeg(v)) | Exact unweighted undirected local clustering coefficient matching `NetworkX` `clustering()`, derived from triangle counts and degree. |
+| **PageRankScorer** | centrality score | O(iterations · (V+E)) | Brin, S., & Page, L. (1998). *The Anatomy of a Large-Scale Hypertextual Web Search Engine*. Default parameters match `NetworkX` on undirected graphs: `alpha=0.85`, `max_iter=100`, `tol=1e-6`. |
+| **KatzCentralityScorer** | centrality score | O(iterations · (V+E)) | Katz, L. (1953). *A New Status Index Derived from Sociometric Analysis*. Scalar-`beta`, unweighted parameters match `NetworkX` defaults: `alpha=0.1`, `beta=1.0`, `max_iter=1000`, `tol=1e-6`, `normalized=true`. Choose `alpha < 1 / lambda_max` for convergence. |
+| **BetweennessCentralityScorer** | centrality score | O(V · (V+E)) | Brandes, U. (2001). [A Faster Algorithm for Betweenness Centrality](https://doi.org/10.1080/0022250X.2001.9990249). Exact unweighted undirected scorer matching the `NetworkX` `normalized` and `endpoints` parameter behavior. |
+| **ClosenessCentralityScorer** | centrality score | O(V · (V+E)) | Freeman, L. C. (1979). [Centrality in networks: I. Conceptual clarification](https://doi.org/10.1016/0378-8733(78)90021-7). Exact unweighted undirected scorer matching the `NetworkX` `wf_improved` parameter behavior. |
+| **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
+
 ### Undirected Graph Generators
 
 Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.
