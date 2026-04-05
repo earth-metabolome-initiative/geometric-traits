@@ -222,6 +222,11 @@ where
 /// within the same degree bucket is not part of the contract; the guarantee is
 /// that the returned order is a valid smallest-last ordering.
 ///
+/// This is also the ordering used by the "smallest-last coloring" strategy:
+/// greedy coloring is then performed in the order returned by this sorter.
+/// In other words, the catalog's section `4.3` maps directly to
+/// [`DegeneracySorter`].
+///
 /// References:
 /// - Matula, D. W., & Beck, L. L. (1983). Smallest-last ordering and clustering
 ///   and graph coloring algorithms. *Journal of the ACM*, 30(3), 417-427. DOI:
