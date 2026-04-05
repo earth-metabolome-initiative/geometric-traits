@@ -1538,6 +1538,32 @@ fn test_katz_builder_defaults_match_default() {
 }
 
 #[test]
+fn test_katz_safe_alpha_from_max_degree_helper() {
+    assert!((KatzCentralityScorer::safe_alpha_from_max_degree(0) - 0.1).abs() < 1.0e-15);
+    assert!((KatzCentralityScorer::safe_alpha_from_max_degree(2) - 0.45).abs() < 1.0e-15);
+    assert!((KatzCentralityScorer::safe_alpha_from_max_degree(10) - 0.09).abs() < 1.0e-15);
+}
+
+#[test]
+#[should_panic(expected = "KatzCentralityScorer failed to converge")]
+fn test_katz_default_alpha_can_fail_on_dense_graph() {
+    let graph = GraphFixture::Complete(20).build();
+    let _ = KatzCentralityScorerBuilder::default().max_iter(32).build().score_nodes(&graph);
+}
+
+#[test]
+fn test_katz_builder_safe_alpha_from_graph_converges_on_dense_graph() {
+    let graph = GraphFixture::Complete(20).build();
+    let scorer =
+        KatzCentralityScorerBuilder::default().safe_alpha_from_graph(&graph).max_iter(1000).build();
+
+    assert_eq!(scorer, KatzCentralityScorerBuilder::default().alpha(0.9 / 19.0).build());
+    let safe_scores = scorer.score_nodes(&graph);
+    assert_eq!(safe_scores.len(), 20);
+    assert!(safe_scores.iter().all(|score| (*score).is_finite()));
+}
+
+#[test]
 fn test_betweenness_builder_defaults_match_default() {
     let scorer = BetweennessCentralityScorer::builder().build();
     assert_eq!(scorer, BetweennessCentralityScorer::default());
