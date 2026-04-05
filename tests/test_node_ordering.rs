@@ -194,6 +194,7 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
 const KATZ_TOLERANCE: f64 = 1.0e-11;
 const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 const CLOSENESS_TOLERANCE: f64 = 1.0e-12;
+const LOCAL_CLUSTERING_TOLERANCE: f64 = 1.0e-12;
 
 const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
@@ -233,6 +234,30 @@ const DEGREE_FIXTURES: &[ScoringFixture] = &[
         expected_scores: &[4, 1, 1, 1, 1],
         expected_descending: &[0, 1, 2, 3, 4],
         expected_ascending: &[1, 2, 3, 4, 0],
+    },
+];
+
+const TRIANGLE_COUNT_FIXTURES: &[ScoringFixture] = &[
+    ScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0, 0, 0, 0],
+        expected_descending: &[0, 1, 2, 3],
+        expected_ascending: &[0, 1, 2, 3],
+    },
+    ScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[3, 3, 3, 3],
+        expected_descending: &[0, 1, 2, 3],
+        expected_ascending: &[0, 1, 2, 3],
+    },
+    ScoringFixture {
+        name: "triangle_with_tail",
+        graph: GraphFixture::TriangleWithTail,
+        expected_scores: &[1, 1, 1, 0, 0],
+        expected_descending: &[0, 1, 2, 3, 4],
+        expected_ascending: &[3, 4, 0, 1, 2],
     },
 ];
 
@@ -405,6 +430,27 @@ const CLOSENESS_FIXTURES: &[ClosenessScoringFixture] = &[
     },
 ];
 
+const LOCAL_CLUSTERING_FIXTURES: &[FloatingScoringFixture] = &[
+    FloatingScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0.0, 0.0, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "triangle_with_tail",
+        graph: GraphFixture::TriangleWithTail,
+        expected_scores: &[1.0, 1.0, 0.333333333333, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3, 4],
+    },
+];
+
 #[test]
 fn test_degeneracy_sorter_fixtures() {
     for fixture in DEGENERACY_FIXTURES {
@@ -529,6 +575,49 @@ fn test_ascending_degree_sorter_fixtures() {
 }
 
 #[test]
+fn test_triangle_count_scorer_fixtures() {
+    for fixture in TRIANGLE_COUNT_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            TriangleCountScorer.score_nodes(&graph),
+            fixture.expected_scores,
+            "triangle count scorer fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_descending_triangle_count_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
+
+    for fixture in TRIANGLE_COUNT_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending triangle-count ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_ascending_triangle_count_sorter_fixtures() {
+    let sorter = AscendingScoreSorter::new(TriangleCountScorer);
+
+    for fixture in TRIANGLE_COUNT_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_ascending,
+            "ascending triangle-count ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
 #[should_panic(expected = "node scorer must return one score per node")]
 fn test_score_sorter_panics_on_wrong_length() {
     let graph = GraphFixture::Path(4).build();
@@ -554,7 +643,7 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 7);
+    assert_eq!(fixture.schema_version, 8);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
@@ -562,6 +651,7 @@ fn test_node_ordering_ground_truth_metadata() {
     assert_eq!(fixture.katz_rounding_decimals, 12);
     assert_eq!(fixture.betweenness_rounding_decimals, 12);
     assert_eq!(fixture.closeness_rounding_decimals, 12);
+    assert_eq!(fixture.local_clustering_rounding_decimals, 12);
     assert_eq!(fixture.cases.len(), 10_000);
     assert!(fixture.cases.iter().all(|case| {
         case.networkx_smallest_last.len() == case.n
@@ -576,6 +666,10 @@ fn test_node_ordering_ground_truth_metadata() {
             && case.betweenness_descending.len() == case.n
             && case.closeness_scores.len() == case.n
             && case.closeness_descending.len() == case.n
+            && case.triangle_counts.len() == case.n
+            && case.triangle_descending.len() == case.n
+            && case.local_clustering_scores.len() == case.n
+            && case.local_clustering_descending.len() == case.n
             && case.pagerank_alpha > 0.0
             && case.pagerank_alpha < 1.0
             && case.pagerank_max_iter > 0
@@ -630,6 +724,37 @@ fn test_node_ordering_ground_truth_metadata() {
         2,
         "closeness oracle should contain both wf_improved parameter values"
     );
+}
+
+#[test]
+fn test_triangle_count_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("triangle count ground truth {} ({})", case.name, case.family);
+        assert_eq!(
+            TriangleCountScorer.score_nodes(&graph),
+            case.triangle_counts,
+            "triangle count scorer ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_descending_triangle_count_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("triangle order {} ({})", case.name, case.family);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.triangle_descending,
+            "triangle descending order ground truth failed for {context}"
+        );
+    }
 }
 
 #[test]
@@ -971,6 +1096,67 @@ fn test_descending_closeness_centrality_sorter_ground_truth() {
             sorter.sort_nodes(&graph),
             case.closeness_descending,
             "closeness descending order ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_local_clustering_coefficient_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("local clustering ground truth {} ({})", case.name, case.family);
+        assert_scores_close(
+            &LocalClusteringCoefficientScorer.score_nodes(&graph),
+            &case.local_clustering_scores,
+            LOCAL_CLUSTERING_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_local_clustering_coefficient_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+    let sorter = DescendingScoreSorter::new(LocalClusteringCoefficientScorer);
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("local clustering order {} ({})", case.name, case.family);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.local_clustering_descending,
+            "local clustering descending order ground truth failed for {context}"
+        );
+    }
+}
+
+#[test]
+fn test_local_clustering_coefficient_scorer_fixtures() {
+    for fixture in LOCAL_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("local clustering fixture {}", fixture.name);
+        assert_scores_close(
+            &LocalClusteringCoefficientScorer.score_nodes(&graph),
+            fixture.expected_scores,
+            LOCAL_CLUSTERING_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_local_clustering_coefficient_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(LocalClusteringCoefficientScorer);
+
+    for fixture in LOCAL_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending local clustering ordering fixture failed for {}",
+            fixture.name
         );
     }
 }

@@ -19,6 +19,7 @@ const PAGERANK_TOLERANCE: f64 = 1.0e-12;
 const KATZ_TOLERANCE: f64 = 1.0e-11;
 const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 const CLOSENESS_TOLERANCE: f64 = 1.0e-12;
+const LOCAL_CLUSTERING_TOLERANCE: f64 = 1.0e-12;
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 
@@ -162,6 +163,33 @@ fn assert_cases_match_closeness_scores(cases: &[PreparedNodeOrderingCase], group
             &closeness_scores,
             &case.closeness_scores,
             CLOSENESS_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+fn assert_cases_match_triangle_counts(cases: &[PreparedNodeOrderingCase], group_name: &str) {
+    for case in cases {
+        let triangle_counts = TriangleCountScorer.score_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_eq!(
+            triangle_counts, case.triangle_counts,
+            "benchmark scores `{context}` mismatched oracle"
+        );
+    }
+}
+
+fn assert_cases_match_local_clustering_scores(
+    cases: &[PreparedNodeOrderingCase],
+    group_name: &str,
+) {
+    for case in cases {
+        let local_clustering_scores = LocalClusteringCoefficientScorer.score_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_scores_close(
+            &local_clustering_scores,
+            &case.local_clustering_scores,
+            LOCAL_CLUSTERING_TOLERANCE,
             &context,
         );
     }
@@ -803,6 +831,28 @@ fn closeness_scaling_cases() -> Vec<ScalingCase> {
         .collect()
 }
 
+fn triangle_scaling_cases() -> Vec<ScalingCase> {
+    let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (512, 0.05)];
+    let dense = [(64usize, 0.20f64), (96, 0.20), (128, 0.20), (160, 0.20)];
+
+    sparse
+        .into_iter()
+        .enumerate()
+        .map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("triangle_sparse_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_401, n, p)),
+            }
+        })
+        .chain(dense.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("triangle_dense_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 1_501, n, p)),
+            }
+        }))
+        .collect()
+}
+
 fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
     let max_degree = (0..graph.number_of_nodes()).map(|node| graph.degree(node)).max().unwrap_or(0);
     let safe_denominator = cast::<usize, f64>(if max_degree == 0 { 1 } else { max_degree + 1 })
@@ -822,6 +872,188 @@ fn betweenness_scaling_scorer() -> BetweennessCentralityScorer {
 
 fn closeness_scaling_scorer() -> ClosenessCentralityScorer {
     ClosenessCentralityScorer::default()
+}
+
+fn bench_triangle_scorer(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_triangle_counts(&cases, "node_ordering_triangle_scorer");
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+
+    let mut total_group = c.benchmark_group("node_ordering_triangle_scorer");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        TriangleCountScorer
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(|value| {
+                                u64::try_from(value).expect("triangle count should fit into u64")
+                            })
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group("node_ordering_triangle_scorer_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let checksum = family_cases
+                        .iter()
+                        .map(|case| {
+                            TriangleCountScorer
+                                .score_nodes(&case.graph)
+                                .into_iter()
+                                .map(|value| {
+                                    u64::try_from(value)
+                                        .expect("triangle count should fit into u64")
+                                })
+                                .fold(0u64, u64::wrapping_add)
+                        })
+                        .fold(0u64, u64::wrapping_add);
+                    black_box(checksum);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
+fn bench_triangle_sorter(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
+    assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", sorter, |case| {
+        &case.triangle_descending
+    });
+    bench_sorter(c, "node_ordering_triangle_sorter", &cases, sorter);
+}
+
+fn bench_local_clustering_scorer(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_local_clustering_scores(&cases, "node_ordering_local_clustering_scorer");
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+
+    let mut total_group = c.benchmark_group("node_ordering_local_clustering_scorer");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        LocalClusteringCoefficientScorer
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group = c.benchmark_group("node_ordering_local_clustering_scorer_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let checksum = family_cases
+                        .iter()
+                        .map(|case| {
+                            LocalClusteringCoefficientScorer
+                                .score_nodes(&case.graph)
+                                .into_iter()
+                                .map(f64::to_bits)
+                                .fold(0u64, u64::wrapping_add)
+                        })
+                        .fold(0u64, u64::wrapping_add);
+                    black_box(checksum);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
+fn bench_local_clustering_sorter(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    let sorter = DescendingScoreSorter::new(LocalClusteringCoefficientScorer);
+    assert_cases_match_exact_order(
+        &cases,
+        "node_ordering_local_clustering_sorter",
+        sorter,
+        |case| &case.local_clustering_descending,
+    );
+    bench_sorter(c, "node_ordering_local_clustering_sorter", &cases, sorter);
 }
 
 fn bench_degeneracy(c: &mut Criterion) {
@@ -1383,10 +1615,130 @@ fn bench_closeness_scaling(c: &mut Criterion) {
     size_group.finish();
 }
 
+fn bench_triangle_scaling(c: &mut Criterion) {
+    let cases = triangle_scaling_cases();
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_triangle_scaling");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        TriangleCountScorer
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(|value| {
+                                u64::try_from(value).expect("triangle count should fit into u64")
+                            })
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group = c.benchmark_group("node_ordering_triangle_scaling_by_case");
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let checksum = TriangleCountScorer
+                    .score_nodes(&case.graph)
+                    .into_iter()
+                    .map(|value| u64::try_from(value).expect("triangle count should fit into u64"))
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        });
+    }
+    size_group.finish();
+}
+
+fn bench_local_clustering_scaling(c: &mut Criterion) {
+    let cases = triangle_scaling_cases();
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_local_clustering_scaling");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        LocalClusteringCoefficientScorer
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group = c.benchmark_group("node_ordering_local_clustering_scaling_by_case");
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let checksum = LocalClusteringCoefficientScorer
+                    .score_nodes(&case.graph)
+                    .into_iter()
+                    .map(f64::to_bits)
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        });
+    }
+    size_group.finish();
+}
+
 criterion_group!(
     benches,
     bench_degeneracy,
     bench_degeneracy_degree,
+    bench_triangle_scorer,
+    bench_triangle_sorter,
+    bench_triangle_scaling,
+    bench_local_clustering_scorer,
+    bench_local_clustering_sorter,
+    bench_local_clustering_scaling,
     bench_pagerank_scorer,
     bench_pagerank_sorter,
     bench_pagerank_scaling,

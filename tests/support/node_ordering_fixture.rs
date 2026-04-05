@@ -23,6 +23,7 @@ pub struct NodeOrderingGroundTruthFixture {
     pub katz_rounding_decimals: u32,
     pub betweenness_rounding_decimals: u32,
     pub closeness_rounding_decimals: u32,
+    pub local_clustering_rounding_decimals: u32,
     pub cases: Vec<NodeOrderingGroundTruthCase>,
 }
 
@@ -55,6 +56,10 @@ pub struct NodeOrderingGroundTruthCase {
     pub closeness_wf_improved: bool,
     pub closeness_scores: Vec<f64>,
     pub closeness_descending: Vec<usize>,
+    pub triangle_counts: Vec<usize>,
+    pub triangle_descending: Vec<usize>,
+    pub local_clustering_scores: Vec<f64>,
+    pub local_clustering_descending: Vec<usize>,
 }
 
 #[derive(Clone)]
@@ -84,6 +89,10 @@ pub struct PreparedNodeOrderingCase {
     pub closeness_wf_improved: bool,
     pub closeness_scores: Vec<f64>,
     pub closeness_descending: Vec<usize>,
+    pub triangle_counts: Vec<usize>,
+    pub triangle_descending: Vec<usize>,
+    pub local_clustering_scores: Vec<f64>,
+    pub local_clustering_descending: Vec<usize>,
 }
 
 pub fn fixture_path(relative_path: &str) -> std::path::PathBuf {
@@ -151,6 +160,10 @@ pub fn prepare_cases(relative_path: &str) -> Vec<PreparedNodeOrderingCase> {
                 closeness_wf_improved: case.closeness_wf_improved,
                 closeness_scores: case.closeness_scores,
                 closeness_descending: case.closeness_descending,
+                triangle_counts: case.triangle_counts,
+                triangle_descending: case.triangle_descending,
+                local_clustering_scores: case.local_clustering_scores,
+                local_clustering_descending: case.local_clustering_descending,
             }
         })
         .collect()
