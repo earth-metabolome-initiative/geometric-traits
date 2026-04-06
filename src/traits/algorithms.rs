@@ -13,6 +13,8 @@ mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
 #[cfg(feature = "alloc")]
+mod weisfeiler_lehman;
+#[cfg(feature = "alloc")]
 pub use root_nodes::RootNodes;
 #[cfg(feature = "alloc")]
 pub mod sink_nodes;
@@ -189,3 +191,5 @@ pub use node_ordering::{
     SecondOrderDegreeScorer, TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer,
     apply_node_order_to_graph,
 };
+#[cfg(feature = "alloc")]
+pub use weisfeiler_lehman::WeisfeilerLehmanColoring;
