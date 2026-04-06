@@ -7,6 +7,7 @@ https://dl.acm.org/.*
 # DOI redirects to various publishers
 https://doi.org/10.1137/.*
 https://doi.org/10.1145/.*
+https://doi.org/10.1080/.*
 https://doi.org/10.1007/.*
 https://doi.org/10.1109/.*
 https://doi.org/10.1287/opre.33.5.1107
