@@ -10,6 +10,7 @@
 //! scorers and can be paired with generic ascending or descending score
 //! sorters.
 
+mod application;
 mod betweenness_centrality;
 mod closeness_centrality;
 mod degeneracy;
@@ -23,6 +24,7 @@ mod triangles;
 
 use alloc::vec::Vec;
 
+pub use application::{NodeOrderApplicableGraph, PermutableVocabulary, apply_node_order_to_graph};
 pub use betweenness_centrality::{BetweennessCentralityScorer, BetweennessCentralityScorerBuilder};
 pub use closeness_centrality::{ClosenessCentralityScorer, ClosenessCentralityScorerBuilder};
 pub use degeneracy::{CoreNumberScorer, DegeneracySorter};

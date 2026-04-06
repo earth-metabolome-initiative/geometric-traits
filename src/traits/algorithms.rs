@@ -130,7 +130,9 @@ pub use line_graph::{LineGraph, LineGraphResult};
 #[cfg(feature = "alloc")]
 pub mod modular_product;
 #[cfg(feature = "alloc")]
-pub use modular_product::{ModularProduct, ModularProductResult};
+pub use modular_product::{
+    ModularProduct, ModularProductGraph, ModularProductGraphEdges, ModularProductResult,
+};
 #[cfg(feature = "alloc")]
 pub mod maximum_clique;
 #[cfg(feature = "alloc")]
@@ -182,7 +184,8 @@ pub use node_ordering::{
     BfsTraversalSorter, ClosenessCentralityScorer, ClosenessCentralityScorerBuilder,
     CoreNumberScorer, DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter,
     DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
-    KatzCentralityScorerBuilder, LocalClusteringCoefficientScorer, NodeScorer, NodeSorter,
-    PageRankScorer, PageRankScorerBuilder, SecondOrderDegreeScorer, TraversalNeighborOrder,
-    TraversalSeedStrategy, TriangleCountScorer,
+    KatzCentralityScorerBuilder, LocalClusteringCoefficientScorer, NodeOrderApplicableGraph,
+    NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder, PermutableVocabulary,
+    SecondOrderDegreeScorer, TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer,
+    apply_node_order_to_graph,
 };

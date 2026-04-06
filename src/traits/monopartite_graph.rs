@@ -255,7 +255,9 @@ pub trait MonopartiteGraph: super::Graph {
     /// ```
     #[inline]
     fn number_of_nodes(&self) -> Self::NodeId {
-        if let Ok(number_of_nodes) = Self::NodeId::try_from(self.nodes_vocabulary().len()) {
+        if let Ok(number_of_nodes) =
+            Self::NodeId::try_from(Vocabulary::len(self.nodes_vocabulary()))
+        {
             number_of_nodes
         } else {
             panic!("The number of nodes exceeds the capacity of the node identifier.")
