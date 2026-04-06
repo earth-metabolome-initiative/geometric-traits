@@ -5,14 +5,19 @@
 mod node_ordering_fixture;
 
 use geometric_traits::{
-    impls::{CSR2D, SortedVec, SquareCSR2D, SymmetricCSR2D},
+    impls::{BitSquareMatrix, CSR2D, SortedVec, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
+    naive_structs::GenericGraph,
     prelude::*,
-    traits::{SquareMatrix, VocabularyBuilder, algorithms::randomized_graphs::*},
+    traits::{
+        Edges, SparseValuedMatrix2D, SquareMatrix, VocabularyBuilder,
+        algorithms::{ModularProduct, randomized_graphs::*},
+    },
 };
 use node_ordering_fixture::{build_undigraph, load_fixture_suite};
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 type DirectedGraph = SquareCSR2D<CSR2D<usize, usize, usize>>;
+type WeightedUndirectedGraph = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, i32>>;
 
 fn wrap_undi(g: UndirectedGraph) -> UndiGraph<usize> {
     let n = g.order();
@@ -32,6 +37,11 @@ fn wrap_di(g: DirectedGraph) -> DiGraph<usize> {
         .build()
         .unwrap();
     DiGraph::from((nodes, g))
+}
+
+fn wrap_undi_vec(g: UndirectedGraph) -> GenericGraph<Vec<usize>, UndirectedGraph> {
+    let n = g.order();
+    GenericGraph::from(((0..n).collect::<Vec<_>>(), g))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -728,6 +738,126 @@ fn test_traversal_sorters_use_directed_out_degree_seed_policy() {
 
     assert_eq!(bfs.sort_nodes(&graph), &[0, 1, 2, 3, 4, 5]);
     assert_eq!(dfs.sort_nodes(&graph), &[0, 1, 2, 3, 4, 5]);
+}
+
+#[test]
+#[should_panic(expected = "node order must contain exactly one entry per node")]
+fn test_apply_node_order_to_graph_panics_on_wrong_length() {
+    let graph = wrap_undi_vec(path_graph(4));
+    let _ = apply_node_order_to_graph(&graph, &[0, 1, 2]);
+}
+
+#[test]
+#[should_panic(expected = "node order contains duplicate node 1")]
+fn test_apply_node_order_to_graph_panics_on_duplicate_node() {
+    let graph = wrap_undi_vec(path_graph(4));
+    let _ = apply_node_order_to_graph(&graph, &[0, 1, 1, 2]);
+}
+
+#[test]
+#[should_panic(expected = "node order contains out-of-range node 4")]
+fn test_apply_node_order_to_graph_panics_on_out_of_range_node() {
+    let graph = wrap_undi_vec(path_graph(4));
+    let _ = apply_node_order_to_graph(&graph, &[0, 1, 2, 4]);
+}
+
+#[test]
+fn test_apply_node_order_to_graph_reorders_undirected_symbols_and_edges() {
+    let graph = wrap_undi_vec(path_graph(4));
+    let reordered = apply_node_order_to_graph(&graph, &[1, 0, 2, 3]);
+
+    let symbols: Vec<_> = reordered.nodes().collect();
+    assert_eq!(symbols, vec![1, 0, 2, 3]);
+    assert_eq!(reordered.neighbors(0).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(reordered.neighbors(1).collect::<Vec<_>>(), vec![0]);
+    assert_eq!(reordered.neighbors(2).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(reordered.neighbors(3).collect::<Vec<_>>(), vec![2]);
+}
+
+#[test]
+fn test_apply_node_order_to_graph_reorders_directed_symbols_and_edges() {
+    let nodes = (0..4).collect::<Vec<_>>();
+    let edges: DirectedGraph = DiEdgesBuilder::default()
+        .expected_number_of_edges(3)
+        .expected_shape(4)
+        .edges([(0, 2), (2, 1), (3, 3)].into_iter())
+        .build()
+        .unwrap();
+    let graph = GenericGraph::from((nodes, edges));
+
+    let reordered = apply_node_order_to_graph(&graph, &[2, 0, 1, 3]);
+
+    let symbols: Vec<_> = reordered.nodes().collect();
+    assert_eq!(symbols, vec![2, 0, 1, 3]);
+    assert_eq!(reordered.successors(0).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(reordered.successors(1).collect::<Vec<_>>(), vec![0]);
+    assert!(reordered.successors(2).collect::<Vec<_>>().is_empty());
+    assert_eq!(reordered.successors(3).collect::<Vec<_>>(), vec![3]);
+}
+
+#[test]
+fn test_apply_node_order_to_graph_preserves_weighted_edge_labels() {
+    let nodes = vec!["a", "b", "c"];
+    let edges: ValuedCSR2D<usize, usize, usize, f64> =
+        GenericEdgesBuilder::<_, ValuedCSR2D<usize, usize, usize, f64>>::default()
+            .expected_number_of_edges(2)
+            .expected_shape((3, 3))
+            .edges([(0, 1, 1.5), (2, 0, 2.5)].into_iter())
+            .build()
+            .unwrap();
+    let graph: GenericGraph<Vec<&str>, ValuedCSR2D<usize, usize, usize, f64>> =
+        GenericGraph::from((nodes, edges));
+
+    let reordered = apply_node_order_to_graph(&graph, &[2, 0, 1]);
+
+    let symbols: Vec<_> = reordered.nodes().collect();
+    assert_eq!(symbols, vec!["c", "a", "b"]);
+    assert_eq!(reordered.successors(0).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(reordered.successor_weights(0).collect::<Vec<_>>(), vec![2.5]);
+    assert_eq!(reordered.successors(1).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(reordered.successor_weights(1).collect::<Vec<_>>(), vec![1.5]);
+    assert!(reordered.successors(2).collect::<Vec<_>>().is_empty());
+}
+
+#[test]
+fn test_apply_node_order_to_graph_preserves_weighted_undirected_edge_labels() {
+    let nodes = vec!["a", "b", "c", "d"];
+    let edges = WeightedUndirectedGraph::from_sorted_upper_triangular_entries(
+        4,
+        [(0, 1, 7), (0, 2, 11), (2, 3, 13)],
+    )
+    .unwrap();
+    let graph: GenericGraph<Vec<&str>, WeightedUndirectedGraph> =
+        GenericGraph::from((nodes, edges));
+
+    let reordered = apply_node_order_to_graph(&graph, &[2, 0, 3, 1]);
+
+    let reordered_matrix = Edges::matrix(reordered.edges());
+    let symbols: Vec<_> = reordered.nodes().collect();
+    assert_eq!(symbols, vec!["c", "a", "d", "b"]);
+    assert_eq!(reordered.neighbors(0).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(reordered.neighbors(1).collect::<Vec<_>>(), vec![0, 3]);
+    assert_eq!(reordered.neighbors(2).collect::<Vec<_>>(), vec![0]);
+    assert_eq!(reordered.neighbors(3).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(reordered_matrix.sparse_value_at(0, 1), Some(11));
+    assert_eq!(reordered_matrix.sparse_value_at(0, 2), Some(13));
+    assert_eq!(reordered_matrix.sparse_value_at(1, 3), Some(7));
+}
+
+#[test]
+fn test_apply_node_order_to_graph_supports_modular_product_graphs() {
+    let left = BitSquareMatrix::from_symmetric_edges(2, [(0, 1)]);
+    let right = BitSquareMatrix::from_symmetric_edges(2, [(0, 1)]);
+    let graph = left.modular_product_filtered(&right, |_, _| true).into_graph();
+
+    let reordered = apply_node_order_to_graph(&graph, &[3, 1, 2, 0]);
+
+    assert_eq!(reordered.node_ids().collect::<Vec<_>>(), vec![0, 1, 2, 3]);
+    assert_eq!(reordered.nodes().collect::<Vec<_>>(), vec![(1, 1), (0, 1), (1, 0), (0, 0)]);
+    assert_eq!(reordered.neighbors(0).collect::<Vec<_>>(), vec![3]);
+    assert_eq!(reordered.neighbors(1).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(reordered.neighbors(2).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(reordered.neighbors(3).collect::<Vec<_>>(), vec![0]);
 }
 
 #[test]

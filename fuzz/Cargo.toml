@@ -231,3 +231,9 @@ name = "vf2"
 path = "fuzz_targets/vf2.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "node_ordering_application"
+path = "fuzz_targets/node_ordering_application.rs"
+test = false
+doc = false
