@@ -17,6 +17,7 @@ mod degeneracy;
 mod degree;
 mod dsatur;
 mod katz_centrality;
+mod layered_label_propagation;
 mod local_clustering;
 mod pagerank;
 mod traversal;
@@ -31,6 +32,10 @@ pub use degeneracy::{CoreNumberScorer, DegeneracySorter};
 pub use degree::{DegreeScorer, SecondOrderDegreeScorer};
 pub use dsatur::DsaturSorter;
 pub use katz_centrality::{KatzCentralityScorer, KatzCentralityScorerBuilder};
+pub use layered_label_propagation::{
+    LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS, LayeredLabelPropagationError,
+    LayeredLabelPropagationSorter,
+};
 pub use local_clustering::LocalClusteringCoefficientScorer;
 use num_traits::{AsPrimitive, cast};
 pub use pagerank::{PageRankScorer, PageRankScorerBuilder};

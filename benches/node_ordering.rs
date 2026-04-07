@@ -96,9 +96,9 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
 fn assert_cases_are_smallest_last<S>(
     cases: &[PreparedNodeOrderingCase],
     group_name: &str,
-    sorter: S,
+    sorter: &S,
 ) where
-    S: NodeSorter<UndiGraph<usize>> + Copy,
+    S: NodeSorter<UndiGraph<usize>>,
 {
     for case in cases {
         let order = sorter.sort_nodes(&case.graph);
@@ -198,10 +198,10 @@ fn assert_cases_match_local_clustering_scores(
 fn assert_cases_match_exact_order<S, F>(
     cases: &[PreparedNodeOrderingCase],
     group_name: &str,
-    sorter: S,
+    sorter: &S,
     expected_order: F,
 ) where
-    S: NodeSorter<UndiGraph<usize>> + Copy,
+    S: NodeSorter<UndiGraph<usize>>,
     F: Fn(&PreparedNodeOrderingCase) -> &[usize],
 {
     for case in cases {
@@ -219,9 +219,23 @@ fn total_scaling_nodes(cases: &[&ScalingCase]) -> usize {
     cases.iter().map(|case| case.graph.number_of_nodes()).sum()
 }
 
-fn bench_sorter_scaling<S>(c: &mut Criterion, group_name: &str, cases: &[ScalingCase], sorter: S)
+fn assert_sorter_returns_permutations<S>(
+    cases: &[PreparedNodeOrderingCase],
+    group_name: &str,
+    sorter: &S,
+) where
+    S: NodeSorter<UndiGraph<usize>>,
+{
+    for case in cases {
+        let order = sorter.sort_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_is_permutation(&order, case.graph.number_of_nodes(), &context);
+    }
+}
+
+fn bench_sorter_scaling<S>(c: &mut Criterion, group_name: &str, cases: &[ScalingCase], sorter: &S)
 where
-    S: NodeSorter<UndiGraph<usize>> + Copy,
+    S: NodeSorter<UndiGraph<usize>> + Clone,
 {
     let case_refs: Vec<&ScalingCase> = cases.iter().collect();
     let mut total_group = c.benchmark_group(group_name);
@@ -236,14 +250,18 @@ where
             "total_cases",
             format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
         ),
-        |b| {
-            b.iter(|| {
-                let total = case_refs
-                    .iter()
-                    .map(|case| sorter.sort_nodes(&case.graph).len())
-                    .sum::<usize>();
-                black_box(total);
-            });
+        {
+            let case_refs = case_refs.clone();
+            let sorter = sorter.clone();
+            move |b| {
+                b.iter(|| {
+                    let total = case_refs
+                        .iter()
+                        .map(|case| sorter.sort_nodes(&case.graph).len())
+                        .sum::<usize>();
+                    black_box(total);
+                });
+            }
         },
     );
     total_group.finish();
@@ -257,11 +275,15 @@ where
         size_group.throughput(Throughput::Elements(
             u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
         ));
-        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
-            b.iter(|| {
-                let total = sorter.sort_nodes(&case.graph).len();
-                black_box(total);
-            });
+        size_group.bench_function(BenchmarkId::new("case", &case.name), {
+            let graph = case.graph.clone();
+            let sorter = sorter.clone();
+            move |b| {
+                b.iter(|| {
+                    let total = sorter.sort_nodes(&graph).len();
+                    black_box(total);
+                });
+            }
         });
     }
     size_group.finish();
@@ -271,9 +293,9 @@ fn bench_sorter<S>(
     c: &mut Criterion,
     group_name: &str,
     cases: &[PreparedNodeOrderingCase],
-    sorter: S,
+    sorter: &S,
 ) where
-    S: NodeSorter<UndiGraph<usize>> + Copy,
+    S: NodeSorter<UndiGraph<usize>> + Clone,
 {
     let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
     let mut total_group = c.benchmark_group(group_name);
@@ -288,14 +310,18 @@ fn bench_sorter<S>(
             "total_cases",
             format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
         ),
-        |b| {
-            b.iter(|| {
-                let total = case_refs
-                    .iter()
-                    .map(|case| sorter.sort_nodes(&case.graph).len())
-                    .sum::<usize>();
-                black_box(total);
-            });
+        {
+            let case_refs = case_refs.clone();
+            let sorter = sorter.clone();
+            move |b| {
+                b.iter(|| {
+                    let total = case_refs
+                        .iter()
+                        .map(|case| sorter.sort_nodes(&case.graph).len())
+                        .sum::<usize>();
+                    black_box(total);
+                });
+            }
         },
     );
     total_group.finish();
@@ -323,14 +349,18 @@ fn bench_sorter<S>(
                     total_nodes(&family_cases)
                 ),
             ),
-            |b| {
-                b.iter(|| {
-                    let total = family_cases
-                        .iter()
-                        .map(|case| sorter.sort_nodes(&case.graph).len())
-                        .sum::<usize>();
-                    black_box(total);
-                });
+            {
+                let family_cases = family_cases.clone();
+                let sorter = sorter.clone();
+                move |b| {
+                    b.iter(|| {
+                        let total = family_cases
+                            .iter()
+                            .map(|case| sorter.sort_nodes(&case.graph).len())
+                            .sum::<usize>();
+                        black_box(total);
+                    });
+                }
             },
         );
     }
@@ -945,6 +975,54 @@ fn traversal_scaling_cases() -> Vec<ScalingCase> {
         .collect()
 }
 
+fn llp_scaling_cases() -> Vec<ScalingCase> {
+    let sparse = [(64usize, 0.05f64), (128, 0.05), (256, 0.05), (384, 0.05)];
+    let dense = [(64usize, 0.20f64), (96, 0.20), (128, 0.20), (160, 0.20)];
+
+    sparse
+        .into_iter()
+        .enumerate()
+        .map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("llp_sparse_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 2_001, n, p)),
+            }
+        })
+        .chain(dense.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("llp_dense_gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 2_101, n, p)),
+            }
+        }))
+        .collect()
+}
+
+fn representative_llp_fixture_cases() -> Vec<PreparedNodeOrderingCase> {
+    let mut families: BTreeMap<String, Vec<PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in prepare_cases(FIXTURE_NAME) {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut selected = Vec::new();
+    for mut family_cases in families.into_values() {
+        family_cases.sort_unstable_by(|left, right| {
+            left.graph
+                .number_of_nodes()
+                .cmp(&right.graph.number_of_nodes())
+                .then_with(|| left.name.cmp(&right.name))
+        });
+
+        let mut pick_indices = vec![0usize, family_cases.len() / 2, family_cases.len() - 1];
+        pick_indices.sort_unstable();
+        pick_indices.dedup();
+        for index in pick_indices {
+            selected.push(family_cases[index].clone());
+        }
+    }
+
+    selected
+}
+
 fn katz_scaling_scorer(graph: &UndiGraph<usize>) -> KatzCentralityScorer {
     let max_degree = (0..graph.number_of_nodes()).map(|node| graph.degree(node)).max().unwrap_or(0);
     let safe_denominator = cast::<usize, f64>(if max_degree == 0 { 1 } else { max_degree + 1 })
@@ -1052,10 +1130,10 @@ fn bench_triangle_scorer(c: &mut Criterion) {
 fn bench_triangle_sorter(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingScoreSorter::new(TriangleCountScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", &sorter, |case| {
         &case.triangle_descending
     });
-    bench_sorter(c, "node_ordering_triangle_sorter", &cases, sorter);
+    bench_sorter(c, "node_ordering_triangle_sorter", &cases, &sorter);
 }
 
 fn bench_local_clustering_scorer(c: &mut Criterion) {
@@ -1142,42 +1220,42 @@ fn bench_local_clustering_sorter(c: &mut Criterion) {
     assert_cases_match_exact_order(
         &cases,
         "node_ordering_local_clustering_sorter",
-        sorter,
+        &sorter,
         |case| &case.local_clustering_descending,
     );
-    bench_sorter(c, "node_ordering_local_clustering_sorter", &cases, sorter);
+    bench_sorter(c, "node_ordering_local_clustering_sorter", &cases, &sorter);
 }
 
 fn bench_degeneracy(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
-    assert_cases_are_smallest_last(&cases, "node_ordering_degeneracy", DegeneracySorter);
-    bench_sorter(c, "node_ordering_degeneracy", &cases, DegeneracySorter);
+    assert_cases_are_smallest_last(&cases, "node_ordering_degeneracy", &DegeneracySorter);
+    bench_sorter(c, "node_ordering_degeneracy", &cases, &DegeneracySorter);
 }
 
 fn bench_degeneracy_degree(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_degeneracy_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_degeneracy_degree", &sorter, |case| {
         &case.degeneracy_degree_descending
     });
-    bench_sorter(c, "node_ordering_degeneracy_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_degeneracy_degree", &cases, &sorter);
 }
 
 fn bench_welsh_powell(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingScoreSorter::new(DegreeScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_welsh_powell", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_welsh_powell", &sorter, |case| {
         &case.welsh_powell_descending
     });
-    bench_sorter(c, "node_ordering_welsh_powell", &cases, sorter);
+    bench_sorter(c, "node_ordering_welsh_powell", &cases, &sorter);
 }
 
 fn bench_dsatur(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
-    assert_cases_match_exact_order(&cases, "node_ordering_dsatur", DsaturSorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_dsatur", &DsaturSorter, |case| {
         &case.dsatur_order
     });
-    bench_sorter(c, "node_ordering_dsatur", &cases, DsaturSorter);
+    bench_sorter(c, "node_ordering_dsatur", &cases, &DsaturSorter);
 }
 
 fn bench_bfs_from_max_degree(c: &mut Criterion) {
@@ -1186,10 +1264,10 @@ fn bench_bfs_from_max_degree(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    assert_cases_match_exact_order(&cases, "node_ordering_bfs_from_max_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_bfs_from_max_degree", &sorter, |case| {
         &case.bfs_from_max_degree
     });
-    bench_sorter(c, "node_ordering_bfs_from_max_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_bfs_from_max_degree", &cases, &sorter);
 }
 
 fn bench_dfs_from_max_degree(c: &mut Criterion) {
@@ -1198,10 +1276,10 @@ fn bench_dfs_from_max_degree(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    assert_cases_match_exact_order(&cases, "node_ordering_dfs_from_max_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_dfs_from_max_degree", &sorter, |case| {
         &case.dfs_from_max_degree
     });
-    bench_sorter(c, "node_ordering_dfs_from_max_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_dfs_from_max_degree", &cases, &sorter);
 }
 
 fn bench_pagerank_scorer(c: &mut Criterion) {
@@ -1868,13 +1946,13 @@ fn bench_welsh_powell_scaling(c: &mut Criterion) {
         c,
         "node_ordering_welsh_powell_scaling",
         &cases,
-        DescendingScoreSorter::new(DegreeScorer),
+        &DescendingScoreSorter::new(DegreeScorer),
     );
 }
 
 fn bench_dsatur_scaling(c: &mut Criterion) {
     let cases = dsatur_scaling_cases();
-    bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, DsaturSorter);
+    bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, &DsaturSorter);
 }
 
 fn bench_bfs_from_max_degree_scaling(c: &mut Criterion) {
@@ -1883,7 +1961,7 @@ fn bench_bfs_from_max_degree_scaling(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    bench_sorter_scaling(c, "node_ordering_bfs_from_max_degree_scaling", &cases, sorter);
+    bench_sorter_scaling(c, "node_ordering_bfs_from_max_degree_scaling", &cases, &sorter);
 }
 
 fn bench_dfs_from_max_degree_scaling(c: &mut Criterion) {
@@ -1892,7 +1970,24 @@ fn bench_dfs_from_max_degree_scaling(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    bench_sorter_scaling(c, "node_ordering_dfs_from_max_degree_scaling", &cases, sorter);
+    bench_sorter_scaling(c, "node_ordering_dfs_from_max_degree_scaling", &cases, &sorter);
+}
+
+fn bench_layered_label_propagation(c: &mut Criterion) {
+    let cases = representative_llp_fixture_cases();
+    let sorter = LayeredLabelPropagationSorter::default();
+    assert_sorter_returns_permutations(&cases, "node_ordering_layered_label_propagation", &sorter);
+    bench_sorter(c, "node_ordering_layered_label_propagation", &cases, &sorter);
+}
+
+fn bench_layered_label_propagation_scaling(c: &mut Criterion) {
+    let cases = llp_scaling_cases();
+    bench_sorter_scaling(
+        c,
+        "node_ordering_layered_label_propagation_scaling",
+        &cases,
+        &LayeredLabelPropagationSorter::default(),
+    );
 }
 
 criterion_group!(
@@ -1907,6 +2002,8 @@ criterion_group!(
     bench_bfs_from_max_degree_scaling,
     bench_dfs_from_max_degree,
     bench_dfs_from_max_degree_scaling,
+    bench_layered_label_propagation,
+    bench_layered_label_propagation_scaling,
     bench_triangle_scorer,
     bench_triangle_sorter,
     bench_triangle_scaling,

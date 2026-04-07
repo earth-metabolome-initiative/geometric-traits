@@ -23,7 +23,8 @@
 //!   --output tests/fixtures/massspecgym_mces_default_200000.json.gz
 //! ```
 //!
-//! The `1000` fixture is the committed always-on large-corpus parity asset.
+//! The `1000` fixture is the committed large-corpus parity asset and is
+//! ignored by default.
 //! The `10000` fixture is the committed heavier parity asset.
 //! The `200000` fixture is local-only and gitignored.
 #![cfg(feature = "std")]
