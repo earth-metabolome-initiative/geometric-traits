@@ -141,6 +141,14 @@ orderings.
 This fixture is consumed by `tests/test_node_ordering.rs` and
 `benches/node_ordering.rs`.
 
+A much larger local-only `NetworkX` oracle corpus can be placed at
+`tests/fixtures/local/node_ordering_power_iteration_500k.json.gz`.
+
+That corpus is intentionally not tracked in git. It is meant for
+high-volume stability sweeps of the power-iteration eigenvector-centrality
+scorer and is consumed by the ignored
+`tests/test_node_ordering_power_iteration_local_corpus.rs` validation.
+
 # Hopcroft-Tarjan Biconnected Fixtures
 
 The small semantic corpus is now stored directly in Rust code via
