@@ -5,6 +5,12 @@ pub mod connected_components;
 #[cfg(feature = "alloc")]
 pub use connected_components::ConnectedComponents;
 #[cfg(feature = "alloc")]
+pub mod biconnected_components;
+#[cfg(feature = "alloc")]
+pub use biconnected_components::{
+    BiconnectedComponents, BiconnectedComponentsError, BiconnectedComponentsResult, BiconnectedEdge,
+};
+#[cfg(feature = "alloc")]
 pub mod cycle_detection;
 #[cfg(feature = "alloc")]
 pub use cycle_detection::CycleDetection;
