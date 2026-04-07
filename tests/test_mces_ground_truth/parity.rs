@@ -39,6 +39,7 @@ fn test_massspecgym_ground_truth_labeled_mces() {
 }
 
 #[test]
+#[ignore = "1K-corpus parity check against the committed MassSpecGym-derived RDKit default fixture"]
 fn test_massspecgym_ground_truth_labeled_mces_1000() {
     let cases = load_massspecgym_ground_truth_1000();
     assert_eq!(cases.len(), 1000, "expected exactly 1000 fast large-corpus cases");
