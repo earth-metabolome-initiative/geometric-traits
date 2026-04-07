@@ -96,7 +96,7 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
 fn assert_cases_are_smallest_last<S>(
     cases: &[PreparedNodeOrderingCase],
     group_name: &str,
-    sorter: S,
+    sorter: &S,
 ) where
     S: NodeSorter<UndiGraph<usize>>,
 {
@@ -198,7 +198,7 @@ fn assert_cases_match_local_clustering_scores(
 fn assert_cases_match_exact_order<S, F>(
     cases: &[PreparedNodeOrderingCase],
     group_name: &str,
-    sorter: S,
+    sorter: &S,
     expected_order: F,
 ) where
     S: NodeSorter<UndiGraph<usize>>,
@@ -222,7 +222,7 @@ fn total_scaling_nodes(cases: &[&ScalingCase]) -> usize {
 fn assert_sorter_returns_permutations<S>(
     cases: &[PreparedNodeOrderingCase],
     group_name: &str,
-    sorter: S,
+    sorter: &S,
 ) where
     S: NodeSorter<UndiGraph<usize>>,
 {
@@ -233,7 +233,7 @@ fn assert_sorter_returns_permutations<S>(
     }
 }
 
-fn bench_sorter_scaling<S>(c: &mut Criterion, group_name: &str, cases: &[ScalingCase], sorter: S)
+fn bench_sorter_scaling<S>(c: &mut Criterion, group_name: &str, cases: &[ScalingCase], sorter: &S)
 where
     S: NodeSorter<UndiGraph<usize>> + Clone,
 {
@@ -293,7 +293,7 @@ fn bench_sorter<S>(
     c: &mut Criterion,
     group_name: &str,
     cases: &[PreparedNodeOrderingCase],
-    sorter: S,
+    sorter: &S,
 ) where
     S: NodeSorter<UndiGraph<usize>> + Clone,
 {
@@ -1130,10 +1130,10 @@ fn bench_triangle_scorer(c: &mut Criterion) {
 fn bench_triangle_sorter(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingScoreSorter::new(TriangleCountScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", &sorter, |case| {
         &case.triangle_descending
     });
-    bench_sorter(c, "node_ordering_triangle_sorter", &cases, sorter);
+    bench_sorter(c, "node_ordering_triangle_sorter", &cases, &sorter);
 }
 
 fn bench_local_clustering_scorer(c: &mut Criterion) {
@@ -1220,42 +1220,42 @@ fn bench_local_clustering_sorter(c: &mut Criterion) {
     assert_cases_match_exact_order(
         &cases,
         "node_ordering_local_clustering_sorter",
-        sorter,
+        &sorter,
         |case| &case.local_clustering_descending,
     );
-    bench_sorter(c, "node_ordering_local_clustering_sorter", &cases, sorter);
+    bench_sorter(c, "node_ordering_local_clustering_sorter", &cases, &sorter);
 }
 
 fn bench_degeneracy(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
-    assert_cases_are_smallest_last(&cases, "node_ordering_degeneracy", DegeneracySorter);
-    bench_sorter(c, "node_ordering_degeneracy", &cases, DegeneracySorter);
+    assert_cases_are_smallest_last(&cases, "node_ordering_degeneracy", &DegeneracySorter);
+    bench_sorter(c, "node_ordering_degeneracy", &cases, &DegeneracySorter);
 }
 
 fn bench_degeneracy_degree(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingLexicographicScoreSorter::new(CoreNumberScorer, DegreeScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_degeneracy_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_degeneracy_degree", &sorter, |case| {
         &case.degeneracy_degree_descending
     });
-    bench_sorter(c, "node_ordering_degeneracy_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_degeneracy_degree", &cases, &sorter);
 }
 
 fn bench_welsh_powell(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     let sorter = DescendingScoreSorter::new(DegreeScorer);
-    assert_cases_match_exact_order(&cases, "node_ordering_welsh_powell", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_welsh_powell", &sorter, |case| {
         &case.welsh_powell_descending
     });
-    bench_sorter(c, "node_ordering_welsh_powell", &cases, sorter);
+    bench_sorter(c, "node_ordering_welsh_powell", &cases, &sorter);
 }
 
 fn bench_dsatur(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
-    assert_cases_match_exact_order(&cases, "node_ordering_dsatur", DsaturSorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_dsatur", &DsaturSorter, |case| {
         &case.dsatur_order
     });
-    bench_sorter(c, "node_ordering_dsatur", &cases, DsaturSorter);
+    bench_sorter(c, "node_ordering_dsatur", &cases, &DsaturSorter);
 }
 
 fn bench_bfs_from_max_degree(c: &mut Criterion) {
@@ -1264,10 +1264,10 @@ fn bench_bfs_from_max_degree(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    assert_cases_match_exact_order(&cases, "node_ordering_bfs_from_max_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_bfs_from_max_degree", &sorter, |case| {
         &case.bfs_from_max_degree
     });
-    bench_sorter(c, "node_ordering_bfs_from_max_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_bfs_from_max_degree", &cases, &sorter);
 }
 
 fn bench_dfs_from_max_degree(c: &mut Criterion) {
@@ -1276,10 +1276,10 @@ fn bench_dfs_from_max_degree(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    assert_cases_match_exact_order(&cases, "node_ordering_dfs_from_max_degree", sorter, |case| {
+    assert_cases_match_exact_order(&cases, "node_ordering_dfs_from_max_degree", &sorter, |case| {
         &case.dfs_from_max_degree
     });
-    bench_sorter(c, "node_ordering_dfs_from_max_degree", &cases, sorter);
+    bench_sorter(c, "node_ordering_dfs_from_max_degree", &cases, &sorter);
 }
 
 fn bench_pagerank_scorer(c: &mut Criterion) {
@@ -1946,13 +1946,13 @@ fn bench_welsh_powell_scaling(c: &mut Criterion) {
         c,
         "node_ordering_welsh_powell_scaling",
         &cases,
-        DescendingScoreSorter::new(DegreeScorer),
+        &DescendingScoreSorter::new(DegreeScorer),
     );
 }
 
 fn bench_dsatur_scaling(c: &mut Criterion) {
     let cases = dsatur_scaling_cases();
-    bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, DsaturSorter);
+    bench_sorter_scaling(c, "node_ordering_dsatur_scaling", &cases, &DsaturSorter);
 }
 
 fn bench_bfs_from_max_degree_scaling(c: &mut Criterion) {
@@ -1961,7 +1961,7 @@ fn bench_bfs_from_max_degree_scaling(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    bench_sorter_scaling(c, "node_ordering_bfs_from_max_degree_scaling", &cases, sorter);
+    bench_sorter_scaling(c, "node_ordering_bfs_from_max_degree_scaling", &cases, &sorter);
 }
 
 fn bench_dfs_from_max_degree_scaling(c: &mut Criterion) {
@@ -1970,18 +1970,14 @@ fn bench_dfs_from_max_degree_scaling(c: &mut Criterion) {
         TraversalSeedStrategy::MaxOutDegree,
         TraversalNeighborOrder::NodeIdAscending,
     );
-    bench_sorter_scaling(c, "node_ordering_dfs_from_max_degree_scaling", &cases, sorter);
+    bench_sorter_scaling(c, "node_ordering_dfs_from_max_degree_scaling", &cases, &sorter);
 }
 
 fn bench_layered_label_propagation(c: &mut Criterion) {
     let cases = representative_llp_fixture_cases();
     let sorter = LayeredLabelPropagationSorter::default();
-    assert_sorter_returns_permutations(
-        &cases,
-        "node_ordering_layered_label_propagation",
-        sorter.clone(),
-    );
-    bench_sorter(c, "node_ordering_layered_label_propagation", &cases, sorter);
+    assert_sorter_returns_permutations(&cases, "node_ordering_layered_label_propagation", &sorter);
+    bench_sorter(c, "node_ordering_layered_label_propagation", &cases, &sorter);
 }
 
 fn bench_layered_label_propagation_scaling(c: &mut Criterion) {
@@ -1990,7 +1986,7 @@ fn bench_layered_label_propagation_scaling(c: &mut Criterion) {
         c,
         "node_ordering_layered_label_propagation_scaling",
         &cases,
-        LayeredLabelPropagationSorter::default(),
+        &LayeredLabelPropagationSorter::default(),
     );
 }
 
