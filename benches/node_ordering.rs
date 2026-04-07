@@ -9,7 +9,10 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use geometric_traits::{
     impls::{CSR2D, SortedVec, SymmetricCSR2D},
     prelude::*,
-    traits::{SquareMatrix, VocabularyBuilder, algorithms::randomized_graphs::erdos_renyi_gnp},
+    traits::{
+        SquareMatrix, VocabularyBuilder,
+        algorithms::randomized_graphs::{cycle_graph, erdos_renyi_gnp, path_graph, star_graph},
+    },
 };
 use node_ordering_fixture::{PreparedNodeOrderingCase, prepare_cases};
 use num_traits::cast;
@@ -20,6 +23,7 @@ const KATZ_TOLERANCE: f64 = 1.0e-11;
 const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 const CLOSENESS_TOLERANCE: f64 = 1.0e-12;
 const LOCAL_CLUSTERING_TOLERANCE: f64 = 1.0e-12;
+const POWER_ITERATION_EIGENVECTOR_TOLERANCE: f64 = 2.0e-12;
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 
@@ -31,6 +35,23 @@ fn wrap_undi(g: UndirectedGraph) -> UndiGraph<usize> {
         .build()
         .unwrap();
     UndiGraph::from((nodes, g))
+}
+
+fn complete_bipartite(left: usize, right: usize) -> UndiGraph<usize> {
+    let order = left + right;
+    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(order)
+        .symbols((0..order).enumerate())
+        .build()
+        .unwrap();
+    let edges = (0..left).flat_map(|u| (left..order).map(move |v| (u, v)));
+    let matrix: UndirectedGraph = UndiEdgesBuilder::default()
+        .expected_number_of_edges(left * right)
+        .expected_shape(order)
+        .edges(edges)
+        .build()
+        .unwrap();
+    UndiGraph::from((nodes, matrix))
 }
 
 #[derive(Clone)]
@@ -117,6 +138,26 @@ fn assert_cases_match_pagerank_scores(cases: &[PreparedNodeOrderingCase], group_
         let pagerank_scores = scorer.score_nodes(&case.graph);
         let context = format!("{group_name}::{} ({})", case.name, case.family);
         assert_scores_close(&pagerank_scores, &case.pagerank_scores, PAGERANK_TOLERANCE, &context);
+    }
+}
+
+fn assert_cases_match_power_iteration_eigenvector_scores(
+    cases: &[PreparedNodeOrderingCase],
+    group_name: &str,
+) {
+    for case in cases {
+        let scorer = PowerIterationEigenvectorCentralityScorerBuilder::default()
+            .max_iter(case.power_iteration_eigenvector_max_iter)
+            .tolerance(case.power_iteration_eigenvector_tol)
+            .build();
+        let eigenvector_scores = scorer.score_nodes(&case.graph);
+        let context = format!("{group_name}::{} ({})", case.name, case.family);
+        assert_scores_close(
+            &eigenvector_scores,
+            &case.power_iteration_eigenvector_scores,
+            POWER_ITERATION_EIGENVECTOR_TOLERANCE,
+            &context,
+        );
     }
 }
 
@@ -1044,6 +1085,51 @@ fn closeness_scaling_scorer() -> ClosenessCentralityScorer {
     ClosenessCentralityScorer::default()
 }
 
+fn power_iteration_eigenvector_scaling_scorer() -> PowerIterationEigenvectorCentralityScorer {
+    PowerIterationEigenvectorCentralityScorerBuilder::default()
+        .max_iter(8_192)
+        .tolerance(1.0e-6)
+        .build()
+}
+
+fn power_iteration_eigenvector_scaling_cases() -> Vec<ScalingCase> {
+    let structural = [
+        ScalingCase { name: "path_128".to_string(), graph: wrap_undi(path_graph(128)) },
+        ScalingCase { name: "path_256".to_string(), graph: wrap_undi(path_graph(256)) },
+        ScalingCase { name: "path_512".to_string(), graph: wrap_undi(path_graph(512)) },
+        ScalingCase { name: "cycle_128".to_string(), graph: wrap_undi(cycle_graph(128)) },
+        ScalingCase { name: "cycle_256".to_string(), graph: wrap_undi(cycle_graph(256)) },
+        ScalingCase { name: "cycle_512".to_string(), graph: wrap_undi(cycle_graph(512)) },
+        ScalingCase { name: "star_128".to_string(), graph: wrap_undi(star_graph(128)) },
+        ScalingCase { name: "star_256".to_string(), graph: wrap_undi(star_graph(256)) },
+        ScalingCase { name: "star_512".to_string(), graph: wrap_undi(star_graph(512)) },
+        ScalingCase {
+            name: "complete_bipartite_64_64".to_string(),
+            graph: complete_bipartite(64, 64),
+        },
+        ScalingCase {
+            name: "complete_bipartite_128_128".to_string(),
+            graph: complete_bipartite(128, 128),
+        },
+        ScalingCase {
+            name: "complete_bipartite_256_256".to_string(),
+            graph: complete_bipartite(256, 256),
+        },
+    ];
+    let random =
+        [(128usize, 0.05f64), (256, 0.05), (512, 0.05), (128, 0.20), (256, 0.20), (512, 0.20)];
+
+    structural
+        .into_iter()
+        .chain(random.into_iter().enumerate().map(|(index, (n, p))| {
+            ScalingCase {
+                name: format!("gnp_{n}_p_{p:.2}_seed_{index}"),
+                graph: wrap_undi(erdos_renyi_gnp(index as u64 + 3_001, n, p)),
+            }
+        }))
+        .collect()
+}
+
 fn bench_triangle_scorer(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     assert_cases_match_triangle_counts(&cases, "node_ordering_triangle_scorer");
@@ -1374,6 +1460,195 @@ fn bench_pagerank_sorter(c: &mut Criterion) {
                                     .alpha(case.pagerank_alpha)
                                     .max_iter(case.pagerank_max_iter)
                                     .tolerance(case.pagerank_tol)
+                                    .build(),
+                            )
+                            .sort_nodes(&case.graph)
+                            .len()
+                        })
+                        .sum::<usize>();
+                    black_box(total);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
+fn bench_power_iteration_eigenvector_scorer(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    assert_cases_match_power_iteration_eigenvector_scores(
+        &cases,
+        "node_ordering_power_iteration_eigenvector_scorer",
+    );
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+
+    let mut total_group = c.benchmark_group("node_ordering_power_iteration_eigenvector_scorer");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        PowerIterationEigenvectorCentralityScorerBuilder::default()
+                            .max_iter(case.power_iteration_eigenvector_max_iter)
+                            .tolerance(case.power_iteration_eigenvector_tol)
+                            .build()
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group =
+        c.benchmark_group("node_ordering_power_iteration_eigenvector_scorer_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let checksum = family_cases
+                        .iter()
+                        .map(|case| {
+                            PowerIterationEigenvectorCentralityScorerBuilder::default()
+                                .max_iter(case.power_iteration_eigenvector_max_iter)
+                                .tolerance(case.power_iteration_eigenvector_tol)
+                                .build()
+                                .score_nodes(&case.graph)
+                                .into_iter()
+                                .map(f64::to_bits)
+                                .fold(0u64, u64::wrapping_add)
+                        })
+                        .fold(0u64, u64::wrapping_add);
+                    black_box(checksum);
+                });
+            },
+        );
+    }
+    family_group.finish();
+}
+
+fn bench_power_iteration_eigenvector_sorter(c: &mut Criterion) {
+    let cases = prepare_cases(FIXTURE_NAME);
+    for case in &cases {
+        let sorter = DescendingScoreSorter::new(
+            PowerIterationEigenvectorCentralityScorerBuilder::default()
+                .max_iter(case.power_iteration_eigenvector_max_iter)
+                .tolerance(case.power_iteration_eigenvector_tol)
+                .build(),
+        );
+        let order = sorter.sort_nodes(&case.graph);
+        let context = format!(
+            "node_ordering_power_iteration_eigenvector_sorter::{} ({})",
+            case.name, case.family
+        );
+        assert_eq!(
+            order, case.power_iteration_eigenvector_descending,
+            "benchmark ordering `{context}` mismatched oracle"
+        );
+    }
+
+    let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_power_iteration_eigenvector_sorter");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("fixture size should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let total = case_refs
+                    .iter()
+                    .map(|case| {
+                        DescendingScoreSorter::new(
+                            PowerIterationEigenvectorCentralityScorerBuilder::default()
+                                .max_iter(case.power_iteration_eigenvector_max_iter)
+                                .tolerance(case.power_iteration_eigenvector_tol)
+                                .build(),
+                        )
+                        .sort_nodes(&case.graph)
+                        .len()
+                    })
+                    .sum::<usize>();
+                black_box(total);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut families: BTreeMap<String, Vec<&PreparedNodeOrderingCase>> = BTreeMap::new();
+    for case in &cases {
+        families.entry(case.family.clone()).or_default().push(case);
+    }
+
+    let mut family_group =
+        c.benchmark_group("node_ordering_power_iteration_eigenvector_sorter_by_family");
+    family_group.sample_size(10);
+    family_group.warm_up_time(Duration::from_millis(500));
+    family_group.measurement_time(Duration::from_secs(2));
+
+    for (family, family_cases) in families {
+        family_group.throughput(Throughput::Elements(
+            u64::try_from(family_cases.len()).expect("family case count should fit into u64"),
+        ));
+        family_group.bench_function(
+            BenchmarkId::new(
+                "family_cases",
+                format!(
+                    "{family}_cases={}_nodes={}",
+                    family_cases.len(),
+                    total_nodes(&family_cases)
+                ),
+            ),
+            |b| {
+                b.iter(|| {
+                    let total = family_cases
+                        .iter()
+                        .map(|case| {
+                            DescendingScoreSorter::new(
+                                PowerIterationEigenvectorCentralityScorerBuilder::default()
+                                    .max_iter(case.power_iteration_eigenvector_max_iter)
+                                    .tolerance(case.power_iteration_eigenvector_tol)
                                     .build(),
                             )
                             .sort_nodes(&case.graph)
@@ -1826,6 +2101,63 @@ fn bench_closeness_scaling(c: &mut Criterion) {
     size_group.finish();
 }
 
+fn bench_power_iteration_eigenvector_scaling(c: &mut Criterion) {
+    let cases = power_iteration_eigenvector_scaling_cases();
+    let case_refs: Vec<&ScalingCase> = cases.iter().collect();
+    let mut total_group = c.benchmark_group("node_ordering_power_iteration_eigenvector_scaling");
+    total_group.sample_size(10);
+    total_group.warm_up_time(Duration::from_millis(500));
+    total_group.measurement_time(Duration::from_secs(3));
+    total_group.throughput(Throughput::Elements(
+        u64::try_from(case_refs.len()).expect("scaling case count should fit into u64"),
+    ));
+    total_group.bench_function(
+        BenchmarkId::new(
+            "total_cases",
+            format!("cases={}_nodes={}", case_refs.len(), total_scaling_nodes(&case_refs)),
+        ),
+        |b| {
+            b.iter(|| {
+                let checksum = case_refs
+                    .iter()
+                    .map(|case| {
+                        power_iteration_eigenvector_scaling_scorer()
+                            .score_nodes(&case.graph)
+                            .into_iter()
+                            .map(f64::to_bits)
+                            .fold(0u64, u64::wrapping_add)
+                    })
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        },
+    );
+    total_group.finish();
+
+    let mut size_group =
+        c.benchmark_group("node_ordering_power_iteration_eigenvector_scaling_by_case");
+    size_group.sample_size(10);
+    size_group.warm_up_time(Duration::from_millis(500));
+    size_group.measurement_time(Duration::from_secs(2));
+
+    for case in cases {
+        size_group.throughput(Throughput::Elements(
+            u64::try_from(case.graph.number_of_nodes()).expect("node count should fit into u64"),
+        ));
+        size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| {
+                let checksum = power_iteration_eigenvector_scaling_scorer()
+                    .score_nodes(&case.graph)
+                    .into_iter()
+                    .map(f64::to_bits)
+                    .fold(0u64, u64::wrapping_add);
+                black_box(checksum);
+            });
+        });
+    }
+    size_group.finish();
+}
+
 fn bench_triangle_scaling(c: &mut Criterion) {
     let cases = triangle_scaling_cases();
     let case_refs: Vec<&ScalingCase> = cases.iter().collect();
@@ -2010,6 +2342,9 @@ criterion_group!(
     bench_local_clustering_scorer,
     bench_local_clustering_sorter,
     bench_local_clustering_scaling,
+    bench_power_iteration_eigenvector_scorer,
+    bench_power_iteration_eigenvector_sorter,
+    bench_power_iteration_eigenvector_scaling,
     bench_pagerank_scorer,
     bench_pagerank_sorter,
     bench_pagerank_scaling,
