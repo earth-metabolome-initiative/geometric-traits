@@ -68,6 +68,7 @@ building blocks from `geometric_traits::traits::algorithms`.
 | Primitive | Kind | Complexity | Reference |
 |-----------|------|------------|-----------|
 | **DegeneracySorter** | smallest-last node ordering | O(V+E) | Matula, D. W., & Beck, L. L. (1983). [Smallest-last ordering and clustering and graph coloring algorithms](https://doi.org/10.1145/2402.322385). *Journal of the ACM*, 30(3), 417-427. See also Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
+| **LayeredLabelPropagationSorter** | multiresolution node ordering | O(|Γ| · U · (V+E) + |Γ|² · V log V), where |Γ| is the number of gamma values and U the maximum number of label-propagation updates | Boldi, P., Rosa, M., Santini, M., & Vigna, S. (2011). [Layered label propagation: a multiresolution coordinate-free ordering for compressing social networks](https://doi.org/10.1145/1963405.1963488). Defaults mirror the LAW implementation: `gammas=[1, 1/2, ..., 1/1024, 0]`, `max_updates=100`, deterministic `seed=42`. |
 | **CoreNumberScorer** | k-core / shell score | O(V+E) | Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
 | **DegreeScorer** | node score | O(V+E) | Basic graph primitive. |
 | **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
