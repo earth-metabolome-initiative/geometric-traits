@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
+use num_traits::{AsPrimitive, cast};
 use thiserror::Error;
 
 use super::NodeSorter;
@@ -64,7 +64,9 @@ impl LawRng {
 
     #[inline]
     fn next_usize_bound(&mut self, bound: usize) -> usize {
-        self.next_u64_bound(bound as u64) as usize
+        let bound_u64 = u64::try_from(bound).expect("usize bounds must fit into u64 for LAW RNG");
+        usize::try_from(self.next_u64_bound(bound_u64))
+            .expect("LAW RNG draws bounded by usize must fit back into usize")
     }
 
     #[inline]
@@ -124,6 +126,16 @@ fn splitmix64_next(state: &mut u64) -> u64 {
 struct GammaRun {
     labels: Vec<usize>,
     gap_cost: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct RunConfig<'a> {
+    gamma: f64,
+    max_updates: usize,
+    seed: u64,
+    start_rank: Option<&'a [usize]>,
+    start_order: Option<&'a [usize]>,
+    exact: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -297,18 +309,21 @@ where
         let mut scratch = LabelPropagationScratch::default();
         let mut gamma_runs = Vec::with_capacity(self.gammas.len());
         for &gamma in &self.gammas {
+            let config = RunConfig {
+                gamma,
+                max_updates: self.max_updates,
+                seed: self.seed,
+                start_rank: start_rank.as_deref(),
+                start_order: start_order.as_deref(),
+                exact: self.exact,
+            };
             gamma_runs.push(run_gamma(
                 graph,
                 &node_ids,
                 &mut state,
                 &mut scratch,
-                gamma,
-                self.max_updates,
-                self.seed,
                 &mut shuffle_rng,
-                start_rank.as_deref(),
-                start_order.as_deref(),
-                self.exact,
+                config,
             ));
         }
 
@@ -370,33 +385,17 @@ fn run_gamma<G>(
     node_ids: &[G::NodeId],
     state: &mut LabelPropagationState,
     scratch: &mut LabelPropagationScratch,
-    gamma: f64,
-    max_updates: usize,
-    seed: u64,
     shuffle_rng: &mut LawRng,
-    start_rank: Option<&[usize]>,
-    start_order: Option<&[usize]>,
-    exact: bool,
+    config: RunConfig<'_>,
 ) -> GammaRun
 where
     G: UndirectedMonopartiteMonoplexGraph,
 {
     state.reset();
 
-    for _update in 0..max_updates {
+    for _update in 0..config.max_updates {
         let previous_objective = state.objective;
-        update_labels(
-            graph,
-            node_ids,
-            state,
-            scratch,
-            gamma,
-            seed,
-            shuffle_rng,
-            start_rank,
-            start_order,
-            exact,
-        );
+        update_labels(graph, node_ids, state, scratch, shuffle_rng, config);
         // LAW stops once a pass makes no moves or fails to improve the
         // objective by more than the fixed gain threshold.
         let gain = 1.0 - (previous_objective / state.objective);
@@ -407,7 +406,7 @@ where
         }
     }
 
-    let order = order_for_gap_cost(&state.labels, start_rank);
+    let order = order_for_gap_cost(&state.labels, config.start_rank);
     let rank = invert_order(&order);
     GammaRun {
         labels: state.labels.clone(),
@@ -421,21 +420,17 @@ fn update_labels<G>(
     node_ids: &[G::NodeId],
     state: &mut LabelPropagationState,
     scratch: &mut LabelPropagationScratch,
-    gamma: f64,
-    seed: u64,
     shuffle_rng: &mut LawRng,
-    start_rank: Option<&[usize]>,
-    start_order: Option<&[usize]>,
-    exact: bool,
+    config: RunConfig<'_>,
 ) where
     G: UndirectedMonopartiteMonoplexGraph,
 {
     state.modified = 0;
-    if exact {
+    if config.exact {
         // The exact mode replays the inherited order directly instead of using
         // the shuffled schedule, matching LAW's "exact" constructor.
-        if let Some(start_order) = start_order {
-            state.update_list.clone_from_slice(&start_order);
+        if let Some(start_order) = config.start_order {
+            state.update_list.clone_from_slice(start_order);
         } else {
             for (index, node) in state.update_list.iter_mut().enumerate() {
                 *node = index;
@@ -453,7 +448,7 @@ fn update_labels<G>(
     let mut objective = state.objective;
     // In the single-thread adaptation we rebuild the tie-break RNG from the
     // same seed for each propagation pass, as LAW does for each update round.
-    let mut tie_break_rng = LawRng::new(seed);
+    let mut tie_break_rng = LawRng::new(config.seed);
 
     for index in 0..state.update_list.len() {
         let node = state.update_list[index];
@@ -486,14 +481,14 @@ fn update_labels<G>(
         let mut current_value = 0.0;
 
         for (label, frequency) in scratch.counter.entries() {
-            let frequency_f64 = frequency as f64;
-            let other_volume = (state.volumes[label] + 1 - frequency) as f64;
-            let value = frequency_f64 - gamma * other_volume;
+            let frequency_f64 = usize_to_f64(frequency);
+            let other_volume = usize_to_f64(state.volumes[label] + 1 - frequency);
+            let value = frequency_f64 - config.gamma * other_volume;
             if value > best_value {
                 scratch.majorities.clear();
                 best_value = value;
                 scratch.majorities.push(label);
-            } else if value == best_value {
+            } else if value.total_cmp(&best_value).is_eq() {
                 scratch.majorities.push(label);
             }
 
@@ -502,8 +497,8 @@ fn update_labels<G>(
             }
         }
 
-        if exact {
-            if let Some(start_rank) = start_rank {
+        if config.exact {
+            if let Some(start_rank) = config.start_rank {
                 scratch.majorities.sort_unstable_by_key(|&label| start_rank[label]);
             } else {
                 scratch.majorities.sort_unstable();
@@ -633,7 +628,7 @@ where
         // summing ceil(log2(distance)) between consecutive positions.
         let mut previous = rank[node];
         for &neighbor_rank in permuted_neighbors.iter() {
-            total += ceil_log2_usize(previous.abs_diff(neighbor_rank)) as f64;
+            total += f64::from(ceil_log2_usize(previous.abs_diff(neighbor_rank)));
             previous = neighbor_rank;
         }
     }
@@ -781,6 +776,11 @@ const fn hash_key(key: usize) -> usize {
     key.wrapping_mul(2_056_437_379usize)
 }
 
+#[inline]
+fn usize_to_f64(value: usize) -> f64 {
+    cast::<usize, f64>(value).expect("graph sizes and label counts must fit into f64")
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
@@ -788,7 +788,8 @@ mod tests {
     use super::{
         DEFAULT_MAX_UPDATES, DEFAULT_SEED, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
         LabelPropagationScratch, LabelPropagationState, LawRng, LayeredLabelPropagationError,
-        LayeredLabelPropagationSorter, combine_labels, invert_order, order_for_gap_cost, run_gamma,
+        LayeredLabelPropagationSorter, RunConfig, combine_labels, invert_order, order_for_gap_cost,
+        run_gamma,
     };
     use crate::{
         impls::{CSR2D, SymmetricCSR2D},
@@ -879,7 +880,7 @@ mod tests {
         let mut rng = LawRng::new(7);
         assert_eq!(rng.next_u64(), 1_328_206_959_410_720_230u64);
         assert_eq!(rng.next_u64(), 5_935_505_810_707_603_556u64);
-        assert_eq!(rng.next_u64(), (-791_777_165_294_197_697i64) as u64);
+        assert_eq!(rng.next_u64(), 0xF503_0ADC_F95F_A43Fu64);
         assert_eq!(rng.next_u64(), 7_146_999_580_052_588_380u64);
 
         let mut bounded = LawRng::new(7);
@@ -919,13 +920,15 @@ mod tests {
             &node_ids,
             &mut state,
             &mut scratch,
-            1.0,
-            100,
-            7,
             &mut shuffle_rng,
-            None,
-            None,
-            false,
+            RunConfig {
+                gamma: 1.0,
+                max_updates: 100,
+                seed: 7,
+                start_rank: None,
+                start_order: None,
+                exact: false,
+            },
         );
 
         assert_eq!(gamma_run.labels, vec![5, 4, 5, 4, 4, 5]);
@@ -944,13 +947,15 @@ mod tests {
             &node_ids,
             &mut state,
             &mut scratch,
-            1.0,
-            1,
-            7,
             &mut shuffle_rng,
-            None,
-            None,
-            false,
+            RunConfig {
+                gamma: 1.0,
+                max_updates: 1,
+                seed: 7,
+                start_rank: None,
+                start_order: None,
+                exact: false,
+            },
         );
 
         assert_eq!(gamma_run.labels, vec![2, 4, 5, 4, 4, 5]);
