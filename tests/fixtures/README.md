@@ -140,3 +140,47 @@ orderings.
 
 This fixture is consumed by `tests/test_node_ordering.rs` and
 `benches/node_ordering.rs`.
+
+# Hopcroft-Tarjan Biconnected Fixtures
+
+The small semantic corpus is now stored directly in Rust code via
+`tests/support/biconnected_fixture.rs::semantic_cases()`.
+
+Those cases pin the conventions that matter for chemistry-facing ring
+preprocessing:
+
+- the `K2` dyad convention
+- isolate omission from edge bicomponents
+- pure tree / bridge behavior
+- fused vs. spiro ring systems
+- ring plus chain attachments
+- bridged bicyclic cores
+- disconnected mixed graphs
+
+They are consumed directly by `tests/test_biconnected_components.rs`,
+`tests/test_biconnected_oracles.rs`, and `benches/biconnected_components.rs`.
+
+`biconnected_components_order5_exhaustive.json.gz` is the exact external oracle
+corpus. It contains every simple undirected labeled graph on 5 vertices:
+
+- `2^(5 choose 2) = 1024` total graphs
+- deterministic case names keyed by edge-mask index
+- density buckets `edge_count_0` through `edge_count_10`
+- the same checked-in fields as the handcrafted suite
+
+Unlike the handcrafted file, this corpus is generated from exact graph
+definitions instead of an upstream implementation:
+
+- connected components by traversal
+- articulation points by vertex deletion
+- bridges by edge deletion
+- biconnected blocks by maximal induced subgraphs with no articulation point,
+  plus the `K2` dyad convention
+
+Regenerate with:
+
+```bash
+python3 tests/fixtures/generate_biconnected_ground_truth.py
+```
+
+This script uses only the Python standard library.
