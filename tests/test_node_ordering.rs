@@ -13,7 +13,7 @@ use geometric_traits::{
         algorithms::{ModularProduct, randomized_graphs::*},
     },
 };
-use node_ordering_fixture::{build_undigraph, load_fixture_suite};
+use node_ordering_fixture::{NodeOrderingGroundTruthCase, build_undigraph, load_fixture_suite};
 
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
 type DirectedGraph = SquareCSR2D<CSR2D<usize, usize, usize>>;
@@ -250,10 +250,48 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
     }
 }
 
+fn assert_node_ordering_ground_truth_case_metadata(case: &NodeOrderingGroundTruthCase) {
+    assert!(
+        case.networkx_smallest_last.len() == case.n
+            && case.canonical_smallest_last.len() == case.n
+            && case.core_numbers.len() == case.n
+            && case.degeneracy_degree_descending.len() == case.n
+            && case.welsh_powell_descending.len() == case.n
+            && case.dsatur_order.len() == case.n
+            && case.bfs_from_max_degree.len() == case.n
+            && case.dfs_from_max_degree.len() == case.n
+            && case.power_iteration_eigenvector_scores.len() == case.n
+            && case.power_iteration_eigenvector_descending.len() == case.n
+            && case.pagerank_scores.len() == case.n
+            && case.pagerank_descending.len() == case.n
+            && case.katz_scores.len() == case.n
+            && case.katz_descending.len() == case.n
+            && case.betweenness_scores.len() == case.n
+            && case.betweenness_descending.len() == case.n
+            && case.closeness_scores.len() == case.n
+            && case.closeness_descending.len() == case.n
+            && case.triangle_counts.len() == case.n
+            && case.triangle_descending.len() == case.n
+            && case.local_clustering_scores.len() == case.n
+            && case.local_clustering_descending.len() == case.n
+    );
+    assert!(case.power_iteration_eigenvector_max_iter > 0);
+    assert!(case.power_iteration_eigenvector_tol > 0.0);
+    assert!(case.pagerank_alpha > 0.0);
+    assert!(case.pagerank_alpha < 1.0);
+    assert!(case.pagerank_max_iter > 0);
+    assert!(case.pagerank_tol > 0.0);
+    assert!(case.katz_alpha > 0.0);
+    assert!(case.katz_beta > 0.0);
+    assert!(case.katz_max_iter > 0);
+    assert!(case.katz_tol > 0.0);
+}
+
 const KATZ_TOLERANCE: f64 = 1.0e-11;
 const BETWEENNESS_TOLERANCE: f64 = 2.0e-12;
 const CLOSENESS_TOLERANCE: f64 = 1.0e-12;
 const LOCAL_CLUSTERING_TOLERANCE: f64 = 1.0e-12;
+const POWER_ITERATION_EIGENVECTOR_TOLERANCE: f64 = 2.0e-12;
 
 const DEGENERACY_FIXTURES: &[OrderingFixture] = &[
     OrderingFixture { name: "path_4", graph: GraphFixture::Path(4) },
@@ -447,6 +485,51 @@ const PAGERANK_FIXTURES: &[FloatingScoringFixture] = &[
             0.12035409457687965,
         ],
         expected_descending: &[2, 3, 0, 1, 4],
+    },
+];
+
+const POWER_ITERATION_EIGENVECTOR_FIXTURES: &[FloatingScoringFixture] = &[
+    FloatingScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0.371748234271, 0.601500831518, 0.601500831518, 0.371748234271],
+        expected_descending: &[1, 2, 0, 3],
+    },
+    FloatingScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[0.5, 0.5, 0.5, 0.5],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "star_5",
+        graph: GraphFixture::Star(5),
+        expected_scores: &[
+            0.707106929025,
+            0.353553316674,
+            0.353553316674,
+            0.353553316674,
+            0.353553316674,
+        ],
+        expected_descending: &[0, 1, 2, 3, 4],
+    },
+    FloatingScoringFixture {
+        name: "triangle_with_tail",
+        graph: GraphFixture::TriangleWithTail,
+        expected_scores: &[
+            0.497152598453,
+            0.497152598453,
+            0.603703530171,
+            0.342487449099,
+            0.154670561431,
+        ],
+        expected_descending: &[2, 0, 1, 3, 4],
+    },
+    FloatingScoringFixture {
+        name: "path_with_isolated_node",
+        graph: GraphFixture::PathWithIsolatedNode,
+        expected_scores: &[0.5, 0.707106781182, 0.5, 0.000002563774],
+        expected_descending: &[1, 0, 2, 3],
     },
 ];
 
@@ -1043,7 +1126,7 @@ fn test_lexicographic_sorter_panics_on_wrong_secondary_length() {
 #[test]
 fn test_node_ordering_ground_truth_metadata() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    assert_eq!(fixture.schema_version, 10);
+    assert_eq!(fixture.schema_version, 11);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
     assert!(!fixture.python_version.is_empty());
@@ -1052,37 +1135,9 @@ fn test_node_ordering_ground_truth_metadata() {
     assert_eq!(fixture.betweenness_rounding_decimals, 12);
     assert_eq!(fixture.closeness_rounding_decimals, 12);
     assert_eq!(fixture.local_clustering_rounding_decimals, 12);
+    assert_eq!(fixture.power_iteration_eigenvector_rounding_decimals, 12);
     assert_eq!(fixture.cases.len(), 10_000);
-    assert!(fixture.cases.iter().all(|case| {
-        case.networkx_smallest_last.len() == case.n
-            && case.canonical_smallest_last.len() == case.n
-            && case.core_numbers.len() == case.n
-            && case.degeneracy_degree_descending.len() == case.n
-            && case.welsh_powell_descending.len() == case.n
-            && case.dsatur_order.len() == case.n
-            && case.bfs_from_max_degree.len() == case.n
-            && case.dfs_from_max_degree.len() == case.n
-            && case.pagerank_scores.len() == case.n
-            && case.pagerank_descending.len() == case.n
-            && case.katz_scores.len() == case.n
-            && case.katz_descending.len() == case.n
-            && case.betweenness_scores.len() == case.n
-            && case.betweenness_descending.len() == case.n
-            && case.closeness_scores.len() == case.n
-            && case.closeness_descending.len() == case.n
-            && case.triangle_counts.len() == case.n
-            && case.triangle_descending.len() == case.n
-            && case.local_clustering_scores.len() == case.n
-            && case.local_clustering_descending.len() == case.n
-            && case.pagerank_alpha > 0.0
-            && case.pagerank_alpha < 1.0
-            && case.pagerank_max_iter > 0
-            && case.pagerank_tol > 0.0
-            && case.katz_alpha > 0.0
-            && case.katz_beta > 0.0
-            && case.katz_max_iter > 0
-            && case.katz_tol > 0.0
-    }));
+    fixture.cases.iter().for_each(assert_node_ordering_ground_truth_case_metadata);
     let pagerank_parameter_sets: std::collections::BTreeSet<(u64, usize, u64)> = fixture
         .cases
         .iter()
@@ -1127,6 +1182,17 @@ fn test_node_ordering_ground_truth_metadata() {
         closeness_parameter_sets.len(),
         2,
         "closeness oracle should contain both wf_improved parameter values"
+    );
+    let power_iteration_eigenvector_tolerances: std::collections::BTreeSet<u64> =
+        fixture.cases.iter().map(|case| case.power_iteration_eigenvector_tol.to_bits()).collect();
+    assert_eq!(
+        power_iteration_eigenvector_tolerances.len(),
+        1,
+        "power-iteration eigenvector oracle should use one consistent tolerance"
+    );
+    assert!(
+        fixture.cases.iter().any(|case| case.power_iteration_eigenvector_max_iter > 100),
+        "power-iteration eigenvector oracle should record elevated iteration caps for hard cases"
     );
 }
 
@@ -1283,6 +1349,76 @@ fn test_pagerank_scorer_fixtures() {
             fixture.expected_scores,
             1.0e-12,
             &context,
+        );
+    }
+}
+
+#[test]
+fn test_power_iteration_eigenvector_centrality_scorer_fixtures() {
+    for fixture in POWER_ITERATION_EIGENVECTOR_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("power-iteration eigenvector fixture {}", fixture.name);
+        assert_scores_close(
+            &PowerIterationEigenvectorCentralityScorer::default().score_nodes(&graph),
+            fixture.expected_scores,
+            POWER_ITERATION_EIGENVECTOR_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_power_iteration_eigenvector_centrality_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(PowerIterationEigenvectorCentralityScorer::default());
+
+    for fixture in POWER_ITERATION_EIGENVECTOR_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending power-iteration eigenvector ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_power_iteration_eigenvector_centrality_scorer_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context =
+            format!("power-iteration eigenvector ground truth {} ({})", case.name, case.family);
+        let scorer = PowerIterationEigenvectorCentralityScorerBuilder::default()
+            .max_iter(case.power_iteration_eigenvector_max_iter)
+            .tolerance(case.power_iteration_eigenvector_tol)
+            .build();
+        assert_scores_close(
+            &scorer.score_nodes(&graph),
+            &case.power_iteration_eigenvector_scores,
+            POWER_ITERATION_EIGENVECTOR_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_power_iteration_eigenvector_centrality_sorter_ground_truth() {
+    let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
+
+    for case in fixture.cases {
+        let graph = build_undigraph(&case);
+        let context = format!("power-iteration eigenvector order {} ({})", case.name, case.family);
+        let scorer = PowerIterationEigenvectorCentralityScorerBuilder::default()
+            .max_iter(case.power_iteration_eigenvector_max_iter)
+            .tolerance(case.power_iteration_eigenvector_tol)
+            .build();
+        let sorter = DescendingScoreSorter::new(scorer);
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            case.power_iteration_eigenvector_descending,
+            "power-iteration eigenvector descending order ground truth failed for {context}"
         );
     }
 }
@@ -1641,6 +1777,35 @@ fn test_pagerank_builder_defaults_match_default() {
 }
 
 #[test]
+fn test_power_iteration_eigenvector_builder_defaults_match_default() {
+    let scorer = PowerIterationEigenvectorCentralityScorer::builder().build();
+    assert_eq!(scorer, PowerIterationEigenvectorCentralityScorer::default());
+}
+
+#[test]
+fn test_power_iteration_eigenvector_builder_custom_parameters_fixture() {
+    let graph = GraphFixture::TriangleWithTail.build();
+    let scorer = PowerIterationEigenvectorCentralityScorerBuilder::default()
+        .max_iter(2000)
+        .tolerance(1.0e-12)
+        .build();
+
+    assert_scores_close(
+        &scorer.score_nodes(&graph),
+        &[0.49715368087, 0.49715368087, 0.603703530174, 0.342485284272, 0.154668396603],
+        POWER_ITERATION_EIGENVECTOR_TOLERANCE,
+        "power-iteration eigenvector builder custom fixture",
+    );
+
+    let sorter = DescendingScoreSorter::new(scorer);
+    assert_eq!(
+        sorter.sort_nodes(&graph),
+        [2, 0, 1, 3, 4],
+        "power-iteration eigenvector builder custom ordering fixture failed"
+    );
+}
+
+#[test]
 fn test_pagerank_builder_custom_parameters_fixture() {
     let graph = GraphFixture::TriangleWithTail.build();
     let scorer =
@@ -1710,6 +1875,16 @@ fn test_closeness_builder_defaults_match_default() {
 fn test_pagerank_scorer_panics_on_non_convergence() {
     let graph = GraphFixture::Path(4).build();
     let _ = PageRankScorerBuilder::default().max_iter(0).build().score_nodes(&graph);
+}
+
+#[test]
+#[should_panic(expected = "PowerIterationEigenvectorCentralityScorer failed to converge")]
+fn test_power_iteration_eigenvector_scorer_panics_on_non_convergence() {
+    let graph = GraphFixture::Path(4).build();
+    let _ = PowerIterationEigenvectorCentralityScorerBuilder::default()
+        .max_iter(0)
+        .build()
+        .score_nodes(&graph);
 }
 
 #[test]

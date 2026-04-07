@@ -195,8 +195,9 @@ pub use node_ordering::{
     KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
     LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
     NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
-    PermutableVocabulary, SecondOrderDegreeScorer, TraversalNeighborOrder, TraversalSeedStrategy,
-    TriangleCountScorer, apply_node_order_to_graph,
+    PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
+    TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
 pub use weisfeiler_lehman::WeisfeilerLehmanColoring;
