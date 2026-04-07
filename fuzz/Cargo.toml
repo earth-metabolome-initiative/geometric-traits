@@ -89,6 +89,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "biconnected_components"
+path = "fuzz_targets/biconnected_components.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "johnson_cycle"
 path = "fuzz_targets/johnson_cycle.rs"
 test = false

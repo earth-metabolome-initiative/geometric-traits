@@ -13,7 +13,8 @@ use geometric_traits::{
     impls::SortedVec,
     prelude::GenericVocabularyBuilder,
     traits::{
-        KahnError, LAPError, VocabularyBuilder, connected_components::ConnectedComponentsError,
+        BiconnectedComponentsError, KahnError, LAPError, VocabularyBuilder,
+        connected_components::ConnectedComponentsError,
         information_content::InformationContentError,
     },
 };
@@ -81,6 +82,18 @@ fn test_connected_components_error_traits() {
 }
 
 #[test]
+fn test_biconnected_components_error_traits() {
+    let error = BiconnectedComponentsError::SelfLoopsUnsupported;
+    assert!(format!("{error}").contains("self-loops"));
+    assert!(format!("{error:?}").contains("SelfLoopsUnsupported"));
+    assert_eq!(error, error.clone());
+    assert_ne!(
+        BiconnectedComponentsError::SelfLoopsUnsupported,
+        BiconnectedComponentsError::ParallelEdgesUnsupported
+    );
+}
+
+#[test]
 fn test_sorted_error_traits() {
     let error = SortedError::UnsortedEntry(42usize);
     assert!(format!("{error}").contains("42"));
@@ -109,6 +122,13 @@ fn test_monopartite_algorithm_error_traits() {
     );
     assert!(format!("{error}").contains("too many connected components"));
     assert!(format!("{error:?}").contains("ConnectedComponentsError"));
+    assert_eq!(error, error.clone());
+
+    let error = MonopartiteAlgorithmError::BiconnectedComponentsError(
+        BiconnectedComponentsError::SelfLoopsUnsupported,
+    );
+    assert!(format!("{error}").contains("self-loops"));
+    assert!(format!("{error:?}").contains("BiconnectedComponentsError"));
     assert_eq!(error, error.clone());
 }
 
