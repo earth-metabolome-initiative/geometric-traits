@@ -116,3 +116,7 @@ harness = false
 [[bench]]
 name = "node_ordering"
 harness = false
+
+[[bench]]
+name = "biconnected_components"
+harness = false
