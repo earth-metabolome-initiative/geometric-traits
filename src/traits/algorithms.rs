@@ -11,6 +11,10 @@ pub use biconnected_components::{
     BiconnectedComponents, BiconnectedComponentsError, BiconnectedComponentsResult, BiconnectedEdge,
 };
 #[cfg(feature = "alloc")]
+pub mod cactus_detection;
+#[cfg(feature = "alloc")]
+pub use cactus_detection::CactusDetection;
+#[cfg(feature = "alloc")]
 pub mod minimum_cycle_basis;
 #[cfg(feature = "alloc")]
 pub use minimum_cycle_basis::{MinimumCycleBasis, MinimumCycleBasisError, MinimumCycleBasisResult};
