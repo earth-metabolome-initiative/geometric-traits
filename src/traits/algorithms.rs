@@ -15,6 +15,10 @@ pub mod cycle_detection;
 #[cfg(feature = "alloc")]
 pub use cycle_detection::CycleDetection;
 #[cfg(feature = "alloc")]
+pub mod tree_detection;
+#[cfg(feature = "alloc")]
+pub use tree_detection::TreeDetection;
+#[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
