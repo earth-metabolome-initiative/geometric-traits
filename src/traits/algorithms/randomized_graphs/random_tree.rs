@@ -21,9 +21,14 @@ pub fn random_tree_graph(seed: u64, n: usize) -> SymmetricCSR2D<CSR2D<usize, usi
     }
 
     let mut rng = XorShift64::from(XorShift64::normalize_seed(seed));
+    let n_u64 = u64::try_from(n).expect("usize must fit into u64");
     let mut prufer = Vec::with_capacity(n - 2);
     for _ in 0..(n - 2) {
-        prufer.push((rng.next().unwrap() as usize) % n);
+        let next_vertex = rng.next().unwrap() % n_u64;
+        prufer.push(
+            usize::try_from(next_vertex)
+                .expect("modulo by the graph order guarantees the value fits in usize"),
+        );
     }
 
     let mut degrees = vec![1usize; n];

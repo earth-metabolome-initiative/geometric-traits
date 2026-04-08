@@ -114,8 +114,6 @@ where
         adjacency_second: &'a [Vec<usize>],
         edge_map_first: &'a [(N, N)],
         edge_map_second: &'a [(N, N)],
-        second_node_count: usize,
-        second_edge_count: usize,
         junction_compatible: &'a [bool],
         edge_pair_allowed: &'a [bool],
     ) -> Self {
@@ -124,8 +122,8 @@ where
             adjacency_second,
             edge_index_first: build_edge_index_map(edge_map_first),
             edge_index_second: build_edge_index_map(edge_map_second),
-            second_node_count,
-            second_edge_count,
+            second_node_count: adjacency_second.len(),
+            second_edge_count: edge_map_second.len(),
             junction_compatible,
             edge_pair_allowed,
             memo: BTreeMap::new(),
@@ -282,7 +280,7 @@ where
     let first_tree = connected_tree_data(first)?;
     let second_tree = connected_tree_data(second)?;
     #[rustfmt::skip]
-    let mut solver = ConnectedTreeBoundSolver::new(&first_tree.adjacency, &second_tree.adjacency, edge_map_first, edge_map_second, second.number_of_nodes().as_(), edge_map_second.len(), junction_compatible, edge_pair_allowed);
+    let mut solver = ConnectedTreeBoundSolver::new(&first_tree.adjacency, &second_tree.adjacency, edge_map_first, edge_map_second, junction_compatible, edge_pair_allowed);
     Some(solver.solve(edge_map_first, edge_map_second))
 }
 
@@ -403,8 +401,6 @@ mod tests {
             &adjacency_second,
             &[],
             &edge_map_second,
-            2,
-            edge_map_second.len(),
             &junction_compatible,
             &edge_pair_allowed,
         );
@@ -424,8 +420,6 @@ mod tests {
             &adjacency_second,
             &edge_map_first,
             &[],
-            2,
-            0,
             &junction_compatible,
             &edge_pair_allowed,
         );
