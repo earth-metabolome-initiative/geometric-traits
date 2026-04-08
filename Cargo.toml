@@ -122,6 +122,14 @@ name = "biconnected_components"
 harness = false
 
 [[bench]]
+name = "minimum_cycle_basis"
+harness = false
+
+[[bench]]
+name = "minimum_cycle_basis_variants"
+harness = false
+
+[[bench]]
 name = "planarity"
 harness = false
 
