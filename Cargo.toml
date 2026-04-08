@@ -132,3 +132,7 @@ harness = false
 [[bench]]
 name = "relevant_essential_cycles"
 harness = false
+
+[[bench]]
+name = "chordal_detection"
+harness = false

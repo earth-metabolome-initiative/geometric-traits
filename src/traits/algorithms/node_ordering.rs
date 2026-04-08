@@ -17,8 +17,10 @@ mod degeneracy;
 mod degree;
 mod dsatur;
 mod katz_centrality;
+mod layered_label_propagation;
 mod local_clustering;
 mod pagerank;
+mod power_iteration_eigenvector_centrality;
 mod traversal;
 mod triangles;
 
@@ -31,9 +33,16 @@ pub use degeneracy::{CoreNumberScorer, DegeneracySorter};
 pub use degree::{DegreeScorer, SecondOrderDegreeScorer};
 pub use dsatur::DsaturSorter;
 pub use katz_centrality::{KatzCentralityScorer, KatzCentralityScorerBuilder};
+pub use layered_label_propagation::{
+    LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS, LayeredLabelPropagationError,
+    LayeredLabelPropagationSorter,
+};
 pub use local_clustering::LocalClusteringCoefficientScorer;
 use num_traits::{AsPrimitive, cast};
 pub use pagerank::{PageRankScorer, PageRankScorerBuilder};
+pub use power_iteration_eigenvector_centrality::{
+    PowerIterationEigenvectorCentralityScorer, PowerIterationEigenvectorCentralityScorerBuilder,
+};
 pub use traversal::{
     BfsTraversalSorter, DfsTraversalSorter, TraversalNeighborOrder, TraversalSeedStrategy,
 };
@@ -251,6 +260,7 @@ pub(super) const KATZ_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const BETWEENNESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const CLOSENESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const LOCAL_CLUSTERING_SCORE_SCALE: f64 = 1.0e12;
+pub(super) const POWER_ITERATION_EIGENVECTOR_SCORE_SCALE: f64 = 1.0e12;
 
 #[inline]
 pub(super) fn usize_to_f64(value: usize) -> f64 {

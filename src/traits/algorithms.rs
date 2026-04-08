@@ -29,6 +29,14 @@ pub mod cycle_detection;
 #[cfg(feature = "alloc")]
 pub use cycle_detection::CycleDetection;
 #[cfg(feature = "alloc")]
+pub mod chordal_detection;
+#[cfg(feature = "alloc")]
+pub use chordal_detection::ChordalDetection;
+#[cfg(feature = "alloc")]
+pub mod tree_detection;
+#[cfg(feature = "alloc")]
+pub use tree_detection::TreeDetection;
+#[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
@@ -206,10 +214,12 @@ pub use node_ordering::{
     BfsTraversalSorter, ClosenessCentralityScorer, ClosenessCentralityScorerBuilder,
     CoreNumberScorer, DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter,
     DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
-    KatzCentralityScorerBuilder, LocalClusteringCoefficientScorer, NodeOrderApplicableGraph,
-    NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder, PermutableVocabulary,
-    SecondOrderDegreeScorer, TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer,
-    apply_node_order_to_graph,
+    KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
+    LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
+    NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
+    PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
+    TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
 pub use weisfeiler_lehman::WeisfeilerLehmanColoring;
