@@ -15,6 +15,10 @@ pub mod cycle_detection;
 #[cfg(feature = "alloc")]
 pub use cycle_detection::CycleDetection;
 #[cfg(feature = "alloc")]
+pub mod chordal_detection;
+#[cfg(feature = "alloc")]
+pub use chordal_detection::ChordalDetection;
+#[cfg(feature = "alloc")]
 pub mod tree_detection;
 #[cfg(feature = "alloc")]
 pub use tree_detection::TreeDetection;
