@@ -124,3 +124,7 @@ harness = false
 [[bench]]
 name = "chordal_detection"
 harness = false
+
+[[bench]]
+name = "cactus_detection"
+harness = false
