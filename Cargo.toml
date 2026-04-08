@@ -128,3 +128,7 @@ harness = false
 [[bench]]
 name = "minimum_cycle_basis_variants"
 harness = false
+
+[[bench]]
+name = "relevant_essential_cycles"
+harness = false
