@@ -36,6 +36,11 @@ mod star;
 pub use star::star_graph;
 
 #[cfg(feature = "alloc")]
+mod random_tree;
+#[cfg(feature = "alloc")]
+pub use random_tree::random_tree_graph;
+
+#[cfg(feature = "alloc")]
 mod grid;
 #[cfg(feature = "alloc")]
 pub use grid::grid_graph;

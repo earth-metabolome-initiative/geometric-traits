@@ -272,6 +272,25 @@ fn test_mces_builder_product_vertex_ordering_identity_matches_default() {
     assert_eq!(default.all_cliques().len(), identity.all_cliques().len());
 }
 
+#[test]
+fn test_mces_disambiguate_controls_isolated_edge_vertex_mapping() {
+    let g1 = wrap_undi(path_graph(2));
+    let g2 = wrap_undi(path_graph(2));
+
+    let aligned =
+        McesBuilder::new(&g1, &g2).with_disambiguate(|_, _, _, _| true).compute_unlabeled();
+    let flipped =
+        McesBuilder::new(&g1, &g2).with_disambiguate(|_, _, _, _| false).compute_unlabeled();
+
+    let expected_aligned = vec![(0, 0), (1, 1)];
+    let expected_flipped = vec![(0, 1), (1, 0)];
+
+    assert_eq!(aligned.matched_edges().len(), 1);
+    assert_eq!(flipped.matched_edges().len(), 1);
+    assert_eq!(aligned.vertex_matches(), expected_aligned.as_slice());
+    assert_eq!(flipped.vertex_matches(), expected_flipped.as_slice());
+}
+
 // ===========================================================================
 // Labeled MCES
 // ===========================================================================
@@ -313,6 +332,17 @@ fn build_colored_graph(node_colors: &[Color], edges: Vec<(usize, usize, u8)>) ->
 
     let undi = build_valued_undi_edges(n, edges);
     geometric_traits::naive_structs::GenericGraph::from((nodes, undi))
+}
+
+fn complete_colored_graph(order: usize, color: Color, bond_type: u8) -> ColoredGraph {
+    let node_colors = vec![color; order];
+    let mut edges = Vec::new();
+    for src in 0..order {
+        for dst in src + 1..order {
+            edges.push((src, dst, bond_type));
+        }
+    }
+    build_colored_graph(&node_colors, edges)
 }
 
 fn build_valued_undi_edges(
@@ -469,6 +499,36 @@ fn test_labeled_mces_can_ignore_edge_values() {
 }
 
 #[test]
+fn test_labeled_mces_partial_matches_all_best_when_comparator_rejects_none_none() {
+    let g1 = build_colored_graph(
+        &[Color::Red, Color::Red, Color::Red, Color::Red],
+        vec![(0, 1, 1), (1, 2, 1), (2, 3, 1)],
+    );
+    let g2 = build_colored_graph(
+        &[Color::Red, Color::Red, Color::Red, Color::Red],
+        vec![(0, 1, 1), (1, 2, 1), (2, 3, 1)],
+    );
+
+    let comparator = |left: Option<Color>, right: Option<Color>| {
+        match (left, right) {
+            (Some(left), Some(right)) => left == right,
+            _ => false,
+        }
+    };
+
+    let partial = McesBuilder::new(&g1, &g2).with_edge_comparator(comparator).compute_labeled();
+    let all_best = McesBuilder::new(&g1, &g2)
+        .with_edge_comparator(comparator)
+        .with_search_mode(McesSearchMode::AllBest)
+        .compute_labeled();
+
+    assert_eq!(partial.matched_edges().len(), 2);
+    assert_eq!(all_best.matched_edges().len(), 2);
+    assert_eq!(partial.vertex_matches().len(), all_best.vertex_matches().len());
+    assert_eq!(partial.fragment_count(), all_best.fragment_count());
+}
+
+#[test]
 fn test_labeled_mces_canonicalizes_endpoint_order() {
     let g1 = build_colored_graph(&[Color::Red, Color::Green], vec![(0, 1, 7)]);
     let g2 = build_colored_graph(&[Color::Green, Color::Red], vec![(0, 1, 7)]);
@@ -589,6 +649,52 @@ fn test_labeled_mces_edge_contexts_validate_row_counts() {
     let _ = McesBuilder::new(&g1, &g2)
         .with_edge_contexts(&first_contexts, &second_contexts)
         .compute_labeled();
+}
+
+#[test]
+#[should_panic(expected = "edge contexts for the second graph must have one row per original edge")]
+fn test_labeled_mces_edge_contexts_validate_second_graph_row_counts() {
+    let g1 = build_colored_graph(&[Color::Red, Color::Green], vec![(0, 1, 1)]);
+    let g2 = build_colored_graph(&[Color::Red, Color::Green], vec![(0, 1, 1)]);
+    let first_contexts = EdgeContexts::<u8>::from_rows(vec![vec![7]]);
+    let second_contexts = EdgeContexts::<u8>::from_rows(vec![vec![7], vec![8]]);
+
+    let _ = McesBuilder::new(&g1, &g2)
+        .with_edge_contexts(&first_contexts, &second_contexts)
+        .compute_labeled();
+}
+
+#[test]
+fn test_labeled_mces_similarity_threshold_preserves_correctness_without_partition() {
+    let g1 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+    let g2 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+
+    let without_threshold = McesBuilder::new(&g1, &g2).with_partition(false).compute_labeled();
+    let with_threshold = McesBuilder::new(&g1, &g2)
+        .with_partition(false)
+        .with_similarity_threshold(0.5)
+        .compute_labeled();
+
+    assert_eq!(without_threshold.matched_edges(), with_threshold.matched_edges());
+    assert_eq!(without_threshold.vertex_matches(), with_threshold.vertex_matches());
+    assert_eq!(without_threshold.fragment_count(), with_threshold.fragment_count());
+}
+
+#[test]
+fn test_labeled_mces_similarity_threshold_rejects_without_partition() {
+    let g1 = complete_colored_graph(6, Color::Red, 1);
+    let g2 = build_colored_graph(&[Color::Red, Color::Red], vec![(0, 1, 1)]);
+
+    let baseline = McesBuilder::new(&g1, &g2).with_partition(false).compute_labeled();
+    let rejected = McesBuilder::new(&g1, &g2)
+        .with_partition(false)
+        .with_similarity_threshold(0.99)
+        .compute_labeled();
+
+    assert_eq!(baseline.matched_edges().len(), 1);
+    assert_eq!(rejected.matched_edges().len(), 0);
 }
 
 // ===========================================================================

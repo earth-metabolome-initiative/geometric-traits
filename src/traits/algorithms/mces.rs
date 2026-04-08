@@ -15,8 +15,11 @@
 //! let similarity = result.johnson_similarity();
 //! ```
 
+mod connected_tree_lower_bound;
+
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 
+use connected_tree_lower_bound::connected_tree_lower_bound;
 use num_traits::AsPrimitive;
 
 use super::{
@@ -635,6 +638,7 @@ where
 fn accepted_partitioned_cliques<F>(
     matrix: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
+    initial_lower_bound: usize,
     search_mode: McesSearchMode,
     mut accept_clique: F,
 ) -> Vec<Vec<usize>>
@@ -643,7 +647,6 @@ where
 {
     match search_mode {
         McesSearchMode::PartialEnumeration => {
-            let initial_lower_bound = usize::from(matrix.order() > 0);
             let best_size_seed =
                 partial_best_size_seed(matrix, partition, initial_lower_bound, &mut accept_clique);
 
@@ -1341,12 +1344,23 @@ where
             }
         }
 
+        let mut product_vertex_pairs = Vec::new();
+        let mut edge_pair_allowed = vec![false; first_edges * second_edges];
+        for i in 0..first_edges {
+            for j in 0..second_edges {
+                let allowed = self.pair_filter.filter(i, j);
+                edge_pair_allowed[i * second_edges + j] = allowed;
+                if allowed {
+                    product_vertex_pairs.push((i, j));
+                }
+            }
+        }
+
         // 2. Modular product.
-        let mp =
-            lg1.graph().modular_product_filtered(lg2.graph(), |i, j| self.pair_filter.filter(i, j));
+        let mp = lg1.graph().modular_product(lg2.graph(), &product_vertex_pairs);
         let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
-            mp.matrix().clone(),
-            mp.vertex_pairs().to_vec(),
+            mp,
+            product_vertex_pairs,
             lg1.edge_map(),
             lg2.edge_map(),
             self.product_vertex_ordering.as_mut(),
@@ -1366,25 +1380,23 @@ where
                     second_vertices,
                 ),
             };
+            let connected_tree_lower_bound = connected_tree_lower_bound(
+                self.first,
+                self.second,
+                lg1.edge_map(),
+                lg2.edge_map(),
+                &vec![true; first_vertices * second_vertices],
+                &edge_pair_allowed,
+            )
+            .unwrap_or(0)
+            .max(usize::from(mp_matrix.order() > 0));
             match self.search_mode {
                 McesSearchMode::PartialEnumeration => {
-                    accepted_partitioned_cliques(&mp_matrix, &info, self.search_mode, |clique| {
-                        !self.delta_y
-                            || !clique_has_delta_y(
-                                clique,
-                                &mp_vertex_pairs,
-                                lg1.edge_map(),
-                                lg2.edge_map(),
-                                first_vertices,
-                                second_vertices,
-                            )
-                    })
-                }
-                McesSearchMode::AllBest => {
-                    let initial_lower_bound = partial_search(
+                    accepted_partitioned_cliques(
                         &mp_matrix,
                         &info,
-                        usize::from(mp_matrix.order() > 0),
+                        connected_tree_lower_bound,
+                        self.search_mode,
                         |clique| {
                             !self.delta_y
                                 || !clique_has_delta_y(
@@ -1397,8 +1409,22 @@ where
                                 )
                         },
                     )
-                    .first()
-                    .map_or(0, Vec::len);
+                }
+                McesSearchMode::AllBest => {
+                    let initial_lower_bound =
+                        partial_search(&mp_matrix, &info, connected_tree_lower_bound, |clique| {
+                            !self.delta_y
+                                || !clique_has_delta_y(
+                                    clique,
+                                    &mp_vertex_pairs,
+                                    lg1.edge_map(),
+                                    lg2.edge_map(),
+                                    first_vertices,
+                                    second_vertices,
+                                )
+                        })
+                        .first()
+                        .map_or(0, Vec::len);
                     all_best_search(&mp_matrix, &info, initial_lower_bound, |clique| {
                         !self.delta_y
                             || !clique_has_delta_y(
@@ -1474,8 +1500,8 @@ where
     /// Runs the labeled MCES pipeline.
     ///
     /// Uses [`LabeledLineGraph`] to construct line graphs with node-type edge
-    /// labels, then [`ModularProduct::labeled_modular_product_filtered`] with
-    /// the configured edge comparator.
+    /// labels, then builds a labeled modular product over the admissible
+    /// original-edge pairs using the configured edge comparator.
     ///
     /// Only bond-label-compatible pairs enter the modular product. The current
     /// bond label is the canonical endpoint node-type pair together with the
@@ -1504,15 +1530,15 @@ where
             compute_bond_labels(self.second, lg2.edge_map(), self.ignore_edge_values);
         let (g1_label_indices, g2_label_indices, num_labels) =
             intern_shared_labels(&g1_bond_labels, &g2_bond_labels);
+        let first_node_types: Vec<_> =
+            self.first.nodes().map(|symbol| symbol.node_type()).collect();
+        let second_node_types: Vec<_> =
+            self.second.nodes().map(|symbol| symbol.node_type()).collect();
 
         // 1c. Pre-screening (tier 2).
         // Mirror RDKit's second screening stage: within each atom bucket,
         // solve a rectangular assignment over incident bond-label overlap.
         if self.similarity_threshold.is_some() || self.distance_threshold.is_some() {
-            let first_node_types: Vec<_> =
-                self.first.nodes().map(|symbol| symbol.node_type()).collect();
-            let second_node_types: Vec<_> =
-                self.second.nodes().map(|symbol| symbol.node_type()).collect();
             let groups1 =
                 extract_degree_sequences(self.first, |node_id| first_node_types[node_id.as_()]);
             let groups2 =
@@ -1548,22 +1574,45 @@ where
         // 2. Reuse the bond labels for the partition-aware clique bound.
         self.edge_contexts.validate(first_edges, second_edges);
 
+        let mut product_vertex_pairs = Vec::new();
+        let mut edge_pair_allowed = vec![false; first_edges * second_edges];
+        {
+            let edge_contexts = &self.edge_contexts;
+            let pair_filter = &mut self.pair_filter;
+            for i in 0..first_edges {
+                for j in 0..second_edges {
+                    let allowed = g1_label_indices[i] == g2_label_indices[j]
+                        && edge_contexts.compatible(i, j)
+                        && pair_filter.filter(i, j);
+                    edge_pair_allowed[i * second_edges + j] = allowed;
+                    if allowed {
+                        product_vertex_pairs.push((i, j));
+                    }
+                }
+            }
+        }
+
+        let none_none_compatible =
+            self.edge_comparator.compare(None::<<G::NodeSymbol as TypedNode>::NodeType>, None);
+        let mut junction_compatible = Vec::with_capacity(first_vertices * second_vertices);
+        {
+            let edge_comparator = &self.edge_comparator;
+            for &first_type in &first_node_types {
+                for &second_type in &second_node_types {
+                    junction_compatible
+                        .push(edge_comparator.compare(Some(first_type), Some(second_type)));
+                }
+            }
+        }
+
         // 2. Labeled modular product.
-        let edge_contexts = &self.edge_contexts;
-        let pair_filter = &mut self.pair_filter;
         let edge_comparator = &self.edge_comparator;
-        let mp = lg1.graph().labeled_modular_product_filtered(
-            lg2.graph(),
-            |i, j| {
-                g1_label_indices[i] == g2_label_indices[j]
-                    && edge_contexts.compatible(i, j)
-                    && pair_filter.filter(i, j)
-            },
-            |a, b| edge_comparator.compare(a, b),
-        );
+        let mp = lg1.graph().labeled_modular_product(lg2.graph(), &product_vertex_pairs, |a, b| {
+            edge_comparator.compare(a, b)
+        });
         let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
-            mp.matrix().clone(),
-            mp.vertex_pairs().to_vec(),
+            mp,
+            product_vertex_pairs,
             lg1.edge_map(),
             lg2.edge_map(),
             self.product_vertex_ordering.as_mut(),
@@ -1581,25 +1630,27 @@ where
                     second_vertices,
                 ),
             };
+            let connected_tree_lower_bound = if none_none_compatible {
+                connected_tree_lower_bound(
+                    self.first,
+                    self.second,
+                    lg1.edge_map(),
+                    lg2.edge_map(),
+                    &junction_compatible,
+                    &edge_pair_allowed,
+                )
+                .unwrap_or(0)
+            } else {
+                0
+            }
+            .max(usize::from(mp_matrix.order() > 0));
             match self.search_mode {
                 McesSearchMode::PartialEnumeration => {
-                    accepted_partitioned_cliques(&mp_matrix, &info, self.search_mode, |clique| {
-                        !self.delta_y
-                            || !clique_has_delta_y(
-                                clique,
-                                &mp_vertex_pairs,
-                                lg1.edge_map(),
-                                lg2.edge_map(),
-                                first_vertices,
-                                second_vertices,
-                            )
-                    })
-                }
-                McesSearchMode::AllBest => {
-                    let initial_lower_bound = partial_search(
+                    accepted_partitioned_cliques(
                         &mp_matrix,
                         &info,
-                        usize::from(mp_matrix.order() > 0),
+                        connected_tree_lower_bound,
+                        self.search_mode,
                         |clique| {
                             !self.delta_y
                                 || !clique_has_delta_y(
@@ -1612,8 +1663,22 @@ where
                                 )
                         },
                     )
-                    .first()
-                    .map_or(0, Vec::len);
+                }
+                McesSearchMode::AllBest => {
+                    let initial_lower_bound =
+                        partial_search(&mp_matrix, &info, connected_tree_lower_bound, |clique| {
+                            !self.delta_y
+                                || !clique_has_delta_y(
+                                    clique,
+                                    &mp_vertex_pairs,
+                                    lg1.edge_map(),
+                                    lg2.edge_map(),
+                                    first_vertices,
+                                    second_vertices,
+                                )
+                        })
+                        .first()
+                        .map_or(0, Vec::len);
                     all_best_search(&mp_matrix, &info, initial_lower_bound, |clique| {
                         !self.delta_y
                             || !clique_has_delta_y(
@@ -1711,12 +1776,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::collections::BTreeMap;
+    use alloc::{boxed::Box, collections::BTreeMap};
 
     use super::{
-        ScreeningEstimate, incident_label_overlap, intern_shared_labels, tier1_screening,
-        tier2_screening,
+        ScreeningEstimate, assignment_score_via_crouse, incident_label_overlap,
+        intern_shared_labels, reorder_product_for_search, tier1_screening, tier2_screening,
     };
+    use crate::{impls::BitSquareMatrix, traits::SparseMatrix2D};
 
     #[test]
     fn test_intern_shared_labels_reuses_equal_labels() {
@@ -1771,5 +1837,47 @@ mod tests {
 
         assert_eq!(estimate.vg1g2, 2);
         assert_eq!(estimate.eg1g2_times2, 3);
+    }
+
+    #[test]
+    fn test_assignment_score_via_crouse_returns_zero_for_empty_side() {
+        let first_incident = vec![vec![0, 1]];
+        let second_incident = vec![vec![0, 1]];
+
+        assert_eq!(
+            assignment_score_via_crouse(&[], &[(2, 0)], &first_incident, &second_incident),
+            0
+        );
+        assert_eq!(
+            assignment_score_via_crouse(&[(2, 0)], &[], &first_incident, &second_incident),
+            0
+        );
+    }
+
+    #[test]
+    fn test_reorder_product_for_search_applies_non_identity_permutation() {
+        let mut matrix = BitSquareMatrix::new(3);
+        matrix.set_symmetric(0, 1);
+        matrix.set_symmetric(1, 2);
+        let vertex_pairs = vec![(0usize, 0usize), (1, 0), (2, 0)];
+        let first_edge_map = vec![(0usize, 1usize), (1, 2), (2, 3)];
+        let second_edge_map = vec![(0usize, 1usize)];
+        let mut ordering: Box<super::ProductVertexOrdering<'_>> =
+            Box::new(|left_lg, right_lg, _first_edge, _second_edge| {
+                (usize::MAX - left_lg, usize::MAX - right_lg)
+            });
+
+        let (permuted, permuted_pairs) = reorder_product_for_search(
+            matrix,
+            vertex_pairs,
+            &first_edge_map,
+            &second_edge_map,
+            Some(&mut ordering),
+        );
+
+        assert_eq!(permuted_pairs, vec![(2, 0), (1, 0), (0, 0)]);
+        assert!(permuted.has_entry(0, 1));
+        assert!(permuted.has_entry(1, 2));
+        assert!(!permuted.has_entry(0, 2));
     }
 }
