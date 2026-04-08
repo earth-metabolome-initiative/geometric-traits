@@ -163,7 +163,4 @@ harness = false
 
 [[bench]]
 name = "k4_homeomorph"
-
-[[bench]]
-name = "chordal_detection"
 harness = false
