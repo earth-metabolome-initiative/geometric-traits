@@ -634,8 +634,9 @@ where
             match_count += 1;
         }
 
-        let lca_idx = pu.len() - match_count;
-        let mut w = pu[lca_idx];
+        let mut pu_contract_end = pu.len() - match_count;
+        let mut w = pu[pu_contract_end];
+        let pv_suffix_start = pv.len() - match_count;
 
         // Blossom extension: while rescap(switch_edge[w]) >= 2, extend w
         // upward along the path.
@@ -644,7 +645,7 @@ where
             if se.vert1 == NO_VERTEX {
                 break;
             }
-            let rc = self.rescap(se.vert1, se.vert2, se.edge_idx);
+            let rc = self.rescap(se.vert1, w, se.edge_idx);
             if rc < 2 {
                 break;
             }
@@ -652,11 +653,12 @@ where
             if parent_base == NO_VERTEX || parent_base == w {
                 break;
             }
+            pu_contract_end += 1;
             w = parent_base;
         }
 
         // Contract along the Pu path.
-        for k in (0..lca_idx).rev() {
+        for k in (0..pu_contract_end).rev() {
             let z = pu[k];
             self.base_ptr[z] = w;
             self.base_ptr[prim(z)] = w;
@@ -673,8 +675,7 @@ where
         }
 
         // Contract along the Pv path.
-        let pv_end = pv.len() - match_count;
-        for k in (0..pv_end).rev() {
+        for k in (0..pv_suffix_start).rev() {
             let z = pv[k];
             self.base_ptr[z] = w;
             self.base_ptr[prim(z)] = w;
