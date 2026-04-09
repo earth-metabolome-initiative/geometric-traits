@@ -107,6 +107,14 @@ name = "blossom_v"
 harness = false
 
 [[bench]]
+name = "kocay"
+harness = false
+
+[[bench]]
+name = "minimum_cost_balanced_flow"
+harness = false
+
+[[bench]]
 name = "vf2"
 harness = false
 
