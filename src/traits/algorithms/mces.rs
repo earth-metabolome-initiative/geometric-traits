@@ -17,7 +17,7 @@
 
 mod connected_tree_lower_bound;
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{collections::BTreeMap, vec::Vec};
 
 use connected_tree_lower_bound::connected_tree_lower_bound;
 use num_traits::AsPrimitive;
@@ -35,13 +35,17 @@ use super::{
         choose_partition_side_by_atom_counts, greedy_lower_bound, partial_search,
         partial_search_u32_with_bounds, partial_u32_best_size_with_budget,
     },
-    modular_product::ModularProduct,
+    modular_product::{ModularProduct, ModularProductGraph},
+    node_ordering::{
+        DegeneracySorter, DegreeScorer, DescendingScoreSorter, NodeSorter, PageRankScorer,
+        SecondOrderDegreeScorer,
+    },
     weighted_assignment::Crouse,
 };
 use crate::{
     impls::{BitSquareMatrix, EdgeContexts, ValuedCSR2D},
     traits::{
-        Edges, MatrixMut, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger,
+        Edges, Matrix2D, MatrixMut, MonopartiteEdges, MonoplexMonopartiteGraph, PositiveInteger,
         SparseMatrix2D, SparseMatrixMut, SparseValuedMatrix2D, SquareMatrix, TypedNode,
         ValuedMatrix,
     },
@@ -574,40 +578,302 @@ pub enum McesSearchMode {
     AllBest,
 }
 
-type ProductVertexOrdering<'g> =
-    dyn FnMut(usize, usize, (usize, usize), (usize, usize)) -> (usize, usize) + 'g;
+/// Initial ordering policy for modular-product vertices before clique search.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum InitialProductVertexOrdering {
+    /// Leave product vertices in construction order.
+    None,
+    /// Order product vertices lexicographically by intrinsic edge signatures
+    /// computed independently in the two input graphs.
+    ///
+    /// This is a source-graph ordering, not a product-graph centrality score.
+    EdgeSignature,
+    /// Order product vertices by Weisfeiler-Lehman colors of the line-graph
+    /// vertices, seeded by intrinsic source-edge signatures.
+    ///
+    /// This is still a source-edge ordering. It uses line-graph refinement to
+    /// propagate a larger edge neighborhood context before sorting product
+    /// vertices lexicographically by the pair of refined edge colors.
+    LineGraphWL,
+    /// Order product vertices by descending degree on the modular product.
+    Degree,
+    /// Order product vertices by descending second-order degree on the modular
+    /// product.
+    SecondOrderDegree,
+    /// Order product vertices by descending PageRank on the modular product.
+    PageRank,
+    /// Order product vertices by degeneracy (smallest-last) on the modular
+    /// product.
+    Degeneracy,
+}
+
+fn endpoint_degrees_from_edge_map<N: Copy + AsPrimitive<usize>>(
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+) -> Vec<usize> {
+    let mut degrees = vec![0usize; num_vertices];
+    for &(src, dst) in edge_map {
+        degrees[src.as_()] += 1;
+        degrees[dst.as_()] += 1;
+    }
+    degrees
+}
+
+fn incident_edges_from_edge_map<N: Copy + AsPrimitive<usize>>(
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+) -> Vec<Vec<usize>> {
+    let mut incident = vec![Vec::new(); num_vertices];
+    for (edge_index, &(src, dst)) in edge_map.iter().enumerate() {
+        incident[src.as_()].push(edge_index);
+        incident[dst.as_()].push(edge_index);
+    }
+    incident
+}
+
+fn sorted_neighbor_labels<L: Copy + Ord>(
+    incident_edges: &[usize],
+    edge_index: usize,
+    base_labels: &[L],
+) -> Vec<L> {
+    let mut labels: Vec<L> = incident_edges
+        .iter()
+        .copied()
+        .filter(|&neighbor_edge_index| neighbor_edge_index != edge_index)
+        .map(|neighbor_edge_index| base_labels[neighbor_edge_index])
+        .collect();
+    labels.sort_unstable();
+    labels
+}
+
+fn edge_signatures_from_base_labels<N, L>(
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+    base_labels: &[L],
+) -> Vec<(L, (usize, Vec<L>), (usize, Vec<L>))>
+where
+    N: Copy + AsPrimitive<usize>,
+    L: Copy + Ord,
+{
+    let degrees = endpoint_degrees_from_edge_map(edge_map, num_vertices);
+    let incident = incident_edges_from_edge_map(edge_map, num_vertices);
+
+    edge_map
+        .iter()
+        .enumerate()
+        .map(|(edge_index, &(src, dst))| {
+            let left_profile = (
+                degrees[src.as_()],
+                sorted_neighbor_labels(&incident[src.as_()], edge_index, base_labels),
+            );
+            let right_profile = (
+                degrees[dst.as_()],
+                sorted_neighbor_labels(&incident[dst.as_()], edge_index, base_labels),
+            );
+            let (lo, hi) = if left_profile <= right_profile {
+                (left_profile, right_profile)
+            } else {
+                (right_profile, left_profile)
+            };
+            (base_labels[edge_index], lo, hi)
+        })
+        .collect()
+}
+
+fn unlabeled_edge_signatures<N: Copy + AsPrimitive<usize>>(
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+) -> Vec<((usize, usize), (usize, Vec<(usize, usize)>), (usize, Vec<(usize, usize)>))> {
+    let degrees = endpoint_degrees_from_edge_map(edge_map, num_vertices);
+    let base_labels: Vec<(usize, usize)> = edge_map
+        .iter()
+        .map(|&(src, dst)| {
+            let left = degrees[src.as_()];
+            let right = degrees[dst.as_()];
+            if left <= right { (left, right) } else { (right, left) }
+        })
+        .collect();
+    edge_signatures_from_base_labels(edge_map, num_vertices, &base_labels)
+}
+
+fn labeled_edge_signatures<N: Copy + AsPrimitive<usize>>(
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+    label_indices: &[usize],
+) -> Vec<(usize, (usize, Vec<usize>), (usize, Vec<usize>))> {
+    edge_signatures_from_base_labels(edge_map, num_vertices, label_indices)
+}
+
+fn reorder_product_by_edge_signatures<S1: Ord, S2: Ord>(
+    matrix: BitSquareMatrix,
+    vertex_pairs: Vec<(usize, usize)>,
+    first_edge_signatures: &[S1],
+    second_edge_signatures: &[S2],
+) -> (BitSquareMatrix, Vec<(usize, usize)>) {
+    let mut order: Vec<usize> = (0..vertex_pairs.len()).collect();
+    order.sort_unstable_by(|&left_index, &right_index| {
+        let (left_first, left_second) = vertex_pairs[left_index];
+        let (right_first, right_second) = vertex_pairs[right_index];
+        first_edge_signatures[left_first]
+            .cmp(&first_edge_signatures[right_first])
+            .then(second_edge_signatures[left_second].cmp(&second_edge_signatures[right_second]))
+            .then(left_first.cmp(&right_first))
+            .then(left_second.cmp(&right_second))
+    });
+
+    let mut permuted = BitSquareMatrix::new(order.len());
+    for new_left in 0..order.len() {
+        for new_right in new_left + 1..order.len() {
+            if matrix.has_entry(order[new_left], order[new_right]) {
+                permuted.set_symmetric(new_left, new_right);
+            }
+        }
+    }
+    let permuted_pairs = order.into_iter().map(|old| vertex_pairs[old]).collect();
+    (permuted, permuted_pairs)
+}
+
+fn dense_rank<T>(keys: &[T]) -> Vec<usize>
+where
+    T: Ord + Clone,
+{
+    let mut keyed_indices: Vec<(T, usize)> =
+        keys.iter().cloned().enumerate().map(|(index, key)| (key, index)).collect();
+    keyed_indices.sort_unstable_by(|(left_key, left_index), (right_key, right_index)| {
+        left_key.cmp(right_key).then_with(|| left_index.cmp(right_index))
+    });
+
+    let mut colors = vec![0usize; keys.len()];
+    let mut current_color = 0usize;
+
+    for (offset, (_, index)) in keyed_indices.iter().enumerate() {
+        if offset > 0 && keyed_indices[offset - 1].0 != keyed_indices[offset].0 {
+            current_color += 1;
+        }
+        colors[*index] = current_color;
+    }
+
+    colors
+}
+
+fn wl_refine_with_edge_colors<M, SeedColor, EdgeColor, F>(
+    graph: &M,
+    seed_colors: &[SeedColor],
+    mut edge_colors: F,
+) -> Vec<usize>
+where
+    M: Matrix2D<RowIndex = usize, ColumnIndex = usize>
+        + SparseMatrix2D<RowIndex = usize, ColumnIndex = usize>,
+    SeedColor: Ord + Clone,
+    EdgeColor: Ord + Clone,
+    F: FnMut(usize, usize) -> EdgeColor,
+{
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    struct RefinementKey<EdgeColor> {
+        current_color: usize,
+        neighborhood: Vec<(EdgeColor, usize)>,
+    }
+
+    let node_count = graph.number_of_rows();
+    assert_eq!(
+        seed_colors.len(),
+        node_count,
+        "seed colors must contain exactly one entry per dense node id",
+    );
+
+    let mut colors = dense_rank(seed_colors);
+    loop {
+        let mut keys = Vec::with_capacity(node_count);
+        for node in 0..node_count {
+            let mut neighborhood: Vec<(EdgeColor, usize)> = graph
+                .sparse_row(node)
+                .map(|neighbor| (edge_colors(node, neighbor), colors[neighbor]))
+                .collect();
+            neighborhood.sort_unstable();
+            keys.push(RefinementKey { current_color: colors[node], neighborhood });
+        }
+
+        let next_colors = dense_rank(&keys);
+        if next_colors == colors {
+            return colors;
+        }
+        colors = next_colors;
+    }
+}
+
+fn unlabeled_line_graph_wl_signatures<N, M>(
+    line_graph: &M,
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+) -> Vec<(usize, ((usize, usize), (usize, Vec<(usize, usize)>), (usize, Vec<(usize, usize)>)))>
+where
+    N: Copy + AsPrimitive<usize>,
+    M: Matrix2D<RowIndex = usize, ColumnIndex = usize>
+        + SparseMatrix2D<RowIndex = usize, ColumnIndex = usize>,
+{
+    let base_signatures = unlabeled_edge_signatures(edge_map, num_vertices);
+    let wl_colors = wl_refine_with_edge_colors(line_graph, &base_signatures, |_, _| ());
+    wl_colors.into_iter().zip(base_signatures).collect()
+}
+
+fn labeled_line_graph_wl_signatures<N, M>(
+    line_graph: &M,
+    edge_map: &[(N, N)],
+    num_vertices: usize,
+    label_indices: &[usize],
+) -> Vec<(usize, (usize, (usize, Vec<usize>), (usize, Vec<usize>)))>
+where
+    N: Copy + AsPrimitive<usize>,
+    M: Matrix2D<RowIndex = usize, ColumnIndex = usize>
+        + SparseMatrix2D<RowIndex = usize, ColumnIndex = usize>
+        + SparseValuedMatrix2D<RowIndex = usize, ColumnIndex = usize>,
+    M::Value: Ord + Clone,
+{
+    let base_signatures = labeled_edge_signatures(edge_map, num_vertices, label_indices);
+    let wl_colors = wl_refine_with_edge_colors(line_graph, &base_signatures, |src, dst| {
+        line_graph
+            .sparse_value_at(src, dst)
+            .expect("line graph row neighbor must correspond to an existing edge color")
+    });
+    wl_colors.into_iter().zip(base_signatures).collect()
+}
 
 fn reorder_product_for_search<N>(
     matrix: BitSquareMatrix,
     vertex_pairs: Vec<(usize, usize)>,
-    first_edge_map: &[(N, N)],
-    second_edge_map: &[(N, N)],
-    ordering: Option<&mut Box<ProductVertexOrdering<'_>>>,
+    _first_edge_map: &[(N, N)],
+    _second_edge_map: &[(N, N)],
+    ordering: InitialProductVertexOrdering,
 ) -> (BitSquareMatrix, Vec<(usize, usize)>)
 where
     N: Copy + AsPrimitive<usize>,
 {
-    let Some(ordering) = ordering else {
-        return (matrix, vertex_pairs);
+    let order = match ordering {
+        InitialProductVertexOrdering::None => return (matrix, vertex_pairs),
+        InitialProductVertexOrdering::EdgeSignature => {
+            panic!("edge-signature ordering requires source-graph edge signatures")
+        }
+        InitialProductVertexOrdering::LineGraphWL => {
+            panic!("line-graph WL ordering requires source-graph line-graph refinement")
+        }
+        InitialProductVertexOrdering::Degree => {
+            let graph = ModularProductGraph::new(matrix.clone(), vertex_pairs.clone());
+            DescendingScoreSorter::new(DegreeScorer).sort_nodes(&graph)
+        }
+        InitialProductVertexOrdering::SecondOrderDegree => {
+            let graph = ModularProductGraph::new(matrix.clone(), vertex_pairs.clone());
+            DescendingScoreSorter::new(SecondOrderDegreeScorer).sort_nodes(&graph)
+        }
+        InitialProductVertexOrdering::PageRank => {
+            let graph = ModularProductGraph::new(matrix.clone(), vertex_pairs.clone());
+            DescendingScoreSorter::new(PageRankScorer::default()).sort_nodes(&graph)
+        }
+        InitialProductVertexOrdering::Degeneracy => {
+            let graph = ModularProductGraph::new(matrix.clone(), vertex_pairs.clone());
+            DegeneracySorter.sort_nodes(&graph)
+        }
     };
 
-    let mut ranked_indices: Vec<((usize, usize), usize)> = vertex_pairs
-        .iter()
-        .enumerate()
-        .map(|(index, &(first_lg, second_lg))| {
-            let first_edge = (first_edge_map[first_lg].0.as_(), first_edge_map[first_lg].1.as_());
-            let second_edge =
-                (second_edge_map[second_lg].0.as_(), second_edge_map[second_lg].1.as_());
-            (((*ordering)(first_lg, second_lg, first_edge, second_edge)), index)
-        })
-        .collect();
-    ranked_indices.sort_unstable();
-
-    if ranked_indices.iter().enumerate().all(|(new, (_, old))| new == *old) {
-        return (matrix, vertex_pairs);
-    }
-
-    let order: Vec<usize> = ranked_indices.into_iter().map(|(_, index)| index).collect();
     let mut permuted = BitSquareMatrix::new(order.len());
     for new_left in 0..order.len() {
         for new_right in new_left + 1..order.len() {
@@ -653,7 +919,11 @@ where
             partial_search_u32_with_bounds(
                 matrix,
                 partition,
-                initial_lower_bound,
+                // Keep the ordinary non-empty baseline in the partition state,
+                // but do not let stronger external lower bounds reshape the
+                // partition search. The connected-tree lower bound should act
+                // as an incumbent seed only for `PartialEnumeration`.
+                usize::from(matrix.order() > 0),
                 best_size_seed,
                 &mut accept_clique,
             )
@@ -867,7 +1137,7 @@ pub struct McesBuilder<'g, G, PF, XC, EC, D, R> {
     edge_comparator: EC,
     disambiguate: D,
     ranker: R,
-    product_vertex_ordering: Option<Box<ProductVertexOrdering<'g>>>,
+    product_vertex_ordering: InitialProductVertexOrdering,
     use_partition: bool,
     search_mode: McesSearchMode,
     delta_y: bool,
@@ -898,7 +1168,7 @@ impl<'g, G>
             edge_comparator: StrictEqualityComparator,
             disambiguate: ArbitraryDisambiguate,
             ranker: default_ranker(),
-            product_vertex_ordering: None,
+            product_vertex_ordering: InitialProductVertexOrdering::None,
             use_partition: true,
             search_mode: McesSearchMode::PartialEnumeration,
             delta_y: true,
@@ -1200,31 +1470,21 @@ impl<'g, G, PF, XC, EC, D, R> McesBuilder<'g, G, PF, XC, EC, D, R> {
         }
     }
 
+    /// Selects a built-in initial modular-product ordering policy.
+    #[must_use]
+    pub fn with_initial_product_vertex_ordering(
+        mut self,
+        ordering: InitialProductVertexOrdering,
+    ) -> Self {
+        self.product_vertex_ordering = ordering;
+        self
+    }
+
     /// Enables or disables partition-aware maximum clique search (default:
     /// enabled).
     #[must_use]
     pub fn with_partition(mut self, enabled: bool) -> Self {
         self.use_partition = enabled;
-        self
-    }
-
-    /// Reorders modular-product vertices before clique search.
-    ///
-    /// The closure receives:
-    /// - the line-graph vertex index from the first graph
-    /// - the line-graph vertex index from the second graph
-    /// - the original edge endpoints from the first graph
-    /// - the original edge endpoints from the second graph
-    ///
-    /// It must return a lexicographic ordering key. This only affects
-    /// search-order-sensitive behavior, such as which tied maxima
-    /// [`McesSearchMode::PartialEnumeration`] encounters first.
-    #[must_use]
-    pub fn with_product_vertex_ordering<F>(mut self, ordering: F) -> Self
-    where
-        F: FnMut(usize, usize, (usize, usize), (usize, usize)) -> (usize, usize) + 'g,
-    {
-        self.product_vertex_ordering = Some(Box::new(ordering));
         self
     }
 
@@ -1358,13 +1618,44 @@ where
 
         // 2. Modular product.
         let mp = lg1.graph().modular_product(lg2.graph(), &product_vertex_pairs);
-        let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
-            mp,
-            product_vertex_pairs,
-            lg1.edge_map(),
-            lg2.edge_map(),
-            self.product_vertex_ordering.as_mut(),
-        );
+        let (mp_matrix, mp_vertex_pairs) = match self.product_vertex_ordering {
+            InitialProductVertexOrdering::EdgeSignature => {
+                let first_edge_signatures =
+                    unlabeled_edge_signatures(lg1.edge_map(), first_vertices);
+                let second_edge_signatures =
+                    unlabeled_edge_signatures(lg2.edge_map(), second_vertices);
+                reorder_product_by_edge_signatures(
+                    mp,
+                    product_vertex_pairs,
+                    &first_edge_signatures,
+                    &second_edge_signatures,
+                )
+            }
+            InitialProductVertexOrdering::LineGraphWL => {
+                let first_edge_signatures =
+                    unlabeled_line_graph_wl_signatures(lg1.graph(), lg1.edge_map(), first_vertices);
+                let second_edge_signatures = unlabeled_line_graph_wl_signatures(
+                    lg2.graph(),
+                    lg2.edge_map(),
+                    second_vertices,
+                );
+                reorder_product_by_edge_signatures(
+                    mp,
+                    product_vertex_pairs,
+                    &first_edge_signatures,
+                    &second_edge_signatures,
+                )
+            }
+            _ => {
+                reorder_product_for_search(
+                    mp,
+                    product_vertex_pairs,
+                    lg1.edge_map(),
+                    lg2.edge_map(),
+                    self.product_vertex_ordering,
+                )
+            }
+        };
         // 3. Maximum cliques (unlabeled: all bonds get label 0).
         let cliques = if self.use_partition {
             let g1_labels = vec![0usize; first_edges];
@@ -1379,7 +1670,7 @@ where
                     second_vertices,
                 ),
             };
-            let connected_tree_lower_bound = connected_tree_lower_bound(
+            let initial_lower_bound = connected_tree_lower_bound(
                 self.first,
                 self.second,
                 lg1.edge_map(),
@@ -1394,7 +1685,7 @@ where
                     accepted_partitioned_cliques(
                         &mp_matrix,
                         &info,
-                        connected_tree_lower_bound,
+                        initial_lower_bound,
                         self.search_mode,
                         |clique| {
                             !self.delta_y
@@ -1411,7 +1702,7 @@ where
                 }
                 McesSearchMode::AllBest => {
                     let initial_lower_bound =
-                        partial_search(&mp_matrix, &info, connected_tree_lower_bound, |clique| {
+                        partial_search(&mp_matrix, &info, initial_lower_bound, |clique| {
                             !self.delta_y
                                 || !clique_has_delta_y(
                                     clique,
@@ -1609,13 +1900,49 @@ where
         let mp = lg1.graph().labeled_modular_product(lg2.graph(), &product_vertex_pairs, |a, b| {
             edge_comparator.compare(a, b)
         });
-        let (mp_matrix, mp_vertex_pairs) = reorder_product_for_search(
-            mp,
-            product_vertex_pairs,
-            lg1.edge_map(),
-            lg2.edge_map(),
-            self.product_vertex_ordering.as_mut(),
-        );
+        let (mp_matrix, mp_vertex_pairs) = match self.product_vertex_ordering {
+            InitialProductVertexOrdering::EdgeSignature => {
+                let first_edge_signatures =
+                    labeled_edge_signatures(lg1.edge_map(), first_vertices, &g1_label_indices);
+                let second_edge_signatures =
+                    labeled_edge_signatures(lg2.edge_map(), second_vertices, &g2_label_indices);
+                reorder_product_by_edge_signatures(
+                    mp,
+                    product_vertex_pairs,
+                    &first_edge_signatures,
+                    &second_edge_signatures,
+                )
+            }
+            InitialProductVertexOrdering::LineGraphWL => {
+                let first_edge_signatures = labeled_line_graph_wl_signatures(
+                    lg1.graph(),
+                    lg1.edge_map(),
+                    first_vertices,
+                    &g1_label_indices,
+                );
+                let second_edge_signatures = labeled_line_graph_wl_signatures(
+                    lg2.graph(),
+                    lg2.edge_map(),
+                    second_vertices,
+                    &g2_label_indices,
+                );
+                reorder_product_by_edge_signatures(
+                    mp,
+                    product_vertex_pairs,
+                    &first_edge_signatures,
+                    &second_edge_signatures,
+                )
+            }
+            _ => {
+                reorder_product_for_search(
+                    mp,
+                    product_vertex_pairs,
+                    lg1.edge_map(),
+                    lg2.edge_map(),
+                    self.product_vertex_ordering,
+                )
+            }
+        };
         // 3. Maximum cliques (label-aware partition bound).
         let cliques = if self.use_partition {
             let info = PartitionInfo {
@@ -1628,7 +1955,7 @@ where
                     second_vertices,
                 ),
             };
-            let connected_tree_lower_bound = if none_none_compatible {
+            let initial_lower_bound = if none_none_compatible {
                 connected_tree_lower_bound(
                     self.first,
                     self.second,
@@ -1647,7 +1974,7 @@ where
                     accepted_partitioned_cliques(
                         &mp_matrix,
                         &info,
-                        connected_tree_lower_bound,
+                        initial_lower_bound,
                         self.search_mode,
                         |clique| {
                             !self.delta_y
@@ -1664,7 +1991,7 @@ where
                 }
                 McesSearchMode::AllBest => {
                     let initial_lower_bound =
-                        partial_search(&mp_matrix, &info, connected_tree_lower_bound, |clique| {
+                        partial_search(&mp_matrix, &info, initial_lower_bound, |clique| {
                             !self.delta_y
                                 || !clique_has_delta_y(
                                     clique,
@@ -1774,11 +2101,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use alloc::{boxed::Box, collections::BTreeMap};
+    use alloc::collections::BTreeMap;
 
     use super::{
         ScreeningEstimate, assignment_score_via_crouse, incident_label_overlap,
-        intern_shared_labels, reorder_product_for_search, tier1_screening, tier2_screening,
+        intern_shared_labels, reorder_product_by_edge_signatures, tier1_screening, tier2_screening,
+        unlabeled_edge_signatures,
     };
     use crate::{impls::BitSquareMatrix, traits::SparseMatrix2D};
 
@@ -1853,29 +2181,26 @@ mod tests {
     }
 
     #[test]
-    fn test_reorder_product_for_search_applies_non_identity_permutation() {
+    fn test_reorder_product_by_edge_signatures_applies_non_identity_permutation() {
         let mut matrix = BitSquareMatrix::new(3);
         matrix.set_symmetric(0, 1);
         matrix.set_symmetric(1, 2);
         let vertex_pairs = vec![(0usize, 0usize), (1, 0), (2, 0)];
         let first_edge_map = vec![(0usize, 1usize), (1, 2), (2, 3)];
         let second_edge_map = vec![(0usize, 1usize)];
-        let mut ordering: Box<super::ProductVertexOrdering<'_>> =
-            Box::new(|left_lg, right_lg, _first_edge, _second_edge| {
-                (usize::MAX - left_lg, usize::MAX - right_lg)
-            });
+        let first_edge_signatures = unlabeled_edge_signatures(&first_edge_map, 4);
+        let second_edge_signatures = unlabeled_edge_signatures(&second_edge_map, 2);
 
-        let (permuted, permuted_pairs) = reorder_product_for_search(
+        let (permuted, permuted_pairs) = reorder_product_by_edge_signatures(
             matrix,
             vertex_pairs,
-            &first_edge_map,
-            &second_edge_map,
-            Some(&mut ordering),
+            &first_edge_signatures,
+            &second_edge_signatures,
         );
 
-        assert_eq!(permuted_pairs, vec![(2, 0), (1, 0), (0, 0)]);
-        assert!(permuted.has_entry(0, 1));
+        assert_eq!(permuted_pairs, vec![(0, 0), (2, 0), (1, 0)]);
+        assert!(!permuted.has_entry(0, 1));
         assert!(permuted.has_entry(1, 2));
-        assert!(!permuted.has_entry(0, 2));
+        assert!(permuted.has_entry(0, 2));
     }
 }

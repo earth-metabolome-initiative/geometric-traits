@@ -1,3 +1,5 @@
+use indicatif::{ProgressBar, ProgressStyle};
+
 use super::support::*;
 
 #[test]
@@ -85,6 +87,53 @@ fn test_massspecgym_ground_truth_labeled_mces_10000() {
         mismatch.is_none(),
         "found mismatch in MassSpecGym default-config 10K fast corpus:\n{}",
         mismatch.unwrap()
+    );
+}
+
+#[test]
+#[ignore = "200K-corpus parity check against the local-only MassSpecGym-derived RDKit default fixture"]
+fn test_massspecgym_ground_truth_labeled_mces_200000() {
+    let cases = load_massspecgym_ground_truth_200000();
+    assert_eq!(cases.len(), 200000, "expected exactly 200000 fast large-corpus cases");
+    assert!(
+        cases.iter().all(|case| !case.timed_out),
+        "fast 200K default fixture must exclude timed-out RDKit pairs",
+    );
+
+    let progress = ProgressBar::new(cases.len() as u64);
+    progress.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.green} 200k parity [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta_precise})",
+        )
+        .expect("progress style template must be valid")
+        .progress_chars("=> "),
+    );
+
+    let mut mismatches: Vec<String> = cases
+        .par_iter()
+        .filter_map(|case| {
+            let result = run_labeled_case(case);
+            let mismatch = labeled_result_mismatch(case, &result);
+            progress.inc(1);
+            mismatch
+        })
+        .collect();
+    progress.finish_with_message("200k parity complete");
+    mismatches.sort();
+
+    println!(
+        "checked {} MassSpecGym default-config 200K fast cases; mismatches={}",
+        cases.len(),
+        mismatches.len()
+    );
+    for mismatch in mismatches.iter().take(20) {
+        println!("{mismatch}");
+    }
+
+    assert!(
+        mismatches.is_empty(),
+        "found {} mismatches in MassSpecGym default-config 200K fast corpus",
+        mismatches.len()
     );
 }
 

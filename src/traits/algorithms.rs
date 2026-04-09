@@ -250,7 +250,7 @@ pub use clique_ranking::{
     MatchedEdgePair,
 };
 #[cfg(feature = "alloc")]
-pub use mces::{McesBuilder, McesResult, McesSearchMode};
+pub use mces::{InitialProductVertexOrdering, McesBuilder, McesResult, McesSearchMode};
 #[cfg(feature = "alloc")]
 pub use node_ordering::{
     AscendingScoreSorter, BetweennessCentralityScorer, BetweennessCentralityScorerBuilder,

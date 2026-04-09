@@ -252,24 +252,49 @@ fn test_mces_builder_largest_fragment_metric_matches_explicit_ranker() {
 }
 
 #[test]
-fn test_mces_builder_product_vertex_ordering_identity_matches_default() {
+fn test_mces_builtin_initial_product_orderings_run() {
     let g1 = wrap_undi(cycle_graph(4));
     let g2 = wrap_undi(path_graph(4));
 
     let default =
         McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
-    let identity = McesBuilder::new(&g1, &g2)
+    let none = McesBuilder::new(&g1, &g2)
         .with_search_mode(McesSearchMode::AllBest)
-        .with_product_vertex_ordering(|left_lg, right_lg, _first_edge, _second_edge| {
-            (left_lg, right_lg)
-        })
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::None)
+        .compute_unlabeled();
+    let edge_signature = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::EdgeSignature)
+        .compute_unlabeled();
+    let line_graph_wl = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::LineGraphWL)
+        .compute_unlabeled();
+    let degree = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::Degree)
+        .compute_unlabeled();
+    let second_order_degree = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::SecondOrderDegree)
+        .compute_unlabeled();
+    let pagerank = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::PageRank)
+        .compute_unlabeled();
+    let degeneracy = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::Degeneracy)
         .compute_unlabeled();
 
-    assert_eq!(default.matched_edges(), identity.matched_edges());
-    assert_eq!(default.vertex_matches(), identity.vertex_matches());
-    assert_eq!(default.fragment_count(), identity.fragment_count());
-    assert_eq!(default.largest_fragment_size(), identity.largest_fragment_size());
-    assert_eq!(default.all_cliques().len(), identity.all_cliques().len());
+    assert_eq!(default.matched_edges(), none.matched_edges());
+    assert_eq!(default.vertex_matches(), none.vertex_matches());
+    assert_eq!(default.matched_edges().len(), edge_signature.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), line_graph_wl.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), pagerank.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), degeneracy.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), degree.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), second_order_degree.matched_edges().len());
 }
 
 #[test]
@@ -440,6 +465,27 @@ fn test_labeled_mces_same_colors() {
         (j - 1.0).abs() < 1e-10,
         "Johnson similarity for identical colored paths should be 1.0, got {j}"
     );
+}
+
+#[test]
+fn test_labeled_mces_edge_signature_initial_ordering_runs() {
+    let g1 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+    let g2 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+
+    let default_result = McesBuilder::new(&g1, &g2).compute_labeled();
+    let edge_signature_result = McesBuilder::new(&g1, &g2)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::EdgeSignature)
+        .compute_labeled();
+    let line_graph_wl_result = McesBuilder::new(&g1, &g2)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::LineGraphWL)
+        .compute_labeled();
+
+    assert_eq!(default_result.matched_edges().len(), edge_signature_result.matched_edges().len());
+    assert_eq!(default_result.johnson_similarity(), edge_signature_result.johnson_similarity());
+    assert_eq!(default_result.matched_edges().len(), line_graph_wl_result.matched_edges().len());
+    assert_eq!(default_result.johnson_similarity(), line_graph_wl_result.johnson_similarity());
 }
 
 #[test]

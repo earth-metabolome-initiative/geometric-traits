@@ -17,8 +17,6 @@ pub(crate) struct GraphData {
     #[serde(default)]
     pub(crate) aromatic_ring_contexts: Vec<Vec<String>>,
     pub(crate) atom_is_aromatic: Vec<bool>,
-    #[serde(default)]
-    pub(crate) bond_original_indices: Vec<usize>,
 }
 
 #[derive(serde::Deserialize)]

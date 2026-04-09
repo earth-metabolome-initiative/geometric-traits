@@ -1,6 +1,6 @@
 //! Shared support for ground-truth MCES tests.
 
-pub(super) use std::{collections::BTreeMap, fs::File, io::Read as _};
+pub(super) use std::{fs::File, io::Read as _};
 
 pub(super) use geometric_traits::{
     impls::{CSR2D, EdgeContexts, SortedVec, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
@@ -311,64 +311,8 @@ pub(super) fn collect_labeled_case_product_diagnostics(
     collect_prepared_labeled_case_product_diagnostics(case, &prepared, use_edge_contexts)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct FixtureBondRecord {
-    pub(super) edge: (usize, usize),
-    pub(super) bond_type: u32,
-    pub(super) canonical_index: usize,
-    pub(super) original_index: usize,
-}
-
-pub(super) fn fixture_bond_records(graph: &GraphData) -> Vec<FixtureBondRecord> {
-    let mut records: Vec<FixtureBondRecord> = graph
-        .edges
-        .iter()
-        .zip(graph.bond_types.iter().copied())
-        .enumerate()
-        .map(|(canonical_index, (&edge, bond_type))| {
-            FixtureBondRecord {
-                edge: canonical_edge(edge),
-                bond_type,
-                canonical_index,
-                original_index: graph
-                    .bond_original_indices
-                    .get(canonical_index)
-                    .copied()
-                    .unwrap_or(canonical_index),
-            }
-        })
-        .collect();
-    records.sort_unstable_by_key(|record| {
-        (record.original_index, record.edge.0, record.edge.1, record.canonical_index)
-    });
-    records
-}
-
 pub(super) fn find_case<'a>(cases: &'a [GroundTruthCase], name: &str) -> &'a GroundTruthCase {
     cases.iter().find(|case| case.name == name).unwrap_or_else(|| panic!("missing case '{name}'"))
-}
-
-pub(super) fn fixture_edge_rank_map(graph: &GraphData) -> BTreeMap<(usize, usize), usize> {
-    let mut ranks = BTreeMap::new();
-    for record in fixture_bond_records(graph) {
-        ranks.entry(record.edge).or_insert(record.original_index);
-    }
-    ranks
-}
-
-pub(super) fn configure_rdkit_raw_pair_order<'g, PF, XC, EC, D, R>(
-    builder: McesBuilder<'g, TypedGraph, PF, XC, EC, D, R>,
-    case: &GroundTruthCase,
-) -> McesBuilder<'g, TypedGraph, PF, XC, EC, D, R> {
-    let first_ranks = fixture_edge_rank_map(&case.graph1);
-    let second_ranks = fixture_edge_rank_map(&case.graph2);
-    let second_major = case.graph1.n_atoms > case.graph2.n_atoms;
-
-    builder.with_product_vertex_ordering(move |_first_lg, _second_lg, first_edge, second_edge| {
-        let first_rank = first_ranks[&canonical_edge([first_edge.0, first_edge.1])];
-        let second_rank = second_ranks[&canonical_edge([second_edge.0, second_edge.1])];
-        if second_major { (second_rank, first_rank) } else { (first_rank, second_rank) }
-    })
 }
 
 pub(super) fn run_labeled_case(case: &GroundTruthCase) -> McesResult<usize> {
@@ -382,6 +326,21 @@ pub(super) fn run_labeled_case_with_search_mode(
 ) -> McesResult<usize> {
     let prepared = prepare_labeled_case(case);
 
+    let initial_ordering = std::env::var("INITIAL_PRODUCT_ORDERING").ok().map(|raw| {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "none" => InitialProductVertexOrdering::None,
+            "edge_signature" => InitialProductVertexOrdering::EdgeSignature,
+            "line_graph_wl" => InitialProductVertexOrdering::LineGraphWL,
+            "degree" => InitialProductVertexOrdering::Degree,
+            "second_order_degree" => InitialProductVertexOrdering::SecondOrderDegree,
+            "pagerank" => InitialProductVertexOrdering::PageRank,
+            "degeneracy" => InitialProductVertexOrdering::Degeneracy,
+            other => panic!(
+                "unsupported INITIAL_PRODUCT_ORDERING '{other}'; expected one of none, edge_signature, line_graph_wl, degree, second_order_degree, pagerank, degeneracy"
+            ),
+        }
+    });
+
     if use_edge_contexts && case_uses_complete_aromatic_rings(case) {
         if let (Some(graph1_contexts), Some(graph2_contexts)) =
             (prepared.first_contexts.as_ref(), prepared.second_contexts.as_ref())
@@ -390,20 +349,26 @@ pub(super) fn run_labeled_case_with_search_mode(
                 .with_edge_contexts(graph1_contexts, graph2_contexts)
                 .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
                 .with_search_mode(search_mode);
+            if let Some(ordering) = initial_ordering {
+                builder = builder.with_initial_product_vertex_ordering(ordering);
+            }
             if let Some(threshold) = case_similarity_threshold(case) {
                 builder = builder.with_similarity_threshold(threshold);
             }
-            return configure_rdkit_raw_pair_order(builder, case).compute_labeled();
+            return builder.compute_labeled();
         }
     }
 
     let mut builder = McesBuilder::new(&prepared.first, &prepared.second)
         .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
         .with_search_mode(search_mode);
+    if let Some(ordering) = initial_ordering {
+        builder = builder.with_initial_product_vertex_ordering(ordering);
+    }
     if let Some(threshold) = case_similarity_threshold(case) {
         builder = builder.with_similarity_threshold(threshold);
     }
-    configure_rdkit_raw_pair_order(builder, case).compute_labeled()
+    builder.compute_labeled()
 }
 
 pub(super) fn assert_labeled_result_matches_ground_truth(
@@ -445,10 +410,6 @@ pub(super) fn labeled_result_mismatch(
         "{}: matched_edges={} expected_edges={} similarity={similarity:.6} expected_similarity={:.6}",
         case.name, matched_edges, case.expected_bond_matches, case.expected_similarity
     ))
-}
-
-pub(super) fn canonical_edge(edge: [usize; 2]) -> (usize, usize) {
-    if edge[0] <= edge[1] { (edge[0], edge[1]) } else { (edge[1], edge[0]) }
 }
 
 // ============================================================================
