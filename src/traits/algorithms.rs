@@ -176,6 +176,10 @@ mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;
 #[cfg(feature = "alloc")]
+mod minimum_cost_balanced_flow;
+#[cfg(feature = "alloc")]
+pub use minimum_cost_balanced_flow::*;
+#[cfg(feature = "alloc")]
 mod blossom_v;
 #[cfg(feature = "alloc")]
 pub use blossom_v::*;
