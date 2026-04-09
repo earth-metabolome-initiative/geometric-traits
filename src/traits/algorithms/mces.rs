@@ -935,6 +935,38 @@ where
 const PARTIAL_GREEDY_DELTA_THRESHOLD: usize = 2;
 const PARTIAL_SEED_DFS_BUDGET: usize = 5_000;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PartialSeedHeuristicMode {
+    Current,
+    GreedyOnly,
+    None,
+}
+
+#[cfg(feature = "std")]
+fn partial_seed_heuristic_mode() -> PartialSeedHeuristicMode {
+    match std::env::var("PARTIAL_SEED_HEURISTIC")
+        .ok()
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("none") => PartialSeedHeuristicMode::None,
+        Some("greedy") => PartialSeedHeuristicMode::GreedyOnly,
+        Some("current") | None => PartialSeedHeuristicMode::Current,
+        Some(other) => {
+            panic!(
+                "unsupported PARTIAL_SEED_HEURISTIC '{other}'; expected one of current, greedy, none"
+            )
+        }
+    }
+}
+
+#[cfg(not(feature = "std"))]
+fn partial_seed_heuristic_mode() -> PartialSeedHeuristicMode {
+    PartialSeedHeuristicMode::Current
+}
+
 fn alternate_partition_info<'a>(partition: &PartitionInfo<'a>) -> PartitionInfo<'a> {
     let partition_side = match partition.partition_side {
         PartitionSide::First => PartitionSide::Second,
@@ -994,6 +1026,20 @@ fn partial_best_size_seed<F>(
 where
     F: FnMut(&[usize]) -> bool,
 {
+    match partial_seed_heuristic_mode() {
+        PartialSeedHeuristicMode::None => return initial_lower_bound,
+        PartialSeedHeuristicMode::GreedyOnly => {
+            let (initial_seed_size, _current_greedy, _alternate_greedy) = partial_initial_seed_size(
+                matrix,
+                partition,
+                initial_lower_bound,
+                &mut *accept_clique,
+            );
+            return initial_seed_size.saturating_sub(1);
+        }
+        PartialSeedHeuristicMode::Current => {}
+    }
+
     // Keep the shipped partition side and state lower bound unchanged. Only
     // improve the incumbent seed. The seed search runs on the more promising
     // side, but the real search still runs on the shipped order, side, and
