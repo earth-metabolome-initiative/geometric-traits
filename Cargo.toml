@@ -152,3 +152,7 @@ harness = false
 [[bench]]
 name = "planarity"
 harness = false
+
+[[bench]]
+name = "k23_homeomorph"
+harness = false

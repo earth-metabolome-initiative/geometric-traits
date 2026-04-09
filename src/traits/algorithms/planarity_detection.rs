@@ -140,19 +140,61 @@ where
     Ok(run_outerplanarity_engine(&preprocessing))
 }
 
+pub(crate) fn has_k23_homeomorph_simple_undirected_graph<G>(
+    graph: &G,
+) -> Result<bool, PlanarityError>
+where
+    G: UndirectedMonopartiteMonoplexGraph,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let simple_graph = preprocessing::LocalSimpleGraph::try_from_undirected_graph(graph)?;
+    let preprocessing = simple_graph.preprocess();
+    Ok(run_k23_homeomorph_engine(&preprocessing))
+}
+
 fn run_planarity_engine(preprocessing: &preprocessing::DfsPreprocessing) -> bool {
-    run_embedding_engine(preprocessing, false).is_some()
+    matches!(
+        run_embedding_engine(preprocessing, EmbeddingRunMode::Planarity),
+        EmbeddingRunOutcome::Embedded(_)
+    )
 }
 
 fn run_outerplanarity_engine(preprocessing: &preprocessing::DfsPreprocessing) -> bool {
-    run_embedding_engine(preprocessing, true)
-        .is_some_and(|embedding| embedding.all_primary_vertices_on_external_face(preprocessing))
+    matches!(
+        run_embedding_engine(preprocessing, EmbeddingRunMode::Outerplanarity),
+        EmbeddingRunOutcome::Embedded(embedding)
+            if embedding.all_primary_vertices_on_external_face(preprocessing)
+    )
+}
+
+pub(crate) fn run_k23_homeomorph_engine(preprocessing: &preprocessing::DfsPreprocessing) -> bool {
+    if preprocessing.vertices.len() < 5 || preprocessing.arcs.len() / 2 < 6 {
+        return false;
+    }
+
+    matches!(
+        run_embedding_engine(preprocessing, EmbeddingRunMode::K23Search),
+        EmbeddingRunOutcome::K23Found
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EmbeddingRunMode {
+    Planarity,
+    Outerplanarity,
+    K23Search,
+}
+
+enum EmbeddingRunOutcome {
+    Embedded(embedding::EmbeddingState),
+    K23Found,
+    Failed,
 }
 
 fn run_embedding_engine(
     preprocessing: &preprocessing::DfsPreprocessing,
-    outerplanar_mode: bool,
-) -> Option<embedding::EmbeddingState> {
+    mode: EmbeddingRunMode,
+) -> EmbeddingRunOutcome {
     let mut embedding = embedding::EmbeddingState::from_preprocessing(preprocessing);
 
     for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
@@ -187,30 +229,27 @@ fn run_embedding_engine(
                 continue;
             }
 
-            if embedding
-                .walk_down_child(current_primary_slot, root_copy_slot, outerplanar_mode)
-                .is_err()
-            {
-                return None;
-            }
-
-            let next_child_primary_slot =
-                embedding.next_dfs_child(current_primary_slot, child_primary_slot);
-            if child_subtree_has_blocking_forward_arc_head(
+            match embedding.walk_down_child(
                 preprocessing,
-                &embedding,
-                original_vertex,
-                child_primary_slot,
-                next_child_primary_slot,
+                current_primary_slot,
+                root_copy_slot,
+                mode,
             ) {
-                return None;
+                Ok(embedding::WalkDownChildOutcome::Completed) => {}
+                Ok(embedding::WalkDownChildOutcome::K23Found) => {
+                    return EmbeddingRunOutcome::K23Found;
+                }
+                Err(_) => {
+                    return EmbeddingRunOutcome::Failed;
+                }
             }
         }
     }
 
-    Some(embedding)
+    EmbeddingRunOutcome::Embedded(embedding)
 }
 
+#[cfg(test)]
 fn child_subtree_has_blocking_forward_arc_head(
     preprocessing: &preprocessing::DfsPreprocessing,
     embedding: &embedding::EmbeddingState,
@@ -218,21 +257,37 @@ fn child_subtree_has_blocking_forward_arc_head(
     child_primary_slot: usize,
     next_child_primary_slot: Option<usize>,
 ) -> bool {
-    let Some(forward_arc) = preprocessing.vertices[original_vertex]
-        .sorted_forward_arcs
-        .iter()
-        .copied()
-        .find(|&forward_arc| !embedding.arcs[forward_arc].embedded)
-    else {
-        return false;
-    };
-    let descendant_primary_slot = embedding.arcs[forward_arc].target_slot;
-    descendant_primary_slot >= child_primary_slot
-        && next_child_primary_slot.is_none_or(|next_child| descendant_primary_slot < next_child)
+    child_subtree_forward_arc_head(
+        preprocessing,
+        embedding,
+        original_vertex,
+        child_primary_slot,
+        next_child_primary_slot,
+    )
+    .is_some()
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
-mod preprocessing {
+fn child_subtree_forward_arc_head(
+    preprocessing: &preprocessing::DfsPreprocessing,
+    embedding: &embedding::EmbeddingState,
+    original_vertex: usize,
+    child_primary_slot: usize,
+    next_child_primary_slot: Option<usize>,
+) -> Option<usize> {
+    let forward_arc = preprocessing.vertices[original_vertex]
+        .sorted_forward_arcs
+        .iter()
+        .copied()
+        .find(|&forward_arc| !embedding.arcs[forward_arc].embedded)?;
+    let descendant_primary_slot = embedding.arcs[forward_arc].target_slot;
+    (descendant_primary_slot >= child_primary_slot
+        && next_child_primary_slot.is_none_or(|next_child| descendant_primary_slot < next_child))
+    .then_some(forward_arc)
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) mod preprocessing {
     use alloc::{collections::BTreeSet, vec, vec::Vec};
 
     use num_traits::AsPrimitive;
@@ -486,7 +541,7 @@ mod preprocessing {
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
-mod embedding {
+pub(crate) mod embedding {
     use alloc::vec::Vec;
     use core::mem;
 
@@ -531,6 +586,7 @@ mod embedding {
         pub(crate) root_copy_by_primary_dfi: Vec<Option<usize>>,
         pub(crate) least_ancestor_by_primary_slot: Vec<usize>,
         pub(crate) lowpoint_by_primary_slot: Vec<usize>,
+        pub(crate) next_forward_arc_index_by_primary_slot: Vec<usize>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -543,12 +599,55 @@ mod embedding {
         MissingPertinentEdge { slot: usize },
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub(crate) struct BlockedBicompContext {
+        pub(crate) current_primary_slot: usize,
+        pub(crate) walk_root_copy_slot: usize,
+        pub(crate) walk_root_side: usize,
+        pub(crate) cut_vertex_slot: usize,
+        pub(crate) cut_vertex_entry_side: usize,
+        pub(crate) blocked_root_copy_slot: usize,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct NonOuterplanarityContext {
+        current_primary_slot: usize,
+        x_slot: usize,
+        y_slot: usize,
+        w_slot: usize,
+        x_prev_link: usize,
+        y_prev_link: usize,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) enum WalkDownExecutionError {
-        #[error("walk-down was blocked by pertinent bicomp root {root_copy_slot}")]
-        BlockedBicomp { root_copy_slot: usize },
-        #[error(transparent)]
-        Mutation(#[from] EmbeddingMutationError),
+        BlockedBicomp { context: BlockedBicompContext },
+        InvalidK23Context,
+        UnembeddedForwardArcInChildSubtree { forward_arc: usize },
+        Mutation(EmbeddingMutationError),
+    }
+
+    impl core::fmt::Display for WalkDownExecutionError {
+        fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                Self::BlockedBicomp { .. } => formatter.write_str(
+                    "walk-down was blocked by a pertinent bicomp during outerplanarity traversal",
+                ),
+                Self::InvalidK23Context => formatter.write_str(
+                    "K23 obstruction search failed to initialize non-outerplanarity context",
+                ),
+                Self::UnembeddedForwardArcInChildSubtree { .. } => formatter.write_str(
+                    "walk-down finished with an unembedded forward arc remaining in the child subtree",
+                ),
+                Self::Mutation(error) => error.fmt(formatter),
+            }
+        }
+    }
+
+    impl From<EmbeddingMutationError> for WalkDownExecutionError {
+        fn from(error: EmbeddingMutationError) -> Self {
+            Self::Mutation(error)
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -574,6 +673,21 @@ mod embedding {
         pub(crate) visited_slots: Vec<usize>,
         pub(crate) frames: Vec<WalkDownFrame>,
         pub(crate) outcome: WalkDownOutcome,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum WalkDownChildOutcome {
+        Completed,
+        K23Found,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum K23BicompSearchOutcome {
+        MinorA,
+        MinorB,
+        MinorE1OrE2,
+        MinorE3OrE4,
+        SeparableK4,
     }
 
     impl EmbeddingState {
@@ -693,6 +807,7 @@ mod embedding {
                 root_copy_by_primary_dfi,
                 least_ancestor_by_primary_slot,
                 lowpoint_by_primary_slot,
+                next_forward_arc_index_by_primary_slot: vec![0; number_of_vertices],
             }
         }
 
@@ -726,6 +841,135 @@ mod embedding {
             } else {
                 self.arcs[arc].prev = adjacent;
             }
+        }
+
+        fn real_ext_face_neighbor(&self, current_slot: usize, previous_link: &mut usize) -> usize {
+            let exit_arc = self.slot_arc(current_slot, 1 ^ *previous_link).unwrap_or_else(|| {
+                panic!(
+                    "external-face traversal requires an incident arc: slot={current_slot}, kind={:?}, first_arc={:?}, last_arc={:?}",
+                    self.slots[current_slot].kind,
+                    self.slots[current_slot].first_arc,
+                    self.slots[current_slot].last_arc,
+                )
+            });
+            let next_slot = self.arcs[exit_arc].target_slot;
+            let entry_arc = self.arcs[exit_arc].twin;
+
+            if self.slots[next_slot].first_arc != self.slots[next_slot].last_arc {
+                *previous_link = usize::from(self.slots[next_slot].first_arc != Some(entry_arc));
+            }
+
+            next_slot
+        }
+
+        fn find_nonouterplanarity_context(
+            &self,
+            current_primary_slot: usize,
+            bicomp_root_copy_slot: usize,
+        ) -> Option<NonOuterplanarityContext> {
+            let mut x_prev_link = 1usize;
+            let mut y_prev_link = 0usize;
+            let x_slot = self.real_ext_face_neighbor(bicomp_root_copy_slot, &mut x_prev_link);
+            let y_slot = self.real_ext_face_neighbor(bicomp_root_copy_slot, &mut y_prev_link);
+            let w_slot = self.find_pertinent_vertex_on_lower_face(x_slot, x_prev_link, y_slot)?;
+
+            Some(NonOuterplanarityContext {
+                current_primary_slot,
+                x_slot,
+                y_slot,
+                w_slot,
+                x_prev_link,
+                y_prev_link,
+            })
+        }
+
+        fn find_pertinent_vertex_on_lower_face(
+            &self,
+            x_slot: usize,
+            x_prev_link: usize,
+            y_slot: usize,
+        ) -> Option<usize> {
+            let mut candidate_slot = x_slot;
+            let mut previous_link = x_prev_link;
+
+            candidate_slot = self.real_ext_face_neighbor(candidate_slot, &mut previous_link);
+            while candidate_slot != y_slot {
+                if self.is_pertinent(candidate_slot) {
+                    return Some(candidate_slot);
+                }
+                candidate_slot = self.real_ext_face_neighbor(candidate_slot, &mut previous_link);
+            }
+
+            None
+        }
+
+        pub(crate) fn search_for_k23_in_bicomp(
+            &mut self,
+            current_primary_slot: usize,
+            walk_root_copy_slot: usize,
+            blocked_root_copy_slot: usize,
+        ) -> Result<K23BicompSearchOutcome, WalkDownExecutionError> {
+            if blocked_root_copy_slot != walk_root_copy_slot {
+                return Ok(K23BicompSearchOutcome::MinorA);
+            }
+
+            let Some(context) =
+                self.find_nonouterplanarity_context(current_primary_slot, blocked_root_copy_slot)
+            else {
+                return Err(WalkDownExecutionError::InvalidK23Context);
+            };
+
+            if !self.slots[context.w_slot].pertinent_roots.is_empty() {
+                return Ok(K23BicompSearchOutcome::MinorB);
+            }
+
+            let mut x_prev_link = context.x_prev_link;
+            let mut y_prev_link = context.y_prev_link;
+            if self.real_ext_face_neighbor(context.x_slot, &mut x_prev_link) != context.w_slot
+                || self.real_ext_face_neighbor(context.y_slot, &mut y_prev_link) != context.w_slot
+            {
+                return Ok(K23BicompSearchOutcome::MinorE1OrE2);
+            }
+
+            self.update_future_pertinent_child(context.x_slot, context.current_primary_slot);
+            self.update_future_pertinent_child(context.y_slot, context.current_primary_slot);
+            self.update_future_pertinent_child(context.w_slot, context.current_primary_slot);
+
+            if self.is_future_pertinent(context.x_slot, context.current_primary_slot)
+                || self.is_future_pertinent(context.y_slot, context.current_primary_slot)
+                || self.is_future_pertinent(context.w_slot, context.current_primary_slot)
+            {
+                Ok(K23BicompSearchOutcome::MinorE3OrE4)
+            } else {
+                Ok(K23BicompSearchOutcome::SeparableK4)
+            }
+        }
+
+        pub(crate) fn continue_after_separable_k4(&mut self, context: &BlockedBicompContext) {
+            self.slots[context.cut_vertex_slot]
+                .pertinent_roots
+                .retain(|&candidate| candidate != context.blocked_root_copy_slot);
+            self.update_future_pertinent_child(
+                context.cut_vertex_slot,
+                context.current_primary_slot,
+            );
+        }
+
+        pub(crate) fn continue_after_same_root_separable_k4(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            walk_root_copy_slot: usize,
+        ) {
+            let child_primary_slot = self.dfs_child_from_root(walk_root_copy_slot);
+            let next_child_primary_slot =
+                self.next_dfs_child(current_primary_slot, child_primary_slot);
+            self.advance_forward_arc_list(
+                preprocessing,
+                current_primary_slot,
+                child_primary_slot,
+                next_child_primary_slot,
+            );
         }
 
         fn is_virtual(&self, slot: usize) -> bool {
@@ -787,6 +1031,66 @@ mod embedding {
                 .iter()
                 .position(|&candidate| candidate == child_slot)
                 .and_then(|position| sorted_children.get(position + 1).copied())
+        }
+
+        fn current_forward_arc_head(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+        ) -> Option<usize> {
+            let original_vertex = match self.slots[current_primary_slot].kind {
+                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
+                EmbeddingSlotKind::RootCopy { .. } => {
+                    panic!("forward-arc heads are tracked only for primary slots")
+                }
+            };
+            let sorted_forward_arcs = &preprocessing.vertices[original_vertex].sorted_forward_arcs;
+            let next_index = &mut self.next_forward_arc_index_by_primary_slot[current_primary_slot];
+
+            while *next_index < sorted_forward_arcs.len()
+                && self.arcs[sorted_forward_arcs[*next_index]].embedded
+            {
+                *next_index += 1;
+            }
+
+            sorted_forward_arcs.get(*next_index).copied()
+        }
+
+        pub(crate) fn child_subtree_forward_arc_head(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            child_primary_slot: usize,
+            next_child_primary_slot: Option<usize>,
+        ) -> Option<usize> {
+            let forward_arc = self.current_forward_arc_head(preprocessing, current_primary_slot)?;
+            let descendant_primary_slot = self.arcs[forward_arc].target_slot;
+
+            (descendant_primary_slot >= child_primary_slot
+                && next_child_primary_slot
+                    .is_none_or(|next_child| descendant_primary_slot < next_child))
+            .then_some(forward_arc)
+        }
+
+        pub(crate) fn advance_forward_arc_list(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            child_primary_slot: usize,
+            next_child_primary_slot: Option<usize>,
+        ) {
+            while let Some(forward_arc) =
+                self.current_forward_arc_head(preprocessing, current_primary_slot)
+            {
+                let descendant_primary_slot = self.arcs[forward_arc].target_slot;
+                if descendant_primary_slot < child_primary_slot
+                    || next_child_primary_slot
+                        .is_some_and(|next_child| descendant_primary_slot >= next_child)
+                {
+                    break;
+                }
+                self.next_forward_arc_index_by_primary_slot[current_primary_slot] += 1;
+            }
         }
 
         pub(crate) fn update_future_pertinent_child(
@@ -1217,12 +1521,14 @@ mod embedding {
             self.slots[stopping_slot].ext_face[stopping_entry_side] = Some(root_copy_slot);
         }
 
+        #[allow(clippy::too_many_lines)]
         pub(crate) fn walk_down_child(
             &mut self,
+            preprocessing: &DfsPreprocessing,
             current_primary_slot: usize,
             root_copy_slot: usize,
-            outerplanar_mode: bool,
-        ) -> Result<(), WalkDownExecutionError> {
+            mode: super::EmbeddingRunMode,
+        ) -> Result<WalkDownChildOutcome, WalkDownExecutionError> {
             loop {
                 let mut made_progress = false;
                 let mut restart_from_root = false;
@@ -1267,14 +1573,41 @@ mod embedding {
                                 continue;
                             }
 
-                            return Err(WalkDownExecutionError::BlockedBicomp {
-                                root_copy_slot: root_to_descend,
-                            });
+                            let context = BlockedBicompContext {
+                                current_primary_slot,
+                                walk_root_copy_slot: root_copy_slot,
+                                walk_root_side: root_side,
+                                cut_vertex_slot: current_slot,
+                                cut_vertex_entry_side: current_entry_side,
+                                blocked_root_copy_slot: root_to_descend,
+                            };
+                            if mode == super::EmbeddingRunMode::K23Search {
+                                match self.search_for_k23_in_bicomp(
+                                    current_primary_slot,
+                                    root_copy_slot,
+                                    root_to_descend,
+                                )? {
+                                    K23BicompSearchOutcome::SeparableK4 => {
+                                        self.continue_after_separable_k4(&context);
+                                        made_progress = true;
+                                        restart_from_root = true;
+                                        break;
+                                    }
+                                    K23BicompSearchOutcome::MinorA
+                                    | K23BicompSearchOutcome::MinorB
+                                    | K23BicompSearchOutcome::MinorE1OrE2
+                                    | K23BicompSearchOutcome::MinorE3OrE4 => {
+                                        return Ok(WalkDownChildOutcome::K23Found);
+                                    }
+                                }
+                            }
+
+                            return Err(WalkDownExecutionError::BlockedBicomp { context });
                         }
 
                         self.update_future_pertinent_child(current_slot, current_primary_slot);
                         if self.is_future_pertinent(current_slot, current_primary_slot)
-                            || outerplanar_mode
+                            || mode != super::EmbeddingRunMode::Planarity
                         {
                             let root_copy_ext_face_before = self.slots[root_copy_slot].ext_face;
                             self.apply_stopping_short_circuit(
@@ -1304,7 +1637,52 @@ mod embedding {
                 }
             }
 
-            Ok(())
+            let child_primary_slot = self.dfs_child_from_root(root_copy_slot);
+            let next_child_primary_slot =
+                self.next_dfs_child(current_primary_slot, child_primary_slot);
+
+            if let Some(forward_arc) = self.child_subtree_forward_arc_head(
+                preprocessing,
+                current_primary_slot,
+                child_primary_slot,
+                next_child_primary_slot,
+            ) {
+                if mode == super::EmbeddingRunMode::K23Search {
+                    match self.search_for_k23_in_bicomp(
+                        current_primary_slot,
+                        root_copy_slot,
+                        root_copy_slot,
+                    )? {
+                        K23BicompSearchOutcome::SeparableK4 => {
+                            self.continue_after_same_root_separable_k4(
+                                preprocessing,
+                                current_primary_slot,
+                                root_copy_slot,
+                            );
+                            return Ok(WalkDownChildOutcome::Completed);
+                        }
+                        K23BicompSearchOutcome::MinorA
+                        | K23BicompSearchOutcome::MinorB
+                        | K23BicompSearchOutcome::MinorE1OrE2
+                        | K23BicompSearchOutcome::MinorE3OrE4 => {
+                            return Ok(WalkDownChildOutcome::K23Found);
+                        }
+                    }
+                }
+
+                return Err(WalkDownExecutionError::UnembeddedForwardArcInChildSubtree {
+                    forward_arc,
+                });
+            }
+
+            self.advance_forward_arc_list(
+                preprocessing,
+                current_primary_slot,
+                child_primary_slot,
+                next_child_primary_slot,
+            );
+
+            Ok(WalkDownChildOutcome::Completed)
         }
 
         fn mark_external_face_primary_vertices(
@@ -1447,8 +1825,8 @@ mod tests {
     use super::{
         child_subtree_has_blocking_forward_arc_head,
         embedding::{
-            EmbeddingMutationError, EmbeddingSlotKind, EmbeddingState, WalkDownExecutionError,
-            WalkDownOutcome,
+            EmbeddingMutationError, EmbeddingSlotKind, EmbeddingState, WalkDownChildOutcome,
+            WalkDownExecutionError, WalkDownOutcome,
         },
         preprocessing::{DfsArcType, LocalSimpleGraph, LocalSimpleGraphError},
         run_planarity_engine,
@@ -1519,12 +1897,23 @@ mod tests {
                     continue;
                 }
 
-                if let Err(error) =
-                    embedding.walk_down_child(current_primary_slot, root_copy_slot, false)
-                {
-                    return match error {
-                        WalkDownExecutionError::BlockedBicomp { root_copy_slot: blocked_root } => {
-                            let left = embedding.slots[blocked_root].ext_face[0].map_or_else(
+                match embedding.walk_down_child(
+                    &preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    super::EmbeddingRunMode::Planarity,
+                ) {
+                    Ok(WalkDownChildOutcome::Completed) => {}
+                    Ok(WalkDownChildOutcome::K23Found) => {
+                        return Err(alloc::format!(
+                            "walk_down_child unexpectedly reported K23Found at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}"
+                        ));
+                    }
+                    Err(error) => {
+                        return match error {
+                            WalkDownExecutionError::BlockedBicomp { context } => {
+                                let blocked_root = context.blocked_root_copy_slot;
+                                let left = embedding.slots[blocked_root].ext_face[0].map_or_else(
                                 || alloc::string::String::from("none"),
                                 |slot| {
                                     alloc::format!(
@@ -1536,7 +1925,7 @@ mod tests {
                                     )
                                 },
                             );
-                            let right = embedding.slots[blocked_root].ext_face[1].map_or_else(
+                                let right = embedding.slots[blocked_root].ext_face[1].map_or_else(
                                 || alloc::string::String::from("none"),
                                 |slot| {
                                     alloc::format!(
@@ -1548,17 +1937,34 @@ mod tests {
                                     )
                                 },
                             );
-                            Err(alloc::format!(
-                                "blocked bicomp at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}, blocked_root={blocked_root}, blocked_root_kind={:?}, left={left}, right={right}",
-                                embedding.slots[blocked_root].kind,
-                            ))
-                        }
-                        WalkDownExecutionError::Mutation(error) => {
-                            Err(alloc::format!(
-                                "walk_down_child mutation failed at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}: {error}"
-                            ))
-                        }
-                    };
+                                Err(alloc::format!(
+                                    "blocked bicomp at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}, blocked_root={blocked_root}, blocked_root_kind={:?}, walk_root_copy={}, walk_root_side={}, cut_vertex_slot={}, cut_vertex_entry_side={}, left={left}, right={right}",
+                                    embedding.slots[blocked_root].kind,
+                                    context.walk_root_copy_slot,
+                                    context.walk_root_side,
+                                    context.cut_vertex_slot,
+                                    context.cut_vertex_entry_side,
+                                ))
+                            }
+                            WalkDownExecutionError::Mutation(error) => {
+                                Err(alloc::format!(
+                                    "walk_down_child mutation failed at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}: {error}"
+                                ))
+                            }
+                            WalkDownExecutionError::InvalidK23Context => {
+                                Err(alloc::format!(
+                                    "walk_down_child unexpectedly failed K23 context init at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}"
+                                ))
+                            }
+                            WalkDownExecutionError::UnembeddedForwardArcInChildSubtree {
+                                forward_arc,
+                            } => {
+                                Err(alloc::format!(
+                                    "walk_down_child left forward_arc={forward_arc} unembedded at current={current_primary_slot}, child={child_primary_slot}, root_copy={root_copy_slot}"
+                                ))
+                            }
+                        };
+                    }
                 }
 
                 let next_child_primary_slot =
@@ -1916,6 +2322,48 @@ mod tests {
         assert_eq!(trace.visited_slots, vec![1]);
         assert!(trace.frames.is_empty());
         assert_eq!(trace.outcome, WalkDownOutcome::BlockedBicomp { root_copy_slot: 4 });
+    }
+
+    #[test]
+    fn test_walk_down_child_reports_blocked_bicomp_context() {
+        let preprocessing =
+            LocalSimpleGraph::from_edges(3, &[[0, 1], [1, 2]]).unwrap().preprocess();
+        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
+
+        embedding.slots[1].pertinent_roots.push(4);
+
+        let context = match embedding.walk_down_child(
+            &preprocessing,
+            0,
+            3,
+            super::EmbeddingRunMode::Planarity,
+        ) {
+            Err(WalkDownExecutionError::BlockedBicomp { context }) => context,
+            Ok(WalkDownChildOutcome::Completed) => {
+                panic!("walk_down_child should have been blocked")
+            }
+            Ok(WalkDownChildOutcome::K23Found) => {
+                panic!("walk_down_child should not report K23Found in planarity mode")
+            }
+            Err(WalkDownExecutionError::Mutation(error)) => {
+                panic!("walk_down_child should not reach mutation path: {error}")
+            }
+            Err(WalkDownExecutionError::InvalidK23Context) => {
+                panic!("walk_down_child should not fail K23 context init in planarity mode")
+            }
+            Err(WalkDownExecutionError::UnembeddedForwardArcInChildSubtree { forward_arc }) => {
+                panic!(
+                    "walk_down_child should not leave residual forward arc in blocked-bicomp test: {forward_arc}"
+                )
+            }
+        };
+
+        assert_eq!(context.current_primary_slot, 0);
+        assert_eq!(context.walk_root_copy_slot, 3);
+        assert_eq!(context.walk_root_side, 0);
+        assert_eq!(context.cut_vertex_slot, 1);
+        assert_eq!(context.cut_vertex_entry_side, 1);
+        assert_eq!(context.blocked_root_copy_slot, 4);
     }
 
     #[test]
