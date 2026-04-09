@@ -24,6 +24,19 @@ tracked in git.
 If you keep a local shard directory for manual sweeps, point
 `BLOSSOM_V_GROUND_TRUTH_SOURCE` at it.
 
+# Planarity Ground-Truth Fixtures
+
+`planarity_ground_truth_100k.json.gz` is the local-only Boyer reference corpus
+for planarity and outerplanarity validation.
+
+The current local path is:
+
+```text
+tests/fixtures/planarity_ground_truth_100k.json.gz
+```
+
+It is consumed by `tests/test_planarity_local_corpus.rs`.
+
 # VF2 Ground-Truth Fixtures
 
 `vf2_networkx_fixture_suite.json.gz` is the checked-in `NetworkX` oracle suite
