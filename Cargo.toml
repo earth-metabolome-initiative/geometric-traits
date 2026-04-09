@@ -161,5 +161,9 @@ name = "chordal_detection"
 harness = false
 
 [[bench]]
+name = "planarity"
+harness = false
+
+[[bench]]
 name = "cactus_detection"
 harness = false
