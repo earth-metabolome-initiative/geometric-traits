@@ -45,6 +45,14 @@ pub mod tree_detection;
 #[cfg(feature = "alloc")]
 pub use tree_detection::TreeDetection;
 #[cfg(feature = "alloc")]
+pub mod planarity_detection;
+#[cfg(feature = "alloc")]
+pub use planarity_detection::{PlanarityDetection, PlanarityError};
+#[cfg(feature = "alloc")]
+pub mod outerplanarity_detection;
+#[cfg(feature = "alloc")]
+pub use outerplanarity_detection::{OuterplanarityDetection, OuterplanarityError};
+#[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
