@@ -2,7 +2,7 @@
 //! Criterion benchmarks for minimum-cost maximum balanced flow, including a
 //! `kocay` baseline on the same deterministic instances.
 
-use std::{hint::black_box, time::Duration};
+use std::{collections::HashSet, hint::black_box, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
@@ -106,8 +106,131 @@ fn make_weighted_case(
     }
 }
 
+fn make_bipartite_case(
+    name: &str,
+    seed: u64,
+    left_size: usize,
+    right_size: usize,
+    edge_count: usize,
+    max_capacity: usize,
+    max_cost: i64,
+) -> WeightedCase {
+    assert!(left_size > 0);
+    assert!(right_size > 0);
+    assert!(edge_count >= left_size + right_size - 1);
+    assert!(edge_count <= left_size * right_size);
+
+    let mut rng = SmallRng::seed_from_u64(seed);
+    let mut incident_capacity = vec![0usize; left_size + right_size];
+    let mut chosen_pairs = HashSet::new();
+    let mut edges = Vec::with_capacity(edge_count);
+
+    for right in 0..right_size {
+        let left = if right == 0 { 0 } else { rng.gen_range(0..left_size) };
+        if chosen_pairs.insert((left, right)) {
+            let capacity = rng.gen_range(1..=max_capacity);
+            let cost = rng.gen_range(0..=max_cost);
+            let right_vertex = left_size + right;
+            incident_capacity[left] += capacity;
+            incident_capacity[right_vertex] += capacity;
+            edges.push((left, right_vertex, capacity, cost));
+        }
+    }
+    for left in 1..left_size {
+        let right = rng.gen_range(0..right_size);
+        if chosen_pairs.insert((left, right)) {
+            let capacity = rng.gen_range(1..=max_capacity);
+            let cost = rng.gen_range(0..=max_cost);
+            let right_vertex = left_size + right;
+            incident_capacity[left] += capacity;
+            incident_capacity[right_vertex] += capacity;
+            edges.push((left, right_vertex, capacity, cost));
+        }
+    }
+
+    let mut remaining_pairs = Vec::with_capacity(left_size * right_size);
+    for left in 0..left_size {
+        for right in 0..right_size {
+            if !chosen_pairs.contains(&(left, right)) {
+                remaining_pairs.push((left, right));
+            }
+        }
+    }
+    remaining_pairs.shuffle(&mut rng);
+
+    for (left, right) in remaining_pairs.into_iter().take(edge_count.saturating_sub(edges.len())) {
+        let capacity = rng.gen_range(1..=max_capacity);
+        let cost = rng.gen_range(0..=max_cost);
+        let right_vertex = left_size + right;
+        incident_capacity[left] += capacity;
+        incident_capacity[right_vertex] += capacity;
+        edges.push((left, right_vertex, capacity, cost));
+    }
+
+    let mut budgets = Vec::with_capacity(incident_capacity.len());
+    for &total_incident_capacity in &incident_capacity {
+        if total_incident_capacity == 0 {
+            budgets.push(0);
+            continue;
+        }
+        let lower = (total_incident_capacity / 3).max(1);
+        let upper = ((2 * total_incident_capacity) / 3).max(lower);
+        budgets.push(rng.gen_range(lower..=upper));
+    }
+
+    WeightedCase {
+        name: name.to_owned(),
+        capacities: build_capacity_graph(left_size + right_size, &edges),
+        costs: build_cost_graph(left_size + right_size, &edges),
+        budgets,
+    }
+}
+
+fn make_tree_case(
+    name: &str,
+    seed: u64,
+    n: usize,
+    max_capacity: usize,
+    max_cost: i64,
+) -> WeightedCase {
+    assert!(n >= 2);
+
+    let mut rng = SmallRng::seed_from_u64(seed);
+    let mut incident_capacity = vec![0usize; n];
+    let mut edges = Vec::with_capacity(n - 1);
+
+    for vertex in 1..n {
+        let parent = rng.gen_range(0..vertex);
+        let capacity = rng.gen_range(1..=max_capacity);
+        let cost = rng.gen_range(0..=max_cost);
+        incident_capacity[parent] += capacity;
+        incident_capacity[vertex] += capacity;
+        edges.push((parent, vertex, capacity, cost));
+    }
+
+    let mut budgets = Vec::with_capacity(n);
+    for &total_incident_capacity in &incident_capacity {
+        if total_incident_capacity == 0 {
+            budgets.push(0);
+            continue;
+        }
+        let lower = (total_incident_capacity / 3).max(1);
+        let upper = ((2 * total_incident_capacity) / 3).max(lower);
+        budgets.push(rng.gen_range(lower..=upper));
+    }
+
+    WeightedCase {
+        name: name.to_owned(),
+        capacities: build_capacity_graph(n, &edges),
+        costs: build_cost_graph(n, &edges),
+        budgets,
+    }
+}
+
 fn benchmark_cases() -> Vec<WeightedCase> {
     vec![
+        make_tree_case("tree_n256_cap4", 0xBADA_55F0, 256, 4, 24),
+        make_bipartite_case("bipartite_n128_m512_cap4", 0xBADA_55B0, 64, 64, 512, 4, 24),
         make_weighted_case("n48_m144_cap4", 0xBADA_5501, 48, 144, 4, 20),
         make_weighted_case("n64_m256_cap4", 0xBADA_5502, 64, 256, 4, 24),
         make_weighted_case("n96_m384_cap4", 0xBADA_5503, 96, 384, 4, 30),

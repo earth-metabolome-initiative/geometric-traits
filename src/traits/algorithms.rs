@@ -37,6 +37,10 @@ pub mod chordal_detection;
 #[cfg(feature = "alloc")]
 pub use chordal_detection::ChordalDetection;
 #[cfg(feature = "alloc")]
+pub mod bipartite_detection;
+#[cfg(feature = "alloc")]
+pub use bipartite_detection::BipartiteDetection;
+#[cfg(feature = "alloc")]
 pub mod tree_detection;
 #[cfg(feature = "alloc")]
 pub use tree_detection::TreeDetection;
