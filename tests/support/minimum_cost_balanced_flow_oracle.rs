@@ -2,32 +2,12 @@
 //! flow tests.
 #![allow(dead_code)]
 
-use std::{
-    path::PathBuf,
-    process::{Command, Stdio},
-};
-
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
-use serde::{Deserialize, Serialize};
 
 pub type CapacityGraph = ValuedCSR2D<usize, usize, usize, usize>;
 pub type CostGraph = ValuedCSR2D<usize, usize, usize, i64>;
 pub type WeightedEdge = (usize, usize, usize, i64);
 pub type WeightedFlow = (usize, usize, usize);
-
-#[derive(Debug, Deserialize)]
-pub struct HighsOracleResult {
-    pub total_flow: usize,
-    pub total_cost: i64,
-    pub assignment: Vec<usize>,
-}
-
-#[derive(Serialize)]
-struct HighsOracleRequest<'a> {
-    n: usize,
-    budgets: &'a [usize],
-    edges: Vec<[i64; 4]>,
-}
 
 pub fn build_capacity_graph(n: usize, edges: &[WeightedEdge]) -> CapacityGraph {
     let mut directed_edges = Vec::new();
@@ -187,102 +167,4 @@ pub fn assert_solver_matches_oracle(n: usize, edges: &[WeightedEdge], budgets: &
         (best_total, best_cost),
         "solver objective does not match brute-force optimum"
     );
-}
-
-pub fn highs_oracle_available() -> bool {
-    Command::new("python")
-        .args(["-c", "import highspy"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
-}
-
-fn highs_oracle_script() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("support")
-        .join("highs_weighted_flow_oracle.py")
-}
-
-pub fn solve_with_highs(
-    n: usize,
-    edges: &[WeightedEdge],
-    budgets: &[usize],
-) -> Result<HighsOracleResult, String> {
-    let request = HighsOracleRequest {
-        n,
-        budgets,
-        edges: edges
-            .iter()
-            .map(|&(u, v, capacity, cost)| {
-                [
-                    i64::try_from(u).unwrap(),
-                    i64::try_from(v).unwrap(),
-                    i64::try_from(capacity).unwrap(),
-                    cost,
-                ]
-            })
-            .collect(),
-    };
-    let request_json = serde_json::to_vec(&request).map_err(|error| error.to_string())?;
-    let output = Command::new("python")
-        .arg(highs_oracle_script())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .and_then(|mut child| {
-            use std::io::Write;
-
-            child.stdin.as_mut().expect("stdin should be available").write_all(&request_json)?;
-            child.wait_with_output()
-        })
-        .map_err(|error| error.to_string())?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("HiGHS oracle failed: {}", stderr.trim()));
-    }
-
-    serde_json::from_slice(&output.stdout).map_err(|error| {
-        format!(
-            "failed to parse HiGHS oracle output: {error}; stdout was: {}",
-            String::from_utf8_lossy(&output.stdout)
-        )
-    })
-}
-
-pub fn assert_solver_matches_highs(n: usize, edges: &[WeightedEdge], budgets: &[usize]) {
-    if !highs_oracle_available() {
-        eprintln!("skipping HiGHS oracle check because python highspy is unavailable");
-        return;
-    }
-
-    let flow = solve_weighted_flow(n, edges, budgets);
-    let (solver_total, solver_cost) = validate_flow(n, edges, budgets, &flow);
-    let oracle =
-        solve_with_highs(n, edges, budgets).expect("HiGHS oracle should solve the instance");
-
-    assert_eq!(
-        (solver_total, solver_cost),
-        (oracle.total_flow, oracle.total_cost),
-        "solver objective does not match HiGHS oracle"
-    );
-
-    if !oracle.assignment.is_empty() {
-        let oracle_flow: Vec<WeightedFlow> = edges
-            .iter()
-            .zip(oracle.assignment.iter().copied())
-            .filter_map(|(&(u, v, _capacity, _cost), assigned)| {
-                (assigned > 0).then_some((u.min(v), u.max(v), assigned))
-            })
-            .collect();
-        let oracle_objective = validate_flow(n, edges, budgets, &oracle_flow);
-        assert_eq!(
-            oracle_objective,
-            (oracle.total_flow, oracle.total_cost),
-            "HiGHS oracle returned an inconsistent assignment"
-        );
-    }
 }
