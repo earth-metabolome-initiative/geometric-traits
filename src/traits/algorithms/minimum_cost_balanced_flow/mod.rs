@@ -143,6 +143,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_private_tree_helper_panics_on_disconnected_input() {
         let edges = [OriginalEdge { u: 0, v: 1, capacity: 1, cost: 3 }];
         let result =
@@ -151,6 +152,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn test_private_bipartite_helper_panics_on_invalid_coloring() {
         let edges = [OriginalEdge { u: 0, v: 1, capacity: 1, cost: 2 }];
         let result = std::panic::catch_unwind(|| {
