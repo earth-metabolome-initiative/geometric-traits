@@ -4,7 +4,7 @@
 use crate::traits::{
     BiconnectedComponentsError, EssentialCyclesError, MinimumCycleBasisError, ModularityError,
     OuterplanarityError, PlanarityError, RelevantCyclesError, K23HomeomorphError,
-    K33HomeomorphError, connected_components::ConnectedComponentsError,
+    K33HomeomorphError, K4HomeomorphError, connected_components::ConnectedComponentsError,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
@@ -38,6 +38,9 @@ pub enum MonopartiteAlgorithmError {
     /// Error raised while searching for a `K_{3,3}` homeomorph.
     #[error("{0}")]
     K33HomeomorphError(K33HomeomorphError),
+    /// Error raised while searching for a `K_4` homeomorph.
+    #[error("{0}")]
+    K4HomeomorphError(K4HomeomorphError),
     /// Error raised while computing modularity-based communities.
     #[error("{0}")]
     ModularityError(ModularityError),

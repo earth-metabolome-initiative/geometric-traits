@@ -13,8 +13,8 @@ use geometric_traits::{
     impls::SortedVec,
     prelude::GenericVocabularyBuilder,
     traits::{
-        BiconnectedComponentsError, K23HomeomorphError, K33HomeomorphError, KahnError, LAPError,
-        OuterplanarityError, PlanarityError, VocabularyBuilder,
+        BiconnectedComponentsError, K4HomeomorphError, K23HomeomorphError, K33HomeomorphError,
+        KahnError, LAPError, OuterplanarityError, PlanarityError, VocabularyBuilder,
         connected_components::ConnectedComponentsError,
         information_content::InformationContentError,
     },
@@ -160,6 +160,23 @@ fn test_k33_homeomorph_error_traits() {
 }
 
 #[test]
+fn test_k4_homeomorph_error_traits() {
+    let error = K4HomeomorphError::SelfLoopsUnsupported;
+    assert!(format!("{error}").contains("self-loops"));
+    assert!(format!("{error:?}").contains("SelfLoopsUnsupported"));
+    assert_eq!(error, error.clone());
+    assert_ne!(
+        K4HomeomorphError::SelfLoopsUnsupported,
+        K4HomeomorphError::ParallelEdgesUnsupported
+    );
+
+    let malformed = K4HomeomorphError::InvalidEdgeEndpoint { endpoint: 9, node_count: 4 };
+    assert!(format!("{malformed}").contains("endpoint 9"));
+    assert!(format!("{malformed}").contains("node_count=4"));
+    assert_eq!(malformed, malformed.clone());
+}
+
+#[test]
 fn test_sorted_error_traits() {
     let error = SortedError::UnsortedEntry(42usize);
     assert!(format!("{error}").contains("42"));
@@ -218,6 +235,12 @@ fn test_monopartite_algorithm_error_traits() {
         MonopartiteAlgorithmError::K33HomeomorphError(K33HomeomorphError::SelfLoopsUnsupported);
     assert!(format!("{error}").contains("self-loops"));
     assert!(format!("{error:?}").contains("K33HomeomorphError"));
+    assert_eq!(error, error.clone());
+
+    let error =
+        MonopartiteAlgorithmError::K4HomeomorphError(K4HomeomorphError::SelfLoopsUnsupported);
+    assert!(format!("{error}").contains("self-loops"));
+    assert!(format!("{error:?}").contains("K4HomeomorphError"));
     assert_eq!(error, error.clone());
 }
 
