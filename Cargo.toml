@@ -156,3 +156,7 @@ harness = false
 [[bench]]
 name = "k23_homeomorph"
 harness = false
+
+[[bench]]
+name = "k33_homeomorph"
+harness = false
