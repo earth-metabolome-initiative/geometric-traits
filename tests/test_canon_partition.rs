@@ -93,10 +93,12 @@ fn test_partition_split_cell_by_key_preserves_prior_order_within_equal_keys() {
     let prior_remainder = partition.cell_elements(partition.cell_of(4)).to_vec();
     assert_eq!(partition.cell_elements(singleton), &[0]);
 
-    let groups = partition.split_cell_by_key(partition.cell_of(4), |element| match element {
-        1 | 2 => 0_u8,
-        3 | 4 => 1_u8,
-        _ => unreachable!("split is only applied to the non-singleton remainder"),
+    let groups = partition.split_cell_by_key(partition.cell_of(4), |element| {
+        match element {
+            1 | 2 => 0_u8,
+            3 | 4 => 1_u8,
+            _ => unreachable!("split is only applied to the non-singleton remainder"),
+        }
     });
     let expected_zero_group = prior_remainder
         .iter()

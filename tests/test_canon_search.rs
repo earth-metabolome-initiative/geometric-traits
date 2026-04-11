@@ -1,5 +1,6 @@
 //! Tests for the first search-based canonizer.
 #![cfg(feature = "std")]
+#![allow(clippy::pedantic)]
 
 use geometric_traits::{
     impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},

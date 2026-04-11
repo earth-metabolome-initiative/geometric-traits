@@ -1,9 +1,15 @@
 //! Domain-neutral corpus tests for the labeled simple-graph canonizer.
 #![cfg(feature = "std")]
+#![allow(clippy::pedantic)]
 
 #[path = "support/canon_bench_fixture.rs"]
 #[allow(dead_code)]
 mod canon_bench_fixture;
+
+use std::{
+    fmt::Write,
+    panic::{AssertUnwindSafe, catch_unwind},
+};
 
 use canon_bench_fixture::{CanonCase, benchmark_cases, scaling_cases};
 use geometric_traits::{
@@ -18,10 +24,6 @@ use geometric_traits::{
 };
 use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 use rayon::prelude::*;
-use std::{
-    fmt::Write,
-    panic::{AssertUnwindSafe, catch_unwind},
-};
 
 type LabeledUndirectedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, u8>>;
 type LabeledUndirectedGraph = GenericGraph<SortedVec<usize>, LabeledUndirectedEdges>;
