@@ -16,6 +16,12 @@ use alloc::{vec, vec::Vec};
 pub struct PartitionCellId(usize);
 
 impl PartitionCellId {
+    #[must_use]
+    #[inline]
+    pub(crate) fn from_index(index: usize) -> Self {
+        Self(index)
+    }
+
     /// Returns the internal dense cell index.
     #[must_use]
     #[inline]
@@ -84,7 +90,7 @@ impl PartitionCell {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct SplitRecord {
     left_cell: usize,
     right_cell: usize,
@@ -509,20 +515,44 @@ impl BacktrackableOrderedPartition {
         mut key_of: F,
     ) -> Vec<PartitionCellId>
     where
-        Key: Ord,
+        Key: Ord + Clone,
         F: FnMut(usize) -> Key,
+    {
+        let keyed_elements = self
+            .cell_elements(cell)
+            .iter()
+            .copied()
+            .map(|element| (element, key_of(element)))
+            .collect::<Vec<_>>();
+        self.split_cell_by_precomputed_keys(cell, &keyed_elements)
+    }
+
+    #[must_use]
+    pub(crate) fn split_cell_by_precomputed_keys<Key>(
+        &mut self,
+        cell: PartitionCellId,
+        keys_in_cell_order: &[(usize, Key)],
+    ) -> Vec<PartitionCellId>
+    where
+        Key: Ord + Clone,
     {
         let cell_data = self.cell(cell.0).clone();
         if cell_data.length <= 1 {
             return vec![cell];
         }
 
+        debug_assert_eq!(keys_in_cell_order.len(), cell_data.length);
+        debug_assert!(
+            keys_in_cell_order
+                .iter()
+                .zip(self.cell_elements(cell).iter())
+                .all(|((element, _), current)| element == current)
+        );
+
         let start = cell_data.first;
-        let end = start + cell_data.length;
-        let mut keyed_elements = self.elements[start..end]
+        let mut keyed_elements = keys_in_cell_order
             .iter()
-            .copied()
-            .map(|element| (key_of(element), self.positions[element], element))
+            .map(|(element, key)| (key.clone(), self.positions[*element], *element))
             .collect::<Vec<_>>();
         keyed_elements
             .sort_unstable_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
@@ -547,26 +577,7 @@ impl BacktrackableOrderedPartition {
             self.positions[element] = start + offset;
         }
 
-        let mut produced_cells = Vec::with_capacity(group_lengths.len());
-        produced_cells.push(cell);
-        let mut left_cell = cell.0;
-        let mut consumed = 0usize;
-        for split_index in 0..group_lengths.len() - 1 {
-            consumed += group_lengths[split_index];
-            let right_cell = self.split_cell_at(left_cell, consumed);
-            produced_cells.push(PartitionCellId(right_cell));
-            left_cell = right_cell;
-            consumed = 0;
-        }
-
-        for partition_cell in &produced_cells[1..] {
-            let elements = self.cell_elements(*partition_cell).to_vec();
-            for element in elements {
-                self.element_to_cell[element] = partition_cell.0;
-            }
-        }
-
-        produced_cells
+        self.split_reordered_cell_by_group_lengths(cell, &group_lengths)
     }
 
     /// Splits `cell` into an untouched prefix and a touched suffix by moving
@@ -631,6 +642,7 @@ impl BacktrackableOrderedPartition {
     ///
     /// Elements for which `is_one(element)` is true form the new right cell.
     /// The input `ones_count` must equal the number of ones in the cell.
+    #[allow(dead_code)]
     #[must_use]
     pub(crate) fn split_cell_by_binary_invariant_like_bliss<F>(
         &mut self,
@@ -702,23 +714,46 @@ impl BacktrackableOrderedPartition {
     where
         F: FnMut(usize) -> usize,
     {
+        let invariants_in_cell_order = self
+            .cell_elements(cell)
+            .iter()
+            .copied()
+            .map(|element| (element, invariant_of(element)))
+            .collect::<Vec<_>>();
+        self.split_cell_by_precomputed_unsigned_invariants_like_bliss(
+            cell,
+            &invariants_in_cell_order,
+        )
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub(crate) fn split_cell_by_precomputed_unsigned_invariants_like_bliss(
+        &mut self,
+        cell: PartitionCellId,
+        invariants_in_cell_order: &[(usize, usize)],
+    ) -> Vec<PartitionCellId> {
         let cell_data = self.cell(cell.0).clone();
         if cell_data.length <= 1 {
             return vec![cell];
         }
 
+        debug_assert_eq!(invariants_in_cell_order.len(), cell_data.length);
+        debug_assert!(
+            invariants_in_cell_order
+                .iter()
+                .zip(self.cell_elements(cell).iter())
+                .all(|((element, _), current)| element == current)
+        );
+
         let start = cell_data.first;
-        let end = start + cell_data.length;
-        let mut invariant_by_element = vec![0usize; self.order];
+        let mut invariants_by_offset =
+            invariants_in_cell_order.iter().map(|(_, invariant)| *invariant).collect::<Vec<_>>();
         let mut max_invariant = 0usize;
         let mut max_invariant_count = 0usize;
         let mut all_equal = true;
         let mut first_invariant = None::<usize>;
 
-        for position in start..end {
-            let element = self.elements[position];
-            let invariant = invariant_of(element);
-            invariant_by_element[element] = invariant;
+        for &invariant in &invariants_by_offset {
             if let Some(first) = first_invariant {
                 if invariant != first {
                     all_equal = false;
@@ -739,17 +774,52 @@ impl BacktrackableOrderedPartition {
         }
 
         if max_invariant == 1 {
-            return self.split_cell_by_binary_invariant_like_bliss(
-                cell,
-                max_invariant_count,
-                |element| invariant_by_element[element] == 1,
-            );
+            let mut left = start;
+            let end = start + cell_data.length;
+            let mut right = start + cell_data.length - max_invariant_count;
+
+            if max_invariant_count > cell_data.length / 2 {
+                while right < end {
+                    while invariants_by_offset[right - start] == 0 {
+                        self.elements.swap(right, left);
+                        invariants_by_offset.swap(right - start, left - start);
+                        let swapped_left = self.elements[left];
+                        let swapped_right = self.elements[right];
+                        self.positions[swapped_left] = left;
+                        self.positions[swapped_right] = right;
+                        left += 1;
+                    }
+                    right += 1;
+                }
+            } else {
+                let pivot = right;
+                while left < pivot {
+                    while invariants_by_offset[left - start] != 0 {
+                        self.elements.swap(left, right);
+                        invariants_by_offset.swap(left - start, right - start);
+                        let swapped_left = self.elements[left];
+                        let swapped_right = self.elements[right];
+                        self.positions[swapped_left] = left;
+                        self.positions[swapped_right] = right;
+                        right += 1;
+                    }
+                    left += 1;
+                }
+            }
+
+            let new_cell = self.split_cell_at(cell.0, cell_data.length - max_invariant_count);
+            let new_cell_id = PartitionCellId(new_cell);
+            let moved_elements = self.cell_elements(new_cell_id).to_vec();
+            for element in moved_elements {
+                self.element_to_cell[element] = new_cell;
+            }
+            return vec![cell, new_cell_id];
         }
 
         if max_invariant < 256 {
             let mut counts = [0usize; 256];
-            for position in start..end {
-                counts[invariant_by_element[self.elements[position]]] += 1;
+            for &invariant in &invariants_by_offset {
+                counts[invariant] += 1;
             }
 
             let mut starts = [0usize; 256];
@@ -760,16 +830,15 @@ impl BacktrackableOrderedPartition {
             }
 
             for invariant in 0..=max_invariant {
-                let mut position = start + starts[invariant];
-                for _ in 0..counts[invariant] {
+                for position in (start + starts[invariant]..).take(counts[invariant]) {
                     loop {
-                        let element = self.elements[position];
-                        let element_invariant = invariant_by_element[element];
+                        let element_invariant = invariants_by_offset[position - start];
                         if element_invariant == invariant {
                             break;
                         }
                         let swap_position = start + starts[element_invariant];
                         self.elements.swap(position, swap_position);
+                        invariants_by_offset.swap(position - start, swap_position - start);
                         let swapped_left = self.elements[position];
                         let swapped_right = self.elements[swap_position];
                         self.positions[swapped_left] = position;
@@ -777,28 +846,28 @@ impl BacktrackableOrderedPartition {
                         starts[element_invariant] += 1;
                         counts[element_invariant] -= 1;
                     }
-                    position += 1;
                 }
                 counts[invariant] = 0;
             }
 
-            return self.split_cell_by_sorted_unsigned_invariants(cell, &invariant_by_element);
+            return self.split_cell_by_sorted_unsigned_invariants_in_current_order(
+                cell,
+                &invariants_by_offset,
+            );
         }
 
-        self.split_cell_by_key(cell, |element| invariant_by_element[element])
+        self.split_cell_by_precomputed_keys(cell, invariants_in_cell_order)
     }
 
-    fn split_cell_by_sorted_unsigned_invariants(
+    fn split_cell_by_sorted_unsigned_invariants_in_current_order(
         &mut self,
         cell: PartitionCellId,
-        invariant_by_element: &[usize],
+        invariants_in_current_order: &[usize],
     ) -> Vec<PartitionCellId> {
-        let elements = self.cell_elements(cell).to_vec();
         let mut group_lengths = Vec::new();
         let mut current_group_len = 0usize;
         let mut previous_invariant = None::<usize>;
-        for element in elements {
-            let invariant = invariant_by_element[element];
+        for &invariant in invariants_in_current_order {
             if previous_invariant.is_some() && previous_invariant != Some(invariant) {
                 group_lengths.push(current_group_len);
                 current_group_len = 0;
@@ -812,12 +881,20 @@ impl BacktrackableOrderedPartition {
             return vec![cell];
         }
 
+        self.split_reordered_cell_by_group_lengths(cell, &group_lengths)
+    }
+
+    fn split_reordered_cell_by_group_lengths(
+        &mut self,
+        cell: PartitionCellId,
+        group_lengths: &[usize],
+    ) -> Vec<PartitionCellId> {
         let mut produced_cells = Vec::with_capacity(group_lengths.len());
         produced_cells.push(cell);
         let mut left_cell = cell.0;
         let mut consumed = 0usize;
-        for split_index in 0..group_lengths.len() - 1 {
-            consumed += group_lengths[split_index];
+        for &group_length in group_lengths.iter().take(group_lengths.len() - 1) {
+            consumed += group_length;
             let right_cell = self.split_cell_at(left_cell, consumed);
             produced_cells.push(PartitionCellId(right_cell));
             left_cell = right_cell;

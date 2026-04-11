@@ -253,6 +253,42 @@ and to run the crash cases:
 cargo hfuzz run-debug blossom_v hfuzz_workspace/*/*.fuzz
 ```
 
+### Canon vs `bliss`
+
+This target shells out to a local `bliss` executable on every input and checks:
+
+- canonical certificate parity
+- `search_nodes` / `leaf_nodes` parity
+
+It is intentionally much slower than the pure in-process fuzzers, but it is the
+right harness for continued `bliss`-faithfulness work on larger labeled simple
+graphs.
+
+Build or point at a local `bliss` binary first, for example:
+
+```bash
+cmake -S papers/software/bliss-0.77 -B /tmp/bliss-build
+cmake --build /tmp/bliss-build -j2
+```
+
+Then run:
+
+```bash
+cargo hfuzz run canon_bliss
+```
+
+or explicitly:
+
+```bash
+GEOMETRIC_TRAITS_BLISS_BIN=/path/to/bliss cargo hfuzz run canon_bliss
+```
+
+Replay saved cases with:
+
+```bash
+cargo hfuzz run-debug canon_bliss hfuzz_workspace/canon_bliss/*.fuzz
+```
+
 ### Floyd-Warshall
 
 The Floyd-Warshall algorithm computes all-pairs shortest-path distances for a

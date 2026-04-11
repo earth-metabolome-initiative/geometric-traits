@@ -31,7 +31,6 @@ pub(crate) struct RefinementTrace<EdgeLabel> {
     pub(crate) events: Vec<RefinementTraceEvent<EdgeLabel>>,
     pub(crate) subcertificate_length: usize,
     pub(crate) eqref_hash: u64,
-    pub(crate) final_signature: Vec<usize>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -81,6 +80,7 @@ impl EqRefHash {
     ];
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn update(&mut self, value: usize) {
         let mut input = (value as u32).wrapping_add(1);
         while input > 0 {
@@ -101,6 +101,18 @@ impl EqRefHash {
 enum SplitQueueMode {
     Binary01,
     General,
+}
+
+enum NonUnitCellSplitAnalysis<EdgeLabel> {
+    UnsignedCounts {
+        group_lengths: Vec<usize>,
+        max_count: usize,
+        counts_in_cell_order: Vec<(usize, usize)>,
+    },
+    General {
+        group_lengths: Vec<usize>,
+        signatures_in_cell_order: Vec<(usize, NeighbourCountSignature<EdgeLabel>)>,
+    },
 }
 
 /// Refines `partition` to the stable labeled equitable partition induced by
@@ -140,7 +152,7 @@ where
         graph,
         partition,
         edge_label,
-        partition.cells().map(|cell| cell.id()).collect::<Vec<_>>(),
+        partition.cells().map(super::partition::PartitionCellView::id).collect::<Vec<_>>(),
         None,
     )
 }
@@ -167,6 +179,7 @@ where
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn refine_partition_to_labeled_equitable_with_trace_from_splitters_impl<G, EdgeLabel, F, I>(
     graph: &G,
     partition: &mut BacktrackableOrderedPartition,
@@ -321,10 +334,15 @@ where
                 };
                 if produced.len() > 1 {
                     changed_any = true;
+                    let queue_mode = if produced.len() == 2 {
+                        SplitQueueMode::Binary01
+                    } else {
+                        SplitQueueMode::General
+                    };
                     enqueue_split_result_like_bliss(
                         &produced,
                         was_in_queue,
-                        SplitQueueMode::Binary01,
+                        queue_mode,
                         None,
                         partition,
                         &mut splitter_queue,
@@ -354,7 +372,7 @@ where
         candidate_cells.sort_unstable_by_key(|&cell| partition.cell_first(cell));
         for cell in candidate_cells {
             let was_in_queue = in_queue[cell.index()];
-            let signature_group_lengths = signature_group_lengths_to_splitter(
+            let analysis = analyse_non_unit_cell_to_splitter(
                 partition,
                 graph,
                 &nodes,
@@ -362,41 +380,39 @@ where
                 cell,
                 &mut edge_label,
             );
+            let (produced, queue_mode, signature_group_lengths) = match analysis {
+                NonUnitCellSplitAnalysis::UnsignedCounts {
+                    group_lengths,
+                    max_count,
+                    counts_in_cell_order,
+                } => {
+                    (
+                        partition.split_cell_by_precomputed_unsigned_invariants_like_bliss(
+                            cell,
+                            &counts_in_cell_order,
+                        ),
+                        if max_count == 1 {
+                            SplitQueueMode::Binary01
+                        } else {
+                            SplitQueueMode::General
+                        },
+                        group_lengths,
+                    )
+                }
+                NonUnitCellSplitAnalysis::General { group_lengths, signatures_in_cell_order } => {
+                    (
+                        partition.split_cell_by_precomputed_keys(cell, &signatures_in_cell_order),
+                        SplitQueueMode::General,
+                        group_lengths,
+                    )
+                }
+            };
             eqref_hash.update(partition.cell_first(cell));
             eqref_hash.update(partition.cell_len(cell));
             eqref_hash.update(signature_group_lengths.len());
             for length in &signature_group_lengths {
                 eqref_hash.update(*length);
             }
-            let (produced, queue_mode) = if let Some((_, max_count, count_by_vertex)) =
-                single_label_count_invariants_to_splitter(
-                    partition,
-                    graph,
-                    &nodes,
-                    &in_splitter,
-                    cell,
-                    &mut edge_label,
-                ) {
-                (
-                    partition.split_cell_by_unsigned_invariant_like_bliss(cell, |vertex| {
-                        count_by_vertex[&vertex]
-                    }),
-                    if max_count == 1 { SplitQueueMode::Binary01 } else { SplitQueueMode::General },
-                )
-            } else {
-                (
-                    partition.split_cell_by_key(cell, |vertex| {
-                        labelled_signature_to_splitter(
-                            graph,
-                            &nodes,
-                            &in_splitter,
-                            vertex,
-                            &mut edge_label,
-                        )
-                    }),
-                    SplitQueueMode::General,
-                )
-            };
             for &produced_cell in &produced {
                 eqref_hash.update(partition.cell_first(produced_cell));
                 eqref_hash.update(partition.cell_len(produced_cell));
@@ -435,12 +451,12 @@ where
             subcertificate_length: events.len(),
             eqref_hash: eqref_hash.value(),
             events,
-            final_signature: partition.signature(),
         },
     )
 }
 
 #[cfg(test)]
+#[allow(dead_code)]
 pub(crate) fn refine_partition_to_labeled_equitable_with_trace_and_pop_sequence<
     G,
     EdgeLabel,
@@ -505,46 +521,93 @@ where
     None
 }
 
-fn single_label_count_invariants_to_splitter<G, EdgeLabel, F>(
+fn analyse_non_unit_cell_to_splitter<G, EdgeLabel, F>(
     partition: &BacktrackableOrderedPartition,
     graph: &G,
     nodes: &[G::NodeId],
     in_splitter: &[bool],
     cell: PartitionCellId,
     edge_label: &mut F,
-) -> Option<(EdgeLabel, usize, BTreeMap<usize, usize>)>
+) -> NonUnitCellSplitAnalysis<EdgeLabel>
 where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize>,
     EdgeLabel: Ord + Clone,
     F: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
 {
+    let mut signatures_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
     let mut common_label = None::<EdgeLabel>;
+    let mut counts_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
     let mut max_count = 0usize;
-    let mut count_by_vertex = BTreeMap::<usize, usize>::new();
+    let mut all_single_label_counts = true;
 
     for &vertex in partition.cell_elements(cell) {
         let signature =
             labelled_signature_to_splitter(graph, nodes, in_splitter, vertex, edge_label);
-        let count = match signature.counts.as_slice() {
-            [] => 0,
-            [(label, count)] => {
-                match &common_label {
-                    None => common_label = Some(label.clone()),
-                    Some(existing) if existing == label => {}
-                    Some(_) => return None,
+        if all_single_label_counts {
+            let count = match signature.counts.as_slice() {
+                [] => 0,
+                [(label, count)] => {
+                    match &common_label {
+                        None => common_label = Some(label.clone()),
+                        Some(existing) if existing == label => {}
+                        Some(_) => all_single_label_counts = false,
+                    }
+                    *count
                 }
-                *count
+                _ => {
+                    all_single_label_counts = false;
+                    0
+                }
+            };
+            if all_single_label_counts {
+                max_count = max_count.max(count);
+                counts_in_cell_order.push((vertex, count));
             }
-            _ => return None,
-        };
-        if count > max_count {
-            max_count = count;
         }
-        count_by_vertex.insert(vertex, count);
+        signatures_in_cell_order.push((vertex, signature));
     }
 
-    common_label.map(|label| (label, max_count, count_by_vertex))
+    if all_single_label_counts {
+        let mut sorted_counts =
+            counts_in_cell_order.iter().map(|(_, count)| *count).collect::<Vec<_>>();
+        sorted_counts.sort_unstable();
+        let mut group_lengths = Vec::new();
+        let mut current_group_len = 0usize;
+        let mut previous_count = None::<usize>;
+        for count in sorted_counts {
+            if previous_count.is_some() && previous_count != Some(count) {
+                group_lengths.push(current_group_len);
+                current_group_len = 0;
+            }
+            previous_count = Some(count);
+            current_group_len += 1;
+        }
+        group_lengths.push(current_group_len);
+        return NonUnitCellSplitAnalysis::UnsignedCounts {
+            group_lengths,
+            max_count,
+            counts_in_cell_order,
+        };
+    }
+
+    let mut sorted_signatures =
+        signatures_in_cell_order.iter().map(|(_, signature)| signature.clone()).collect::<Vec<_>>();
+    sorted_signatures.sort_unstable();
+    let mut group_lengths = Vec::new();
+    let mut current_group_len = 0usize;
+    let mut previous_signature = None::<NeighbourCountSignature<EdgeLabel>>;
+    for signature in sorted_signatures {
+        if previous_signature.as_ref().is_some_and(|previous| previous != &signature) {
+            group_lengths.push(current_group_len);
+            current_group_len = 0;
+        }
+        previous_signature = Some(signature);
+        current_group_len += 1;
+    }
+    group_lengths.push(current_group_len);
+
+    NonUnitCellSplitAnalysis::General { group_lengths, signatures_in_cell_order }
 }
 
 fn enqueue_split_result_like_bliss(
@@ -690,41 +753,4 @@ where
     }
 
     NeighbourCountSignature { counts }
-}
-
-fn signature_group_lengths_to_splitter<G, EdgeLabel, F>(
-    partition: &BacktrackableOrderedPartition,
-    graph: &G,
-    nodes: &[G::NodeId],
-    in_splitter: &[bool],
-    cell: PartitionCellId,
-    edge_label: &mut F,
-) -> Vec<usize>
-where
-    G: MonoplexMonopartiteGraph,
-    G::NodeId: AsPrimitive<usize>,
-    EdgeLabel: Ord + Clone,
-    F: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
-{
-    let mut signatures = partition
-        .cell_elements(cell)
-        .iter()
-        .copied()
-        .map(|vertex| labelled_signature_to_splitter(graph, nodes, in_splitter, vertex, edge_label))
-        .collect::<Vec<_>>();
-    signatures.sort_unstable();
-
-    let mut group_lengths = Vec::new();
-    let mut index = 0usize;
-    while index < signatures.len() {
-        let signature = signatures[index].clone();
-        let mut count = 1usize;
-        index += 1;
-        while index < signatures.len() && signatures[index] == signature {
-            count += 1;
-            index += 1;
-        }
-        group_lengths.push(count);
-    }
-    group_lengths
 }

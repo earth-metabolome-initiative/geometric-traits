@@ -192,3 +192,41 @@ python3 tests/fixtures/generate_biconnected_ground_truth.py
 ```
 
 This script uses only the Python standard library.
+
+# Bliss Live Oracle
+
+For graph canonization work we also keep an optional live oracle path against a
+locally built `bliss` executable.
+
+The support code lives in `tests/support/bliss_oracle.rs`, and the smoke tests
+live in `tests/test_bliss_oracle.rs`.
+
+Those tests are ignored by default because they require a local C++ build of
+the vendored `bliss` source under `papers/software/bliss-0.77` or an explicit
+`GEOMETRIC_TRAITS_BLISS_BIN=/path/to/bliss`.
+
+Build the vendored binary and run the ignored tests with:
+
+```bash
+cmake -S papers/software/bliss-0.77 -B /tmp/bliss-build
+cmake --build /tmp/bliss-build -j2
+cargo test test_bliss_oracle -- --ignored
+```
+
+The current harness reduces simple undirected vertex-labeled edge-labeled
+graphs to `bliss`'s vertex-colored graph model by subdividing each original
+edge into a fresh colored edge-vertex.
+
+For source-level `bliss` instrumentation, the vendored copy also supports
+environment-gated tracing:
+
+```bash
+BLISS_TRACE=1 papers/software/bliss-0.77/bliss -can path/to/graph.dimacs
+```
+
+That trace currently covers:
+
+- initial invariant partitioning
+- equitable refinement boundaries
+- partition split / individualize / backtrack events
+- search-node entry, first-leaf discovery, and automorphism/backjump events

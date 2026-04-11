@@ -17,24 +17,23 @@
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
+    rc::Rc,
     vec::Vec,
 };
 
 use num_traits::AsPrimitive;
-
-use crate::{
-    impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
-    naive_structs::GenericGraph,
-    prelude::GenericVocabularyBuilder,
-    traits::{MonoplexGraph, SparseValuedMatrix2D, VocabularyBuilder},
-};
 
 use super::{
     BacktrackableOrderedPartition, PartitionCellId, RefinementTrace,
     refine_partition_to_labeled_equitable_with_trace,
     refine_partition_to_labeled_equitable_with_trace_from_splitters,
 };
-use crate::traits::MonoplexMonopartiteGraph;
+use crate::{
+    impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
+    naive_structs::GenericGraph,
+    prelude::GenericVocabularyBuilder,
+    traits::{MonoplexMonopartiteGraph, VocabularyBuilder},
+};
 
 /// Splitting heuristic used to choose the next non-singleton cell to
 /// individualize.
@@ -112,11 +111,12 @@ pub struct CanonicalLabelingOptions {
 struct KnownOrbits {
     parents: Vec<usize>,
     ranks: Vec<u8>,
+    minima: Vec<usize>,
 }
 
 impl KnownOrbits {
     fn new(order: usize) -> Self {
-        Self { parents: (0..order).collect(), ranks: vec![0; order] }
+        Self { parents: (0..order).collect(), ranks: vec![0; order], minima: (0..order).collect() }
     }
 
     fn same_set(&mut self, left: usize, right: usize) -> bool {
@@ -125,8 +125,7 @@ impl KnownOrbits {
 
     fn is_minimal_representative(&mut self, element: usize) -> bool {
         let root = self.find(element);
-        (0..self.parents.len())
-            .all(|candidate| self.find(candidate) != root || candidate >= element)
+        self.minima[root] == element
     }
 
     fn ingest_leaf_automorphism(&mut self, left_order: &[usize], right_order: &[usize]) {
@@ -156,18 +155,20 @@ impl KnownOrbits {
             core::mem::swap(&mut left_root, &mut right_root);
         }
         self.parents[right_root] = left_root;
+        self.minima[left_root] = self.minima[left_root].min(self.minima[right_root]);
         if self.ranks[left_root] == self.ranks[right_root] {
             self.ranks[left_root] = self.ranks[left_root].saturating_add(1);
         }
     }
 
     fn ingest_known_orbits(&mut self, other: &mut Self) {
-        let order = other.parents.len();
-        for left in 0..order {
-            for right in (left + 1)..order {
-                if other.same_set(left, right) {
-                    self.union(left, right);
-                }
+        let mut representatives = BTreeMap::new();
+        for element in 0..other.parents.len() {
+            let root = other.find(element);
+            if let Some(&representative) = representatives.get(&root) {
+                self.union(representative, element);
+            } else {
+                representatives.insert(root, element);
             }
         }
     }
@@ -180,31 +181,57 @@ impl KnownOrbits {
     }
 }
 
-struct SearchState<VertexLabel, EdgeLabel> {
+struct SearchState<EdgeLabel> {
     stats: CanonicalSearchStats,
-    first_order: Option<Vec<usize>>,
-    first_certificate: Option<LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>>,
-    first_path_invariants: Option<Vec<RefinementTrace<EdgeLabel>>>,
-    first_choice_path: Option<Vec<usize>>,
-    best_order: Option<Vec<usize>>,
-    best_certificate: Option<LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>>,
-    best_path_invariants: Option<Vec<RefinementTrace<EdgeLabel>>>,
-    best_choice_path: Option<Vec<usize>>,
+    first_order: Option<Rc<[usize]>>,
+    first_leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
+    first_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    first_choice_path: Option<Rc<[usize]>>,
+    best_order: Option<Rc<[usize]>>,
+    best_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    best_choice_path: Option<Rc<[usize]>>,
     first_path_orbits_global: KnownOrbits,
     first_path_orbits_by_depth: Vec<KnownOrbits>,
     best_path_orbits: KnownOrbits,
     long_prune_records: Vec<LongPruneRecord>,
 }
 
-struct SearchOutcome<VertexLabel, EdgeLabel> {
-    result: CanonicalLabelingResult<VertexLabel, EdgeLabel>,
-    path_invariants: Vec<RefinementTrace<EdgeLabel>>,
+struct SearchOutcome<EdgeLabel> {
+    order: Rc<[usize]>,
+    leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
+    path_invariants: Rc<[Rc<RefinementTrace<EdgeLabel>>]>,
     sibling_orbits: KnownOrbits,
-    choice_path: Vec<usize>,
+    choice_path: Rc<[usize]>,
 }
 
-struct SearchReturn<VertexLabel, EdgeLabel> {
-    best: Option<SearchOutcome<VertexLabel, EdgeLabel>>,
+impl<EdgeLabel> SearchOutcome<EdgeLabel>
+where
+    EdgeLabel: Ord + Clone,
+{
+    fn into_result<NodeId, VertexLabel, EF>(
+        self,
+        adjacency: &AdjacencyBitMatrix,
+        nodes: &[NodeId],
+        vertex_labels: &[VertexLabel],
+        edge_label: &mut EF,
+    ) -> CanonicalLabelingResult<VertexLabel, EdgeLabel>
+    where
+        NodeId: Copy,
+        VertexLabel: Ord + Clone,
+        EF: FnMut(NodeId, NodeId) -> EdgeLabel,
+    {
+        let certificate =
+            build_certificate(adjacency, nodes, vertex_labels, edge_label, self.order.as_ref());
+        CanonicalLabelingResult {
+            order: self.order.as_ref().to_vec(),
+            certificate,
+            stats: CanonicalSearchStats::default(),
+        }
+    }
+}
+
+struct SearchReturn<EdgeLabel> {
+    best: Option<SearchOutcome<EdgeLabel>>,
     first_path_automorphism: Option<Vec<usize>>,
     best_path_backjump_depth: Option<usize>,
 }
@@ -218,10 +245,16 @@ struct LongPruneRecord {
 #[derive(Clone, Debug)]
 struct ComponentEndpoint {
     discrete_cell_limit: usize,
+    next_active_component_endpoint_len: usize,
     first_checked: bool,
     best_checked: bool,
     creation_choice_path: Vec<usize>,
-    created_on_best_path: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct UnlabeledLeafSignature {
+    vertex_label_ids: Rc<[usize]>,
+    upper_triangle_bits: Rc<[u64]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -230,21 +263,59 @@ enum EdgeSubdivisionVertexLabel<VertexLabel, EdgeLabel> {
     Edge(EdgeLabel),
 }
 
+struct AdjacencyBitMatrix {
+    words_per_row: usize,
+    bits: Vec<u64>,
+}
+
+impl AdjacencyBitMatrix {
+    fn from_graph<G>(graph: &G, nodes: &[G::NodeId]) -> Self
+    where
+        G: MonoplexMonopartiteGraph,
+        G::NodeId: AsPrimitive<usize> + Copy,
+    {
+        let order = nodes.len();
+        let words_per_row = order.div_ceil(u64::BITS as usize);
+        let mut bits = vec![0u64; order * words_per_row];
+        for (source, &source_node) in nodes.iter().enumerate() {
+            for destination_node in graph.successors(source_node) {
+                let destination = destination_node.as_();
+                Self::set_bit(&mut bits, words_per_row, source, destination);
+                Self::set_bit(&mut bits, words_per_row, destination, source);
+            }
+        }
+        Self { words_per_row, bits }
+    }
+
+    fn has_edge(&self, left: usize, right: usize) -> bool {
+        self.has_edge_at_row_start(self.row_start(left), right)
+    }
+
+    #[inline]
+    fn row_start(&self, row: usize) -> usize {
+        row * self.words_per_row
+    }
+
+    #[inline]
+    fn has_edge_at_row_start(&self, row_start: usize, right: usize) -> bool {
+        let word = right / (u64::BITS as usize);
+        let bit = right % (u64::BITS as usize);
+        ((self.bits[row_start + word] >> bit) & 1) != 0
+    }
+
+    fn set_bit(bits: &mut [u64], words_per_row: usize, row: usize, column: usize) {
+        let word = column / (u64::BITS as usize);
+        let bit = column % (u64::BITS as usize);
+        let row_start = row * words_per_row;
+        bits[row_start + word] |= 1u64 << bit;
+    }
+}
+
 /// Computes a canonical labeling for a simple undirected graph with total-order
 /// vertex and edge labels.
 ///
-/// This is the first search-based canonizer in the crate. It assumes:
-///
-/// - dense node identifiers `0..graph.number_of_nodes()`
-/// - simple undirected structure
-/// - every vertex has a label
-/// - every present edge has a label
-///
-/// The implementation is correct but intentionally smaller than `bliss`. It
-/// currently uses queue-based equitable refinement, partition-independent
-/// initial invariants, a `bliss`-style target-cell heuristic family, partial
-/// component recursion, and orbit pruning inferred from equal child
-/// certificates and first-path matches.
+/// This path preserves the current `bliss`-alignment strategy by reducing the
+/// edge-labeled graph to a vertex-labeled graph before search.
 #[must_use]
 pub fn canonical_label_labeled_simple_graph<G, VertexLabel, EdgeLabel, VF, EF>(
     graph: &G,
@@ -269,6 +340,9 @@ where
 
 /// Computes a canonical labeling for a simple undirected graph with total-order
 /// vertex and edge labels using explicit canonizer options.
+///
+/// This path preserves the current `bliss`-alignment strategy by reducing the
+/// edge-labeled graph to a vertex-labeled graph before search.
 #[must_use]
 pub fn canonical_label_labeled_simple_graph_with_options<G, VertexLabel, EdgeLabel, VF, EF>(
     graph: &G,
@@ -286,11 +360,10 @@ where
 {
     let reduced =
         reduce_edge_labeled_graph_to_vertex_labeled(graph, &mut vertex_label, &mut edge_label);
-    let reduced_matrix = crate::traits::Edges::matrix(reduced.graph.edges());
     let reduced_result = canonical_label_labeled_simple_graph_core(
         &reduced.graph,
         |node| reduced.vertex_labels[node].clone(),
-        |left, right| reduced_matrix.sparse_value_at(left, right).unwrap(),
+        |_, _| (),
         options,
     );
     let order = reduced_result
@@ -298,8 +371,9 @@ where
         .into_iter()
         .filter(|&vertex| vertex < reduced.original_vertex_count)
         .collect::<Vec<_>>();
+    let original_adjacency = AdjacencyBitMatrix::from_graph(graph, &reduced.original_nodes);
     let certificate = build_certificate(
-        graph,
+        &original_adjacency,
         &reduced.original_nodes,
         &reduced.original_vertex_labels,
         &mut edge_label,
@@ -329,14 +403,17 @@ where
     debug_assert!(nodes.iter().enumerate().all(|(index, node)| node.as_() == index));
 
     let vertex_labels = nodes.iter().copied().map(&mut vertex_label).collect::<Vec<_>>();
+    let adjacency = AdjacencyBitMatrix::from_graph(graph, &nodes);
+    let vertex_label_ids_map = dense_label_ids(vertex_labels.iter().cloned());
+    let vertex_label_ids =
+        vertex_labels.iter().map(|label| vertex_label_ids_map[label]).collect::<Vec<_>>();
     let mut partition = BacktrackableOrderedPartition::new(order);
     if order > 1 {
-        let label_ids = dense_label_ids(vertex_labels.iter().cloned());
         let degrees =
             nodes.iter().copied().map(|node| graph.successors(node).count()).collect::<Vec<_>>();
         let _ =
             refine_partition_according_to_unsigned_invariant_like_bliss(&mut partition, |vertex| {
-                label_ids[&vertex_labels[vertex]]
+                vertex_label_ids[vertex]
             });
         let _ =
             refine_partition_according_to_unsigned_invariant_like_bliss(&mut partition, |vertex| {
@@ -347,15 +424,17 @@ where
         refine_partition_to_labeled_equitable_with_trace(graph, &mut partition, |left, right| {
             edge_label(left, right)
         });
-    let root_was_discrete = partition.is_discrete();
-    let mut state = SearchState {
-        stats: CanonicalSearchStats::default(),
+    let root_is_discrete = partition.is_discrete();
+    let mut state = SearchState::<EdgeLabel> {
+        stats: CanonicalSearchStats {
+            leaf_nodes: usize::from(!root_is_discrete),
+            ..CanonicalSearchStats::default()
+        },
         first_order: None,
-        first_certificate: None,
+        first_leaf_signature: None,
         first_path_invariants: None,
         first_choice_path: None,
         best_order: None,
-        best_certificate: None,
         best_path_invariants: None,
         best_choice_path: None,
         first_path_orbits_global: KnownOrbits::new(order),
@@ -363,13 +442,15 @@ where
         best_path_orbits: KnownOrbits::new(order),
         long_prune_records: Vec::new(),
     };
-    let mut path_invariants = vec![root_trace];
+    let mut path_invariants = vec![Rc::new(root_trace)];
     let mut choice_path = Vec::new();
     let mut component_endpoints = Vec::new();
     let search_return = search_canonical_labeling(
         graph,
+        &adjacency,
         &nodes,
         &vertex_labels,
+        &vertex_label_ids,
         &mut edge_label,
         &mut partition,
         &mut state,
@@ -386,10 +467,8 @@ where
     let outcome = search_return
         .best
         .expect("a canonizer over any finite graph must produce at least one leaf");
-    if !root_was_discrete {
-        state.stats.leaf_nodes += 1;
-    }
-    finish_result(outcome.result, state.stats)
+    let result = outcome.into_result(&adjacency, &nodes, &vertex_labels, &mut edge_label);
+    finish_result(result, state.stats)
 }
 
 type ReducedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, ()>>;
@@ -421,8 +500,7 @@ where
     let original_vertex_labels =
         original_nodes.iter().copied().map(vertex_label).collect::<Vec<_>>();
     let mut normalized_edges = Vec::new();
-    for source in 0..original_vertex_count {
-        let source_node = original_nodes[source];
+    for (source, &source_node) in original_nodes.iter().enumerate().take(original_vertex_count) {
         for destination_node in graph.successors(source_node) {
             let destination = destination_node.as_();
             if source >= destination {
@@ -472,14 +550,17 @@ where
     }
 }
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     graph: &G,
+    adjacency: &AdjacencyBitMatrix,
     nodes: &[G::NodeId],
     vertex_labels: &[VertexLabel],
+    vertex_label_ids: &[usize],
     edge_label: &mut EF,
     partition: &mut BacktrackableOrderedPartition,
-    state: &mut SearchState<VertexLabel, EdgeLabel>,
-    path_invariants: &mut Vec<RefinementTrace<EdgeLabel>>,
+    state: &mut SearchState<EdgeLabel>,
+    path_invariants: &mut Vec<Rc<RefinementTrace<EdgeLabel>>>,
     choice_path: &mut Vec<usize>,
     component_endpoints: &mut Vec<ComponentEndpoint>,
     active_component_endpoint_len: usize,
@@ -488,7 +569,7 @@ fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     count_current_node: bool,
     depth: usize,
     splitting_heuristic: CanonSplittingHeuristic,
-) -> SearchReturn<VertexLabel, EdgeLabel>
+) -> SearchReturn<EdgeLabel>
 where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize>,
@@ -499,15 +580,14 @@ where
     if count_current_node {
         state.stats.search_nodes += 1;
     }
-
     if partition.is_discrete() {
         if let Some(best_path) = state.best_path_invariants.as_deref() {
-            if depth == 1
-                && !current_node_is_on_first_path
-                && !current_node_is_on_best_path
-                && path_invariants_prefix_cmp(path_invariants, best_path)
-                    == core::cmp::Ordering::Less
-            {
+            let discrete_cmp_to_best = path_invariants_prefix_cmp(path_invariants, best_path);
+            let discrete_equal_to_first_path =
+                state.first_path_invariants.as_deref().is_some_and(|first_path| {
+                    path_invariants_prefix_equal_strict(path_invariants, first_path)
+                });
+            if !discrete_equal_to_first_path && discrete_cmp_to_best == core::cmp::Ordering::Less {
                 state.stats.pruned_path_signatures += 1;
                 return SearchReturn {
                     best: None,
@@ -524,47 +604,65 @@ where
                 cell.elements()[0]
             })
             .collect::<Vec<_>>();
-        let certificate = build_certificate(graph, nodes, vertex_labels, edge_label, &order);
-        let leaf_order = order.clone();
-        let result =
-            CanonicalLabelingResult { order, certificate, stats: CanonicalSearchStats::default() };
-        let had_first_certificate = state.first_certificate.is_some();
-        let candidate_equals_first =
-            state.first_certificate.as_ref().is_some_and(|first| result.certificate == *first);
-        let comparison_to_best = compare_candidate_to_best(
-            path_invariants,
-            &result.certificate,
-            state.best_path_invariants.as_deref(),
-            state.best_certificate.as_ref(),
-        );
-        if state.first_certificate.is_none() {
-            state.first_order = Some(result.order.clone());
-            state.first_certificate = Some(result.certificate.clone());
-            state.first_path_invariants = Some(path_invariants.clone());
-            state.first_choice_path = Some(choice_path.clone());
+        let order_snapshot = Rc::<[usize]>::from(order);
+        let leaf_signature = (core::mem::size_of::<EdgeLabel>() == 0).then(|| {
+            Rc::new(build_unlabeled_leaf_signature(
+                adjacency,
+                vertex_label_ids,
+                order_snapshot.as_ref(),
+            ))
+        });
+        let path_invariants_snapshot =
+            Rc::<[Rc<RefinementTrace<EdgeLabel>>]>::from(path_invariants.clone());
+        let choice_path_snapshot = Rc::<[usize]>::from(choice_path.clone());
+        let had_first_order = state.first_order.is_some();
+        let comparison_to_best =
+            compare_candidate_to_best(path_invariants, state.best_path_invariants.as_deref());
+        let candidate_path_matches_first =
+            state.first_path_invariants.as_deref().is_some_and(|first_path| {
+                path_invariants_lex_cmp(path_invariants, first_path) == core::cmp::Ordering::Equal
+            });
+        let candidate_equals_first = candidate_path_matches_first
+            && state.first_order.as_ref().is_some_and(|first_order| {
+                leaf_orders_equal(
+                    adjacency,
+                    nodes,
+                    vertex_labels,
+                    edge_label,
+                    order_snapshot.as_ref(),
+                    leaf_signature.as_deref(),
+                    first_order.as_ref(),
+                    state.first_leaf_signature.as_deref(),
+                )
+            });
+        if state.first_order.is_none() {
+            state.first_order = Some(order_snapshot.clone());
+            state.first_leaf_signature.clone_from(&leaf_signature);
+            state.first_path_invariants = Some(path_invariants_snapshot.clone());
+            state.first_choice_path = Some(choice_path_snapshot.clone());
         }
         if comparison_to_best == core::cmp::Ordering::Greater {
-            state.best_order = Some(result.order.clone());
-            state.best_certificate = Some(result.certificate.clone());
-            state.best_path_invariants = Some(path_invariants.clone());
-            state.best_choice_path = Some(choice_path.clone());
+            state.best_order = Some(order_snapshot.clone());
+            state.best_path_invariants = Some(path_invariants_snapshot.clone());
+            state.best_choice_path = Some(choice_path_snapshot.clone());
             state.best_path_orbits = KnownOrbits::new(nodes.len());
         }
         return SearchReturn {
             best: Some(SearchOutcome {
-                result,
-                path_invariants: path_invariants.clone(),
+                order: order_snapshot.clone(),
+                leaf_signature,
+                path_invariants: path_invariants_snapshot,
                 sibling_orbits: KnownOrbits::new(nodes.len()),
-                choice_path: choice_path.clone(),
+                choice_path: choice_path_snapshot,
             }),
-            first_path_automorphism: if had_first_certificate
+            first_path_automorphism: if had_first_order
                 && candidate_equals_first
                 && !current_node_is_on_first_path
             {
                 state
                     .first_order
                     .as_ref()
-                    .map(|first_order| leaf_automorphism(first_order, &leaf_order))
+                    .map(|first_order| leaf_automorphism(first_order, order_snapshot.as_ref()))
             } else {
                 None
             },
@@ -575,16 +673,16 @@ where
     let node_backtrack_point = partition.set_backtrack_point();
     let previous_component_endpoint_len = component_endpoints.len();
     let mut active_component_endpoint_len = active_component_endpoint_len;
+    let first_path_known_on_entry = state.first_choice_path.is_some();
+    let best_path_known_on_entry = state.best_choice_path.is_some();
     let mut node_is_on_first_path = current_node_is_on_first_path
-        || choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path);
-    let mut node_is_on_best_path = current_node_is_on_best_path
-        || choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path);
+        || (!first_path_known_on_entry
+            && choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path));
     let target_cell = prepare_component_recursion_and_choose_target_cell(
         graph,
         nodes,
         partition,
         splitting_heuristic,
-        node_is_on_best_path,
         choice_path,
         component_endpoints,
         &mut active_component_endpoint_len,
@@ -609,14 +707,17 @@ where
     };
     let mut local_orbits = KnownOrbits::new(nodes.len());
     let mut explored_choices = Vec::new();
-    let mut best: Option<SearchOutcome<VertexLabel, EdgeLabel>> = None;
+    let mut best: Option<SearchOutcome<EdgeLabel>> = None;
     let mut best_choice: Option<usize> = None;
     let mut node_first_path_automorphism: Option<Vec<usize>> = None;
     let target_cell_len = partition.cell_len(target_cell);
     if let Some(best_path) = state.best_path_invariants.as_deref() {
-        if target_cell_len != 2
-            && path_invariants_prefix_cmp(path_invariants, best_path) == core::cmp::Ordering::Less
-        {
+        let equal_to_first_path =
+            state.first_path_invariants.as_deref().is_some_and(|first_path| {
+                path_invariants_prefix_equal_strict(path_invariants, first_path)
+            });
+        let cmp_to_best = path_invariants_prefix_cmp(path_invariants, best_path);
+        if !equal_to_first_path && cmp_to_best == core::cmp::Ordering::Less {
             state.stats.pruned_path_signatures += 1;
             partition.goto_backtrack_point(node_backtrack_point);
             component_endpoints.truncate(previous_component_endpoint_len);
@@ -630,9 +731,11 @@ where
 
     for (candidate_index, element) in candidate_choices.iter().copied().enumerate() {
         node_is_on_first_path = current_node_is_on_first_path
-            || choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path);
-        node_is_on_best_path = current_node_is_on_best_path
-            || choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path);
+            || (!first_path_known_on_entry
+                && choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path));
+        let node_is_on_best_path = current_node_is_on_best_path
+            || (!best_path_known_on_entry
+                && choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path));
         if state.first_choice_path.is_some()
             && node_is_on_first_path
             && !state.first_path_orbits_global.is_minimal_representative(element)
@@ -674,13 +777,13 @@ where
         let (_, child_trace) = refine_partition_to_labeled_equitable_with_trace_from_splitters(
             graph,
             partition,
-            |left, right| edge_label(left, right),
+            &mut *edge_label,
             [individualized],
         );
-        path_invariants.push(child_trace);
+        path_invariants.push(Rc::new(child_trace));
         choice_path.push(element);
         let had_first_path_before_child = state.first_choice_path.is_some();
-        let had_best_before_child = state.best_certificate.is_some();
+        let had_best_before_child = state.best_order.is_some();
         let previous_best_order = state.best_order.clone();
         let previous_best_path_invariants = state.best_path_invariants.clone();
         let previous_best_choice_path = state.best_choice_path.clone();
@@ -701,15 +804,33 @@ where
             child_path_cmp_to_best_prefix.is_some_and(|cmp| cmp != core::cmp::Ordering::Less);
         let child_is_on_best_path = node_is_on_best_path
             && choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path);
-        let local_best_matches_first_path = best.as_ref().is_some_and(|current_best| {
-            state
-                .first_certificate
-                .as_ref()
-                .is_some_and(|first| current_best.result.certificate == *first)
-        });
+        let local_best_matches_first_path = if let Some(current_best) = best.as_mut() {
+            let current_best_path_matches_first =
+                state.first_path_invariants.as_deref().is_some_and(|first_path| {
+                    path_invariants_lex_cmp(current_best.path_invariants.as_ref(), first_path)
+                        == core::cmp::Ordering::Equal
+                });
+            current_best_path_matches_first
+                && state.first_order.as_ref().is_some_and(|first_order| {
+                    leaf_orders_equal(
+                        adjacency,
+                        nodes,
+                        vertex_labels,
+                        edge_label,
+                        current_best.order.as_ref(),
+                        current_best.leaf_signature.as_deref(),
+                        first_order.as_ref(),
+                        state.first_leaf_signature.as_deref(),
+                    )
+                })
+        } else {
+            false
+        };
         let mut descended_via_first_component_boundary = false;
+        let mut next_active_component_endpoint_len = active_component_endpoint_len;
         let mut break_after_component_endpoint_automorphism = false;
         let mut component_endpoint_first_path_automorphism: Option<Vec<usize>> = None;
+        let mut component_endpoint_best_path_backjump_depth: Option<usize> = None;
         let reached_component_endpoint =
             active_component_endpoint_mut(component_endpoints, active_component_endpoint_len)
                 .is_some_and(|endpoint| {
@@ -728,14 +849,23 @@ where
                                     .zip(first_choice_path.iter())
                                     .all(|(left, right)| left == right)
                         });
-                    if state.first_certificate.is_none() || child_path_is_equal_to_first_prefix {
+                    let endpoint_created_on_best_path =
+                        state.best_choice_path.as_ref().is_some_and(|best_choice_path| {
+                            endpoint.creation_choice_path.len() <= best_choice_path.len()
+                                && endpoint
+                                    .creation_choice_path
+                                    .iter()
+                                    .zip(best_choice_path.iter())
+                                    .all(|(left, right)| left == right)
+                        });
+                    if state.first_order.is_none() || child_path_is_equal_to_first_prefix {
                         if !endpoint.first_checked {
                             endpoint.first_checked = true;
                             if depth > 0 {
                                 state.stats.search_nodes += 1;
                             }
                             continue_to_next_component = true;
-                        } else if endpoint_created_on_first_path && !child_is_on_first_path {
+                        } else if endpoint_created_on_first_path {
                             if let Some(first_choice_path) = state.first_choice_path.as_ref() {
                                 let automorphism = state.first_order.as_ref().map(|first_order| {
                                     first_path_automorphism_for_current_partition(
@@ -752,7 +882,6 @@ where
                                     .enumerate()
                                     .find(|(_, (left, right))| left != right)
                                 {
-                                    state.stats.search_nodes += 1;
                                     first_path_orbits_at_depth_mut(
                                         state,
                                         first_difference_depth,
@@ -760,6 +889,14 @@ where
                                     )
                                     .union(current_choice, first_choice);
                                     if let Some(automorphism) = automorphism.as_deref() {
+                                        debug_assert!(is_labeled_graph_automorphism(
+                                            adjacency,
+                                            nodes,
+                                            vertex_labels,
+                                            edge_label,
+                                            automorphism,
+                                        ));
+                                        state.stats.search_nodes += 1;
                                         first_path_orbits_at_depth_mut(
                                             state,
                                             first_difference_depth,
@@ -769,35 +906,94 @@ where
                                         state
                                             .first_path_orbits_global
                                             .ingest_automorphism(automorphism);
+                                        state.long_prune_records.push(
+                                            long_prune_record_from_automorphism(automorphism),
+                                        );
                                         local_orbits.ingest_automorphism(automorphism);
                                         component_endpoint_first_path_automorphism =
                                             Some(automorphism.to_vec());
-                                    } else if first_difference_depth == 0 {
+                                        state.stats.automorphisms_found += 1;
+                                        break_after_component_endpoint_automorphism = true;
+                                        return true;
+                                    }
+                                    if first_difference_depth == 0 {
                                         state
                                             .first_path_orbits_global
                                             .union(current_choice, first_choice);
                                     }
                                 }
                             }
-                            state.stats.automorphisms_found += 1;
-                            break_after_component_endpoint_automorphism = true;
-                            return true;
+                            if depth > 0 {
+                                state.stats.search_nodes += 1;
+                            }
+                            continue_to_next_component = true;
                         }
                     }
                     if child_path_is_not_worse_than_best_prefix {
                         if !endpoint.best_checked {
                             endpoint.best_checked = true;
+                            if depth > 0 && !child_path_is_equal_to_best_prefix {
+                                state.stats.search_nodes += 1;
+                            }
                             continue_to_next_component = true;
-                        } else if endpoint.created_on_best_path
+                        } else if endpoint_created_on_best_path
                             && !current_node_is_on_best_path
                             && child_path_is_equal_to_best_prefix
                         {
-                            state.stats.automorphisms_found += 1;
+                            if let Some(best_order) = state.best_order.as_ref() {
+                                let automorphism = first_path_automorphism_for_current_partition(
+                                    partition, best_order,
+                                );
+                                debug_assert!(is_labeled_graph_automorphism(
+                                    adjacency,
+                                    nodes,
+                                    vertex_labels,
+                                    edge_label,
+                                    &automorphism,
+                                ));
+                                if depth > 0 {
+                                    state.stats.search_nodes += 1;
+                                }
+                                state.stats.automorphisms_found += 1;
+                                state.best_path_orbits.ingest_automorphism(&automorphism);
+                                state.first_path_orbits_global.ingest_automorphism(&automorphism);
+                                state
+                                    .long_prune_records
+                                    .push(long_prune_record_from_automorphism(&automorphism));
+                                local_orbits.ingest_automorphism(&automorphism);
+
+                                let current_choice_path = &choice_path[..choice_path.len() - 1];
+                                let gca_with_first = common_prefix_len(
+                                    current_choice_path,
+                                    state.first_choice_path.as_deref(),
+                                );
+                                let gca_with_best = common_prefix_len(
+                                    current_choice_path,
+                                    state.best_choice_path.as_deref(),
+                                );
+                                component_endpoint_best_path_backjump_depth = if gca_with_first
+                                    < current_choice_path.len()
+                                    && !state.first_path_orbits_global.is_minimal_representative(
+                                        current_choice_path[gca_with_first],
+                                    ) {
+                                    Some(gca_with_first)
+                                } else if gca_with_best < current_choice_path.len()
+                                    && !state.best_path_orbits.is_minimal_representative(
+                                        current_choice_path[gca_with_best],
+                                    )
+                                {
+                                    Some(gca_with_best)
+                                } else {
+                                    Some(depth.saturating_sub(1))
+                                };
+                            }
                             return true;
                         }
                     }
                     if continue_to_next_component {
                         descended_via_first_component_boundary = true;
+                        next_active_component_endpoint_len =
+                            endpoint.next_active_component_endpoint_len;
                     }
                     false
                 });
@@ -812,6 +1008,25 @@ where
                 node_first_path_automorphism = component_endpoint_first_path_automorphism;
                 break;
             }
+            if let Some(backjump_depth) = component_endpoint_best_path_backjump_depth {
+                if backjump_depth < depth {
+                    partition.goto_backtrack_point(node_backtrack_point);
+                    component_endpoints.truncate(previous_component_endpoint_len);
+                    return SearchReturn {
+                        best: best
+                            .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
+                        first_path_automorphism: if node_is_on_first_path {
+                            None
+                        } else {
+                            node_first_path_automorphism
+                        },
+                        best_path_backjump_depth: Some(backjump_depth),
+                    };
+                }
+                if backjump_depth == depth {
+                    continue;
+                }
+            }
             continue;
         }
         let early_component_first_path_automorphism = !node_is_on_first_path
@@ -821,12 +1036,11 @@ where
             && child_path_is_equal_to_first_prefix
             && partition.non_singleton_cells().count() == 1
             && target_cell_len == 2;
-        let child_active_component_endpoint_len =
-            if descended_via_first_component_boundary && active_component_endpoint_len > 1 {
-                active_component_endpoint_len.saturating_sub(1)
-            } else {
-                active_component_endpoint_len
-            };
+        let child_active_component_endpoint_len = if descended_via_first_component_boundary {
+            next_active_component_endpoint_len
+        } else {
+            active_component_endpoint_len
+        };
         if early_component_first_path_automorphism {
             if let Some(first_choice_path) = state.first_choice_path.as_ref() {
                 state.stats.automorphisms_found += 1;
@@ -852,8 +1066,10 @@ where
         }
         let child_return = search_canonical_labeling(
             graph,
+            adjacency,
             nodes,
             vertex_labels,
+            vertex_label_ids,
             edge_label,
             partition,
             state,
@@ -869,12 +1085,6 @@ where
         );
         let child_first_path_automorphism = child_return.first_path_automorphism.clone();
         let child_best_path_backjump_depth = child_return.best_path_backjump_depth;
-        let candidate_equals_first_path = child_return.best.as_ref().is_some_and(|candidate| {
-            state
-                .first_certificate
-                .as_ref()
-                .is_some_and(|first| candidate.result.certificate == *first)
-        });
         choice_path.pop();
         path_invariants.pop();
         partition.goto_backtrack_point(backtrack_point);
@@ -932,31 +1142,49 @@ where
         let mut candidate_sibling_orbits = candidate.sibling_orbits.clone();
         local_orbits.ingest_known_orbits(&mut candidate_sibling_orbits);
 
+        let candidate_path_matches_first =
+            state.first_path_invariants.as_deref().is_some_and(|first_path| {
+                path_invariants_lex_cmp(candidate.path_invariants.as_ref(), first_path)
+                    == core::cmp::Ordering::Equal
+            });
+        let candidate_equals_first_path = candidate_path_matches_first
+            && state.first_order.as_ref().is_some_and(|first_order| {
+                leaf_orders_equal(
+                    adjacency,
+                    nodes,
+                    vertex_labels,
+                    edge_label,
+                    candidate.order.as_ref(),
+                    candidate.leaf_signature.as_deref(),
+                    first_order.as_ref(),
+                    state.first_leaf_signature.as_deref(),
+                )
+            });
         let candidate_matches_first_path_automorphism = candidate_equals_first_path
             && had_first_path_before_child
             && !child_is_on_first_path
-            && (child_path_is_equal_to_first_prefix || component_endpoints.is_empty());
+            && child_path_is_equal_to_first_prefix;
         if candidate_matches_first_path_automorphism {
-            if let Some(first_choice_path) = state.first_choice_path.as_ref().cloned() {
+            if let Some(first_choice_path) = state.first_choice_path.clone() {
                 state.stats.automorphisms_found += 1;
                 if let Some(&first_choice) = first_choice_path.get(depth) {
-                    let first_order = state.first_order.as_ref().cloned();
+                    let first_order = state.first_order.clone();
                     {
                         let first_path_orbits =
                             first_path_orbits_at_depth_mut(state, depth, nodes.len());
                         first_path_orbits.union(element, first_choice);
                         if let Some(first_order) = first_order.as_deref() {
                             first_path_orbits
-                                .ingest_leaf_automorphism(first_order, &candidate.result.order);
+                                .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
                             local_orbits
-                                .ingest_leaf_automorphism(first_order, &candidate.result.order);
+                                .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
                         }
                     }
                     state.first_path_orbits_global.union(element, first_choice);
                     if let Some(first_order) = first_order.as_deref() {
                         state
                             .first_path_orbits_global
-                            .ingest_leaf_automorphism(first_order, &candidate.result.order);
+                            .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
                     }
                 }
                 if component_endpoints.is_empty() {}
@@ -967,7 +1195,7 @@ where
                 state
                     .first_order
                     .as_ref()
-                    .map(|first_order| leaf_automorphism(first_order, &candidate.result.order))
+                    .map(|first_order| leaf_automorphism(first_order, candidate.order.as_ref()))
             } else {
                 None
             }
@@ -989,25 +1217,43 @@ where
                 && !node_is_on_first_path
         };
         let comparison_to_local_best = compare_candidate_to_best(
-            &candidate.path_invariants,
-            &candidate.result.certificate,
-            best.as_ref().map(|current_best| current_best.path_invariants.as_slice()),
-            best.as_ref().map(|current_best| &current_best.result.certificate),
+            candidate.path_invariants.as_ref(),
+            best.as_ref().map(|current_best| current_best.path_invariants.as_ref()),
         );
         let candidate_matches_previous_best_path =
             previous_best_path_invariants.as_ref().is_some_and(|best_path_invariants| {
-                path_invariants_lex_cmp(&candidate.path_invariants, best_path_invariants)
+                path_invariants_lex_cmp(candidate.path_invariants.as_ref(), best_path_invariants)
                     == core::cmp::Ordering::Equal
             });
         let candidate_matches_previous_best_automorphism = previous_best_order
             .as_ref()
-            .map(|best_order| leaf_automorphism(best_order, &candidate.result.order))
+            .map(|best_order| leaf_automorphism(best_order, candidate.order.as_ref()))
             .filter(|automorphism| {
-                is_labeled_graph_automorphism(graph, nodes, vertex_labels, edge_label, automorphism)
+                is_labeled_graph_automorphism(
+                    adjacency,
+                    nodes,
+                    vertex_labels,
+                    edge_label,
+                    automorphism,
+                )
             });
-        let candidate_equals_local_best_certificate = best.as_ref().is_some_and(|current_best| {
-            current_best.result.certificate == candidate.result.certificate
-        });
+        let candidate_equals_local_best_certificate =
+            if comparison_to_local_best == core::cmp::Ordering::Equal {
+                best.as_mut().is_some_and(|current_best| {
+                    leaf_orders_equal(
+                        adjacency,
+                        nodes,
+                        vertex_labels,
+                        edge_label,
+                        candidate.order.as_ref(),
+                        candidate.leaf_signature.as_deref(),
+                        current_best.order.as_ref(),
+                        current_best.leaf_signature.as_deref(),
+                    )
+                })
+            } else {
+                false
+            };
 
         if candidate_equals_local_best_certificate {
             let current_best =
@@ -1016,7 +1262,7 @@ where
             local_orbits
                 .union(best_choice.expect("equal sibling branches require a best choice"), element);
             local_orbits
-                .ingest_leaf_automorphism(&current_best.result.order, &candidate.result.order);
+                .ingest_leaf_automorphism(current_best.order.as_ref(), candidate.order.as_ref());
         }
 
         if (candidate_matches_previous_best_path
@@ -1029,16 +1275,20 @@ where
             {
                 state.stats.automorphisms_found += 1;
                 let automorphism = candidate_matches_previous_best_automorphism
-                    .unwrap_or_else(|| leaf_automorphism(best_order, &candidate.result.order));
+                    .unwrap_or_else(|| leaf_automorphism(best_order, candidate.order.as_ref()));
                 state.best_path_orbits.ingest_automorphism(&automorphism);
                 state.first_path_orbits_global.ingest_automorphism(&automorphism);
                 state.long_prune_records.push(long_prune_record_from_automorphism(&automorphism));
                 local_orbits.ingest_automorphism(&automorphism);
 
-                let gca_with_first =
-                    common_prefix_len(&candidate.choice_path, state.first_choice_path.as_deref());
-                let gca_with_best =
-                    common_prefix_len(&candidate.choice_path, Some(best_choice_path.as_slice()));
+                let gca_with_first = common_prefix_len(
+                    candidate.choice_path.as_ref(),
+                    state.first_choice_path.as_deref(),
+                );
+                let gca_with_best = common_prefix_len(
+                    candidate.choice_path.as_ref(),
+                    Some(best_choice_path.as_ref()),
+                );
                 let backjump_depth = if gca_with_first < candidate.choice_path.len()
                     && !state
                         .first_path_orbits_global
@@ -1116,8 +1366,8 @@ where
     }
 }
 
-fn first_path_orbits_at_depth_mut<VertexLabel, EdgeLabel>(
-    state: &mut SearchState<VertexLabel, EdgeLabel>,
+fn first_path_orbits_at_depth_mut<EdgeLabel>(
+    state: &mut SearchState<EdgeLabel>,
     depth: usize,
     order: usize,
 ) -> &mut KnownOrbits {
@@ -1186,12 +1436,12 @@ fn active_component_endpoint_mut(
         .and_then(|index| component_endpoints.get_mut(index))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare_component_recursion_and_choose_target_cell<G>(
     graph: &G,
     nodes: &[G::NodeId],
     partition: &mut BacktrackableOrderedPartition,
     splitting_heuristic: CanonSplittingHeuristic,
-    current_node_is_on_best_path: bool,
     choice_path: &[usize],
     component_endpoints: &mut Vec<ComponentEndpoint>,
     active_component_endpoint_len: &mut usize,
@@ -1204,11 +1454,9 @@ where
         let active_level = partition
             .highest_non_singleton_component_level()
             .expect("a non-discrete partition must contain at least one non-singleton cell");
-        let total_elements_at_level = partition
-            .non_singleton_cells()
-            .filter(|cell| partition.cell_component_level(cell.id()) == active_level)
-            .map(|cell| cell.len())
-            .sum::<usize>();
+        let current_discrete_limit =
+            active_component_endpoint(component_endpoints, *active_component_endpoint_len)
+                .map_or(partition.order(), |endpoint| endpoint.discrete_cell_limit);
         let Some((component_cells, component_elements, preferred_cell)) =
             find_first_component_at_level(
                 graph,
@@ -1226,14 +1474,14 @@ where
                 active_level,
             );
         };
-        if component_elements < total_elements_at_level {
+        if partition.number_of_discrete_cells() + component_elements < current_discrete_limit {
             let _ = partition.promote_cells_to_new_component_level(&component_cells);
             component_endpoints.push(ComponentEndpoint {
                 discrete_cell_limit: partition.number_of_discrete_cells() + component_elements,
+                next_active_component_endpoint_len: *active_component_endpoint_len,
                 first_checked: false,
                 best_checked: false,
                 creation_choice_path: choice_path.to_vec(),
-                created_on_best_path: current_node_is_on_best_path,
             });
             *active_component_endpoint_len = component_endpoints.len();
             continue;
@@ -1256,9 +1504,12 @@ where
     let seed_cell = partition
         .non_singleton_cells()
         .find(|cell| partition.cell_component_level(cell.id()) == component_level)
-        .map(|cell| cell.id())?;
+        .map(super::partition::PartitionCellView::id)?;
     let mut component_cells = vec![seed_cell];
-    let mut seen = BTreeSet::from([seed_cell.index()]);
+    let mut seen = vec![false; partition.order()];
+    seen[seed_cell.index()] = true;
+    let mut neighbour_counts = vec![0usize; partition.order()];
+    let mut touched_neighbour_cells = Vec::new();
     let mut preferred_cell = seed_cell;
     let mut preferred_first = partition.cell_first(seed_cell);
     let mut preferred_size = partition.cell_len(seed_cell);
@@ -1268,28 +1519,26 @@ where
     while cursor < component_cells.len() {
         let cell_id = component_cells[cursor];
         cursor += 1;
-        let representative = nodes[partition.cell_elements(cell_id)[0]];
-        let mut neighbour_counts = BTreeMap::<PartitionCellId, usize>::new();
+        let nuconn = 1 + nontrivial_neighbour_cell_count_with_scratch(
+            graph,
+            nodes,
+            partition,
+            cell_id,
+            &mut neighbour_counts,
+            &mut touched_neighbour_cells,
+        );
 
-        for neighbour in graph.successors(representative) {
-            let neighbour_cell = partition.cell_of(neighbour.as_());
-            if partition.cell_len(neighbour_cell) == 1 {
+        for &neighbour_cell in &touched_neighbour_cells {
+            let neighbour_cell_id = PartitionCellId::from_index(neighbour_cell);
+            if neighbour_counts[neighbour_cell] == partition.cell_len(neighbour_cell_id) {
                 continue;
             }
-            *neighbour_counts.entry(neighbour_cell).or_default() += 1;
-        }
-
-        let mut nuconn = 1usize;
-        for (neighbour_cell, count) in neighbour_counts {
-            if count == partition.cell_len(neighbour_cell) {
-                continue;
-            }
-            nuconn += 1;
-            if seen.insert(neighbour_cell.index()) {
-                component_cells.push(neighbour_cell);
+            if !seen[neighbour_cell] {
+                seen[neighbour_cell] = true;
+                component_cells.push(neighbour_cell_id);
             }
         }
-
+        clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
         let cell_first = partition.cell_first(cell_id);
         let cell_size = partition.cell_len(cell_id);
         let replace_preferred = match splitting_heuristic {
@@ -1347,11 +1596,12 @@ where
     let candidates = partition
         .non_singleton_cells()
         .filter(|cell| partition.cell_component_level(cell.id()) == component_level)
-        .map(|cell| cell.id())
+        .map(super::partition::PartitionCellView::id)
         .collect::<Vec<_>>();
     choose_target_cell_among(graph, nodes, partition, splitting_heuristic, &candidates)
 }
 
+#[allow(clippy::too_many_lines)]
 fn choose_target_cell_among<G>(
     graph: &G,
     nodes: &[G::NodeId],
@@ -1363,22 +1613,28 @@ where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize> + Copy,
 {
+    let mut neighbour_counts = vec![0usize; partition.order()];
+    let mut touched_neighbour_cells = Vec::new();
     match splitting_heuristic {
-        CanonSplittingHeuristic::First => candidates
-            .iter()
-            .copied()
-            .min_by_key(|&cell| partition.cell_first(cell))
-            .expect("a non-discrete partition must contain at least one non-singleton cell"),
-        CanonSplittingHeuristic::FirstSmallest => candidates
-            .iter()
-            .copied()
-            .min_by(|&left, &right| {
-                partition
-                    .cell_len(left)
-                    .cmp(&partition.cell_len(right))
-                    .then(partition.cell_first(left).cmp(&partition.cell_first(right)))
-            })
-            .expect("a non-discrete partition must contain at least one non-singleton cell"),
+        CanonSplittingHeuristic::First => {
+            candidates
+                .iter()
+                .copied()
+                .min_by_key(|&cell| partition.cell_first(cell))
+                .expect("a non-discrete partition must contain at least one non-singleton cell")
+        }
+        CanonSplittingHeuristic::FirstSmallest => {
+            candidates
+                .iter()
+                .copied()
+                .min_by(|&left, &right| {
+                    partition
+                        .cell_len(left)
+                        .cmp(&partition.cell_len(right))
+                        .then(partition.cell_first(left).cmp(&partition.cell_first(right)))
+                })
+                .expect("a non-discrete partition must contain at least one non-singleton cell")
+        }
         CanonSplittingHeuristic::FirstLargest => {
             let mut best = *candidates
                 .first()
@@ -1397,9 +1653,25 @@ where
             let mut best = *candidates
                 .first()
                 .expect("a non-discrete partition must contain at least one non-singleton cell");
-            let mut best_value = nontrivial_neighbour_cell_count(graph, nodes, partition, best);
+            let mut best_value = nontrivial_neighbour_cell_count_with_scratch(
+                graph,
+                nodes,
+                partition,
+                best,
+                &mut neighbour_counts,
+                &mut touched_neighbour_cells,
+            );
+            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
             for &cell in &candidates[1..] {
-                let value = nontrivial_neighbour_cell_count(graph, nodes, partition, cell);
+                let value = nontrivial_neighbour_cell_count_with_scratch(
+                    graph,
+                    nodes,
+                    partition,
+                    cell,
+                    &mut neighbour_counts,
+                    &mut touched_neighbour_cells,
+                );
+                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
                 if value > best_value
                     || (value == best_value
                         && partition.cell_first(cell) < partition.cell_first(best))
@@ -1414,9 +1686,25 @@ where
             let mut best = *candidates
                 .first()
                 .expect("a non-discrete partition must contain at least one non-singleton cell");
-            let mut best_value = nontrivial_neighbour_cell_count(graph, nodes, partition, best);
+            let mut best_value = nontrivial_neighbour_cell_count_with_scratch(
+                graph,
+                nodes,
+                partition,
+                best,
+                &mut neighbour_counts,
+                &mut touched_neighbour_cells,
+            );
+            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
             for &cell in &candidates[1..] {
-                let value = nontrivial_neighbour_cell_count(graph, nodes, partition, cell);
+                let value = nontrivial_neighbour_cell_count_with_scratch(
+                    graph,
+                    nodes,
+                    partition,
+                    cell,
+                    &mut neighbour_counts,
+                    &mut touched_neighbour_cells,
+                );
+                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
                 if value > best_value
                     || (value == best_value
                         && (partition.cell_len(cell) < partition.cell_len(best)
@@ -1433,9 +1721,25 @@ where
             let mut best = *candidates
                 .first()
                 .expect("a non-discrete partition must contain at least one non-singleton cell");
-            let mut best_value = nontrivial_neighbour_cell_count(graph, nodes, partition, best);
+            let mut best_value = nontrivial_neighbour_cell_count_with_scratch(
+                graph,
+                nodes,
+                partition,
+                best,
+                &mut neighbour_counts,
+                &mut touched_neighbour_cells,
+            );
+            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
             for &cell in &candidates[1..] {
-                let value = nontrivial_neighbour_cell_count(graph, nodes, partition, cell);
+                let value = nontrivial_neighbour_cell_count_with_scratch(
+                    graph,
+                    nodes,
+                    partition,
+                    cell,
+                    &mut neighbour_counts,
+                    &mut touched_neighbour_cells,
+                );
+                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
                 if value > best_value
                     || (value == best_value
                         && (partition.cell_len(cell) > partition.cell_len(best)
@@ -1451,48 +1755,48 @@ where
     }
 }
 
-#[cfg(test)]
-fn choose_target_cell<G>(
-    graph: &G,
-    nodes: &[G::NodeId],
-    partition: &BacktrackableOrderedPartition,
-    splitting_heuristic: CanonSplittingHeuristic,
-) -> PartitionCellId
-where
-    G: MonoplexMonopartiteGraph,
-    G::NodeId: AsPrimitive<usize> + Copy,
-{
-    let candidates = partition.non_singleton_cells().map(|cell| cell.id()).collect::<Vec<_>>();
-    choose_target_cell_among(graph, nodes, partition, splitting_heuristic, &candidates)
-}
-
-fn nontrivial_neighbour_cell_count<G>(
+fn nontrivial_neighbour_cell_count_with_scratch<G>(
     graph: &G,
     nodes: &[G::NodeId],
     partition: &BacktrackableOrderedPartition,
     cell_id: PartitionCellId,
+    neighbour_counts: &mut [usize],
+    touched_neighbour_cells: &mut Vec<usize>,
 ) -> usize
 where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize> + Copy,
 {
+    touched_neighbour_cells.clear();
     let representative = nodes[partition.cell_elements(cell_id)[0]];
-    let mut counts = BTreeMap::<usize, (usize, usize)>::new();
 
     for neighbour in graph.successors(representative) {
         let neighbour_cell = partition.cell_of(neighbour.as_());
-        let neighbour_cell_len = partition.cell_elements(neighbour_cell).len();
+        let neighbour_cell_len = partition.cell_len(neighbour_cell);
         if neighbour_cell_len <= 1 {
             continue;
         }
-        let entry = counts.entry(neighbour_cell.index()).or_insert((0, neighbour_cell_len));
-        entry.0 += 1;
+        let neighbour_cell_index = neighbour_cell.index();
+        if neighbour_counts[neighbour_cell_index] == 0 {
+            touched_neighbour_cells.push(neighbour_cell_index);
+        }
+        neighbour_counts[neighbour_cell_index] += 1;
     }
 
-    counts
-        .into_iter()
-        .filter(|(_, (count, neighbour_cell_len))| *count < *neighbour_cell_len)
-        .count()
+    let mut count = 0usize;
+    for &neighbour_cell_index in touched_neighbour_cells.iter() {
+        let neighbour_cell = PartitionCellId::from_index(neighbour_cell_index);
+        if neighbour_counts[neighbour_cell_index] < partition.cell_len(neighbour_cell) {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn clear_neighbour_counts(neighbour_counts: &mut [usize], touched_neighbour_cells: &[usize]) {
+    for &neighbour_cell_index in touched_neighbour_cells {
+        neighbour_counts[neighbour_cell_index] = 0;
+    }
 }
 
 fn candidate_split_elements<G, EdgeLabel, EF>(
@@ -1500,8 +1804,8 @@ fn candidate_split_elements<G, EdgeLabel, EF>(
     _edge_label: &mut EF,
     partition: &mut BacktrackableOrderedPartition,
     target_cell: PartitionCellId,
-    _current_path_invariants: &[RefinementTrace<EdgeLabel>],
-    _best_path_invariants: Option<&[RefinementTrace<EdgeLabel>]>,
+    _current_path_invariants: &[Rc<RefinementTrace<EdgeLabel>>],
+    _best_path_invariants: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
     _stats: &mut CanonicalSearchStats,
 ) -> Vec<usize>
 where
@@ -1570,28 +1874,32 @@ fn compute_long_prune_redundant(
     redundant
 }
 
-fn build_certificate<G, VertexLabel, EdgeLabel, EF>(
-    graph: &G,
-    nodes: &[G::NodeId],
+fn build_certificate<NodeId, VertexLabel, EdgeLabel, EF>(
+    adjacency: &AdjacencyBitMatrix,
+    nodes: &[NodeId],
     vertex_labels: &[VertexLabel],
     edge_label: &mut EF,
     order: &[usize],
 ) -> LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>
 where
-    G: MonoplexMonopartiteGraph,
-    G::NodeId: AsPrimitive<usize>,
+    NodeId: Copy,
     VertexLabel: Ord + Clone,
     EdgeLabel: Ord + Clone,
-    EF: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
+    EF: FnMut(NodeId, NodeId) -> EdgeLabel,
 {
-    let ordered_vertex_labels = order.iter().map(|&vertex| vertex_labels[vertex].clone()).collect();
-    let mut upper_triangle_edge_labels = Vec::new();
+    let mut ordered_vertex_labels = Vec::with_capacity(order.len());
+    for &vertex in order {
+        ordered_vertex_labels.push(vertex_labels[vertex].clone());
+    }
+    let mut upper_triangle_edge_labels =
+        Vec::with_capacity(order.len().saturating_mul(order.len().saturating_sub(1)) / 2);
 
-    for left_index in 0..order.len() {
-        for right_index in (left_index + 1)..order.len() {
-            let left = nodes[order[left_index]];
-            let right = nodes[order[right_index]];
-            if graph.has_successor(left, right) {
+    for (left_index, &left_vertex) in order.iter().enumerate() {
+        let left_row_start = adjacency.row_start(left_vertex);
+        let left = nodes[left_vertex];
+        for &right_vertex in order.iter().skip(left_index + 1) {
+            let right = nodes[right_vertex];
+            if adjacency.has_edge_at_row_start(left_row_start, right_vertex) {
                 upper_triangle_edge_labels.push(Some(edge_label(left, right)));
             } else {
                 upper_triangle_edge_labels.push(None);
@@ -1605,21 +1913,140 @@ where
     }
 }
 
-fn is_labeled_graph_automorphism<G, VertexLabel, EdgeLabel, EF>(
-    graph: &G,
-    nodes: &[G::NodeId],
+fn build_unlabeled_leaf_signature(
+    adjacency: &AdjacencyBitMatrix,
+    vertex_label_ids: &[usize],
+    order: &[usize],
+) -> UnlabeledLeafSignature {
+    let ordered_vertex_labels =
+        order.iter().map(|&vertex| vertex_label_ids[vertex]).collect::<Vec<_>>().into();
+    let edge_count = order.len().saturating_mul(order.len().saturating_sub(1)) / 2;
+    let mut upper_triangle_bits = vec![0u64; edge_count.div_ceil(u64::BITS as usize)];
+    let mut offset = 0usize;
+
+    for (left_index, &left_vertex) in order.iter().enumerate() {
+        let left_row_start = adjacency.row_start(left_vertex);
+        for &right_vertex in order.iter().skip(left_index + 1) {
+            if adjacency.has_edge_at_row_start(left_row_start, right_vertex) {
+                upper_triangle_bits[offset / (u64::BITS as usize)] |=
+                    1u64 << (offset % (u64::BITS as usize));
+            }
+            offset += 1;
+        }
+    }
+
+    UnlabeledLeafSignature {
+        vertex_label_ids: ordered_vertex_labels,
+        upper_triangle_bits: upper_triangle_bits.into(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn leaf_orders_equal<NodeId, VertexLabel, EdgeLabel, EF>(
+    adjacency: &AdjacencyBitMatrix,
+    nodes: &[NodeId],
+    vertex_labels: &[VertexLabel],
+    edge_label: &mut EF,
+    left_order: &[usize],
+    left_signature: Option<&UnlabeledLeafSignature>,
+    right_order: &[usize],
+    right_signature: Option<&UnlabeledLeafSignature>,
+) -> bool
+where
+    NodeId: Copy,
+    VertexLabel: Ord + Clone,
+    EdgeLabel: Ord + Clone,
+    EF: FnMut(NodeId, NodeId) -> EdgeLabel,
+{
+    if let (Some(left_signature), Some(right_signature)) = (left_signature, right_signature) {
+        return left_signature == right_signature;
+    }
+
+    compare_leaf_orders(adjacency, nodes, vertex_labels, edge_label, left_order, right_order)
+        == core::cmp::Ordering::Equal
+}
+
+fn compare_leaf_orders<NodeId, VertexLabel, EdgeLabel, EF>(
+    adjacency: &AdjacencyBitMatrix,
+    nodes: &[NodeId],
+    vertex_labels: &[VertexLabel],
+    edge_label: &mut EF,
+    left_order: &[usize],
+    right_order: &[usize],
+) -> core::cmp::Ordering
+where
+    NodeId: Copy,
+    VertexLabel: Ord + Clone,
+    EdgeLabel: Ord + Clone,
+    EF: FnMut(NodeId, NodeId) -> EdgeLabel,
+{
+    for (&left, &right) in left_order.iter().zip(right_order.iter()) {
+        let label_cmp = vertex_labels[left].cmp(&vertex_labels[right]);
+        if label_cmp != core::cmp::Ordering::Equal {
+            return label_cmp;
+        }
+    }
+
+    if core::mem::size_of::<EdgeLabel>() == 0 {
+        for left_index in 0..left_order.len() {
+            let left_row_start = adjacency.row_start(left_order[left_index]);
+            let right_row_start = adjacency.row_start(right_order[left_index]);
+            for right_index in (left_index + 1)..left_order.len() {
+                let left_has_edge =
+                    adjacency.has_edge_at_row_start(left_row_start, left_order[right_index]);
+                let right_has_edge =
+                    adjacency.has_edge_at_row_start(right_row_start, right_order[right_index]);
+                let edge_cmp = left_has_edge.cmp(&right_has_edge);
+                if edge_cmp != core::cmp::Ordering::Equal {
+                    return edge_cmp;
+                }
+            }
+        }
+        return core::cmp::Ordering::Equal;
+    }
+
+    for left_index in 0..left_order.len() {
+        let left_vertex = left_order[left_index];
+        let left_row_start = adjacency.row_start(left_vertex);
+        let mapped_left_vertex = right_order[left_index];
+        let right_row_start = adjacency.row_start(mapped_left_vertex);
+        for right_index in (left_index + 1)..left_order.len() {
+            let right_vertex = left_order[right_index];
+            let mapped_right_vertex = right_order[right_index];
+            let left_has_edge = adjacency.has_edge_at_row_start(left_row_start, right_vertex);
+            let right_has_edge =
+                adjacency.has_edge_at_row_start(right_row_start, mapped_right_vertex);
+            let edge_presence_cmp = left_has_edge.cmp(&right_has_edge);
+            if edge_presence_cmp != core::cmp::Ordering::Equal {
+                return edge_presence_cmp;
+            }
+            if left_has_edge {
+                let label_cmp = edge_label(nodes[left_vertex], nodes[right_vertex])
+                    .cmp(&edge_label(nodes[mapped_left_vertex], nodes[mapped_right_vertex]));
+                if label_cmp != core::cmp::Ordering::Equal {
+                    return label_cmp;
+                }
+            }
+        }
+    }
+
+    core::cmp::Ordering::Equal
+}
+
+fn is_labeled_graph_automorphism<NodeId, VertexLabel, EdgeLabel, EF>(
+    adjacency: &AdjacencyBitMatrix,
+    nodes: &[NodeId],
     vertex_labels: &[VertexLabel],
     edge_label: &mut EF,
     automorphism: &[usize],
 ) -> bool
 where
-    G: MonoplexMonopartiteGraph,
-    G::NodeId: AsPrimitive<usize>,
+    NodeId: Copy,
     VertexLabel: Ord + Clone,
     EdgeLabel: Ord + Clone,
-    EF: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
+    EF: FnMut(NodeId, NodeId) -> EdgeLabel,
 {
-    if automorphism.len() != nodes.len() {
+    if automorphism.len() != vertex_labels.len() {
         return false;
     }
 
@@ -1629,20 +2056,21 @@ where
         }
     }
 
-    for left in 0..nodes.len() {
-        for right in (left + 1)..nodes.len() {
+    for left in 0..vertex_labels.len() {
+        for right in (left + 1)..vertex_labels.len() {
             let mapped_left = automorphism[left];
             let mapped_right = automorphism[right];
             let left_node = nodes[left];
             let right_node = nodes[right];
             let mapped_left_node = nodes[mapped_left];
             let mapped_right_node = nodes[mapped_right];
-            let has_edge = graph.has_successor(left_node, right_node);
-            let has_mapped_edge = graph.has_successor(mapped_left_node, mapped_right_node);
+            let has_edge = adjacency.has_edge(left, right);
+            let has_mapped_edge = adjacency.has_edge(mapped_left, mapped_right);
             if has_edge != has_mapped_edge {
                 return false;
             }
             if has_edge
+                && core::mem::size_of::<EdgeLabel>() != 0
                 && edge_label(left_node, right_node)
                     != edge_label(mapped_left_node, mapped_right_node)
             {
@@ -1681,15 +2109,18 @@ fn refine_partition_according_to_unsigned_invariant_like_bliss<F>(
 where
     F: FnMut(usize) -> usize,
 {
-    let cells = partition.non_singleton_cells().map(|cell| cell.id()).collect::<Vec<_>>();
+    let cells = partition
+        .non_singleton_cells()
+        .map(super::partition::PartitionCellView::id)
+        .collect::<Vec<_>>();
     let mut refined = false;
 
     for cell in cells {
         if partition.cell_elements(cell).len() <= 1 {
             continue;
         }
-        let produced = partition
-            .split_cell_by_unsigned_invariant_like_bliss(cell, |vertex| invariant_of(vertex));
+        let produced =
+            partition.split_cell_by_unsigned_invariant_like_bliss(cell, &mut invariant_of);
         refined |= produced.len() > 1;
     }
 
@@ -1697,15 +2128,15 @@ where
 }
 
 fn path_invariants_prefix_cmp<EdgeLabel>(
-    current: &[RefinementTrace<EdgeLabel>],
-    best: &[RefinementTrace<EdgeLabel>],
+    current: &[Rc<RefinementTrace<EdgeLabel>>],
+    best: &[Rc<RefinementTrace<EdgeLabel>>],
 ) -> core::cmp::Ordering
 where
     EdgeLabel: Ord + Clone,
 {
     let limit = current.len().min(best.len());
     for index in 0..limit {
-        let cmp = compare_refinement_trace(&current[index], &best[index]);
+        let cmp = compare_refinement_trace(current[index].as_ref(), best[index].as_ref());
         if cmp != core::cmp::Ordering::Equal {
             return cmp;
         }
@@ -1714,8 +2145,8 @@ where
 }
 
 fn path_invariants_lex_cmp<EdgeLabel>(
-    current: &[RefinementTrace<EdgeLabel>],
-    best: &[RefinementTrace<EdgeLabel>],
+    current: &[Rc<RefinementTrace<EdgeLabel>>],
+    best: &[Rc<RefinementTrace<EdgeLabel>>],
 ) -> core::cmp::Ordering
 where
     EdgeLabel: Ord + Clone,
@@ -1728,16 +2159,17 @@ where
 }
 
 fn path_invariants_prefix_equal_strict<EdgeLabel>(
-    current: &[RefinementTrace<EdgeLabel>],
-    reference: &[RefinementTrace<EdgeLabel>],
+    current: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference: &[Rc<RefinementTrace<EdgeLabel>>],
 ) -> bool
 where
     EdgeLabel: Ord + Clone,
 {
     current.len() <= reference.len()
-        && current.iter().zip(reference.iter()).all(|(left, right)| {
-            compare_refinement_trace(left, right) == core::cmp::Ordering::Equal
-        })
+        && current
+            .iter()
+            .zip(reference.iter())
+            .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
 }
 
 fn compare_refinement_trace<EdgeLabel>(
@@ -1760,22 +2192,27 @@ where
     current.eqref_hash.cmp(&best.eqref_hash)
 }
 
-fn compare_candidate_to_best<VertexLabel, EdgeLabel>(
-    candidate_path: &[RefinementTrace<EdgeLabel>],
-    _candidate_certificate: &LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>,
-    best_path: Option<&[RefinementTrace<EdgeLabel>]>,
-    _best_certificate: Option<&LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>>,
-) -> core::cmp::Ordering
+fn refinement_trace_equal<EdgeLabel>(
+    current: &RefinementTrace<EdgeLabel>,
+    reference: &RefinementTrace<EdgeLabel>,
+) -> bool
 where
-    VertexLabel: Ord + Clone,
     EdgeLabel: Ord + Clone,
 {
-    match (best_path, _best_certificate) {
-        (None, None) => core::cmp::Ordering::Greater,
-        (Some(best_path), Some(_)) => {
-            let path_cmp = path_invariants_lex_cmp(candidate_path, best_path);
-            path_cmp
-        }
-        _ => core::cmp::Ordering::Greater,
+    current.subcertificate_length == reference.subcertificate_length
+        && current.eqref_hash == reference.eqref_hash
+        && current.events == reference.events
+}
+
+fn compare_candidate_to_best<EdgeLabel>(
+    candidate_path: &[Rc<RefinementTrace<EdgeLabel>>],
+    best_path: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+) -> core::cmp::Ordering
+where
+    EdgeLabel: Ord + Clone,
+{
+    match best_path {
+        None => core::cmp::Ordering::Greater,
+        Some(best_path) => path_invariants_lex_cmp(candidate_path, best_path),
     }
 }
