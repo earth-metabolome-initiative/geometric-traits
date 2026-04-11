@@ -448,3 +448,31 @@ fn test_k4_homeomorph_rejects_erdos_renyi_0562680_regression() {
     );
     assert_k4_case(&case, expected);
 }
+
+#[test]
+fn test_k4_homeomorph_accepts_fuzzer_regression_20260411() {
+    let (case, expected) = k4_case(
+        "fuzzer_regression_20260411",
+        "fuzzer",
+        15,
+        &[
+            [0, 3],
+            [0, 10],
+            [0, 11],
+            [3, 10],
+            [3, 11],
+            [3, 12],
+            [3, 13],
+            [4, 12],
+            [4, 14],
+            [7, 12],
+            [7, 14],
+            [9, 10],
+            [9, 13],
+            [9, 14],
+            [10, 11],
+        ],
+        true,
+    );
+    assert_k4_case(&case, expected);
+}

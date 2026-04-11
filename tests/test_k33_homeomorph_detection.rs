@@ -60,6 +60,39 @@ fn test_k33_homeomorph_rejects_self_loops() {
 }
 
 #[test]
+fn test_k33_homeomorph_accepts_fuzzer_regression_20260411() {
+    let (case, expected) = k33_case(
+        "fuzzer_regression_20260411",
+        "fuzzer",
+        15,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 10],
+            [0, 12],
+            [0, 13],
+            [3, 9],
+            [3, 10],
+            [3, 12],
+            [3, 13],
+            [5, 9],
+            [7, 10],
+            [9, 10],
+            [9, 13],
+            [10, 11],
+            [10, 12],
+            [11, 13],
+            [12, 13],
+            [12, 14],
+            [13, 14],
+        ],
+        true,
+    );
+    let graph = build_undigraph(&case);
+    assert_eq!(graph.has_k33_homeomorph().unwrap(), expected);
+}
+
+#[test]
 #[allow(clippy::too_many_lines)]
 fn test_k33_homeomorph_semantic_cases() {
     let cases = [
