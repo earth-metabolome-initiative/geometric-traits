@@ -243,3 +243,9 @@ name = "node_ordering_application"
 path = "fuzz_targets/node_ordering_application.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "topological_validity_cli"
+path = "fuzz_targets/topological_validity_cli.rs"
+test = false
+doc = false

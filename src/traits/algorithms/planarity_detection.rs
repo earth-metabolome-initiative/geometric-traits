@@ -2121,18 +2121,6 @@ pub(crate) mod embedding {
                 };
                 let next_slot = self.arcs[exit_arc].target_slot;
                 let next_entry_arc = self.arcs[exit_arc].twin;
-                #[cfg(feature = "std")]
-                if std::env::var_os("TRACE_K4").is_some() {
-                    eprintln!(
-                        "[trace-k4] xy-walk current={} entry_arc={} exit_arc={} next={} mark={:?} visited={}",
-                        current_slot,
-                        entry_arc,
-                        exit_arc,
-                        next_slot,
-                        obstruction_marks[next_slot],
-                        self.slots[next_slot].visited
-                    );
-                }
 
                 if self.slots[next_slot].visited {
                     self.pop_marked_path_until_slot(&mut stack, next_slot);
@@ -2140,20 +2128,12 @@ pub(crate) mod embedding {
                     if next_slot == antipodal_slot {
                         self.clear_marked_path(&mut stack);
                         self.restore_hidden_arc_pairs(hidden_pairs);
-                        #[cfg(feature = "std")]
-                        if std::env::var_os("TRACE_K4").is_some() {
-                            eprintln!("[trace-k4] xy-walk reached antipodal {}", antipodal_slot);
-                        }
                         return Ok(None);
                     }
 
                     match obstruction_marks[next_slot] {
                         K4ObstructionMark::HighRxw | K4ObstructionMark::LowRxw => {
                             marked_path.px_slot = next_slot;
-                            #[cfg(feature = "std")]
-                            if std::env::var_os("TRACE_K4").is_some() {
-                                eprintln!("[trace-k4] xy-walk px={}", next_slot);
-                            }
                             self.clear_marked_path(&mut stack);
                         }
                         _ => {}
@@ -2173,10 +2153,6 @@ pub(crate) mod embedding {
                     ) {
                         marked_path.py_slot = next_slot;
                         self.restore_hidden_arc_pairs(hidden_pairs);
-                        #[cfg(feature = "std")]
-                        if std::env::var_os("TRACE_K4").is_some() {
-                            eprintln!("[trace-k4] xy-walk py={}", next_slot);
-                        }
                         return Ok(Some(marked_path));
                     }
                 }
@@ -2242,38 +2218,57 @@ pub(crate) mod embedding {
             None
         }
 
+        fn is_parent_primary_to_root_copy_step(
+            &self,
+            parent_slot: usize,
+            child_slot: usize,
+        ) -> bool {
+            matches!(
+                self.slots[child_slot].kind,
+                EmbeddingSlotKind::RootCopy {
+                    parent_primary_slot,
+                    ..
+                } if parent_primary_slot == parent_slot
+            )
+        }
+
         #[allow(dead_code)]
         fn tree_path_slots_between_ancestor_and_descendant(
             &self,
             ancestor_slot: usize,
             descendant_slot: usize,
         ) -> Result<Vec<usize>, EmbeddingMutationError> {
-            match self.slots[ancestor_slot].kind {
-                EmbeddingSlotKind::RootCopy { .. } => {
-                    self.tree_path_slots_from_bicomp_root_to_descendant(
-                        ancestor_slot,
-                        descendant_slot,
-                    )
-                }
-                EmbeddingSlotKind::Primary { .. } => {
-                    let mut reverse_slots = vec![descendant_slot];
-                    let mut current_slot = descendant_slot;
+            let mut reverse_slots = vec![descendant_slot];
+            let mut current_slot = descendant_slot;
+            let step_limit = self.slots.len() + 1;
 
-                    while current_slot != ancestor_slot {
-                        current_slot = self.parent_primary_slot(current_slot).ok_or(
+            for _ in 0..step_limit {
+                if current_slot == ancestor_slot {
+                    reverse_slots.reverse();
+                    return Ok(reverse_slots);
+                }
+
+                current_slot = match self.slots[current_slot].kind {
+                    EmbeddingSlotKind::Primary { .. } => {
+                        let parent_arc = self.parent_arc_in_embedding(current_slot).ok_or(
                             EmbeddingMutationError::MissingExternalFacePath {
                                 start_slot: ancestor_slot,
                                 start_side: 0,
                                 end_slot: descendant_slot,
                             },
                         )?;
-                        reverse_slots.push(current_slot);
+                        self.arcs[parent_arc].target_slot
                     }
-
-                    reverse_slots.reverse();
-                    Ok(reverse_slots)
-                }
+                    EmbeddingSlotKind::RootCopy { parent_primary_slot, .. } => parent_primary_slot,
+                };
+                reverse_slots.push(current_slot);
             }
+
+            Err(EmbeddingMutationError::MissingExternalFacePath {
+                start_slot: ancestor_slot,
+                start_side: 0,
+                end_slot: descendant_slot,
+            })
         }
 
         #[allow(dead_code)]
@@ -2286,16 +2281,22 @@ pub(crate) mod embedding {
             }
 
             for slots in path_slots.windows(2) {
-                let arc = self.find_arc_to_target(slots[0], slots[1]).ok_or(
-                    EmbeddingMutationError::MissingExternalFacePath {
-                        start_slot: path_slots[0],
-                        start_side: 0,
-                        end_slot: *path_slots.last().unwrap_or(&path_slots[0]),
-                    },
-                )?;
-                self.arcs[arc].visited = true;
-                let twin = self.arcs[arc].twin;
-                self.arcs[twin].visited = true;
+                if let Some(arc) = self.find_arc_to_target(slots[0], slots[1]) {
+                    self.arcs[arc].visited = true;
+                    let twin = self.arcs[arc].twin;
+                    self.arcs[twin].visited = true;
+                    continue;
+                }
+
+                if self.is_parent_primary_to_root_copy_step(slots[0], slots[1]) {
+                    continue;
+                }
+
+                return Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: path_slots[0],
+                    start_side: 0,
+                    end_slot: *path_slots.last().unwrap_or(&path_slots[0]),
+                });
             }
 
             Ok(())
@@ -2364,10 +2365,7 @@ pub(crate) mod embedding {
                 let mut current_arc = self.slots[slot].first_arc;
                 while let Some(arc) = current_arc {
                     current_arc = self.arcs[arc].next;
-                    if !self.arcs[arc].embedded
-                        || self.arcs[arc].kind != DfsArcType::Child
-                        || self.child_arc_enters_descendant_bicomp(root_copy_slot, arc)
-                    {
+                    if !self.arc_stays_in_bicomp(root_copy_slot, arc) {
                         continue;
                     }
 
@@ -2498,26 +2496,7 @@ pub(crate) mod embedding {
             root_copy_slot: usize,
             descendant_slot: usize,
         ) -> Result<Vec<usize>, EmbeddingMutationError> {
-            let dfs_child_slot = self.dfs_child_from_root(root_copy_slot);
-            let mut reverse_slots = vec![descendant_slot];
-            let mut current_slot = descendant_slot;
-
-            while current_slot != dfs_child_slot {
-                current_slot = self.parent_primary_slot(current_slot).ok_or(
-                    EmbeddingMutationError::MissingExternalFacePath {
-                        start_slot: root_copy_slot,
-                        start_side: 0,
-                        end_slot: descendant_slot,
-                    },
-                )?;
-                reverse_slots.push(current_slot);
-            }
-
-            reverse_slots.reverse();
-            let mut path_slots = Vec::with_capacity(reverse_slots.len() + 1);
-            path_slots.push(root_copy_slot);
-            path_slots.extend(reverse_slots);
-            Ok(path_slots)
+            self.tree_path_slots_between_ancestor_and_descendant(root_copy_slot, descendant_slot)
         }
 
         #[allow(dead_code)]
@@ -2708,14 +2687,27 @@ pub(crate) mod embedding {
             let mut inverted = false;
 
             for slots in path_slots.windows(2) {
-                let arc = self.find_arc_to_target(slots[0], slots[1]).ok_or(
-                    EmbeddingMutationError::MissingExternalFacePath {
-                        start_slot: ancestor_slot,
-                        start_side: 0,
-                        end_slot: descendant_slot,
-                    },
-                )?;
-                inverted ^= self.arcs[arc].inverted;
+                if let Some(arc) = self.find_arc_to_target(slots[0], slots[1]) {
+                    if self.arcs[arc].kind == DfsArcType::Child {
+                        inverted ^= self.arcs[arc].inverted;
+                    } else {
+                        let twin = self.arcs[arc].twin;
+                        if self.arcs[twin].kind == DfsArcType::Child {
+                            inverted ^= self.arcs[twin].inverted;
+                        }
+                    }
+                    continue;
+                }
+
+                if self.is_parent_primary_to_root_copy_step(slots[0], slots[1]) {
+                    continue;
+                }
+
+                return Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: ancestor_slot,
+                    start_side: 0,
+                    end_slot: descendant_slot,
+                });
             }
 
             Ok(inverted)
@@ -2923,13 +2915,6 @@ pub(crate) mod embedding {
                     }
                 }
             }
-            #[cfg(feature = "std")]
-            if std::env::var_os("TRACE_K4").is_some() {
-                eprintln!(
-                    "[trace-k4] reduce component collapsed root={} active={} start_side={} end_side={}",
-                    context.root_copy_slot, active_slot, start_side, end_side
-                );
-            }
 
             self.rebuild_shortcut_ext_face_for_bicomp(context.root_copy_slot)?;
 
@@ -2942,15 +2927,6 @@ pub(crate) mod embedding {
             context: &K4Context,
         ) -> Result<(), EmbeddingMutationError> {
             self.reduce_k4_bicomp_to_edge(context.root_copy_slot, context.w_slot)?;
-            #[cfg(feature = "std")]
-            if std::env::var_os("TRACE_K4").is_some() {
-                eprintln!(
-                    "[trace-k4] after minor A reduction root={} w={}",
-                    context.root_copy_slot, context.w_slot
-                );
-                self.trace_slot_adjacency(context.root_copy_slot, "root-reduced");
-                self.trace_slot_adjacency(context.w_slot, "w-reduced");
-            }
             Ok(())
         }
 
@@ -2986,13 +2962,6 @@ pub(crate) mod embedding {
             match minor_type {
                 K4MinorType::A => {
                     self.orient_bicomp_from_root(context.root_copy_slot, true);
-                    #[cfg(feature = "std")]
-                    if std::env::var_os("TRACE_K4").is_some() {
-                        self.trace_slot_adjacency(context.root_copy_slot, "root");
-                        self.trace_slot_adjacency(context.x_slot, "x");
-                        self.trace_slot_adjacency(context.y_slot, "y");
-                        self.trace_slot_adjacency(context.w_slot, "w");
-                    }
                     let low_active =
                         self.find_k4_second_active_vertex_on_low_ext_face_path(&context);
                     if low_active.is_some() {
@@ -3163,6 +3132,26 @@ pub(crate) mod embedding {
         }
 
         #[allow(dead_code)]
+        fn arc_stays_in_bicomp(&self, bicomp_root_copy_slot: usize, arc: usize) -> bool {
+            if !self.arcs[arc].embedded {
+                return false;
+            }
+
+            if self.arcs[arc].kind == DfsArcType::Child {
+                return !self.child_arc_enters_descendant_bicomp(bicomp_root_copy_slot, arc);
+            }
+
+            if self.arcs[arc].kind == DfsArcType::Parent {
+                return !self.child_arc_enters_descendant_bicomp(
+                    bicomp_root_copy_slot,
+                    self.arcs[arc].twin,
+                );
+            }
+
+            true
+        }
+
+        #[allow(dead_code)]
         fn orient_full_bicomp_from_root(
             &mut self,
             bicomp_root_copy_slot: usize,
@@ -3185,7 +3174,7 @@ pub(crate) mod embedding {
                 while let Some(arc) = current_arc {
                     current_arc = self.arcs[arc].next;
 
-                    if !self.arcs[arc].embedded || self.arcs[arc].kind != DfsArcType::Child {
+                    if !self.arc_stays_in_bicomp(bicomp_root_copy_slot, arc) {
                         continue;
                     }
 
@@ -3220,7 +3209,7 @@ pub(crate) mod embedding {
                     let twin = self.arcs[arc].twin;
                     self.arcs[twin].visited = false;
 
-                    if !self.arcs[arc].embedded || self.arcs[arc].kind != DfsArcType::Child {
+                    if !self.arc_stays_in_bicomp(bicomp_root_copy_slot, arc) {
                         continue;
                     }
 
@@ -3251,7 +3240,7 @@ pub(crate) mod embedding {
                     let twin = self.arcs[arc].twin;
                     self.arcs[twin].visited = false;
 
-                    if !self.arcs[arc].embedded || self.arcs[arc].kind != DfsArcType::Child {
+                    if !self.arc_stays_in_bicomp(bicomp_root_copy_slot, arc) {
                         continue;
                     }
 
@@ -3278,10 +3267,7 @@ pub(crate) mod embedding {
                 while let Some(arc) = current_arc {
                     current_arc = self.arcs[arc].next;
 
-                    if !self.arcs[arc].embedded
-                        || self.arcs[arc].kind != DfsArcType::Child
-                        || self.child_arc_enters_descendant_bicomp(bicomp_root_copy_slot, arc)
-                    {
+                    if !self.arc_stays_in_bicomp(bicomp_root_copy_slot, arc) {
                         continue;
                     }
 
@@ -3310,7 +3296,7 @@ pub(crate) mod embedding {
                 while let Some(arc) = current_arc {
                     current_arc = self.arcs[arc].next;
 
-                    if !self.arcs[arc].embedded || self.arcs[arc].kind != DfsArcType::Child {
+                    if !self.arc_stays_in_bicomp(root_copy_slot, arc) {
                         continue;
                     }
 
@@ -3667,18 +3653,6 @@ pub(crate) mod embedding {
                 };
                 let next_slot = self.arcs[exit_arc].target_slot;
                 let next_entry_arc = self.arcs[exit_arc].twin;
-                #[cfg(feature = "std")]
-                if std::env::var_os("TRACE_K4").is_some() {
-                    eprintln!(
-                        "[trace-k4] xy-walk current={} entry_arc={} exit_arc={} next={} mark={:?} visited={}",
-                        current_slot,
-                        entry_arc,
-                        exit_arc,
-                        next_slot,
-                        obstruction_marks[next_slot],
-                        self.slots[next_slot].visited
-                    );
-                }
                 #[cfg(test)]
                 {
                     let prev_candidate = if current_slot == target_slot {
@@ -4141,14 +4115,20 @@ pub(crate) mod embedding {
             merge_blocker_slot: usize,
             u_max: usize,
         ) -> Result<bool, WalkDownExecutionError> {
-            self.orient_embedding_from_active_bicomps(false);
+            self.orient_embedding_from_active_bicomps(true);
             self.restore_all_reduced_paths();
+            self.orient_embedding_from_active_bicomps(false);
 
-            let Some(root_copy_slot) =
-                self.find_bicomp_root_on_external_face_from_slot(merge_blocker_slot)
-            else {
-                return Err(WalkDownExecutionError::InvalidK33Context);
-            };
+            let mut root_copy_slot = merge_blocker_slot;
+            let mut root_prev_link = 1usize;
+            let mut steps_remaining = self.slots.len() + 1;
+            while !matches!(self.slots[root_copy_slot].kind, EmbeddingSlotKind::RootCopy { .. }) {
+                if steps_remaining == 0 {
+                    return Err(WalkDownExecutionError::InvalidK33Context);
+                }
+                root_copy_slot = self.real_ext_face_neighbor(root_copy_slot, &mut root_prev_link);
+                steps_remaining -= 1;
+            }
             let current_primary_slot = self.primary_from_root(root_copy_slot);
 
             self.reset_k33_reconstruction_state(preprocessing);
@@ -4260,22 +4240,6 @@ pub(crate) mod embedding {
                     (!preprocessing.vertices[original_vertex].sorted_forward_arcs.is_empty())
                         .then_some(0);
             }
-        }
-
-        fn find_bicomp_root_on_external_face_from_slot(&self, slot: usize) -> Option<usize> {
-            let mut current_slot = slot;
-            let mut previous_link = 1usize;
-            let mut steps_remaining = self.slots.len();
-
-            while !self.is_virtual(current_slot) {
-                if steps_remaining == 0 {
-                    return None;
-                }
-                current_slot = self.real_ext_face_neighbor(current_slot, &mut previous_link);
-                steps_remaining -= 1;
-            }
-
-            Some(current_slot)
         }
 
         fn continue_after_k33_minor_e(
@@ -4443,6 +4407,10 @@ pub(crate) mod embedding {
                 }
                 Err(error) => return Err(error),
             };
+
+            if highest_xy_path.px_slot == usize::MAX || highest_xy_path.py_slot == usize::MAX {
+                return Err(WalkDownExecutionError::InvalidK33Context);
+            }
 
             if matches!(obstruction_marks[highest_xy_path.px_slot], K33ObstructionMark::HighRxw)
                 || matches!(obstruction_marks[highest_xy_path.py_slot], K33ObstructionMark::HighRyw)
@@ -9118,6 +9086,122 @@ mod tests {
     }
 
     #[test]
+    fn test_k33_engine_accepts_fuzzer_regression_20260411_direct() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            15,
+            &[
+                [0, 6],
+                [0, 9],
+                [0, 10],
+                [0, 12],
+                [0, 13],
+                [3, 9],
+                [3, 10],
+                [3, 12],
+                [3, 13],
+                [5, 9],
+                [7, 10],
+                [9, 10],
+                [9, 13],
+                [10, 11],
+                [10, 12],
+                [11, 13],
+                [12, 13],
+                [12, 14],
+                [13, 14],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        assert!(!run_planarity_engine(&preprocessing));
+        assert!(run_k33_homeomorph_engine(&preprocessing));
+    }
+
+    #[test]
+    fn test_k33_engine_stepwise_accepts_fuzzer_regression_20260411() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            15,
+            &[
+                [0, 6],
+                [0, 9],
+                [0, 10],
+                [0, 12],
+                [0, 13],
+                [3, 9],
+                [3, 10],
+                [3, 12],
+                [3, 13],
+                [5, 9],
+                [7, 10],
+                [9, 10],
+                [9, 13],
+                [10, 11],
+                [10, 12],
+                [11, 13],
+                [12, 13],
+                [12, 14],
+                [13, 14],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
+
+        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
+            for slot in &mut embedding.slots {
+                slot.pertinent_edge = None;
+            }
+
+            let original_vertex = match embedding.slots[current_primary_slot].kind {
+                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
+                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
+            };
+
+            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
+                embedding.walk_up(current_primary_slot, forward_arc);
+            }
+            embedding.slots[current_primary_slot].pertinent_roots.clear();
+
+            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
+            for child_index in 0..child_count {
+                let child_primary_slot =
+                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
+                    continue;
+                }
+                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
+                else {
+                    continue;
+                };
+                if embedding.slots[root_copy_slot].first_arc.is_none() {
+                    continue;
+                }
+
+                match embedding.walk_down_child(
+                    &preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    super::EmbeddingRunMode::K33Search,
+                ) {
+                    Ok(WalkDownChildOutcome::Completed) => {}
+                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
+                    Ok(WalkDownChildOutcome::K33Found) => return,
+                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
+                    Err(error) => {
+                        panic!(
+                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        panic!("engine completed without finding K33");
+    }
+
+    #[test]
     fn test_k4_engine_accepts_erdos_renyi_0025860_direct_regression() {
         let preprocessing = LocalSimpleGraph::from_edges(
             15,
@@ -9318,6 +9402,114 @@ mod tests {
 
         assert!(run_planarity_engine(&preprocessing));
         assert!(run_k4_homeomorph_engine(&preprocessing));
+    }
+
+    #[test]
+    fn test_k4_engine_accepts_fuzzer_regression_20260411_direct() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            15,
+            &[
+                [0, 3],
+                [0, 10],
+                [0, 11],
+                [3, 10],
+                [3, 11],
+                [3, 12],
+                [3, 13],
+                [4, 12],
+                [4, 14],
+                [7, 12],
+                [7, 14],
+                [9, 10],
+                [9, 13],
+                [9, 14],
+                [10, 11],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        assert!(run_planarity_engine(&preprocessing));
+        assert!(run_k4_homeomorph_engine(&preprocessing));
+    }
+
+    #[test]
+    fn test_k4_engine_stepwise_accepts_fuzzer_regression_20260411() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            15,
+            &[
+                [0, 3],
+                [0, 10],
+                [0, 11],
+                [3, 10],
+                [3, 11],
+                [3, 12],
+                [3, 13],
+                [4, 12],
+                [4, 14],
+                [7, 12],
+                [7, 14],
+                [9, 10],
+                [9, 13],
+                [9, 14],
+                [10, 11],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
+
+        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
+            for slot in &mut embedding.slots {
+                slot.pertinent_edge = None;
+            }
+
+            let original_vertex = match embedding.slots[current_primary_slot].kind {
+                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
+                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
+            };
+
+            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
+                embedding.walk_up(current_primary_slot, forward_arc);
+            }
+            embedding.slots[current_primary_slot].pertinent_roots.clear();
+
+            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
+            for child_index in 0..child_count {
+                let child_primary_slot =
+                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
+                    continue;
+                }
+                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
+                else {
+                    continue;
+                };
+                if embedding.slots[root_copy_slot].first_arc.is_none() {
+                    continue;
+                }
+
+                match embedding.walk_down_child(
+                    &preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    super::EmbeddingRunMode::K4Search,
+                ) {
+                    Ok(WalkDownChildOutcome::Completed) => {}
+                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
+                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
+                    Ok(WalkDownChildOutcome::K4Found) => return,
+                    Err(error) => {
+                        panic!(
+                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        panic!("engine completed without finding K4");
     }
 
     #[test]
