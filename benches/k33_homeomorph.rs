@@ -155,12 +155,14 @@ fn prepare_fixture_cases() -> Vec<FixtureBenchCase> {
         ),
     ]
     .into_iter()
-    .map(|(name, family, graph, expected_has_k33_homeomorph)| FixtureBenchCase {
-        name: name.to_string(),
-        family: family.to_string(),
-        logical_edge_count: logical_edge_count(&graph),
-        graph,
-        expected_has_k33_homeomorph,
+    .map(|(name, family, graph, expected_has_k33_homeomorph)| {
+        FixtureBenchCase {
+            name: name.to_string(),
+            family: family.to_string(),
+            logical_edge_count: logical_edge_count(&graph),
+            graph,
+            expected_has_k33_homeomorph,
+        }
     })
     .collect()
 }
@@ -174,11 +176,13 @@ fn prepare_scaling_cases() -> Vec<ScalingBenchCase> {
         ("complete_bipartite_k5_1024", wrap_undi(complete_bipartite_graph(5, 1_024)), true),
     ]
     .into_iter()
-    .map(|(name, graph, expected_has_k33_homeomorph)| ScalingBenchCase {
-        name: name.to_string(),
-        logical_edge_count: logical_edge_count(&graph),
-        graph,
-        expected_has_k33_homeomorph,
+    .map(|(name, graph, expected_has_k33_homeomorph)| {
+        ScalingBenchCase {
+            name: name.to_string(),
+            logical_edge_count: logical_edge_count(&graph),
+            graph,
+            expected_has_k33_homeomorph,
+        }
     })
     .collect()
 }
