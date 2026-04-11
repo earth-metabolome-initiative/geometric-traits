@@ -2,8 +2,8 @@
 //! [`crate::traits::MonopartiteGraph`]s.
 
 use crate::traits::{
-    BiconnectedComponentsError, K23HomeomorphError, ModularityError, OuterplanarityError,
-    PlanarityError, connected_components::ConnectedComponentsError,
+    BiconnectedComponentsError, K23HomeomorphError, K33HomeomorphError, ModularityError,
+    OuterplanarityError, PlanarityError, connected_components::ConnectedComponentsError,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
@@ -25,6 +25,9 @@ pub enum MonopartiteAlgorithmError {
     /// Error raised while searching for a `K_{2,3}` homeomorph.
     #[error("{0}")]
     K23HomeomorphError(K23HomeomorphError),
+    /// Error raised while searching for a `K_{3,3}` homeomorph.
+    #[error("{0}")]
+    K33HomeomorphError(K33HomeomorphError),
     /// Error raised while computing modularity-based communities.
     #[error("{0}")]
     ModularityError(ModularityError),

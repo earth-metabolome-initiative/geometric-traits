@@ -31,6 +31,10 @@ pub mod k23_homeomorph_detection;
 #[cfg(feature = "alloc")]
 pub use k23_homeomorph_detection::{K23HomeomorphDetection, K23HomeomorphError};
 #[cfg(feature = "alloc")]
+pub mod k33_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k33_homeomorph_detection::{K33HomeomorphDetection, K33HomeomorphError};
+#[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
