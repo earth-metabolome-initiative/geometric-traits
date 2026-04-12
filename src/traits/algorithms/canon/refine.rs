@@ -5,10 +5,7 @@
 //! repeatedly refines non-singleton cells using splitter cells until an
 //! equitable partition is reached.
 
-use alloc::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    vec::Vec,
-};
+use alloc::{collections::VecDeque, vec::Vec};
 
 use num_traits::AsPrimitive;
 
@@ -121,14 +118,126 @@ enum SplitQueueMode {
 
 enum NonUnitCellSplitAnalysis<EdgeLabel> {
     UnsignedCounts {
-        group_lengths: Vec<usize>,
-        max_count: usize,
+        max_invariant: usize,
+        max_invariant_count: usize,
+        all_equal: bool,
         counts_in_cell_order: Vec<(usize, usize)>,
     },
     General {
-        group_lengths: Vec<usize>,
+        all_equal: bool,
         signatures_in_cell_order: Vec<(usize, NeighbourCountSignature<EdgeLabel>)>,
     },
+}
+
+#[derive(Clone, Debug)]
+struct DenseMarker {
+    marks: Vec<u32>,
+    generation: u32,
+}
+
+impl DenseMarker {
+    fn new(order: usize) -> Self {
+        Self { marks: vec![0; order], generation: 1 }
+    }
+
+    fn clear(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            self.marks.fill(0);
+            self.generation = 1;
+        }
+    }
+
+    fn mark(&mut self, index: usize) {
+        self.marks[index] = self.generation;
+    }
+
+    fn contains(&self, index: usize) -> bool {
+        self.marks[index] == self.generation
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DenseCellBuckets<T> {
+    marker: DenseMarker,
+    touched_cells: Vec<PartitionCellId>,
+    buckets: Vec<Vec<T>>,
+}
+
+impl<T> DenseCellBuckets<T> {
+    fn new(order: usize) -> Self {
+        Self {
+            marker: DenseMarker::new(order),
+            touched_cells: Vec::new(),
+            buckets: (0..order).map(|_| Vec::new()).collect(),
+        }
+    }
+
+    fn clear(&mut self) {
+        for &cell in &self.touched_cells {
+            self.buckets[cell.index()].clear();
+        }
+        self.touched_cells.clear();
+        self.marker.clear();
+    }
+
+    fn push(&mut self, cell: PartitionCellId, value: T) {
+        if !self.marker.contains(cell.index()) {
+            self.marker.mark(cell.index());
+            self.touched_cells.push(cell);
+        }
+        self.buckets[cell.index()].push(value);
+    }
+
+    fn sort_touched_cells(&mut self, partition: &BacktrackableOrderedPartition) {
+        self.touched_cells.sort_unstable_by_key(|&cell| partition.cell_first(cell));
+    }
+
+    fn touched_cells(&self) -> &[PartitionCellId] {
+        &self.touched_cells
+    }
+
+    fn bucket(&self, cell: PartitionCellId) -> &[T] {
+        &self.buckets[cell.index()]
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct RefinementWorkspace<EdgeLabel> {
+    in_queue: Vec<bool>,
+    splitter_queue: VecDeque<PartitionCellId>,
+    splitter_marker: DenseMarker,
+    touched_cell_marker: DenseMarker,
+    unit_touched_elements: DenseCellBuckets<usize>,
+    unit_touched_labelled_elements: DenseCellBuckets<(usize, EdgeLabel)>,
+    splitter_elements: Vec<usize>,
+    candidate_cells: Vec<PartitionCellId>,
+}
+
+impl<EdgeLabel> RefinementWorkspace<EdgeLabel> {
+    pub(crate) fn new(order: usize) -> Self {
+        Self {
+            in_queue: vec![false; order],
+            splitter_queue: VecDeque::new(),
+            splitter_marker: DenseMarker::new(order),
+            touched_cell_marker: DenseMarker::new(order),
+            unit_touched_elements: DenseCellBuckets::new(order),
+            unit_touched_labelled_elements: DenseCellBuckets::new(order),
+            splitter_elements: Vec::new(),
+            candidate_cells: Vec::new(),
+        }
+    }
+
+    fn reset(&mut self) {
+        self.in_queue.fill(false);
+        self.splitter_queue.clear();
+        self.splitter_marker.clear();
+        self.touched_cell_marker.clear();
+        self.unit_touched_elements.clear();
+        self.unit_touched_labelled_elements.clear();
+        self.splitter_elements.clear();
+        self.candidate_cells.clear();
+    }
 }
 
 /// Refines `partition` to the stable labeled equitable partition induced by
@@ -164,20 +273,32 @@ where
     EdgeLabel: Ord + Clone,
     F: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
 {
+    let order = graph.number_of_nodes().as_();
+    let nodes: Vec<G::NodeId> = graph.node_ids().collect();
+    let mut workspace = RefinementWorkspace::new(order);
     refine_partition_to_labeled_equitable_with_trace_from_splitters_impl(
         graph,
+        &nodes,
         partition,
         edge_label,
         partition.cells().map(super::partition::PartitionCellView::id).collect::<Vec<_>>(),
         None,
+        &mut workspace,
     )
 }
 
-pub(crate) fn refine_partition_to_labeled_equitable_with_trace_from_splitters<G, EdgeLabel, F, I>(
+pub(crate) fn refine_partition_to_labeled_equitable_with_trace_from_splitters_in_workspace<
+    G,
+    EdgeLabel,
+    F,
+    I,
+>(
     graph: &G,
+    nodes: &[G::NodeId],
     partition: &mut BacktrackableOrderedPartition,
     edge_label: F,
     initial_splitters: I,
+    workspace: &mut RefinementWorkspace<EdgeLabel>,
 ) -> (bool, RefinementTrace<EdgeLabel>)
 where
     G: MonoplexMonopartiteGraph,
@@ -188,20 +309,24 @@ where
 {
     refine_partition_to_labeled_equitable_with_trace_from_splitters_impl(
         graph,
+        nodes,
         partition,
         edge_label,
         initial_splitters,
         None,
+        workspace,
     )
 }
 
 #[allow(clippy::too_many_lines)]
 fn refine_partition_to_labeled_equitable_with_trace_from_splitters_impl<G, EdgeLabel, F, I>(
     graph: &G,
+    nodes: &[G::NodeId],
     partition: &mut BacktrackableOrderedPartition,
     mut edge_label: F,
     initial_splitters: I,
     mut pop_sequence: Option<&mut Vec<(usize, usize)>>,
+    workspace: &mut RefinementWorkspace<EdgeLabel>,
 ) -> (bool, RefinementTrace<EdgeLabel>)
 where
     G: MonoplexMonopartiteGraph,
@@ -217,23 +342,33 @@ where
         partition.order()
     );
 
-    let nodes: Vec<G::NodeId> = graph.node_ids().collect();
     debug_assert_eq!(nodes.len(), order);
     debug_assert!(nodes.iter().enumerate().all(|(index, node)| node.as_() == index));
+
+    workspace.reset();
+    let RefinementWorkspace {
+        in_queue,
+        splitter_queue,
+        splitter_marker,
+        touched_cell_marker,
+        unit_touched_elements,
+        unit_touched_labelled_elements,
+        splitter_elements,
+        candidate_cells,
+    } = workspace;
 
     let mut changed_any = false;
     let mut events = Vec::new();
     let mut packed_events = (core::mem::size_of::<EdgeLabel>() == 0).then(Vec::new);
     let mut eqref_hash = EqRefHash::default();
-    let mut in_queue = vec![false; order];
-    let mut splitter_queue = VecDeque::new();
     for cell in initial_splitters {
-        enqueue_cell_like_bliss(cell, partition, &mut splitter_queue, &mut in_queue);
+        enqueue_cell_like_bliss(cell, partition, splitter_queue, in_queue);
     }
 
     while let Some(splitter) = splitter_queue.pop_front() {
         in_queue[splitter.index()] = false;
-        let splitter_elements = partition.cell_elements(splitter).to_vec();
+        splitter_elements.clear();
+        splitter_elements.extend_from_slice(partition.cell_elements(splitter));
         if splitter_elements.is_empty() {
             continue;
         }
@@ -242,9 +377,9 @@ where
             pop_sequence.push((splitter_first, splitter_elements.len()));
         }
 
-        let mut in_splitter = vec![false; order];
-        for &element in &splitter_elements {
-            in_splitter[element] = true;
+        splitter_marker.clear();
+        for &element in splitter_elements.iter() {
+            splitter_marker.mark(element);
         }
 
         if splitter_elements.len() == 1 {
@@ -252,54 +387,91 @@ where
             eqref_hash.update(splitter_first);
             eqref_hash.update(1);
             let splitter_vertex = nodes[splitter_elements[0]];
-            let mut touched_cells = BTreeSet::new();
-            let mut touched_elements_by_cell =
-                BTreeMap::<PartitionCellId, Vec<(usize, EdgeLabel)>>::new();
-            for neighbour in graph.successors(splitter_vertex) {
-                let cell = partition.cell_of(neighbour.as_());
-                touched_cells.insert(cell);
-                touched_elements_by_cell
-                    .entry(cell)
-                    .or_default()
-                    .push((neighbour.as_(), edge_label(splitter_vertex, neighbour)));
-            }
-            let mut touched_cells = touched_cells.into_iter().collect::<Vec<_>>();
-            touched_cells.sort_unstable_by_key(|&cell| partition.cell_first(cell));
-
-            for cell in touched_cells {
-                let was_in_queue = in_queue[cell.index()];
-                let touched_entries = touched_elements_by_cell
-                    .get(&cell)
-                    .expect("every touched cell must have touched elements recorded");
-                let signature_group_lengths = signature_group_lengths_for_unit_touched_entries(
-                    partition,
-                    cell,
-                    touched_entries,
-                );
-                if signature_group_lengths.len() > 1 {
-                    eqref_hash.update(partition.cell_first(cell));
-                    eqref_hash.update(partition.cell_len(cell));
-                    eqref_hash.update(signature_group_lengths.len());
-                    for length in &signature_group_lengths {
-                        eqref_hash.update(*length);
-                    }
+            if packed_events.is_some() {
+                unit_touched_elements.clear();
+                for neighbour in graph.successors(splitter_vertex) {
+                    unit_touched_elements.push(partition.cell_of(neighbour.as_()), neighbour.as_());
                 }
-                let produced = if partition.cell_elements(cell).len() > 1 {
-                    if let Some((label, touched_elements)) =
-                        unit_touched_elements_if_single_label(touched_entries)
-                    {
+                unit_touched_elements.sort_touched_cells(partition);
+
+                for &cell in unit_touched_elements.touched_cells() {
+                    let was_in_queue = in_queue[cell.index()];
+                    let touched_elements = unit_touched_elements.bucket(cell);
+                    let produced = if partition.cell_elements(cell).len() > 1 {
                         let produced =
-                            partition.split_cell_by_tail_elements_in_order(cell, &touched_elements);
+                            partition.split_cell_by_tail_elements_in_order(cell, touched_elements);
                         if let Some(touched_cell) = produced.last().copied() {
                             let produced_first = partition.cell_first(touched_cell);
-                            for offset in 0..partition.cell_len(touched_cell) {
-                                if let Some(packed) = packed_events.as_mut() {
+                            if let Some(packed) = packed_events.as_mut() {
+                                for offset in 0..partition.cell_len(touched_cell) {
                                     packed.extend_from_slice(&[
                                         CERT_EDGE,
                                         packed_word(splitter_first),
                                         packed_word(produced_first + offset),
                                     ]);
-                                } else {
+                                }
+                            }
+                        }
+                        produced
+                    } else {
+                        if let Some(packed) = packed_events.as_mut() {
+                            packed.extend_from_slice(&[
+                                CERT_EDGE,
+                                packed_word(splitter_first),
+                                packed_word(partition.cell_first(cell)),
+                            ]);
+                        }
+                        vec![cell]
+                    };
+                    if produced.len() > 1 {
+                        eqref_hash.update(partition.cell_first(cell));
+                        eqref_hash.update(partition.cell_len(cell));
+                        eqref_hash.update(produced.len());
+                        for &produced_cell in &produced {
+                            eqref_hash.update(partition.cell_len(produced_cell));
+                        }
+                        changed_any = true;
+                        let queue_mode = if produced.len() == 2 {
+                            SplitQueueMode::Binary01
+                        } else {
+                            SplitQueueMode::General
+                        };
+                        enqueue_split_result_like_bliss(
+                            &produced,
+                            was_in_queue,
+                            queue_mode,
+                            None,
+                            partition,
+                            splitter_queue,
+                            in_queue,
+                        );
+                    }
+                    for &produced_cell in &produced {
+                        eqref_hash.update(partition.cell_first(produced_cell));
+                        eqref_hash.update(partition.cell_len(produced_cell));
+                    }
+                }
+            } else {
+                unit_touched_labelled_elements.clear();
+                for neighbour in graph.successors(splitter_vertex) {
+                    let cell = partition.cell_of(neighbour.as_());
+                    unit_touched_labelled_elements
+                        .push(cell, (neighbour.as_(), edge_label(splitter_vertex, neighbour)));
+                }
+                unit_touched_labelled_elements.sort_touched_cells(partition);
+
+                for &cell in unit_touched_labelled_elements.touched_cells() {
+                    let was_in_queue = in_queue[cell.index()];
+                    let touched_entries = unit_touched_labelled_elements.bucket(cell);
+                    let produced = if partition.cell_elements(cell).len() > 1 {
+                        if let Some((label, touched_elements)) =
+                            unit_touched_elements_if_single_label(touched_entries)
+                        {
+                            let produced = partition
+                                .split_cell_by_tail_elements_in_order(cell, &touched_elements);
+                            if let Some(touched_cell) = produced.last().copied() {
+                                let produced_first = partition.cell_first(touched_cell);
+                                for offset in 0..partition.cell_len(touched_cell) {
                                     events.push(RefinementTraceEvent::Edge {
                                         unit_cell_first: splitter_first,
                                         target_index: produced_first + offset,
@@ -307,41 +479,33 @@ where
                                     });
                                 }
                             }
-                        }
-                        produced
-                    } else {
-                        let produced = partition.split_cell_by_key(cell, |vertex| {
-                            labelled_signature_to_splitter(
-                                graph,
-                                &nodes,
-                                &in_splitter,
-                                vertex,
-                                &mut edge_label,
-                            )
-                        });
-                        for &produced_cell in &produced {
-                            let elements = partition.cell_elements(produced_cell);
-                            let signature = labelled_signature_to_splitter(
-                                graph,
-                                &nodes,
-                                &in_splitter,
-                                elements[0],
-                                &mut edge_label,
-                            );
-                            if signature.counts.is_empty() {
-                                continue;
-                            }
-                            debug_assert_eq!(signature.counts.len(), 1);
-                            debug_assert_eq!(signature.counts[0].1, 1);
-                            let produced_first = partition.cell_first(produced_cell);
-                            for offset in 0..elements.len() {
-                                if let Some(packed) = packed_events.as_mut() {
-                                    packed.extend_from_slice(&[
-                                        CERT_EDGE,
-                                        packed_word(splitter_first),
-                                        packed_word(produced_first + offset),
-                                    ]);
-                                } else {
+                            produced
+                        } else {
+                            let produced = partition.split_cell_by_key(cell, |vertex| {
+                                labelled_signature_to_splitter(
+                                    graph,
+                                    nodes,
+                                    splitter_marker,
+                                    vertex,
+                                    &mut edge_label,
+                                )
+                            });
+                            for &produced_cell in &produced {
+                                let elements = partition.cell_elements(produced_cell);
+                                let signature = labelled_signature_to_splitter(
+                                    graph,
+                                    nodes,
+                                    splitter_marker,
+                                    elements[0],
+                                    &mut edge_label,
+                                );
+                                if signature.counts.is_empty() {
+                                    continue;
+                                }
+                                debug_assert_eq!(signature.counts.len(), 1);
+                                debug_assert_eq!(signature.counts[0].1, 1);
+                                let produced_first = partition.cell_first(produced_cell);
+                                for offset in 0..elements.len() {
                                     events.push(RefinementTraceEvent::Edge {
                                         unit_cell_first: splitter_first,
                                         target_index: produced_first + offset,
@@ -349,110 +513,117 @@ where
                                     });
                                 }
                             }
+                            produced
                         }
-                        produced
-                    }
-                } else {
-                    let touched_label = touched_entries
-                        .first()
-                        .expect("unit or singleton touched cells must contain one touched element")
-                        .1
-                        .clone();
-                    if let Some(packed) = packed_events.as_mut() {
-                        packed.extend_from_slice(&[
-                            CERT_EDGE,
-                            packed_word(splitter_first),
-                            packed_word(partition.cell_first(cell)),
-                        ]);
                     } else {
+                        let touched_label = touched_entries
+                            .first()
+                            .expect(
+                                "unit or singleton touched cells must contain one touched element",
+                            )
+                            .1
+                            .clone();
                         events.push(RefinementTraceEvent::Edge {
                             unit_cell_first: splitter_first,
                             target_index: partition.cell_first(cell),
                             edge_label: touched_label,
                         });
-                    }
-                    vec![cell]
-                };
-                if produced.len() > 1 {
-                    changed_any = true;
-                    let queue_mode = if produced.len() == 2 {
-                        SplitQueueMode::Binary01
-                    } else {
-                        SplitQueueMode::General
+                        vec![cell]
                     };
-                    enqueue_split_result_like_bliss(
-                        &produced,
-                        was_in_queue,
-                        queue_mode,
-                        None,
-                        partition,
-                        &mut splitter_queue,
-                        &mut in_queue,
-                    );
-                }
-                for &produced_cell in &produced {
-                    eqref_hash.update(partition.cell_first(produced_cell));
-                    eqref_hash.update(partition.cell_len(produced_cell));
+                    if produced.len() > 1 {
+                        eqref_hash.update(partition.cell_first(cell));
+                        eqref_hash.update(partition.cell_len(cell));
+                        eqref_hash.update(produced.len());
+                        for &produced_cell in &produced {
+                            eqref_hash.update(partition.cell_len(produced_cell));
+                        }
+                        changed_any = true;
+                        let queue_mode = if produced.len() == 2 {
+                            SplitQueueMode::Binary01
+                        } else {
+                            SplitQueueMode::General
+                        };
+                        enqueue_split_result_like_bliss(
+                            &produced,
+                            was_in_queue,
+                            queue_mode,
+                            None,
+                            partition,
+                            splitter_queue,
+                            in_queue,
+                        );
+                    }
+                    for &produced_cell in &produced {
+                        eqref_hash.update(partition.cell_first(produced_cell));
+                        eqref_hash.update(partition.cell_len(produced_cell));
+                    }
                 }
             }
             continue;
         }
 
-        let mut touched_cells = BTreeSet::new();
-        for &splitter_vertex in &splitter_elements {
+        touched_cell_marker.clear();
+        candidate_cells.clear();
+        for &splitter_vertex in splitter_elements.iter() {
             let source = nodes[splitter_vertex];
             for neighbour in graph.successors(source) {
                 let neighbour_cell = partition.cell_of(neighbour.as_());
-                if partition.cell_elements(neighbour_cell).len() > 1 {
-                    touched_cells.insert(neighbour_cell);
+                if partition.cell_elements(neighbour_cell).len() > 1
+                    && !touched_cell_marker.contains(neighbour_cell.index())
+                {
+                    touched_cell_marker.mark(neighbour_cell.index());
+                    candidate_cells.push(neighbour_cell);
                 }
             }
         }
 
-        let mut candidate_cells = touched_cells.into_iter().collect::<Vec<_>>();
         candidate_cells.sort_unstable_by_key(|&cell| partition.cell_first(cell));
-        for cell in candidate_cells {
+        for &cell in candidate_cells.iter() {
             let was_in_queue = in_queue[cell.index()];
             let analysis = analyse_non_unit_cell_to_splitter(
                 partition,
                 graph,
-                &nodes,
-                &in_splitter,
+                nodes,
+                splitter_marker,
                 cell,
                 &mut edge_label,
             );
-            let (produced, queue_mode, signature_group_lengths) = match analysis {
+            let (produced, queue_mode) = match analysis {
+                NonUnitCellSplitAnalysis::UnsignedCounts { all_equal: true, .. }
+                | NonUnitCellSplitAnalysis::General { all_equal: true, .. } => continue,
                 NonUnitCellSplitAnalysis::UnsignedCounts {
-                    group_lengths,
-                    max_count,
-                    counts_in_cell_order,
+                    max_invariant,
+                    max_invariant_count,
+                    mut counts_in_cell_order,
+                    ..
                 } => {
                     (
-                        partition.split_cell_by_precomputed_unsigned_invariants_like_bliss(
-                            cell,
-                            &counts_in_cell_order,
-                        ),
-                        if max_count == 1 {
+                        partition
+                            .split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
+                                cell,
+                                &mut counts_in_cell_order,
+                                max_invariant,
+                                max_invariant_count,
+                            ),
+                        if max_invariant == 1 {
                             SplitQueueMode::Binary01
                         } else {
                             SplitQueueMode::General
                         },
-                        group_lengths,
                     )
                 }
-                NonUnitCellSplitAnalysis::General { group_lengths, signatures_in_cell_order } => {
+                NonUnitCellSplitAnalysis::General { signatures_in_cell_order, .. } => {
                     (
                         partition.split_cell_by_precomputed_keys(cell, &signatures_in_cell_order),
                         SplitQueueMode::General,
-                        group_lengths,
                     )
                 }
             };
             eqref_hash.update(partition.cell_first(cell));
             eqref_hash.update(partition.cell_len(cell));
-            eqref_hash.update(signature_group_lengths.len());
-            for length in &signature_group_lengths {
-                eqref_hash.update(*length);
+            eqref_hash.update(produced.len());
+            for &produced_cell in &produced {
+                eqref_hash.update(partition.cell_len(produced_cell));
             }
             for &produced_cell in &produced {
                 eqref_hash.update(partition.cell_first(produced_cell));
@@ -477,7 +648,7 @@ where
             changed_any = true;
             let creation_suffix_lengths =
                 if was_in_queue && matches!(queue_mode, SplitQueueMode::General) {
-                    Some(suffix_creation_lengths(&signature_group_lengths))
+                    Some(suffix_creation_lengths_from_cells(&produced, partition))
                 } else {
                     None
                 };
@@ -488,8 +659,8 @@ where
                 queue_mode,
                 creation_suffix_lengths.as_deref(),
                 partition,
-                &mut splitter_queue,
-                &mut in_queue,
+                splitter_queue,
+                in_queue,
             );
         }
     }
@@ -531,35 +702,18 @@ where
     F: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
     I: IntoIterator<Item = PartitionCellId>,
 {
+    let order = graph.number_of_nodes().as_();
+    let nodes: Vec<G::NodeId> = graph.node_ids().collect();
+    let mut workspace = RefinementWorkspace::new(order);
     refine_partition_to_labeled_equitable_with_trace_from_splitters_impl(
         graph,
+        &nodes,
         partition,
         edge_label,
         initial_splitters,
         Some(pop_sequence),
+        &mut workspace,
     )
-}
-
-fn signature_group_lengths_for_unit_touched_entries<EdgeLabel>(
-    partition: &BacktrackableOrderedPartition,
-    cell: PartitionCellId,
-    touched_entries: &[(usize, EdgeLabel)],
-) -> Vec<usize>
-where
-    EdgeLabel: Ord + Clone,
-{
-    let untouched_len = partition.cell_len(cell).saturating_sub(touched_entries.len());
-    let mut group_lengths = Vec::new();
-    if untouched_len > 0 {
-        group_lengths.push(untouched_len);
-    }
-
-    let mut grouped = BTreeMap::<EdgeLabel, usize>::new();
-    for (_, label) in touched_entries {
-        *grouped.entry(label.clone()).or_insert(0) += 1;
-    }
-    group_lengths.extend(grouped.into_values());
-    group_lengths
 }
 
 fn unit_touched_elements_if_single_label<EdgeLabel>(
@@ -580,7 +734,7 @@ fn analyse_non_unit_cell_to_splitter<G, EdgeLabel, F>(
     partition: &BacktrackableOrderedPartition,
     graph: &G,
     nodes: &[G::NodeId],
-    in_splitter: &[bool],
+    in_splitter: &DenseMarker,
     cell: PartitionCellId,
     edge_label: &mut F,
 ) -> NonUnitCellSplitAnalysis<EdgeLabel>
@@ -590,11 +744,25 @@ where
     EdgeLabel: Ord + Clone,
     F: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
 {
+    if core::mem::size_of::<EdgeLabel>() == 0 {
+        return analyse_non_unit_cell_to_splitter_unsigned(
+            partition,
+            graph,
+            nodes,
+            in_splitter,
+            cell,
+        );
+    }
+
     let mut signatures_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
     let mut common_label = None::<EdgeLabel>;
     let mut counts_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
-    let mut max_count = 0usize;
+    let mut max_invariant = 0usize;
+    let mut max_invariant_count = 0usize;
+    let mut first_count = None::<usize>;
+    let mut all_equal = true;
     let mut all_single_label_counts = true;
+    let mut first_signature = None::<NeighbourCountSignature<EdgeLabel>>;
 
     for &vertex in partition.cell_elements(cell) {
         let signature =
@@ -616,53 +784,87 @@ where
                 }
             };
             if all_single_label_counts {
-                max_count = max_count.max(count);
+                if let Some(first) = first_count {
+                    if count != first {
+                        all_equal = false;
+                    }
+                } else {
+                    first_count = Some(count);
+                }
+                if count > max_invariant {
+                    max_invariant = count;
+                    max_invariant_count = 1;
+                } else if count == max_invariant {
+                    max_invariant_count += 1;
+                }
                 counts_in_cell_order.push((vertex, count));
             }
+        }
+        if let Some(first) = &first_signature {
+            if first != &signature {
+                all_equal = false;
+            }
+        } else {
+            first_signature = Some(signature.clone());
         }
         signatures_in_cell_order.push((vertex, signature));
     }
 
     if all_single_label_counts {
-        let mut sorted_counts =
-            counts_in_cell_order.iter().map(|(_, count)| *count).collect::<Vec<_>>();
-        sorted_counts.sort_unstable();
-        let mut group_lengths = Vec::new();
-        let mut current_group_len = 0usize;
-        let mut previous_count = None::<usize>;
-        for count in sorted_counts {
-            if previous_count.is_some() && previous_count != Some(count) {
-                group_lengths.push(current_group_len);
-                current_group_len = 0;
-            }
-            previous_count = Some(count);
-            current_group_len += 1;
-        }
-        group_lengths.push(current_group_len);
         return NonUnitCellSplitAnalysis::UnsignedCounts {
-            group_lengths,
-            max_count,
+            max_invariant,
+            max_invariant_count,
+            all_equal,
             counts_in_cell_order,
         };
     }
 
-    let mut sorted_signatures =
-        signatures_in_cell_order.iter().map(|(_, signature)| signature.clone()).collect::<Vec<_>>();
-    sorted_signatures.sort_unstable();
-    let mut group_lengths = Vec::new();
-    let mut current_group_len = 0usize;
-    let mut previous_signature = None::<NeighbourCountSignature<EdgeLabel>>;
-    for signature in sorted_signatures {
-        if previous_signature.as_ref().is_some_and(|previous| previous != &signature) {
-            group_lengths.push(current_group_len);
-            current_group_len = 0;
-        }
-        previous_signature = Some(signature);
-        current_group_len += 1;
-    }
-    group_lengths.push(current_group_len);
+    NonUnitCellSplitAnalysis::General { all_equal, signatures_in_cell_order }
+}
 
-    NonUnitCellSplitAnalysis::General { group_lengths, signatures_in_cell_order }
+fn analyse_non_unit_cell_to_splitter_unsigned<G, EdgeLabel>(
+    partition: &BacktrackableOrderedPartition,
+    graph: &G,
+    nodes: &[G::NodeId],
+    in_splitter: &DenseMarker,
+    cell: PartitionCellId,
+) -> NonUnitCellSplitAnalysis<EdgeLabel>
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let mut counts_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
+    let mut max_invariant = 0usize;
+    let mut max_invariant_count = 0usize;
+    let mut first_count = None::<usize>;
+    let mut all_equal = true;
+    for &vertex in partition.cell_elements(cell) {
+        let source = nodes[vertex];
+        let count = graph
+            .successors(source)
+            .filter(|neighbour| in_splitter.contains(neighbour.as_()))
+            .count();
+        if let Some(first) = first_count {
+            if count != first {
+                all_equal = false;
+            }
+        } else {
+            first_count = Some(count);
+        }
+        if count > max_invariant {
+            max_invariant = count;
+            max_invariant_count = 1;
+        } else if count == max_invariant {
+            max_invariant_count += 1;
+        }
+        counts_in_cell_order.push((vertex, count));
+    }
+    NonUnitCellSplitAnalysis::UnsignedCounts {
+        max_invariant,
+        max_invariant_count,
+        all_equal,
+        counts_in_cell_order,
+    }
 }
 
 fn enqueue_split_result_like_bliss(
@@ -763,20 +965,25 @@ fn enqueue_cell_like_bliss_with_len(
     }
 }
 
-fn suffix_creation_lengths(group_lengths: &[usize]) -> Vec<usize> {
+fn suffix_creation_lengths_from_cells(
+    produced: &[PartitionCellId],
+    partition: &BacktrackableOrderedPartition,
+) -> Vec<usize> {
     let mut suffix_sum = 0usize;
-    let mut suffix_sums = vec![0usize; group_lengths.len()];
-    for (index, &length) in group_lengths.iter().enumerate().rev() {
-        suffix_sum += length;
-        suffix_sums[index] = suffix_sum;
+    let mut suffix_sums = vec![0usize; produced.len().saturating_sub(1)];
+    for (index, &cell) in produced.iter().enumerate().rev() {
+        suffix_sum += partition.cell_len(cell);
+        if index > 0 {
+            suffix_sums[index - 1] = suffix_sum;
+        }
     }
-    suffix_sums.into_iter().skip(1).collect()
+    suffix_sums
 }
 
 fn labelled_signature_to_splitter<G, EdgeLabel, F>(
     graph: &G,
     nodes: &[G::NodeId],
-    in_splitter: &[bool],
+    in_splitter: &DenseMarker,
     vertex: usize,
     edge_label: &mut F,
 ) -> NeighbourCountSignature<EdgeLabel>
@@ -789,7 +996,7 @@ where
     let source = nodes[vertex];
     let mut neighbour_pairs = graph
         .successors(source)
-        .filter(|neighbour| in_splitter[neighbour.as_()])
+        .filter(|neighbour| in_splitter.contains(neighbour.as_()))
         .map(|neighbour| edge_label(source, neighbour))
         .collect::<Vec<_>>();
     neighbour_pairs.sort_unstable();

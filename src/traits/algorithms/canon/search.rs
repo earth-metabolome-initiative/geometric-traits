@@ -22,8 +22,10 @@ use num_traits::AsPrimitive;
 
 use super::{
     BacktrackableOrderedPartition, PartitionCellId, RefinementTrace,
-    refine::RefinementTraceStorage, refine_partition_to_labeled_equitable_with_trace,
-    refine_partition_to_labeled_equitable_with_trace_from_splitters,
+    refine::{
+        RefinementTraceStorage, RefinementWorkspace,
+        refine_partition_to_labeled_equitable_with_trace_from_splitters_in_workspace,
+    },
 };
 use crate::{
     impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
@@ -198,6 +200,7 @@ struct SearchState<EdgeLabel> {
     first_path_orbits_by_depth: Vec<KnownOrbits>,
     best_path_orbits: KnownOrbits,
     long_prune_records: Vec<LongPruneRecord>,
+    refine_workspace: RefinementWorkspace<EdgeLabel>,
 }
 
 struct SearchOutcome<EdgeLabel> {
@@ -746,10 +749,18 @@ where
                 degrees[vertex]
             });
     }
+    let mut refine_workspace = RefinementWorkspace::new(order);
+    let initial_splitters =
+        partition.cells().map(super::partition::PartitionCellView::id).collect::<Vec<_>>();
     let (_, root_trace) =
-        refine_partition_to_labeled_equitable_with_trace(graph, &mut partition, |left, right| {
-            edge_label(left, right)
-        });
+        refine_partition_to_labeled_equitable_with_trace_from_splitters_in_workspace(
+            graph,
+            &nodes,
+            &mut partition,
+            &mut edge_label,
+            initial_splitters,
+            &mut refine_workspace,
+        );
     let root_is_discrete = partition.is_discrete();
     let mut state = SearchState::<EdgeLabel> {
         stats: CanonicalSearchStats {
@@ -764,6 +775,7 @@ where
         first_path_orbits_by_depth: Vec::new(),
         best_path_orbits: KnownOrbits::new(order),
         long_prune_records: Vec::new(),
+        refine_workspace,
     };
     let mut path_invariants = vec![Rc::new(root_trace)];
     let mut packed_path = match &path_invariants[0].storage {
@@ -1150,12 +1162,15 @@ where
         explored_choices.push(element);
         let backtrack_point = partition.set_backtrack_point();
         let individualized = partition.individualize(target_cell, element);
-        let (_, child_trace) = refine_partition_to_labeled_equitable_with_trace_from_splitters(
-            graph,
-            partition,
-            &mut *edge_label,
-            [individualized],
-        );
+        let (_, child_trace) =
+            refine_partition_to_labeled_equitable_with_trace_from_splitters_in_workspace(
+                graph,
+                nodes,
+                partition,
+                &mut *edge_label,
+                [individualized],
+                &mut state.refine_workspace,
+            );
         let packed_backtrack_len = packed_path.as_ref().map(Vec::len);
         let packed_path_info_backtrack_len = packed_path_info.len();
         let child_trace_on_stack =
@@ -1163,7 +1178,7 @@ where
         if let (Some(current_packed_path), RefinementTraceStorage::Packed(words)) =
             (packed_path.as_mut(), &child_trace.storage)
         {
-            current_packed_path.extend_from_slice(words);
+            current_packed_path.extend_from_slice(words.as_slice());
             packed_path_info.push(SearchPathInfo {
                 splitting_element: element,
                 certificate_index: packed_backtrack_len.unwrap_or(0),
@@ -3124,6 +3139,7 @@ mod tests {
             first_path_orbits_by_depth: vec![],
             best_path_orbits: KnownOrbits::new(3),
             long_prune_records: vec![],
+            refine_workspace: RefinementWorkspace::new(3),
         };
 
         assert_eq!(state.first_order(), Some(&[2, 0, 1][..]));
@@ -3167,6 +3183,7 @@ mod tests {
             first_path_orbits_by_depth: vec![],
             best_path_orbits: KnownOrbits::new(2),
             long_prune_records: vec![],
+            refine_workspace: RefinementWorkspace::new(2),
         };
         let mut path_state = SearchPathState {
             fp_on: false,
