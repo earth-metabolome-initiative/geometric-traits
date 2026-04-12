@@ -1102,8 +1102,6 @@ pub(crate) mod embedding {
                 let mut singleton_sorted_dfs_child = None;
                 let mut sorted_dfs_children =
                     if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
-                let mut separated_dfs_children =
-                    if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
                 for &child_original_vertex in preprocessing.sorted_dfs_children(original_vertex) {
                     let child_slot = primary_slot_by_original_vertex[child_original_vertex];
                     if child_count == 1 {
@@ -1111,18 +1109,32 @@ pub(crate) mod embedding {
                     } else {
                         sorted_dfs_children.push(child_slot);
                     }
-                    if child_count > 1 {
-                        separated_dfs_children.push(child_slot);
-                    }
                 }
+                let mut separated_dfs_children = Vec::new();
                 if child_count > 1 {
-                    separated_dfs_children.sort_unstable_by_key(|&child_slot| {
-                        (
-                            preprocessing.vertices[preprocessing.vertex_by_dfi[child_slot]]
-                                .lowpoint,
-                            child_slot,
-                        )
+                    let already_lowpoint_sorted = sorted_dfs_children.windows(2).all(|pair| {
+                        let left = pair[0];
+                        let right = pair[1];
+                        let left_key = (
+                            preprocessing.vertices[preprocessing.vertex_by_dfi[left]].lowpoint,
+                            left,
+                        );
+                        let right_key = (
+                            preprocessing.vertices[preprocessing.vertex_by_dfi[right]].lowpoint,
+                            right,
+                        );
+                        left_key <= right_key
                     });
+                    if !already_lowpoint_sorted {
+                        separated_dfs_children.clone_from(&sorted_dfs_children);
+                        separated_dfs_children.sort_unstable_by_key(|&child_slot| {
+                            (
+                                preprocessing.vertices[preprocessing.vertex_by_dfi[child_slot]]
+                                    .lowpoint,
+                                child_slot,
+                            )
+                        });
+                    }
                 }
                 slots[primary_slot].future_pertinent_child =
                     singleton_sorted_dfs_child.or_else(|| sorted_dfs_children.first().copied());
