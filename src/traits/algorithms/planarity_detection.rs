@@ -6,6 +6,8 @@
 //! graphs, so self-loops and parallel edges are rejected.
 #![cfg_attr(test, allow(clippy::pedantic))]
 
+use alloc::vec::Vec;
+
 use num_traits::AsPrimitive;
 
 use crate::traits::{MonopartiteGraph, UndirectedMonopartiteMonoplexGraph};
@@ -237,10 +239,11 @@ fn run_embedding_engine(
     mode: EmbeddingRunMode,
 ) -> EmbeddingRunOutcome {
     let mut embedding = embedding::EmbeddingState::from_preprocessing(preprocessing);
+    let mut pertinent_edge_slots: Vec<usize> = Vec::new();
 
     for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-        for slot in &mut embedding.slots {
-            slot.pertinent_edge = None;
+        for slot in pertinent_edge_slots.drain(..) {
+            embedding.slots[slot].pertinent_edge = None;
         }
 
         let original_vertex = match embedding.slots[current_primary_slot].kind {
@@ -251,7 +254,7 @@ fn run_embedding_engine(
         };
 
         for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-            embedding.walk_up(current_primary_slot, forward_arc);
+            embedding.walk_up_tracked(current_primary_slot, forward_arc, &mut pertinent_edge_slots);
         }
         embedding.slots[current_primary_slot].pertinent_roots.clear();
 
@@ -4507,6 +4510,18 @@ pub(crate) mod embedding {
             }
         }
 
+        fn mark_pertinent_edge(
+            &mut self,
+            descendant_primary_slot: usize,
+            forward_arc: usize,
+            pertinent_edge_slots: &mut Vec<usize>,
+        ) {
+            if self.slots[descendant_primary_slot].pertinent_edge.is_none() {
+                pertinent_edge_slots.push(descendant_primary_slot);
+            }
+            self.slots[descendant_primary_slot].pertinent_edge = Some(forward_arc);
+        }
+
         fn is_separated_dfs_child(&self, primary_slot: usize) -> bool {
             self.root_copy_by_primary_dfi[primary_slot]
                 .and_then(|root_copy_slot| self.slots[root_copy_slot].first_arc)
@@ -5015,7 +5030,12 @@ pub(crate) mod embedding {
 
         #[allow(clippy::similar_names)]
         #[allow(clippy::too_many_lines)]
-        pub(crate) fn walk_up(&mut self, current_primary_slot: usize, forward_arc: usize) {
+        fn walk_up_impl(
+            &mut self,
+            current_primary_slot: usize,
+            forward_arc: usize,
+            pertinent_edge_slots: &mut Vec<usize>,
+        ) {
             if self.arcs[forward_arc].source_slot == usize::MAX
                 || self.arcs[forward_arc].target_slot == usize::MAX
             {
@@ -5023,7 +5043,7 @@ pub(crate) mod embedding {
             }
 
             let descendant_primary_slot = self.arcs[forward_arc].target_slot;
-            self.slots[descendant_primary_slot].pertinent_edge = Some(forward_arc);
+            self.mark_pertinent_edge(descendant_primary_slot, forward_arc, pertinent_edge_slots);
 
             let mut zig = descendant_primary_slot;
             let mut zag = descendant_primary_slot;
@@ -5093,6 +5113,20 @@ pub(crate) mod embedding {
                     zag = next_zag_vertex;
                 }
             }
+        }
+
+        pub(crate) fn walk_up(&mut self, current_primary_slot: usize, forward_arc: usize) {
+            let mut pertinent_edge_slots = Vec::new();
+            self.walk_up_impl(current_primary_slot, forward_arc, &mut pertinent_edge_slots);
+        }
+
+        pub(crate) fn walk_up_tracked(
+            &mut self,
+            current_primary_slot: usize,
+            forward_arc: usize,
+            pertinent_edge_slots: &mut Vec<usize>,
+        ) {
+            self.walk_up_impl(current_primary_slot, forward_arc, pertinent_edge_slots);
         }
 
         pub(crate) fn walk_down_trace(
