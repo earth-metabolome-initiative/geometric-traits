@@ -745,8 +745,7 @@ impl BacktrackableOrderedPartition {
                 .all(|((element, _), current)| element == current)
         );
 
-        let start = cell_data.first;
-        let mut invariants_by_offset =
+        let invariants_by_offset =
             invariants_in_cell_order.iter().map(|(_, invariant)| *invariant).collect::<Vec<_>>();
         let mut max_invariant = 0usize;
         let mut max_invariant_count = 0usize;
@@ -772,6 +771,39 @@ impl BacktrackableOrderedPartition {
         if all_equal {
             return vec![cell];
         }
+
+        self.split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
+            cell,
+            invariants_in_cell_order,
+            max_invariant,
+            max_invariant_count,
+        )
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub(crate) fn split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
+        &mut self,
+        cell: PartitionCellId,
+        invariants_in_cell_order: &[(usize, usize)],
+        max_invariant: usize,
+        max_invariant_count: usize,
+    ) -> Vec<PartitionCellId> {
+        let cell_data = self.cell(cell.0).clone();
+        if cell_data.length <= 1 {
+            return vec![cell];
+        }
+
+        debug_assert_eq!(invariants_in_cell_order.len(), cell_data.length);
+        debug_assert!(
+            invariants_in_cell_order
+                .iter()
+                .zip(self.cell_elements(cell).iter())
+                .all(|((element, _), current)| element == current)
+        );
+
+        let start = cell_data.first;
+        let mut invariants_by_offset =
+            invariants_in_cell_order.iter().map(|(_, invariant)| *invariant).collect::<Vec<_>>();
 
         if max_invariant == 1 {
             let mut left = start;

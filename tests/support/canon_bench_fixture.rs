@@ -62,6 +62,7 @@ pub(crate) fn scaling_cases() -> Vec<CanonCase> {
 
 pub(crate) fn timeout_cases() -> Vec<CanonCase> {
     vec![
+        fuzz_timeout_dense_complete_n31_single_override_16_22_2(),
         fuzz_timeout_dense_complete_n31_profile_55_11(),
         fuzz_timeout_dense_complete_n31_profile_210_21(),
     ]
@@ -271,6 +272,14 @@ fn fuzz_timeout_dense_complete_n31_profile_55_11() -> CanonCase {
             (24, 28, 0),
             (24, 29, 2),
         ],
+    )
+}
+
+fn fuzz_timeout_dense_complete_n31_single_override_16_22_2() -> CanonCase {
+    complete_graph_case_with_overrides(
+        "fuzz_timeout_dense_complete_n31_single_override_16_22_2",
+        repeating_triplet_vertex_labels(31),
+        &[(16, 22, 2)],
     )
 }
 

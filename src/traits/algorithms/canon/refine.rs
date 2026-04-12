@@ -594,14 +594,14 @@ where
                 NonUnitCellSplitAnalysis::UnsignedCounts {
                     max_invariant,
                     max_invariant_count,
-                    mut counts_in_cell_order,
+                    counts_in_cell_order,
                     ..
                 } => {
                     (
                         partition
                             .split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
                                 cell,
-                                &mut counts_in_cell_order,
+                                &counts_in_cell_order,
                                 max_invariant,
                                 max_invariant_count,
                             ),

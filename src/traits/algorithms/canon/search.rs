@@ -583,7 +583,7 @@ impl ComponentEndpoint {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct UnlabeledLeafSignature {
     vertex_label_ids: Rc<[usize]>,
-    upper_triangle_bits: Rc<[u64]>,
+    present_edge_offsets: Rc<[usize]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -2364,6 +2364,11 @@ where
     }
 }
 
+fn upper_triangle_offset(order_len: usize, left: usize, right: usize) -> usize {
+    debug_assert!(left < right);
+    left * (2 * order_len - left - 1) / 2 + (right - left - 1)
+}
+
 fn build_unlabeled_leaf_signature(
     adjacency: &AdjacencyBitMatrix,
     vertex_label_ids: &[usize],
@@ -2371,24 +2376,43 @@ fn build_unlabeled_leaf_signature(
 ) -> UnlabeledLeafSignature {
     let ordered_vertex_labels =
         order.iter().map(|&vertex| vertex_label_ids[vertex]).collect::<Vec<_>>().into();
-    let edge_count = order.len().saturating_mul(order.len().saturating_sub(1)) / 2;
-    let mut upper_triangle_bits = vec![0u64; edge_count.div_ceil(u64::BITS as usize)];
-    let mut offset = 0usize;
+    let mut rank_by_vertex = vec![0usize; order.len()];
+    for (rank, &vertex) in order.iter().enumerate() {
+        rank_by_vertex[vertex] = rank;
+    }
 
-    for (left_index, &left_vertex) in order.iter().enumerate() {
-        let left_row_start = adjacency.row_start(left_vertex);
-        for &right_vertex in order.iter().skip(left_index + 1) {
-            if adjacency.has_edge_at_row_start(left_row_start, right_vertex) {
-                upper_triangle_bits[offset / (u64::BITS as usize)] |=
-                    1u64 << (offset % (u64::BITS as usize));
+    let mut present_edge_offsets = Vec::with_capacity(order.len().saturating_mul(4));
+    for source in 0..order.len() {
+        let row_start = adjacency.row_start(source);
+        let source_rank = rank_by_vertex[source];
+        for word in 0..adjacency.words_per_row {
+            let mut bits = adjacency.bits[row_start + word];
+            while bits != 0 {
+                let bit = bits.trailing_zeros() as usize;
+                let destination = word * (u64::BITS as usize) + bit;
+                bits &= bits - 1;
+                if destination <= source || destination >= order.len() {
+                    continue;
+                }
+                let destination_rank = rank_by_vertex[destination];
+                let (left_rank, right_rank) = if source_rank < destination_rank {
+                    (source_rank, destination_rank)
+                } else {
+                    (destination_rank, source_rank)
+                };
+                present_edge_offsets.push(upper_triangle_offset(
+                    order.len(),
+                    left_rank,
+                    right_rank,
+                ));
             }
-            offset += 1;
         }
     }
+    present_edge_offsets.sort_unstable();
 
     UnlabeledLeafSignature {
         vertex_label_ids: ordered_vertex_labels,
-        upper_triangle_bits: upper_triangle_bits.into(),
+        present_edge_offsets: present_edge_offsets.into(),
     }
 }
 
@@ -3109,7 +3133,7 @@ mod tests {
             order: Rc::from(vec![2_usize, 0, 1]),
             leaf_signature: Some(Rc::new(UnlabeledLeafSignature {
                 vertex_label_ids: Rc::from(vec![1_usize, 2, 3]),
-                upper_triangle_bits: Rc::from(vec![0b101_u64]),
+                present_edge_offsets: Rc::from(vec![0_usize, 2]),
             })),
             path_invariants: Some(Rc::from(traces.clone())),
             packed_path: Some(Rc::from(vec![10_u32, 11, 20, 21, 22])),
@@ -3150,7 +3174,7 @@ mod tests {
         assert_eq!(state.best_packed_path(), Some(&[30, 31][..]));
         assert_eq!(state.first_path_info().map(<[SearchPathInfo]>::len), Some(2));
         assert_eq!(state.best_path_info().map(<[SearchPathInfo]>::len), Some(1));
-        assert_eq!(state.first_leaf_signature().unwrap().upper_triangle_bits.as_ref(), &[0b101]);
+        assert_eq!(state.first_leaf_signature().unwrap().present_edge_offsets.as_ref(), &[0, 2]);
     }
 
     #[test]
