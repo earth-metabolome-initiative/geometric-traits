@@ -258,10 +258,8 @@ fn run_embedding_engine(
         }
         embedding.slots[current_primary_slot].pertinent_roots.clear();
 
-        let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-        for child_index in 0..child_count {
-            let child_primary_slot =
-                embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+        let child_slots = embedding.sorted_dfs_children(current_primary_slot).to_vec();
+        for child_primary_slot in child_slots {
             if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
                 continue;
             }
@@ -675,7 +673,7 @@ pub(crate) mod preprocessing {
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod embedding {
     use alloc::vec::Vec;
-    use core::mem;
+    use core::{mem, slice};
 
     use super::preprocessing::{DfsArcType, DfsPreprocessing};
 
@@ -698,6 +696,7 @@ pub(crate) mod embedding {
         pub(crate) pertinent_edge: Option<usize>,
         pub(crate) k33_merge_blocker: Option<usize>,
         pub(crate) k33_minor_e_reduced: bool,
+        pub(crate) singleton_sorted_dfs_child: Option<usize>,
         pub(crate) sorted_dfs_children: Vec<usize>,
         pub(crate) separated_dfs_children: Vec<usize>,
     }
@@ -1029,6 +1028,7 @@ pub(crate) mod embedding {
                     pertinent_edge: None,
                     k33_merge_blocker: None,
                     k33_minor_e_reduced: false,
+                    singleton_sorted_dfs_child: None,
                     sorted_dfs_children: Vec::new(),
                     separated_dfs_children: Vec::new(),
                 });
@@ -1058,6 +1058,7 @@ pub(crate) mod embedding {
                     pertinent_edge: None,
                     k33_merge_blocker: None,
                     k33_minor_e_reduced: false,
+                    singleton_sorted_dfs_child: None,
                     sorted_dfs_children: Vec::new(),
                     separated_dfs_children: Vec::new(),
                 });
@@ -1068,14 +1069,20 @@ pub(crate) mod embedding {
             let mut forward_arc_head_index_by_primary_slot = vec![None; number_of_vertices];
             for (primary_slot, &original_vertex) in preprocessing.vertex_by_dfi.iter().enumerate() {
                 let child_count = preprocessing.vertices[original_vertex].sorted_dfs_children.len();
-                let mut sorted_dfs_children = Vec::with_capacity(child_count);
+                let mut singleton_sorted_dfs_child = None;
+                let mut sorted_dfs_children =
+                    if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
                 let mut separated_dfs_children =
                     if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
                 for &child_original_vertex in
                     &preprocessing.vertices[original_vertex].sorted_dfs_children
                 {
                     let child_slot = primary_slot_by_original_vertex[child_original_vertex];
-                    sorted_dfs_children.push(child_slot);
+                    if child_count == 1 {
+                        singleton_sorted_dfs_child = Some(child_slot);
+                    } else {
+                        sorted_dfs_children.push(child_slot);
+                    }
                     if child_count > 1 {
                         separated_dfs_children.push(child_slot);
                     }
@@ -1089,7 +1096,9 @@ pub(crate) mod embedding {
                         )
                     });
                 }
-                slots[primary_slot].future_pertinent_child = sorted_dfs_children.first().copied();
+                slots[primary_slot].future_pertinent_child =
+                    singleton_sorted_dfs_child.or_else(|| sorted_dfs_children.first().copied());
+                slots[primary_slot].singleton_sorted_dfs_child = singleton_sorted_dfs_child;
                 slots[primary_slot].sorted_dfs_children = sorted_dfs_children;
                 slots[primary_slot].separated_dfs_children = separated_dfs_children;
                 if !preprocessing.vertices[original_vertex].sorted_forward_arcs.is_empty() {
@@ -3964,7 +3973,7 @@ pub(crate) mod embedding {
                 if self.least_ancestor_by_primary_slot[slot] < u_max {
                     return Some(slot);
                 }
-                for &child_slot in self.slots[slot].sorted_dfs_children.iter().rev() {
+                for &child_slot in self.sorted_dfs_children(slot).iter().rev() {
                     stack.push(child_slot);
                 }
             }
@@ -4151,7 +4160,7 @@ pub(crate) mod embedding {
             }
 
             let mut stack = Vec::new();
-            for &child_slot in &self.slots[cut_vertex_slot].sorted_dfs_children {
+            for &child_slot in self.sorted_dfs_children(cut_vertex_slot) {
                 if self.lowpoint_by_primary_slot[child_slot] < current_primary_slot
                     && self.is_separated_dfs_child(child_slot)
                 {
@@ -4173,7 +4182,7 @@ pub(crate) mod embedding {
                     return Some(ancestor_slot);
                 }
 
-                for &child_slot in &self.slots[descendant_slot].sorted_dfs_children {
+                for &child_slot in self.sorted_dfs_children(descendant_slot) {
                     if self.lowpoint_by_primary_slot[child_slot] < current_primary_slot {
                         stack.push(child_slot);
                     }
@@ -4315,7 +4324,10 @@ pub(crate) mod embedding {
                 slot.k33_merge_blocker = None;
                 slot.k33_minor_e_reduced = false;
                 slot.future_pertinent_child = match slot.kind {
-                    EmbeddingSlotKind::Primary { .. } => slot.sorted_dfs_children.first().copied(),
+                    EmbeddingSlotKind::Primary { .. } => {
+                        slot.singleton_sorted_dfs_child
+                            .or_else(|| slot.sorted_dfs_children.first().copied())
+                    }
                     EmbeddingSlotKind::RootCopy { .. } => None,
                 };
             }
@@ -4624,7 +4636,7 @@ pub(crate) mod embedding {
             primary_slot: usize,
             child_slot: usize,
         ) -> Option<usize> {
-            let sorted_children = &self.slots[primary_slot].sorted_dfs_children;
+            let sorted_children = self.sorted_dfs_children(primary_slot);
             sorted_children
                 .iter()
                 .position(|&candidate| candidate == child_slot)
@@ -4704,8 +4716,8 @@ pub(crate) mod embedding {
             let forward_arc = self.current_forward_arc_head(preprocessing, current_primary_slot)?;
             let descendant_primary_slot = self.arcs[forward_arc].target_slot;
 
-            let dfs_child_primary_slot = self.slots[current_primary_slot]
-                .sorted_dfs_children
+            let dfs_child_primary_slot = self
+                .sorted_dfs_children(current_primary_slot)
                 .iter()
                 .copied()
                 .take_while(|&child_slot| child_slot <= descendant_primary_slot)
@@ -4789,9 +4801,22 @@ pub(crate) mod embedding {
             }
         }
 
+        pub(crate) fn sorted_dfs_children(&self, primary_slot: usize) -> &[usize] {
+            let slot = &self.slots[primary_slot];
+            if slot.sorted_dfs_children.is_empty() {
+                if let Some(child_slot) = slot.singleton_sorted_dfs_child.as_ref() {
+                    slice::from_ref(child_slot)
+                } else {
+                    &slot.sorted_dfs_children
+                }
+            } else {
+                &slot.sorted_dfs_children
+            }
+        }
+
         fn separated_dfs_children(&self, primary_slot: usize) -> &[usize] {
             if self.slots[primary_slot].separated_dfs_children.is_empty() {
-                &self.slots[primary_slot].sorted_dfs_children
+                self.sorted_dfs_children(primary_slot)
             } else {
                 &self.slots[primary_slot].separated_dfs_children
             }
@@ -4800,7 +4825,7 @@ pub(crate) mod embedding {
         fn remove_separated_dfs_child(&mut self, primary_slot: usize, child_slot: usize) {
             if self.slots[primary_slot].separated_dfs_children.is_empty() {
                 self.slots[primary_slot].separated_dfs_children =
-                    self.slots[primary_slot].sorted_dfs_children.clone();
+                    self.sorted_dfs_children(primary_slot).to_vec();
             }
             self.slots[primary_slot]
                 .separated_dfs_children
@@ -5657,7 +5682,7 @@ pub(crate) mod embedding {
                 match self.slots[slot].kind {
                     EmbeddingSlotKind::Primary { .. } => {
                         visited_primaries[slot] = true;
-                        for &child_primary_slot in &self.slots[slot].sorted_dfs_children {
+                        for &child_primary_slot in self.sorted_dfs_children(slot) {
                             if let Some(root_copy_slot) =
                                 self.root_copy_by_primary_dfi[child_primary_slot]
                             {
@@ -5732,6 +5757,7 @@ pub(crate) mod embedding {
                         pertinent_edge: None,
                         k33_merge_blocker: None,
                         k33_minor_e_reduced: false,
+                        singleton_sorted_dfs_child: None,
                         sorted_dfs_children: Vec::new(),
                         separated_dfs_children: Vec::new(),
                     },
@@ -5747,6 +5773,7 @@ pub(crate) mod embedding {
                         pertinent_edge: None,
                         k33_merge_blocker: None,
                         k33_minor_e_reduced: false,
+                        singleton_sorted_dfs_child: None,
                         sorted_dfs_children: Vec::new(),
                         separated_dfs_children: Vec::new(),
                     },
@@ -5762,6 +5789,7 @@ pub(crate) mod embedding {
                         pertinent_edge: None,
                         k33_merge_blocker: None,
                         k33_minor_e_reduced: false,
+                        singleton_sorted_dfs_child: None,
                         sorted_dfs_children: Vec::new(),
                         separated_dfs_children: Vec::new(),
                     },
@@ -6188,10 +6216,8 @@ mod tests {
             }
             embedding.slots[current_primary_slot].pertinent_roots.clear();
 
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+            let child_slots = embedding.sorted_dfs_children(current_primary_slot).to_vec();
+            for child_primary_slot in child_slots {
                 if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
                     continue;
                 }
@@ -6306,10 +6332,8 @@ mod tests {
             }
             embedding.slots[current_primary_slot].pertinent_roots.clear();
 
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+            let child_slots = embedding.sorted_dfs_children(current_primary_slot).to_vec();
+            for child_primary_slot in child_slots {
                 if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
                     continue;
                 }
@@ -6602,7 +6626,8 @@ mod tests {
         assert_eq!(embedding.slots[0].ext_face, [None, None]);
         assert_eq!(embedding.slots[0].visited_info, 5);
         assert_eq!(embedding.slots[0].future_pertinent_child, Some(1));
-        assert_eq!(embedding.slots[0].sorted_dfs_children, vec![1]);
+        assert_eq!(embedding.slots[0].singleton_sorted_dfs_child, Some(1));
+        assert!(embedding.slots[0].sorted_dfs_children.is_empty());
         assert!(embedding.slots[0].pertinent_roots.is_empty());
         assert_eq!(embedding.slots[0].pertinent_edge, None);
 
