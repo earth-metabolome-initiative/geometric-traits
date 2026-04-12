@@ -760,6 +760,20 @@ pub(crate) mod embedding {
         K4Found,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum PertinentRootWalkAction {
+        Descend { next_slot: usize, next_entry_side: usize, chosen_root_side: usize },
+        ContinueWalkdown,
+        Return(WalkDownChildOutcome),
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum ChildSubtreeAction {
+        AdvanceAndReturn(WalkDownChildOutcome),
+        Return(WalkDownChildOutcome),
+        ErrorUnembeddedForwardArc,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) enum K33BicompSearchOutcome {
         MinorFound,
@@ -3440,80 +3454,6 @@ pub(crate) mod embedding {
             })
         }
 
-        #[allow(dead_code)]
-        fn initialize_nonplanarity_context_relaxed(
-            &mut self,
-            current_primary_slot: usize,
-            bicomp_root_copy_slot: usize,
-        ) -> Result<NonplanarityContext, K33ContextInitFailure> {
-            let mut root_copy_slot = bicomp_root_copy_slot;
-
-            self.orient_bicomp_from_root(root_copy_slot, true);
-            let (mut x_slot, mut y_slot, mut x_prev_link, mut y_prev_link) =
-                self.find_active_vertices(root_copy_slot, current_primary_slot)?;
-            let x_has_pertinent_roots = !self.slots[x_slot].pertinent_roots.is_empty();
-            let y_has_pertinent_roots = !self.slots[y_slot].pertinent_roots.is_empty();
-
-            if x_slot == y_slot && !self.slots[x_slot].pertinent_roots.is_empty() {
-                return Ok(NonplanarityContext {
-                    current_primary_slot,
-                    root_copy_slot,
-                    x_slot,
-                    y_slot,
-                    w_slot: x_slot,
-                    x_prev_link,
-                    y_prev_link,
-                });
-            }
-
-            if x_has_pertinent_roots || y_has_pertinent_roots {
-                let mut active_sides = [usize::MAX; 2];
-                let mut active_side_count = 0usize;
-                if x_has_pertinent_roots {
-                    active_sides[active_side_count] = 0;
-                    active_side_count += 1;
-                }
-                if y_has_pertinent_roots {
-                    active_sides[active_side_count] = 1;
-                    active_side_count += 1;
-                }
-
-                match self.find_nonplanarity_descendant_bicomp_root(
-                    current_primary_slot,
-                    root_copy_slot,
-                    &active_sides[..active_side_count],
-                ) {
-                    Ok(descendant_root_copy_slot) => {
-                        root_copy_slot = descendant_root_copy_slot;
-                        self.orient_bicomp_from_root(root_copy_slot, true);
-                        (x_slot, y_slot, x_prev_link, y_prev_link) =
-                            self.find_active_vertices(root_copy_slot, current_primary_slot)?;
-                    }
-                    Err(K33ContextInitFailure::NoDescendantBicompRoot) => {
-                        if x_has_pertinent_roots && y_has_pertinent_roots {
-                            return Err(K33ContextInitFailure::NoDescendantBicompRoot);
-                        }
-                    }
-                    Err(error) => return Err(error),
-                }
-            }
-
-            let Some(w_slot) = self.find_pertinent_vertex_between_active_sides(x_slot, y_slot)
-            else {
-                return Err(K33ContextInitFailure::NoPertinentBetweenActiveSides);
-            };
-
-            Ok(NonplanarityContext {
-                current_primary_slot,
-                root_copy_slot,
-                x_slot,
-                y_slot,
-                w_slot,
-                x_prev_link,
-                y_prev_link,
-            })
-        }
-
         fn prev_arc_circular(&self, slot: usize, arc: usize) -> usize {
             self.arcs[arc].prev.unwrap_or_else(|| {
                 self.slots[slot]
@@ -4838,6 +4778,241 @@ pub(crate) mod embedding {
             )
         }
 
+        #[allow(clippy::too_many_arguments)]
+        fn resolve_pertinent_root_walk_action(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            walk_root_copy_slot: usize,
+            walk_root_side: usize,
+            current_slot: usize,
+            current_entry_side: usize,
+            blocked_root_copy_slot: usize,
+            frames: &[WalkDownFrame],
+            mode: super::EmbeddingRunMode,
+        ) -> Result<PertinentRootWalkAction, WalkDownExecutionError> {
+            if let Some((next_slot, next_entry_side, chosen_root_side)) = self
+                .choose_root_descent_for_mode(mode, current_primary_slot, blocked_root_copy_slot)
+            {
+                return Ok(PertinentRootWalkAction::Descend {
+                    next_slot,
+                    next_entry_side,
+                    chosen_root_side,
+                });
+            }
+
+            let context = BlockedBicompContext {
+                current_primary_slot,
+                walk_root_copy_slot,
+                walk_root_side,
+                cut_vertex_slot: current_slot,
+                cut_vertex_entry_side: current_entry_side,
+                blocked_root_copy_slot,
+            };
+
+            match mode {
+                super::EmbeddingRunMode::K23Search => {
+                    match self.search_for_k23_in_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        walk_root_copy_slot,
+                        blocked_root_copy_slot,
+                        frames.last().map(|frame| frame.root_copy_slot),
+                    )? {
+                        K23BicompSearchOutcome::SeparableK4 => {
+                            self.continue_after_same_root_separable_k4(
+                                preprocessing,
+                                current_primary_slot,
+                                walk_root_copy_slot,
+                            );
+                            Ok(PertinentRootWalkAction::Return(WalkDownChildOutcome::Completed))
+                        }
+                        K23BicompSearchOutcome::MinorA
+                        | K23BicompSearchOutcome::MinorB
+                        | K23BicompSearchOutcome::MinorE1OrE2
+                        | K23BicompSearchOutcome::MinorE3OrE4 => {
+                            Ok(PertinentRootWalkAction::Return(WalkDownChildOutcome::K23Found))
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::K33Search => {
+                    match self.search_for_k33_in_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        walk_root_copy_slot,
+                        walk_root_copy_slot,
+                        (blocked_root_copy_slot != walk_root_copy_slot)
+                            .then_some(blocked_root_copy_slot),
+                    ) {
+                        Err(WalkDownExecutionError::InvalidK33Context) => {
+                            Err(WalkDownExecutionError::InvalidK33Context)
+                        }
+                        Err(error) => Err(error),
+                        Ok(K33BicompSearchOutcome::MinorFound) => {
+                            Ok(PertinentRootWalkAction::Return(WalkDownChildOutcome::K33Found))
+                        }
+                        Ok(K33BicompSearchOutcome::ContinueMinorE { context }) => {
+                            self.continue_after_k33_minor_e(current_primary_slot, &context)?;
+                            Ok(PertinentRootWalkAction::ContinueWalkdown)
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::K4Search => {
+                    match self.handle_k4_blocked_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        walk_root_copy_slot,
+                        blocked_root_copy_slot,
+                    )? {
+                        K4BlockedBicompOutcome::Found => {
+                            Ok(PertinentRootWalkAction::Return(WalkDownChildOutcome::K4Found))
+                        }
+                        K4BlockedBicompOutcome::ContinueWalkdown => {
+                            Ok(PertinentRootWalkAction::ContinueWalkdown)
+                        }
+                        K4BlockedBicompOutcome::Completed => {
+                            Ok(PertinentRootWalkAction::Return(WalkDownChildOutcome::Completed))
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::Planarity | super::EmbeddingRunMode::Outerplanarity => {
+                    Err(WalkDownExecutionError::BlockedBicomp { context })
+                }
+            }
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        fn resolve_child_subtree_action(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            root_copy_slot: usize,
+            child_primary_slot: usize,
+            next_child_primary_slot: Option<usize>,
+            mode: super::EmbeddingRunMode,
+        ) -> Result<ChildSubtreeAction, WalkDownExecutionError> {
+            match mode {
+                super::EmbeddingRunMode::K23Search => {
+                    let _ = child_primary_slot;
+                    let _ = next_child_primary_slot;
+                    match self.search_for_k23_in_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        root_copy_slot,
+                        root_copy_slot,
+                        None,
+                    )? {
+                        K23BicompSearchOutcome::SeparableK4 => {
+                            self.continue_after_same_root_separable_k4(
+                                preprocessing,
+                                current_primary_slot,
+                                root_copy_slot,
+                            );
+                            Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::Completed))
+                        }
+                        K23BicompSearchOutcome::MinorA
+                        | K23BicompSearchOutcome::MinorB
+                        | K23BicompSearchOutcome::MinorE1OrE2
+                        | K23BicompSearchOutcome::MinorE3OrE4 => {
+                            Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::K23Found))
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::K33Search => {
+                    let _ = child_primary_slot;
+                    let _ = next_child_primary_slot;
+                    if self.slots[root_copy_slot].k33_minor_e_reduced {
+                        return Ok(ChildSubtreeAction::AdvanceAndReturn(
+                            WalkDownChildOutcome::Completed,
+                        ));
+                    }
+                    match self.search_for_k33_in_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        root_copy_slot,
+                        root_copy_slot,
+                        None,
+                    ) {
+                        Err(WalkDownExecutionError::InvalidK33Context) => {
+                            Ok(ChildSubtreeAction::AdvanceAndReturn(
+                                WalkDownChildOutcome::Completed,
+                            ))
+                        }
+                        Err(error) => Err(error),
+                        Ok(K33BicompSearchOutcome::MinorFound) => {
+                            Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::K33Found))
+                        }
+                        Ok(K33BicompSearchOutcome::ContinueMinorE { context }) => {
+                            self.continue_after_k33_minor_e(current_primary_slot, &context)?;
+                            Ok(ChildSubtreeAction::AdvanceAndReturn(
+                                WalkDownChildOutcome::Completed,
+                            ))
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::K4Search => {
+                    let _ = child_primary_slot;
+                    let _ = next_child_primary_slot;
+                    if self.handling_k4_blocked_bicomp {
+                        self.k4_reblocked_same_root = true;
+                        return Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::Completed));
+                    }
+
+                    match self.handle_k4_blocked_bicomp(
+                        preprocessing,
+                        current_primary_slot,
+                        root_copy_slot,
+                        root_copy_slot,
+                    ) {
+                        Err(WalkDownExecutionError::InvalidK4Context) => {
+                            Ok(ChildSubtreeAction::AdvanceAndReturn(
+                                WalkDownChildOutcome::Completed,
+                            ))
+                        }
+                        Err(error) => Err(error),
+                        Ok(K4BlockedBicompOutcome::Found) => {
+                            Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::K4Found))
+                        }
+                        Ok(K4BlockedBicompOutcome::ContinueWalkdown) => unreachable!(),
+                        Ok(K4BlockedBicompOutcome::Completed) => {
+                            Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::Completed))
+                        }
+                    }
+                }
+                super::EmbeddingRunMode::Planarity | super::EmbeddingRunMode::Outerplanarity => {
+                    let _ = child_primary_slot;
+                    let _ = next_child_primary_slot;
+                    Ok(ChildSubtreeAction::ErrorUnembeddedForwardArc)
+                }
+            }
+        }
+
+        fn finalize_child_subtree_action(
+            &mut self,
+            preprocessing: &DfsPreprocessing,
+            current_primary_slot: usize,
+            child_primary_slot: usize,
+            next_child_primary_slot: Option<usize>,
+            forward_arc: usize,
+            action: ChildSubtreeAction,
+        ) -> Result<WalkDownChildOutcome, WalkDownExecutionError> {
+            match action {
+                ChildSubtreeAction::AdvanceAndReturn(outcome) => {
+                    self.advance_forward_arc_list(
+                        preprocessing,
+                        current_primary_slot,
+                        child_primary_slot,
+                        next_child_primary_slot,
+                    );
+                    Ok(outcome)
+                }
+                ChildSubtreeAction::Return(outcome) => Ok(outcome),
+                ChildSubtreeAction::ErrorUnembeddedForwardArc => {
+                    Err(WalkDownExecutionError::UnembeddedForwardArcInChildSubtree { forward_arc })
+                }
+            }
+        }
+
         #[allow(clippy::similar_names)]
         #[allow(clippy::too_many_lines)]
         pub(crate) fn walk_up(&mut self, current_primary_slot: usize, forward_arc: usize) {
@@ -5200,60 +5375,68 @@ pub(crate) mod embedding {
             root_copy_slot: usize,
             mode: super::EmbeddingRunMode,
         ) -> Result<WalkDownChildOutcome, WalkDownExecutionError> {
-            loop {
-                let mut frames = Vec::new();
-                let child_primary_slot = self.dfs_child_from_root(root_copy_slot);
-                let next_child_primary_slot =
-                    self.next_dfs_child(current_primary_slot, child_primary_slot);
-                for root_side in 0..2 {
-                    let mut current_entry_side = 1 ^ root_side;
-                    let mut current_slot =
-                        self.walk_ext_face_neighbor(mode, root_copy_slot, &mut current_entry_side);
+            let mut frames = Vec::new();
+            let child_primary_slot = self.dfs_child_from_root(root_copy_slot);
+            let next_child_primary_slot =
+                self.next_dfs_child(current_primary_slot, child_primary_slot);
+            for root_side in 0..2 {
+                let mut current_entry_side = 1 ^ root_side;
+                let mut current_slot =
+                    self.walk_ext_face_neighbor(mode, root_copy_slot, &mut current_entry_side);
 
-                    'walkdown: while current_slot != root_copy_slot {
-                        if self.slots[current_slot].pertinent_edge.is_some() {
-                            if mode == super::EmbeddingRunMode::K33Search {
-                                if let Some((merge_blocker_slot, u_max, merge_root_copy_slot)) =
-                                    self.find_k33_merge_blocker(
-                                        current_primary_slot,
-                                        current_slot,
-                                        root_copy_slot,
-                                        &frames,
-                                    )
-                                {
-                                    if self.probe_k33_merge_blocker(
-                                        preprocessing,
-                                        merge_blocker_slot,
-                                        u_max,
-                                        merge_root_copy_slot,
-                                    )? {
-                                        return Ok(WalkDownChildOutcome::K33Found);
-                                    }
-                                }
-                            }
-                            if !frames.is_empty() {
-                                self.merge_trace_frames(current_primary_slot, &frames)?;
-                                frames.clear();
-                            }
-                            self.embed_back_edge_to_descendant(
-                                root_copy_slot,
-                                root_side,
-                                current_slot,
-                                current_entry_side,
-                            )?;
-                            continue;
-                        }
-
-                        if let Some(root_to_descend) =
-                            self.slots[current_slot].pertinent_roots.first().copied()
-                        {
-                            if let Some((next_slot, next_entry_side, chosen_root_side)) = self
-                                .choose_root_descent_for_mode(
-                                    mode,
+                'walkdown: while current_slot != root_copy_slot {
+                    if self.slots[current_slot].pertinent_edge.is_some() {
+                        if mode == super::EmbeddingRunMode::K33Search {
+                            if let Some((merge_blocker_slot, u_max, merge_root_copy_slot)) = self
+                                .find_k33_merge_blocker(
                                     current_primary_slot,
-                                    root_to_descend,
+                                    current_slot,
+                                    root_copy_slot,
+                                    &frames,
                                 )
                             {
+                                if self.probe_k33_merge_blocker(
+                                    preprocessing,
+                                    merge_blocker_slot,
+                                    u_max,
+                                    merge_root_copy_slot,
+                                )? {
+                                    return Ok(WalkDownChildOutcome::K33Found);
+                                }
+                            }
+                        }
+                        if !frames.is_empty() {
+                            self.merge_trace_frames(current_primary_slot, &frames)?;
+                            frames.clear();
+                        }
+                        self.embed_back_edge_to_descendant(
+                            root_copy_slot,
+                            root_side,
+                            current_slot,
+                            current_entry_side,
+                        )?;
+                        continue;
+                    }
+
+                    if let Some(root_to_descend) =
+                        self.slots[current_slot].pertinent_roots.first().copied()
+                    {
+                        match self.resolve_pertinent_root_walk_action(
+                            preprocessing,
+                            current_primary_slot,
+                            root_copy_slot,
+                            root_side,
+                            current_slot,
+                            current_entry_side,
+                            root_to_descend,
+                            &frames,
+                            mode,
+                        )? {
+                            PertinentRootWalkAction::Descend {
+                                next_slot,
+                                next_entry_side,
+                                chosen_root_side,
+                            } => {
                                 frames.push(WalkDownFrame {
                                     cut_vertex_slot: current_slot,
                                     cut_vertex_entry_side: current_entry_side,
@@ -5264,228 +5447,65 @@ pub(crate) mod embedding {
                                 current_entry_side = next_entry_side;
                                 continue;
                             }
-
-                            let context = BlockedBicompContext {
-                                current_primary_slot,
-                                walk_root_copy_slot: root_copy_slot,
-                                walk_root_side: root_side,
-                                cut_vertex_slot: current_slot,
-                                cut_vertex_entry_side: current_entry_side,
-                                blocked_root_copy_slot: root_to_descend,
-                            };
-                            if mode == super::EmbeddingRunMode::K23Search {
-                                match self.search_for_k23_in_bicomp(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    root_copy_slot,
-                                    root_to_descend,
-                                    frames.last().map(|frame| frame.root_copy_slot),
-                                )? {
-                                    K23BicompSearchOutcome::SeparableK4 => {
-                                        self.continue_after_same_root_separable_k4(
-                                            preprocessing,
-                                            current_primary_slot,
-                                            root_copy_slot,
-                                        );
-                                        return Ok(WalkDownChildOutcome::Completed);
-                                    }
-                                    K23BicompSearchOutcome::MinorA
-                                    | K23BicompSearchOutcome::MinorB
-                                    | K23BicompSearchOutcome::MinorE1OrE2
-                                    | K23BicompSearchOutcome::MinorE3OrE4 => {
-                                        return Ok(WalkDownChildOutcome::K23Found);
-                                    }
-                                }
-                            }
-                            if mode == super::EmbeddingRunMode::K4Search {
-                                match self.handle_k4_blocked_bicomp(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    root_copy_slot,
-                                    root_to_descend,
-                                )? {
-                                    K4BlockedBicompOutcome::Found => {
-                                        return Ok(WalkDownChildOutcome::K4Found);
-                                    }
-                                    K4BlockedBicompOutcome::ContinueWalkdown => {
-                                        continue 'walkdown;
-                                    }
-                                    K4BlockedBicompOutcome::Completed => {
-                                        return Ok(WalkDownChildOutcome::Completed);
-                                    }
-                                }
-                            }
-                            if mode == super::EmbeddingRunMode::K33Search {
-                                match self.search_for_k33_in_bicomp(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    root_copy_slot,
-                                    root_copy_slot,
-                                    (root_to_descend != root_copy_slot).then_some(root_to_descend),
-                                ) {
-                                    Err(WalkDownExecutionError::InvalidK33Context) => {
-                                        return Err(WalkDownExecutionError::InvalidK33Context);
-                                    }
-                                    Err(error) => return Err(error),
-                                    Ok(K33BicompSearchOutcome::MinorFound) => {
-                                        return Ok(WalkDownChildOutcome::K33Found);
-                                    }
-                                    Ok(K33BicompSearchOutcome::ContinueMinorE { context }) => {
-                                        self.continue_after_k33_minor_e(
-                                            current_primary_slot,
-                                            &context,
-                                        )?;
-                                        continue;
-                                    }
-                                }
-                            }
-
-                            return Err(WalkDownExecutionError::BlockedBicomp { context });
+                            PertinentRootWalkAction::ContinueWalkdown => continue 'walkdown,
+                            PertinentRootWalkAction::Return(outcome) => return Ok(outcome),
                         }
+                    }
 
-                        self.update_future_pertinent_child(current_slot, current_primary_slot);
-                        if self.is_future_pertinent(current_slot, current_primary_slot)
-                            || matches!(
-                                mode,
-                                super::EmbeddingRunMode::Outerplanarity
-                                    | super::EmbeddingRunMode::K23Search
-                                    | super::EmbeddingRunMode::K4Search
-                            )
-                        {
-                            self.apply_stopping_short_circuit(
-                                root_copy_slot,
-                                root_side,
-                                current_slot,
-                                current_entry_side,
-                            );
-                            break;
-                        }
-
-                        current_slot = self.walk_ext_face_neighbor(
+                    self.update_future_pertinent_child(current_slot, current_primary_slot);
+                    if self.is_future_pertinent(current_slot, current_primary_slot)
+                        || matches!(
                             mode,
+                            super::EmbeddingRunMode::Outerplanarity
+                                | super::EmbeddingRunMode::K23Search
+                                | super::EmbeddingRunMode::K4Search
+                        )
+                    {
+                        self.apply_stopping_short_circuit(
+                            root_copy_slot,
+                            root_side,
                             current_slot,
-                            &mut current_entry_side,
+                            current_entry_side,
                         );
+                        break;
                     }
+
+                    current_slot =
+                        self.walk_ext_face_neighbor(mode, current_slot, &mut current_entry_side);
                 }
-
-                let child_forward_arc_head = self.child_subtree_forward_arc_head(
-                    preprocessing,
-                    current_primary_slot,
-                    child_primary_slot,
-                    next_child_primary_slot,
-                );
-                if let Some(forward_arc) = child_forward_arc_head {
-                    if mode == super::EmbeddingRunMode::K23Search {
-                        match self.search_for_k23_in_bicomp(
-                            preprocessing,
-                            current_primary_slot,
-                            root_copy_slot,
-                            root_copy_slot,
-                            frames.last().map(|frame| frame.root_copy_slot),
-                        )? {
-                            K23BicompSearchOutcome::SeparableK4 => {
-                                self.continue_after_same_root_separable_k4(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    root_copy_slot,
-                                );
-                                continue;
-                            }
-                            K23BicompSearchOutcome::MinorA
-                            | K23BicompSearchOutcome::MinorB
-                            | K23BicompSearchOutcome::MinorE1OrE2
-                            | K23BicompSearchOutcome::MinorE3OrE4 => {
-                                return Ok(WalkDownChildOutcome::K23Found);
-                            }
-                        }
-                    }
-                    if mode == super::EmbeddingRunMode::K33Search {
-                        if self.slots[root_copy_slot].k33_minor_e_reduced {
-                            self.advance_forward_arc_list(
-                                preprocessing,
-                                current_primary_slot,
-                                child_primary_slot,
-                                next_child_primary_slot,
-                            );
-                            return Ok(WalkDownChildOutcome::Completed);
-                        }
-                        match self.search_for_k33_in_bicomp(
-                            preprocessing,
-                            current_primary_slot,
-                            root_copy_slot,
-                            root_copy_slot,
-                            None,
-                        ) {
-                            Err(WalkDownExecutionError::InvalidK33Context) => {
-                                self.advance_forward_arc_list(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    child_primary_slot,
-                                    next_child_primary_slot,
-                                );
-                                return Ok(WalkDownChildOutcome::Completed);
-                            }
-                            Err(error) => return Err(error),
-                            Ok(K33BicompSearchOutcome::MinorFound) => {
-                                return Ok(WalkDownChildOutcome::K33Found);
-                            }
-                            Ok(K33BicompSearchOutcome::ContinueMinorE { context }) => {
-                                self.continue_after_k33_minor_e(current_primary_slot, &context)?;
-                                self.advance_forward_arc_list(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    child_primary_slot,
-                                    next_child_primary_slot,
-                                );
-                                return Ok(WalkDownChildOutcome::Completed);
-                            }
-                        }
-                    }
-                    if mode == super::EmbeddingRunMode::K4Search {
-                        if self.handling_k4_blocked_bicomp {
-                            self.k4_reblocked_same_root = true;
-                            return Ok(WalkDownChildOutcome::Completed);
-                        }
-
-                        match self.handle_k4_blocked_bicomp(
-                            preprocessing,
-                            current_primary_slot,
-                            root_copy_slot,
-                            root_copy_slot,
-                        ) {
-                            Err(WalkDownExecutionError::InvalidK4Context) => {
-                                self.advance_forward_arc_list(
-                                    preprocessing,
-                                    current_primary_slot,
-                                    child_primary_slot,
-                                    next_child_primary_slot,
-                                );
-                                return Ok(WalkDownChildOutcome::Completed);
-                            }
-                            Err(error) => return Err(error),
-                            Ok(K4BlockedBicompOutcome::Found) => {
-                                return Ok(WalkDownChildOutcome::K4Found);
-                            }
-                            Ok(K4BlockedBicompOutcome::ContinueWalkdown) => unreachable!(),
-                            Ok(K4BlockedBicompOutcome::Completed) => {
-                                return Ok(WalkDownChildOutcome::Completed);
-                            }
-                        }
-                    }
-
-                    return Err(WalkDownExecutionError::UnembeddedForwardArcInChildSubtree {
-                        forward_arc,
-                    });
-                }
-                self.advance_forward_arc_list(
-                    preprocessing,
-                    current_primary_slot,
-                    child_primary_slot,
-                    next_child_primary_slot,
-                );
-                return Ok(WalkDownChildOutcome::Completed);
             }
+
+            let child_forward_arc_head = self.child_subtree_forward_arc_head(
+                preprocessing,
+                current_primary_slot,
+                child_primary_slot,
+                next_child_primary_slot,
+            );
+            if let Some(forward_arc) = child_forward_arc_head {
+                let action = self.resolve_child_subtree_action(
+                    preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    child_primary_slot,
+                    next_child_primary_slot,
+                    mode,
+                )?;
+                return self.finalize_child_subtree_action(
+                    preprocessing,
+                    current_primary_slot,
+                    child_primary_slot,
+                    next_child_primary_slot,
+                    forward_arc,
+                    action,
+                );
+            }
+            self.advance_forward_arc_list(
+                preprocessing,
+                current_primary_slot,
+                child_primary_slot,
+                next_child_primary_slot,
+            );
+            Ok(WalkDownChildOutcome::Completed)
         }
 
         fn mark_external_face_primary_vertices(
