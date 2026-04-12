@@ -2578,7 +2578,7 @@ fn packed_path_prefix_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering 
     current[..limit].cmp(&best[..limit])
 }
 
-fn packed_path_segment_cmp(
+fn packed_path_suffix_cmp(
     current: &[u32],
     current_info: &[SearchPathInfo],
     best: &[u32],
@@ -2596,23 +2596,14 @@ fn packed_path_segment_cmp(
     }
     debug_assert_eq!(current[..current_root_end], best[..best_root_end]);
 
-    for (current_segment, best_segment) in current_info.iter().zip(best_info.iter()) {
-        if current_segment.subcertificate_length == best_segment.subcertificate_length
-            && current_segment.eqref_hash == best_segment.eqref_hash
-        {
-            continue;
-        }
-        let current_start = current_segment.certificate_index;
-        let current_end = current_start + current_segment.subcertificate_length;
-        let best_start = best_segment.certificate_index;
-        let best_end = best_start + best_segment.subcertificate_length;
-        let segment_cmp = current[current_start..current_end].cmp(&best[best_start..best_end]);
-        if segment_cmp != core::cmp::Ordering::Equal {
-            return segment_cmp;
-        }
+    let current_suffix = &current[current_root_end..];
+    let best_suffix = &best[best_root_end..];
+    if prefix_only {
+        let limit = current_suffix.len().min(best_suffix.len());
+        current_suffix[..limit].cmp(&best_suffix[..limit])
+    } else {
+        current_suffix.cmp(best_suffix)
     }
-
-    if prefix_only { core::cmp::Ordering::Equal } else { current.len().cmp(&best.len()) }
 }
 
 fn packed_path_lex_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
@@ -2643,7 +2634,7 @@ where
             if let (Some(current_path_info), Some(best_path_info)) =
                 (current_path_info, best_path_info)
             {
-                packed_path_segment_cmp(current, current_path_info, best, best_path_info, true)
+                packed_path_suffix_cmp(current, current_path_info, best, best_path_info, true)
             } else {
                 packed_path_prefix_cmp(current, best)
             }
@@ -2684,7 +2675,7 @@ where
             if let (Some(current_path_info), Some(best_path_info)) =
                 (current_path_info, best_path_info)
             {
-                packed_path_segment_cmp(current, current_path_info, best, best_path_info, false)
+                packed_path_suffix_cmp(current, current_path_info, best, best_path_info, false)
             } else {
                 packed_path_lex_cmp(current, best)
             }
@@ -2721,33 +2712,17 @@ where
             if let (Some(current_path_info), Some(reference_path_info)) =
                 (current_path_info, reference_path_info)
             {
-                if current_path_info.len() > reference_path_info.len()
-                    || current_path_info.iter().zip(reference_path_info.iter()).any(
-                        |(current, reference)| {
-                            current.subcertificate_length != reference.subcertificate_length
-                                || current.eqref_hash != reference.eqref_hash
-                        },
-                    )
-                {
-                    return false;
-                }
                 if current_path_info.is_empty() {
                     return packed_path_prefix_equal_strict(current, reference);
                 }
-                debug_assert_eq!(
-                    current_path_info[0].certificate_index,
-                    reference_path_info[0].certificate_index,
-                );
-                return current_path_info.iter().zip(reference_path_info.iter()).all(
-                    |(current_info, reference_info)| {
-                        let current_start = current_info.certificate_index;
-                        let current_end = current_start + current_info.subcertificate_length;
-                        let reference_start = reference_info.certificate_index;
-                        let reference_end = reference_start + reference_info.subcertificate_length;
-                        current[current_start..current_end]
-                            == reference[reference_start..reference_end]
-                    },
-                );
+                let current_root_end = current_path_info[0].certificate_index;
+                let reference_root_end = reference_path_info[0].certificate_index;
+                if current_root_end != reference_root_end {
+                    return false;
+                }
+                return current[current_root_end..]
+                    == reference[reference_root_end
+                        ..(reference_root_end + (current.len() - current_root_end))];
             }
             packed_path_prefix_equal_strict(current, reference)
         }
@@ -2783,33 +2758,15 @@ where
             if let (Some(current_path_info), Some(reference_path_info)) =
                 (current_path_info, reference_path_info)
             {
-                if current_path_info.len() != reference_path_info.len()
-                    || current_path_info.iter().zip(reference_path_info.iter()).any(
-                        |(current, reference)| {
-                            current.subcertificate_length != reference.subcertificate_length
-                                || current.eqref_hash != reference.eqref_hash
-                        },
-                    )
-                {
-                    return false;
-                }
                 if current_path_info.is_empty() {
                     return current == reference;
                 }
-                debug_assert_eq!(
-                    current_path_info[0].certificate_index,
-                    reference_path_info[0].certificate_index,
-                );
-                return current_path_info.iter().zip(reference_path_info.iter()).all(
-                    |(current_info, reference_info)| {
-                        let current_start = current_info.certificate_index;
-                        let current_end = current_start + current_info.subcertificate_length;
-                        let reference_start = reference_info.certificate_index;
-                        let reference_end = reference_start + reference_info.subcertificate_length;
-                        current[current_start..current_end]
-                            == reference[reference_start..reference_end]
-                    },
-                );
+                let current_root_end = current_path_info[0].certificate_index;
+                let reference_root_end = reference_path_info[0].certificate_index;
+                if current_root_end != reference_root_end {
+                    return false;
+                }
+                return current[current_root_end..] == reference[reference_root_end..];
             }
             current == reference
         }
@@ -2900,5 +2857,914 @@ where
                 best_trace_path,
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::{rc::Rc, vec};
+
+    use super::{super::refine::RefinementTraceEvent, *};
+    use crate::{
+        impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
+        naive_structs::{GenericGraph, GenericVocabularyBuilder},
+        traits::{
+            Edges, MonopartiteGraph, MonoplexGraph, PartitionCellView, SparseValuedMatrix2D,
+            VocabularyBuilder,
+        },
+    };
+
+    type TestEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, u8>>;
+    type TestGraph = GenericGraph<SortedVec<usize>, TestEdges>;
+
+    fn packed_trace(words: &[u32], hash: u64) -> Rc<RefinementTrace<()>> {
+        Rc::new(RefinementTrace {
+            storage: RefinementTraceStorage::Packed(words.to_vec()),
+            subcertificate_length: words.len(),
+            eqref_hash: hash,
+        })
+    }
+
+    fn event_trace(events: Vec<RefinementTraceEvent<u8>>, hash: u64) -> Rc<RefinementTrace<u8>> {
+        Rc::new(RefinementTrace {
+            subcertificate_length: events.len(),
+            storage: RefinementTraceStorage::Events(events),
+            eqref_hash: hash,
+        })
+    }
+
+    fn build_test_graph(number_of_nodes: usize, edges: &[(usize, usize, u8)]) -> TestGraph {
+        let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+            .expected_number_of_symbols(number_of_nodes)
+            .symbols((0..number_of_nodes).enumerate())
+            .build()
+            .unwrap();
+        let mut upper_edges = edges
+            .iter()
+            .map(|&(source, destination, label)| {
+                if source <= destination {
+                    (source, destination, label)
+                } else {
+                    (destination, source, label)
+                }
+            })
+            .collect::<Vec<_>>();
+        upper_edges.sort_unstable_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+        upper_edges.dedup();
+        let edges =
+            SymmetricCSR2D::from_sorted_upper_triangular_entries(number_of_nodes, upper_edges)
+                .unwrap();
+
+        GenericGraph::from((nodes, edges))
+    }
+
+    fn build_partition_from_groups(groups: &[usize]) -> BacktrackableOrderedPartition {
+        let mut partition = BacktrackableOrderedPartition::new(groups.len());
+        let _ = refine_partition_according_to_unsigned_invariant_like_bliss(
+            &mut partition,
+            |element| groups[element],
+        );
+        partition
+    }
+
+    #[test]
+    fn test_build_search_path_info_and_search_state_accessors() {
+        let root = packed_trace(&[], 1);
+        let first = packed_trace(&[10, 11], 2);
+        let second = packed_trace(&[20, 21, 22], 3);
+        let traces = vec![root.clone(), first.clone(), second.clone()];
+        let choice_path = vec![4, 9];
+        let path_info = build_search_path_info(&choice_path, &traces);
+
+        assert_eq!(path_info.len(), 2);
+        assert_eq!(path_info[0].splitting_element, 4);
+        assert_eq!(path_info[0].certificate_index, 0);
+        assert_eq!(path_info[0].subcertificate_length, 2);
+        assert_eq!(path_info[1].splitting_element, 9);
+        assert_eq!(path_info[1].certificate_index, 2);
+        assert_eq!(path_info[1].subcertificate_length, 3);
+
+        let first_path = StoredSearchPath {
+            order: Rc::from(vec![2_usize, 0, 1]),
+            leaf_signature: Some(Rc::new(UnlabeledLeafSignature {
+                vertex_label_ids: Rc::from(vec![1_usize, 2, 3]),
+                upper_triangle_bits: Rc::from(vec![0b101_u64]),
+            })),
+            path_invariants: Some(Rc::from(traces.clone())),
+            packed_path: Some(Rc::from(vec![10_u32, 11, 20, 21, 22])),
+            choice_path: Rc::from(choice_path.clone()),
+            path_info: Some(path_info.clone()),
+        };
+        let best_path = StoredSearchPath {
+            order: Rc::from(vec![1_usize, 0, 2]),
+            leaf_signature: None,
+            path_invariants: None,
+            packed_path: Some(Rc::from(vec![30_u32, 31])),
+            choice_path: Rc::from(vec![7_usize]),
+            path_info: Some(Rc::from(vec![SearchPathInfo {
+                splitting_element: 7,
+                certificate_index: 0,
+                subcertificate_length: 2,
+                eqref_hash: 5,
+            }])),
+        };
+        let state = SearchState {
+            stats: CanonicalSearchStats::default(),
+            first_path: Some(first_path),
+            first_path_revision: 1,
+            best_path: Some(best_path),
+            best_path_revision: 2,
+            first_path_orbits_global: KnownOrbits::new(3),
+            first_path_orbits_by_depth: vec![],
+            best_path_orbits: KnownOrbits::new(3),
+            long_prune_records: vec![],
+        };
+
+        assert_eq!(state.first_order(), Some(&[2, 0, 1][..]));
+        assert_eq!(state.first_choice_path(), Some(&[4, 9][..]));
+        assert_eq!(state.first_packed_path(), Some(&[10, 11, 20, 21, 22][..]));
+        assert_eq!(state.best_order(), Some(&[1, 0, 2][..]));
+        assert_eq!(state.best_choice_path(), Some(&[7][..]));
+        assert_eq!(state.best_packed_path(), Some(&[30, 31][..]));
+        assert_eq!(state.first_path_info().map(<[SearchPathInfo]>::len), Some(2));
+        assert_eq!(state.best_path_info().map(<[SearchPathInfo]>::len), Some(1));
+        assert_eq!(state.first_leaf_signature().unwrap().upper_triangle_bits.as_ref(), &[0b101]);
+    }
+
+    #[test]
+    fn test_search_path_state_refresh_and_component_continuation() {
+        let root = packed_trace(&[], 1);
+        let first = packed_trace(&[10, 11], 2);
+        let traces = vec![root.clone(), first.clone()];
+        let path_info = build_search_path_info(&[4], &traces);
+        let state = SearchState {
+            stats: CanonicalSearchStats::default(),
+            first_path: Some(StoredSearchPath {
+                order: Rc::from(vec![0_usize, 1]),
+                leaf_signature: None,
+                path_invariants: Some(Rc::from(traces.clone())),
+                packed_path: Some(Rc::from(vec![10_u32, 11])),
+                choice_path: Rc::from(vec![4_usize]),
+                path_info: Some(path_info.clone()),
+            }),
+            first_path_revision: 3,
+            best_path: Some(StoredSearchPath {
+                order: Rc::from(vec![0_usize, 1]),
+                leaf_signature: None,
+                path_invariants: Some(Rc::from(traces.clone())),
+                packed_path: Some(Rc::from(vec![10_u32, 11])),
+                choice_path: Rc::from(vec![4_usize]),
+                path_info: Some(path_info.clone()),
+            }),
+            best_path_revision: 5,
+            first_path_orbits_global: KnownOrbits::new(2),
+            first_path_orbits_by_depth: vec![],
+            best_path_orbits: KnownOrbits::new(2),
+            long_prune_records: vec![],
+        };
+        let mut path_state = SearchPathState {
+            fp_on: false,
+            in_best_path: false,
+            fp_cert_equal: false,
+            fp_cert_equal_revision: 0,
+            cmp_to_best_path: None,
+            cmp_to_best_path_revision: 0,
+        }
+        .with_live_membership(&state, &[4], false, false);
+
+        assert!(path_state.fp_on);
+        assert!(path_state.in_best_path);
+
+        path_state.refresh_relations(&state, Some(&[10, 11]), Some(&path_info), &traces);
+        assert!(path_state.fp_cert_equal);
+        assert!(path_state.best_path_equal());
+        assert!(path_state.best_path_not_worse());
+        assert!(!path_state.is_worse_than_best_off_first());
+
+        let continued = path_state.for_component_continuation();
+        assert!(!continued.fp_on);
+        assert!(!continued.in_best_path);
+        assert!(continued.fp_cert_equal);
+    }
+
+    #[test]
+    fn test_child_prefix_helpers_cover_packed_mode() {
+        let packed_reference = [10_u32, 11, 20, 21, 22];
+        let packed_info = [
+            SearchPathInfo {
+                splitting_element: 4,
+                certificate_index: 0,
+                subcertificate_length: 2,
+                eqref_hash: 2,
+            },
+            SearchPathInfo {
+                splitting_element: 9,
+                certificate_index: 2,
+                subcertificate_length: 3,
+                eqref_hash: 3,
+            },
+        ];
+        let packed_child = RefinementTrace {
+            storage: RefinementTraceStorage::<()>::Packed(vec![20_u32, 21, 22]),
+            subcertificate_length: 3,
+            eqref_hash: 3,
+        };
+        let packed_other = RefinementTrace {
+            storage: RefinementTraceStorage::<()>::Packed(vec![20_u32, 21, 23]),
+            subcertificate_length: 3,
+            eqref_hash: 4,
+        };
+
+        assert!(child_path_prefix_equal_to_reference(
+            true,
+            &packed_child,
+            Some(2),
+            Some(&packed_reference),
+            Some(&packed_info),
+            None,
+            2,
+        ));
+        assert!(!child_path_prefix_equal_to_reference(
+            false,
+            &packed_child,
+            Some(2),
+            Some(&packed_reference),
+            Some(&packed_info),
+            None,
+            2,
+        ));
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                &packed_other,
+                Some(2),
+                Some(&packed_reference),
+                Some(&packed_info),
+                None,
+                2,
+            ),
+            core::cmp::Ordering::Greater,
+        );
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Less,
+                &packed_child,
+                Some(2),
+                Some(&packed_reference),
+                Some(&packed_info),
+                None,
+                2,
+            ),
+            core::cmp::Ordering::Less,
+        );
+    }
+
+    #[test]
+    fn test_child_prefix_helpers_cover_event_mode() {
+        let event_child = event_trace(vec![RefinementTraceEvent::Split { first: 3, length: 2 }], 7);
+        let event_reference = vec![
+            event_trace(vec![RefinementTraceEvent::Split { first: 0, length: 1 }], 1),
+            event_child.clone(),
+        ];
+        assert!(child_path_prefix_equal_to_reference(
+            true,
+            event_child.as_ref(),
+            None,
+            None,
+            None,
+            Some(&event_reference),
+            1,
+        ));
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                event_child.as_ref(),
+                None,
+                None,
+                None,
+                Some(&event_reference),
+                1,
+            ),
+            core::cmp::Ordering::Equal,
+        );
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                event_child.as_ref(),
+                None,
+                None,
+                None,
+                None,
+                1,
+            ),
+            core::cmp::Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn test_path_comparison_helpers_cover_packed_mode() {
+        let current = [10_u32, 11, 20, 21];
+        let best = [10_u32, 11, 20, 22];
+        let current_info = [
+            SearchPathInfo {
+                splitting_element: 4,
+                certificate_index: 0,
+                subcertificate_length: 2,
+                eqref_hash: 2,
+            },
+            SearchPathInfo {
+                splitting_element: 9,
+                certificate_index: 2,
+                subcertificate_length: 2,
+                eqref_hash: 3,
+            },
+        ];
+        let best_info = current_info;
+        let empty_traces: Vec<Rc<RefinementTrace<()>>> = vec![];
+
+        assert_eq!(packed_path_prefix_cmp(&current, &best), core::cmp::Ordering::Less);
+        assert_eq!(
+            packed_path_suffix_cmp(&current, &current_info, &best, &best_info, true),
+            core::cmp::Ordering::Less,
+        );
+        assert_eq!(
+            packed_path_suffix_cmp(&current, &current_info, &best, &best_info, false),
+            core::cmp::Ordering::Less,
+        );
+        assert_eq!(packed_path_lex_cmp(&current, &best), core::cmp::Ordering::Less);
+        assert!(packed_path_prefix_equal_strict(&current[..2], &best));
+        assert_eq!(
+            path_prefix_cmp(
+                Some(&current),
+                Some(&current_info),
+                &empty_traces,
+                Some(&best),
+                Some(&best_info),
+                None,
+            ),
+            core::cmp::Ordering::Less,
+        );
+        assert_eq!(
+            path_lex_cmp(
+                Some(&current),
+                Some(&current_info),
+                &empty_traces,
+                Some(&best),
+                Some(&best_info),
+                None,
+            ),
+            core::cmp::Ordering::Less,
+        );
+        assert!(path_prefix_equal_strict(
+            Some(&current[..2]),
+            None,
+            &empty_traces,
+            Some(&best),
+            None,
+            None,
+        ));
+        assert!(!path_equal_strict(
+            Some(&current),
+            Some(&current_info),
+            &empty_traces,
+            Some(&best),
+            Some(&best_info),
+            None,
+        ));
+        assert_eq!(
+            compare_candidate_to_best(
+                Some(&current),
+                Some(&current_info),
+                &empty_traces,
+                None,
+                None,
+                None,
+            ),
+            core::cmp::Ordering::Greater,
+        );
+    }
+
+    #[test]
+    fn test_path_comparison_helpers_cover_event_mode() {
+        let event_a = event_trace(vec![RefinementTraceEvent::Split { first: 0, length: 2 }], 1);
+        let event_b = event_trace(vec![RefinementTraceEvent::Split { first: 1, length: 2 }], 2);
+        let current_traces = vec![event_a.clone()];
+        let best_traces = vec![event_b.clone()];
+        assert_eq!(
+            path_prefix_cmp::<u8>(None, None, &current_traces, None, None, Some(&best_traces)),
+            core::cmp::Ordering::Less,
+        );
+        assert_eq!(
+            path_lex_cmp::<u8>(None, None, &current_traces, None, None, Some(&best_traces)),
+            core::cmp::Ordering::Less,
+        );
+        assert!(path_prefix_equal_strict::<u8>(
+            None,
+            None,
+            &current_traces,
+            None,
+            None,
+            Some(&current_traces),
+        ));
+        assert!(path_equal_strict::<u8>(
+            None,
+            None,
+            &current_traces,
+            None,
+            None,
+            Some(&current_traces),
+        ));
+        assert_eq!(
+            compare_refinement_trace(event_a.as_ref(), event_b.as_ref()),
+            core::cmp::Ordering::Less,
+        );
+        assert!(refinement_trace_equal(event_a.as_ref(), event_a.as_ref()));
+    }
+
+    #[test]
+    fn test_choose_target_cell_among_covers_bliss_heuristics() {
+        let graph = build_test_graph(8, &[(0, 5, 1), (1, 2, 1), (2, 5, 1)]);
+        let nodes = graph.node_ids().collect::<Vec<_>>();
+        let partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3]);
+        let candidates =
+            partition.non_singleton_cells().map(PartitionCellView::id).take(2).collect::<Vec<_>>();
+
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::First,
+                &candidates,
+            ),
+            candidates[0]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::FirstSmallest,
+                &candidates,
+            ),
+            candidates[0]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::FirstLargest,
+                &candidates,
+            ),
+            candidates[1]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::FirstMaxNeighbours,
+                &candidates,
+            ),
+            candidates[1]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+                &candidates,
+            ),
+            candidates[1]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &graph,
+                &nodes,
+                &partition,
+                CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+                &candidates,
+            ),
+            candidates[1]
+        );
+    }
+
+    #[test]
+    fn test_choose_target_cell_among_covers_tie_break_paths() {
+        let tie_graph = build_test_graph(8, &[(0, 5, 1), (2, 5, 1)]);
+        let tie_nodes = tie_graph.node_ids().collect::<Vec<_>>();
+        let tie_partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3]);
+        let tie_candidates = tie_partition
+            .non_singleton_cells()
+            .map(PartitionCellView::id)
+            .take(2)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            choose_target_cell_among(
+                &tie_graph,
+                &tie_nodes,
+                &tie_partition,
+                CanonSplittingHeuristic::FirstMaxNeighbours,
+                &tie_candidates,
+            ),
+            tie_candidates[0]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &tie_graph,
+                &tie_nodes,
+                &tie_partition,
+                CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+                &tie_candidates,
+            ),
+            tie_candidates[0]
+        );
+        assert_eq!(
+            choose_target_cell_among(
+                &tie_graph,
+                &tie_nodes,
+                &tie_partition,
+                CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+                &tie_candidates,
+            ),
+            tie_candidates[1]
+        );
+    }
+
+    #[test]
+    fn test_component_helpers_cover_partial_full_and_promoted_components() {
+        let graph = build_test_graph(8, &[(0, 5, 1), (1, 2, 1), (2, 5, 1)]);
+        let nodes = graph.node_ids().collect::<Vec<_>>();
+        let partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3]);
+        let candidates =
+            partition.non_singleton_cells().map(PartitionCellView::id).take(2).collect::<Vec<_>>();
+        let (component_cells, component_elements, preferred_cell) = find_first_component_at_level(
+            &graph,
+            &nodes,
+            &partition,
+            0,
+            CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+        )
+        .expect("partial component should be found");
+        assert_eq!(component_cells.len(), 3);
+        assert_eq!(component_elements, 7);
+        assert_eq!(preferred_cell, candidates[1]);
+
+        let full_touch_graph = build_test_graph(8, &[(0, 5, 1), (0, 6, 1)]);
+        let full_touch_nodes = full_touch_graph.node_ids().collect::<Vec<_>>();
+        let full_touch_partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3]);
+        let (single_component_cells, single_component_elements, single_preferred) =
+            find_first_component_at_level(
+                &full_touch_graph,
+                &full_touch_nodes,
+                &full_touch_partition,
+                0,
+                CanonSplittingHeuristic::First,
+            )
+            .expect("seed cell should still form a component");
+        assert_eq!(single_component_cells.len(), 1);
+        assert_eq!(single_component_elements, 2);
+        assert_eq!(partition.cell_first(single_preferred), 0);
+
+        let promoted_graph = build_test_graph(9, &[(0, 5, 1), (1, 2, 1), (2, 5, 1)]);
+        let promoted_nodes = promoted_graph.node_ids().collect::<Vec<_>>();
+        let mut promoted_partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3, 3]);
+        let mut component_endpoints = Vec::new();
+        let mut active_component_endpoint_len = 0;
+        let selected = prepare_component_recursion_and_choose_target_cell(
+            &promoted_graph,
+            &promoted_nodes,
+            &mut promoted_partition,
+            CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+            &[],
+            &mut component_endpoints,
+            &mut active_component_endpoint_len,
+        );
+        assert_eq!(promoted_partition.cell_first(selected), 2);
+        assert_eq!(component_endpoints.len(), 1);
+        assert_eq!(active_component_endpoint_len, 1);
+        assert_eq!(component_endpoints[0].discrete_cell_limit, 7);
+    }
+
+    #[test]
+    fn test_leaf_order_and_automorphism_helpers_cover_fallback_branches() {
+        let unlabeled_graph = build_test_graph(3, &[(0, 1, 1), (1, 2, 1)]);
+        let unlabeled_nodes = unlabeled_graph.node_ids().collect::<Vec<_>>();
+        let unlabeled_adjacency =
+            AdjacencyBitMatrix::from_graph(&unlabeled_graph, &unlabeled_nodes);
+        let uniform_vertex_labels = vec![0_u8, 0, 0];
+        let mut unit_edge_label = |_: usize, _: usize| ();
+
+        assert_eq!(
+            compare_leaf_orders(
+                &unlabeled_adjacency,
+                &unlabeled_nodes,
+                &uniform_vertex_labels,
+                &mut unit_edge_label,
+                &[0, 1, 2],
+                &[1, 0, 2],
+            ),
+            core::cmp::Ordering::Less,
+        );
+        assert!(leaf_orders_equal(
+            &unlabeled_adjacency,
+            &unlabeled_nodes,
+            &uniform_vertex_labels,
+            &mut unit_edge_label,
+            &[0, 1, 2],
+            None,
+            &[2, 1, 0],
+            None,
+        ));
+
+        let labeled_graph = build_test_graph(3, &[(0, 1, 1), (1, 2, 2)]);
+        let labeled_nodes = labeled_graph.node_ids().collect::<Vec<_>>();
+        let labeled_adjacency = AdjacencyBitMatrix::from_graph(&labeled_graph, &labeled_nodes);
+        let labeled_matrix = Edges::matrix(labeled_graph.edges());
+        let mut labeled_edge_label =
+            |left: usize, right: usize| labeled_matrix.sparse_value_at(left, right).unwrap();
+        assert_eq!(
+            compare_leaf_orders(
+                &labeled_adjacency,
+                &labeled_nodes,
+                &uniform_vertex_labels,
+                &mut labeled_edge_label,
+                &[0, 1, 2],
+                &[2, 1, 0],
+            ),
+            core::cmp::Ordering::Less,
+        );
+        assert!(!is_labeled_graph_automorphism(
+            &labeled_adjacency,
+            &labeled_nodes,
+            &uniform_vertex_labels,
+            &mut labeled_edge_label,
+            &[0, 1],
+        ));
+        assert!(!is_labeled_graph_automorphism(
+            &labeled_adjacency,
+            &labeled_nodes,
+            &[0_u8, 1, 0],
+            &mut labeled_edge_label,
+            &[1, 0, 2],
+        ));
+        assert!(!is_labeled_graph_automorphism(
+            &labeled_adjacency,
+            &labeled_nodes,
+            &uniform_vertex_labels,
+            &mut labeled_edge_label,
+            &[0, 2, 1],
+        ));
+        assert!(!is_labeled_graph_automorphism(
+            &labeled_adjacency,
+            &labeled_nodes,
+            &uniform_vertex_labels,
+            &mut labeled_edge_label,
+            &[2, 1, 0],
+        ));
+
+        let equal_label_graph = build_test_graph(3, &[(0, 1, 1), (1, 2, 1)]);
+        let equal_label_nodes = equal_label_graph.node_ids().collect::<Vec<_>>();
+        let equal_label_adjacency =
+            AdjacencyBitMatrix::from_graph(&equal_label_graph, &equal_label_nodes);
+        let equal_label_matrix = Edges::matrix(equal_label_graph.edges());
+        let mut equal_edge_label =
+            |left: usize, right: usize| equal_label_matrix.sparse_value_at(left, right).unwrap();
+        assert!(is_labeled_graph_automorphism(
+            &equal_label_adjacency,
+            &equal_label_nodes,
+            &uniform_vertex_labels,
+            &mut equal_edge_label,
+            &[2, 1, 0],
+        ));
+    }
+
+    #[test]
+    fn test_child_prefix_helpers_cover_missing_reference_cases() {
+        let packed_child = RefinementTrace {
+            storage: RefinementTraceStorage::<()>::Packed(vec![20_u32, 21]),
+            subcertificate_length: 2,
+            eqref_hash: 2,
+        };
+        assert!(child_path_prefix_equal_to_reference(
+            true,
+            &packed_child,
+            Some(2),
+            Some(&[10_u32, 11, 20, 21]),
+            None,
+            None,
+            1,
+        ));
+        assert!(!child_path_prefix_equal_to_reference(
+            true,
+            &packed_child,
+            Some(3),
+            Some(&[10_u32, 11, 20]),
+            None,
+            None,
+            1,
+        ));
+        assert!(!child_path_prefix_equal_to_reference(
+            true,
+            &packed_child,
+            None,
+            None,
+            None,
+            None,
+            1,
+        ));
+
+        let short_reference_info = [SearchPathInfo {
+            splitting_element: 4,
+            certificate_index: 3,
+            subcertificate_length: 2,
+            eqref_hash: 2,
+        }];
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                &packed_child,
+                None,
+                Some(&[10_u32, 11, 12, 13]),
+                Some(&short_reference_info),
+                None,
+                1,
+            ),
+            core::cmp::Ordering::Greater,
+        );
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                &packed_child,
+                Some(8),
+                Some(&[10_u32, 11, 12, 13]),
+                None,
+                None,
+                1,
+            ),
+            core::cmp::Ordering::Equal,
+        );
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                &packed_child,
+                None,
+                None,
+                None,
+                None,
+                1,
+            ),
+            core::cmp::Ordering::Equal,
+        );
+    }
+
+    #[test]
+    fn test_path_comparison_helpers_cover_root_and_missing_best_fallbacks() {
+        let current = [10_u32, 11, 20, 21];
+        let best = [10_u32, 11, 20, 22];
+        let empty_info: [SearchPathInfo; 0] = [];
+        let mismatched_root_current = [SearchPathInfo {
+            splitting_element: 4,
+            certificate_index: 1,
+            subcertificate_length: 3,
+            eqref_hash: 2,
+        }];
+        let mismatched_root_best = [SearchPathInfo {
+            splitting_element: 4,
+            certificate_index: 0,
+            subcertificate_length: 4,
+            eqref_hash: 2,
+        }];
+        let empty_traces: Vec<Rc<RefinementTrace<()>>> = vec![];
+
+        assert_eq!(
+            packed_path_suffix_cmp(&current, &empty_info, &best, &empty_info, true),
+            core::cmp::Ordering::Less,
+        );
+        assert_eq!(
+            packed_path_suffix_cmp(
+                &current,
+                &mismatched_root_current,
+                &best,
+                &mismatched_root_best,
+                false,
+            ),
+            current.cmp(&best),
+        );
+        assert_eq!(
+            path_prefix_cmp::<()>(Some(&current), None, &empty_traces, None, None, None),
+            core::cmp::Ordering::Greater,
+        );
+        assert_eq!(
+            path_lex_cmp::<()>(Some(&current), None, &empty_traces, None, None, None),
+            core::cmp::Ordering::Greater,
+        );
+        assert!(!path_prefix_equal_strict::<()>(
+            Some(&current),
+            None,
+            &empty_traces,
+            None,
+            None,
+            None,
+        ));
+        assert!(path_prefix_equal_strict(
+            Some(&current[..2]),
+            Some(&empty_info),
+            &empty_traces,
+            Some(&best),
+            Some(&empty_info),
+            None,
+        ));
+        assert!(!path_prefix_equal_strict(
+            Some(&current),
+            Some(&mismatched_root_current),
+            &empty_traces,
+            Some(&best),
+            Some(&mismatched_root_best),
+            None,
+        ));
+        assert!(!path_equal_strict::<()>(Some(&current), None, &empty_traces, None, None, None,));
+        assert!(path_equal_strict(
+            Some(&current),
+            Some(&empty_info),
+            &empty_traces,
+            Some(&current),
+            Some(&empty_info),
+            None,
+        ));
+        assert!(!path_equal_strict(
+            Some(&current),
+            Some(&mismatched_root_current),
+            &empty_traces,
+            Some(&current),
+            Some(&mismatched_root_best),
+            None,
+        ));
+    }
+
+    #[test]
+    fn test_misc_search_helper_fallbacks_cover_trace_mismatch_and_prefix_utilities() {
+        let packed_short = RefinementTrace {
+            storage: RefinementTraceStorage::<u8>::Packed(vec![1_u32, 2]),
+            subcertificate_length: 2,
+            eqref_hash: 9,
+        };
+        let packed_long = RefinementTrace {
+            storage: RefinementTraceStorage::<u8>::Packed(vec![1_u32, 2]),
+            subcertificate_length: 3,
+            eqref_hash: 9,
+        };
+        let event_empty = RefinementTrace {
+            storage: RefinementTraceStorage::Events(Vec::<RefinementTraceEvent<u8>>::new()),
+            subcertificate_length: 0,
+            eqref_hash: 0,
+        };
+        assert_eq!(
+            compare_refinement_trace(&packed_short, &packed_long),
+            core::cmp::Ordering::Less,
+        );
+        assert!(!refinement_trace_equal(&packed_short, &event_empty));
+
+        let mut partition = build_partition_from_groups(&[0, 0, 1, 2]);
+        assert!(!refine_partition_according_to_unsigned_invariant_like_bliss(
+            &mut partition,
+            |element| usize::from(element < 2),
+        ));
+        let mut edge_label = |_: usize, _: usize| ();
+        let target_cell = partition.cells().next().unwrap().id();
+        assert_eq!(
+            candidate_split_elements(
+                &build_test_graph(4, &[(0, 1, 1)]),
+                &mut edge_label,
+                &mut partition,
+                target_cell,
+                &[],
+                None,
+                &mut CanonicalSearchStats::default(),
+            ),
+            vec![0, 1]
+        );
+        assert!(choice_path_is_prefix_of(Some(&[1, 2, 3]), &[1, 2]));
+        assert!(!choice_path_is_prefix_of(Some(&[1, 3, 2]), &[1, 2]));
+        assert_eq!(common_prefix_len(&[1, 2], None), 0);
+    }
+
+    #[test]
+    fn test_unsigned_invariant_refinement_and_truncation_helpers() {
+        let mut partition = BacktrackableOrderedPartition::new(6);
+        assert!(refine_partition_according_to_unsigned_invariant_like_bliss(
+            &mut partition,
+            |element| element / 2,
+        ));
+        let cells = partition.cells().map(|cell| cell.elements().to_vec()).collect::<Vec<_>>();
+        assert_eq!(cells, vec![vec![0, 1], vec![2, 3], vec![4, 5]]);
+
+        let mut packed_path = Some(vec![1_u32, 2, 3, 4]);
+        truncate_packed_path(&mut packed_path, Some(2));
+        assert_eq!(packed_path, Some(vec![1, 2]));
+        truncate_packed_path(&mut packed_path, None);
+        assert_eq!(packed_path, Some(vec![1, 2]));
     }
 }
