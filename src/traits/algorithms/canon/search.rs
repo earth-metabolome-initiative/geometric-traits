@@ -1615,6 +1615,21 @@ where
                 };
             }
             if backjump_depth == depth {
+                let comparison_to_local_best = compare_candidate_to_best(
+                    candidate.packed_path.as_deref(),
+                    candidate.path_info.as_deref(),
+                    candidate.path_invariants.as_deref().unwrap_or(&[]),
+                    best.as_ref().and_then(|current_best| current_best.packed_path.as_deref()),
+                    best.as_ref().and_then(|current_best| current_best.path_info.as_deref()),
+                    best.as_ref().and_then(|current_best| current_best.path_invariants.as_deref()),
+                );
+                if matches!(
+                    (&best, comparison_to_local_best),
+                    (_, core::cmp::Ordering::Greater) | (None, _)
+                ) {
+                    best = Some(candidate);
+                    best_choice = Some(element);
+                }
                 continue;
             }
         }
