@@ -22,6 +22,7 @@ target
 cobertura.xml
 tarpaulin-report.json
 coverage_output
+coverage/**/lcov.info
 
 # Python cache artifacts
 __pycache__/
