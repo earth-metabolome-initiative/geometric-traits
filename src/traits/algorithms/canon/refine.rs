@@ -121,7 +121,7 @@ enum NonUnitCellSplitAnalysis<EdgeLabel> {
         max_invariant: usize,
         max_invariant_count: usize,
         all_equal: bool,
-        counts_in_cell_order: Vec<(usize, usize)>,
+        counts_in_current_order: Vec<usize>,
     },
     General {
         all_equal: bool,
@@ -136,10 +136,12 @@ struct DenseMarker {
 }
 
 impl DenseMarker {
+    #[inline]
     fn new(order: usize) -> Self {
         Self { marks: vec![0; order], generation: 1 }
     }
 
+    #[inline]
     fn clear(&mut self) {
         self.generation = self.generation.wrapping_add(1);
         if self.generation == 0 {
@@ -148,10 +150,12 @@ impl DenseMarker {
         }
     }
 
+    #[inline]
     fn mark(&mut self, index: usize) {
         self.marks[index] = self.generation;
     }
 
+    #[inline]
     fn contains(&self, index: usize) -> bool {
         self.marks[index] == self.generation
     }
@@ -212,6 +216,8 @@ pub(crate) struct RefinementWorkspace<EdgeLabel> {
     unit_touched_labelled_elements: DenseCellBuckets<(usize, EdgeLabel)>,
     splitter_elements: Vec<usize>,
     candidate_cells: Vec<PartitionCellId>,
+    splitter_touched_vertices: Vec<usize>,
+    splitter_vertex_counts: Vec<usize>,
 }
 
 impl<EdgeLabel> RefinementWorkspace<EdgeLabel> {
@@ -225,6 +231,8 @@ impl<EdgeLabel> RefinementWorkspace<EdgeLabel> {
             unit_touched_labelled_elements: DenseCellBuckets::new(order),
             splitter_elements: Vec::new(),
             candidate_cells: Vec::new(),
+            splitter_touched_vertices: Vec::new(),
+            splitter_vertex_counts: vec![0; order],
         }
     }
 
@@ -237,6 +245,7 @@ impl<EdgeLabel> RefinementWorkspace<EdgeLabel> {
         self.unit_touched_labelled_elements.clear();
         self.splitter_elements.clear();
         self.candidate_cells.clear();
+        self.splitter_touched_vertices.clear();
     }
 }
 
@@ -355,6 +364,8 @@ where
         unit_touched_labelled_elements,
         splitter_elements,
         candidate_cells,
+        splitter_touched_vertices,
+        splitter_vertex_counts,
     } = workspace;
 
     let mut changed_any = false;
@@ -562,12 +573,23 @@ where
             continue;
         }
 
+        let use_unsigned_counts = core::mem::size_of::<EdgeLabel>() == 0;
         touched_cell_marker.clear();
         candidate_cells.clear();
+        if use_unsigned_counts {
+            splitter_touched_vertices.clear();
+        }
         for &splitter_vertex in splitter_elements.iter() {
             let source = nodes[splitter_vertex];
             for neighbour in graph.successors(source) {
-                let neighbour_cell = partition.cell_of(neighbour.as_());
+                let neighbour_index = neighbour.as_();
+                if use_unsigned_counts {
+                    if splitter_vertex_counts[neighbour_index] == 0 {
+                        splitter_touched_vertices.push(neighbour_index);
+                    }
+                    splitter_vertex_counts[neighbour_index] += 1;
+                }
+                let neighbour_cell = partition.cell_of(neighbour_index);
                 if partition.cell_elements(neighbour_cell).len() > 1
                     && !touched_cell_marker.contains(neighbour_cell.index())
                 {
@@ -580,38 +602,44 @@ where
         candidate_cells.sort_unstable_by_key(|&cell| partition.cell_first(cell));
         for &cell in candidate_cells.iter() {
             let was_in_queue = in_queue[cell.index()];
-            let analysis = analyse_non_unit_cell_to_splitter(
-                partition,
-                graph,
-                nodes,
-                splitter_marker,
-                cell,
-                &mut edge_label,
-            );
+            let analysis = if use_unsigned_counts {
+                analyse_non_unit_cell_to_splitter_unsigned_from_counts(
+                    partition,
+                    cell,
+                    splitter_vertex_counts,
+                )
+            } else {
+                analyse_non_unit_cell_to_splitter(
+                    partition,
+                    graph,
+                    nodes,
+                    splitter_marker,
+                    cell,
+                    &mut edge_label,
+                )
+            };
             let (produced, queue_mode) = match analysis {
                 NonUnitCellSplitAnalysis::UnsignedCounts { all_equal: true, .. }
                 | NonUnitCellSplitAnalysis::General { all_equal: true, .. } => continue,
                 NonUnitCellSplitAnalysis::UnsignedCounts {
                     max_invariant,
                     max_invariant_count,
-                    counts_in_cell_order,
+                    counts_in_current_order,
                     ..
-                } => {
-                    (
-                        partition
-                            .split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
-                                cell,
-                                &counts_in_cell_order,
-                                max_invariant,
-                                max_invariant_count,
-                            ),
-                        if max_invariant == 1 {
-                            SplitQueueMode::Binary01
-                        } else {
-                            SplitQueueMode::General
-                        },
-                    )
-                }
+                } => (
+                    partition
+                        .split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+                            cell,
+                            &counts_in_current_order,
+                            max_invariant,
+                            max_invariant_count,
+                        ),
+                    if max_invariant == 1 {
+                        SplitQueueMode::Binary01
+                    } else {
+                        SplitQueueMode::General
+                    },
+                ),
                 NonUnitCellSplitAnalysis::General { signatures_in_cell_order, .. } => {
                     (
                         partition.split_cell_by_precomputed_keys(cell, &signatures_in_cell_order),
@@ -662,6 +690,13 @@ where
                 splitter_queue,
                 in_queue,
             );
+        }
+
+        if use_unsigned_counts {
+            for &vertex in splitter_touched_vertices.iter() {
+                splitter_vertex_counts[vertex] = 0;
+            }
+            splitter_touched_vertices.clear();
         }
     }
 
@@ -756,7 +791,7 @@ where
 
     let mut signatures_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
     let mut common_label = None::<EdgeLabel>;
-    let mut counts_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
+    let mut counts_in_current_order = Vec::with_capacity(partition.cell_len(cell));
     let mut max_invariant = 0usize;
     let mut max_invariant_count = 0usize;
     let mut first_count = None::<usize>;
@@ -797,7 +832,7 @@ where
                 } else if count == max_invariant {
                     max_invariant_count += 1;
                 }
-                counts_in_cell_order.push((vertex, count));
+                counts_in_current_order.push(count);
             }
         }
         if let Some(first) = &first_signature {
@@ -815,7 +850,7 @@ where
             max_invariant,
             max_invariant_count,
             all_equal,
-            counts_in_cell_order,
+            counts_in_current_order,
         };
     }
 
@@ -833,7 +868,7 @@ where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize>,
 {
-    let mut counts_in_cell_order = Vec::with_capacity(partition.cell_len(cell));
+    let mut counts_in_current_order = Vec::with_capacity(partition.cell_len(cell));
     let mut max_invariant = 0usize;
     let mut max_invariant_count = 0usize;
     let mut first_count = None::<usize>;
@@ -857,13 +892,48 @@ where
         } else if count == max_invariant {
             max_invariant_count += 1;
         }
-        counts_in_cell_order.push((vertex, count));
+        counts_in_current_order.push(count);
     }
     NonUnitCellSplitAnalysis::UnsignedCounts {
         max_invariant,
         max_invariant_count,
         all_equal,
-        counts_in_cell_order,
+        counts_in_current_order,
+    }
+}
+
+fn analyse_non_unit_cell_to_splitter_unsigned_from_counts<EdgeLabel>(
+    partition: &BacktrackableOrderedPartition,
+    cell: PartitionCellId,
+    splitter_vertex_counts: &[usize],
+) -> NonUnitCellSplitAnalysis<EdgeLabel> {
+    let mut counts_in_current_order = Vec::with_capacity(partition.cell_len(cell));
+    let mut max_invariant = 0usize;
+    let mut max_invariant_count = 0usize;
+    let mut first_count = None::<usize>;
+    let mut all_equal = true;
+    for &vertex in partition.cell_elements(cell) {
+        let count = splitter_vertex_counts[vertex];
+        if let Some(first) = first_count {
+            if count != first {
+                all_equal = false;
+            }
+        } else {
+            first_count = Some(count);
+        }
+        if count > max_invariant {
+            max_invariant = count;
+            max_invariant_count = 1;
+        } else if count == max_invariant {
+            max_invariant_count += 1;
+        }
+        counts_in_current_order.push(count);
+    }
+    NonUnitCellSplitAnalysis::UnsignedCounts {
+        max_invariant,
+        max_invariant_count,
+        all_equal,
+        counts_in_current_order,
     }
 }
 

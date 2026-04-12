@@ -2,6 +2,11 @@
 #![cfg(feature = "std")]
 #![allow(clippy::pedantic)]
 
+#[path = "support/canon_bench_fixture.rs"]
+#[allow(dead_code)]
+mod canon_bench_fixture;
+
+use canon_bench_fixture::{CanonCase, timeout_cases};
 use geometric_traits::{
     impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
     naive_structs::GenericGraph,
@@ -41,6 +46,21 @@ fn build_bidirectional_labeled_graph(
         SymmetricCSR2D::from_sorted_upper_triangular_entries(number_of_nodes, upper_edges).unwrap();
 
     GenericGraph::from((nodes, edges))
+}
+
+fn permuted_case(case: &CanonCase) -> (LabeledUndirectedGraph, Vec<u8>) {
+    let order = case.number_of_nodes();
+    let permutation = (0..order).map(|index| (order + 2 - index) % order).collect::<Vec<_>>();
+    let mut vertex_labels = vec![0_u8; order];
+    for (old, &new) in permutation.iter().enumerate() {
+        vertex_labels[new] = case.vertex_labels[old];
+    }
+    let edges = case
+        .edges
+        .iter()
+        .map(|&(source, destination, label)| (permutation[source], permutation[destination], label))
+        .collect::<Vec<_>>();
+    (build_bidirectional_labeled_graph(order, &edges), vertex_labels)
 }
 
 #[test]
@@ -580,6 +600,82 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
         assert!(
             result.stats.search_nodes > result.stats.leaf_nodes,
             "curated bliss-search case {} should remain nontrivial",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn test_timeout_cases_keep_pinned_stats() {
+    let expected = [
+        ("fuzz_timeout_dense_complete_n31_single_override_16_22_2", (435, 30)),
+        ("fuzz_timeout_dense_complete_n31_profile_55_11", (10, 5)),
+        ("fuzz_timeout_dense_complete_n31_profile_210_21", (210, 21)),
+    ];
+
+    for case in timeout_cases() {
+        let matrix = Edges::matrix(case.graph.edges());
+        let result = canonical_label_labeled_simple_graph(
+            &case.graph,
+            |node| case.vertex_labels[node],
+            |left, right| matrix.sparse_value_at(left, right).unwrap(),
+        );
+        let &(expected_nodes, expected_leaves) = expected
+            .iter()
+            .find_map(|(name, stats)| (*name == case.name).then_some(stats))
+            .expect("missing timeout-case expectation");
+
+        assert_eq!(
+            (result.stats.search_nodes, result.stats.leaf_nodes),
+            (expected_nodes, expected_leaves),
+            "timeout case {} drifted",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn test_single_override_case_is_relabeling_invariant_across_bliss_heuristics() {
+    let case = timeout_cases()
+        .into_iter()
+        .find(|case| case.name == "fuzz_timeout_dense_complete_n31_single_override_16_22_2")
+        .expect("single-override timeout case must exist");
+    let matrix = Edges::matrix(case.graph.edges());
+    let (permuted_graph, permuted_vertex_labels) = permuted_case(&case);
+    let permuted_matrix = Edges::matrix(permuted_graph.edges());
+
+    let heuristics = [
+        CanonSplittingHeuristic::First,
+        CanonSplittingHeuristic::FirstSmallest,
+        CanonSplittingHeuristic::FirstLargest,
+        CanonSplittingHeuristic::FirstMaxNeighbours,
+        CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+        CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+    ];
+
+    for heuristic in heuristics {
+        let original = canonical_label_labeled_simple_graph_with_options(
+            &case.graph,
+            |node| case.vertex_labels[node],
+            |left, right| matrix.sparse_value_at(left, right).unwrap(),
+            CanonicalLabelingOptions { splitting_heuristic: heuristic },
+        );
+        let permuted = canonical_label_labeled_simple_graph_with_options(
+            &permuted_graph,
+            |node| permuted_vertex_labels[node],
+            |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
+            CanonicalLabelingOptions { splitting_heuristic: heuristic },
+        );
+
+        assert_eq!(
+            original.certificate, permuted.certificate,
+            "heuristic {:?} lost relabeling invariance on {}",
+            heuristic, case.name
+        );
+        assert!(
+            original.stats.search_nodes > original.stats.leaf_nodes,
+            "heuristic {:?} should remain nontrivial on {}",
+            heuristic,
             case.name
         );
     }

@@ -317,6 +317,7 @@ impl BacktrackableOrderedPartition {
     ///
     /// Panics if `element >= self.order()`.
     #[must_use]
+    #[inline]
     pub fn cell_of(&self, element: usize) -> PartitionCellId {
         self.assert_valid_element(element);
         PartitionCellId(self.element_to_cell[element])
@@ -328,6 +329,7 @@ impl BacktrackableOrderedPartition {
     ///
     /// Panics if `cell` is not active.
     #[must_use]
+    #[inline]
     pub fn cell_elements(&self, cell: PartitionCellId) -> &[usize] {
         let cell_data = self.cell(cell.0);
         &self.elements[cell_data.first..cell_data.first + cell_data.length]
@@ -345,6 +347,7 @@ impl BacktrackableOrderedPartition {
     ///
     /// Panics if `cell` is not active.
     #[must_use]
+    #[inline]
     pub(crate) fn cell_first(&self, cell: PartitionCellId) -> usize {
         self.cell(cell.0).first
     }
@@ -355,6 +358,7 @@ impl BacktrackableOrderedPartition {
     ///
     /// Panics if `cell` is not active.
     #[must_use]
+    #[inline]
     pub(crate) fn cell_len(&self, cell: PartitionCellId) -> usize {
         self.cell(cell.0).length
     }
@@ -780,11 +784,36 @@ impl BacktrackableOrderedPartition {
         )
     }
 
-    #[allow(clippy::too_many_lines)]
     pub(crate) fn split_cell_by_precomputed_unsigned_invariants_like_bliss_with_summary(
         &mut self,
         cell: PartitionCellId,
         invariants_in_cell_order: &[(usize, usize)],
+        max_invariant: usize,
+        max_invariant_count: usize,
+    ) -> Vec<PartitionCellId> {
+        debug_assert_eq!(invariants_in_cell_order.len(), self.cell_len(cell));
+        debug_assert!(
+            invariants_in_cell_order
+                .iter()
+                .zip(self.cell_elements(cell).iter())
+                .all(|((element, _), current)| element == current)
+        );
+
+        let invariants_in_current_order =
+            invariants_in_cell_order.iter().map(|(_, invariant)| *invariant).collect::<Vec<_>>();
+        self.split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+            cell,
+            &invariants_in_current_order,
+            max_invariant,
+            max_invariant_count,
+        )
+    }
+
+    #[allow(clippy::too_many_lines)]
+    pub(crate) fn split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+        &mut self,
+        cell: PartitionCellId,
+        invariants_in_current_order: &[usize],
         max_invariant: usize,
         max_invariant_count: usize,
     ) -> Vec<PartitionCellId> {
@@ -793,17 +822,10 @@ impl BacktrackableOrderedPartition {
             return vec![cell];
         }
 
-        debug_assert_eq!(invariants_in_cell_order.len(), cell_data.length);
-        debug_assert!(
-            invariants_in_cell_order
-                .iter()
-                .zip(self.cell_elements(cell).iter())
-                .all(|((element, _), current)| element == current)
-        );
+        debug_assert_eq!(invariants_in_current_order.len(), cell_data.length);
 
         let start = cell_data.first;
-        let mut invariants_by_offset =
-            invariants_in_cell_order.iter().map(|(_, invariant)| *invariant).collect::<Vec<_>>();
+        let mut invariants_by_offset = invariants_in_current_order.to_vec();
 
         if max_invariant == 1 {
             let mut left = start;
@@ -888,7 +910,13 @@ impl BacktrackableOrderedPartition {
             );
         }
 
-        self.split_cell_by_precomputed_keys(cell, invariants_in_cell_order)
+        let invariants_in_cell_order = self
+            .cell_elements(cell)
+            .iter()
+            .copied()
+            .zip(invariants_in_current_order.iter().copied())
+            .collect::<Vec<_>>();
+        self.split_cell_by_precomputed_keys(cell, &invariants_in_cell_order)
     }
 
     fn split_cell_by_sorted_unsigned_invariants_in_current_order(
@@ -1070,6 +1098,7 @@ impl BacktrackableOrderedPartition {
     }
 
     #[must_use]
+    #[inline]
     fn cell(&self, cell_id: usize) -> &PartitionCell {
         let cell = self.cells.get(cell_id).expect("cell id must refer to an allocated cell slot");
         assert!(cell.is_active(), "cell id {cell_id} must refer to an active cell");
