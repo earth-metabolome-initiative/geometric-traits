@@ -5782,14 +5782,15 @@ pub(crate) mod embedding {
     #[cfg(test)]
     mod tests {
         #![allow(clippy::pedantic)]
-        use alloc::vec::Vec;
+        use alloc::{string::ToString, vec::Vec};
 
         use super::{
-            EmbeddingArcRecord, EmbeddingMutationError, EmbeddingSlot, EmbeddingSlotKind,
-            EmbeddingState,
+            BlockedBicompContext, ChildSubtreeAction, EmbeddingArcRecord, EmbeddingMutationError,
+            EmbeddingSlot, EmbeddingSlotKind, EmbeddingState, K4BlockedBicompOutcome, K4Context,
+            NonOuterplanarityContext, WalkDownChildOutcome, WalkDownExecutionError,
         };
         use crate::traits::algorithms::planarity_detection::preprocessing::{
-            DfsArcType, LocalSimpleGraph,
+            DfsArcRecord, DfsArcType, DfsPreprocessing, DfsVertexState, LocalSimpleGraph,
         };
 
         #[allow(clippy::too_many_lines)]
@@ -5909,6 +5910,358 @@ pub(crate) mod embedding {
             }
         }
 
+        fn empty_primary_slot(original_vertex: usize) -> EmbeddingSlot {
+            EmbeddingSlot {
+                kind: EmbeddingSlotKind::Primary { original_vertex },
+                first_arc: None,
+                last_arc: None,
+                ext_face: [None, None],
+                visited: false,
+                visited_info: 0,
+                pertinent_roots: Vec::new(),
+                future_pertinent_child: None,
+                pertinent_edge: None,
+                k33_merge_blocker: None,
+                k33_minor_e_reduced: false,
+                singleton_sorted_dfs_child: None,
+                sorted_dfs_children: Vec::new(),
+                separated_dfs_children: Vec::new(),
+            }
+        }
+
+        fn empty_root_copy_slot(
+            parent_primary_slot: usize,
+            dfs_child_primary_slot: usize,
+        ) -> EmbeddingSlot {
+            EmbeddingSlot {
+                kind: EmbeddingSlotKind::RootCopy { parent_primary_slot, dfs_child_primary_slot },
+                first_arc: None,
+                last_arc: None,
+                ext_face: [None, None],
+                visited: false,
+                visited_info: 0,
+                pertinent_roots: Vec::new(),
+                future_pertinent_child: None,
+                pertinent_edge: None,
+                k33_merge_blocker: None,
+                k33_minor_e_reduced: false,
+                singleton_sorted_dfs_child: None,
+                sorted_dfs_children: Vec::new(),
+                separated_dfs_children: Vec::new(),
+            }
+        }
+
+        fn simple_nonouterplanarity_context_embedding(pertinent_middle: bool) -> EmbeddingState {
+            let mut slots = vec![
+                empty_root_copy_slot(1, 1),
+                empty_primary_slot(0),
+                empty_primary_slot(1),
+                empty_primary_slot(2),
+            ];
+            let visited_info = slots.len();
+            for slot in &mut slots {
+                slot.visited_info = visited_info;
+            }
+
+            slots[0].first_arc = Some(0);
+            slots[0].last_arc = Some(7);
+            slots[0].ext_face = [Some(1), Some(3)];
+
+            slots[1].first_arc = Some(2);
+            slots[1].last_arc = Some(1);
+            slots[1].ext_face = [Some(2), Some(0)];
+
+            slots[2].first_arc = Some(4);
+            slots[2].last_arc = Some(3);
+            slots[2].ext_face = [Some(3), Some(1)];
+            if pertinent_middle {
+                slots[2].pertinent_edge = Some(0);
+            }
+
+            slots[3].first_arc = Some(6);
+            slots[3].last_arc = Some(5);
+            slots[3].ext_face = [Some(0), Some(2)];
+
+            let arcs = vec![
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 0,
+                    target_slot: 1,
+                    twin: 1,
+                    next: Some(7),
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Child,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 1,
+                    target_slot: 0,
+                    twin: 0,
+                    next: None,
+                    prev: Some(2),
+                    visited: false,
+                    kind: DfsArcType::Parent,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 1,
+                    target_slot: 2,
+                    twin: 3,
+                    next: Some(1),
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Child,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 2,
+                    target_slot: 1,
+                    twin: 2,
+                    next: None,
+                    prev: Some(4),
+                    visited: false,
+                    kind: DfsArcType::Parent,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 2,
+                    target_slot: 3,
+                    twin: 5,
+                    next: Some(3),
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Forward,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 3,
+                    target_slot: 2,
+                    twin: 4,
+                    next: None,
+                    prev: Some(6),
+                    visited: false,
+                    kind: DfsArcType::Back,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 3,
+                    target_slot: 0,
+                    twin: 7,
+                    next: Some(5),
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Parent,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 0,
+                    target_slot: 3,
+                    twin: 6,
+                    next: None,
+                    prev: Some(0),
+                    visited: false,
+                    kind: DfsArcType::Child,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+            ];
+
+            EmbeddingState {
+                slots,
+                arcs,
+                primary_slot_by_original_vertex: vec![1, 2, 3],
+                root_copy_by_primary_dfi: vec![None, Some(0), None, None],
+                least_ancestor_by_primary_slot: vec![0, 1, 2, 3],
+                lowpoint_by_primary_slot: vec![0, 1, 2, 3],
+                forward_arc_head_index_by_primary_slot: vec![None; 4],
+                handling_k4_blocked_bicomp: false,
+                k4_reblocked_same_root: false,
+            }
+        }
+
+        fn simple_straddling_bridge_embedding() -> EmbeddingState {
+            let mut slots = (0..7).map(empty_primary_slot).collect::<Vec<_>>();
+            slots.push(empty_root_copy_slot(3, 4));
+            slots.push(empty_root_copy_slot(3, 5));
+            let visited_info = slots.len();
+            for slot in &mut slots {
+                slot.visited_info = visited_info;
+            }
+
+            slots[3].sorted_dfs_children = vec![4, 5];
+            slots[3].separated_dfs_children = vec![4, 5];
+            slots[5].singleton_sorted_dfs_child = Some(6);
+
+            slots[4].first_arc = Some(1);
+            slots[4].last_arc = Some(1);
+            slots[4].ext_face = [Some(7), Some(7)];
+
+            slots[5].first_arc = Some(3);
+            slots[5].last_arc = Some(3);
+            slots[5].ext_face = [Some(8), Some(8)];
+
+            slots[7].first_arc = Some(0);
+            slots[7].last_arc = Some(0);
+            slots[7].ext_face = [Some(4), Some(4)];
+
+            slots[8].first_arc = Some(2);
+            slots[8].last_arc = Some(2);
+            slots[8].ext_face = [Some(5), Some(5)];
+
+            let arcs = vec![
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 7,
+                    target_slot: 4,
+                    twin: 1,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Child,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 4,
+                    target_slot: 7,
+                    twin: 0,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Parent,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 8,
+                    target_slot: 5,
+                    twin: 3,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Child,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+                EmbeddingArcRecord {
+                    original_arc: None,
+                    source_slot: 5,
+                    target_slot: 8,
+                    twin: 2,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: DfsArcType::Parent,
+                    embedded: true,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                },
+            ];
+
+            EmbeddingState {
+                slots,
+                arcs,
+                primary_slot_by_original_vertex: (0..7).collect(),
+                root_copy_by_primary_dfi: vec![None, None, None, None, Some(7), Some(8), None],
+                least_ancestor_by_primary_slot: vec![0, 1, 2, 3, 4, 5, 0],
+                lowpoint_by_primary_slot: vec![0, 1, 2, 3, 0, 0, 0],
+                forward_arc_head_index_by_primary_slot: vec![None; 7],
+                handling_k4_blocked_bicomp: false,
+                k4_reblocked_same_root: false,
+            }
+        }
+
+        fn simple_tree_preprocessing() -> super::DfsPreprocessing {
+            LocalSimpleGraph::from_edges(3, &[[0, 1], [1, 2]]).unwrap().preprocess()
+        }
+
+        fn simple_forward_arc_fixture() -> (EmbeddingState, DfsPreprocessing) {
+            let mut embedding = simple_straddling_bridge_embedding();
+            embedding.arcs.push(EmbeddingArcRecord {
+                original_arc: Some(4),
+                source_slot: 3,
+                target_slot: 5,
+                twin: 5,
+                next: None,
+                prev: None,
+                visited: false,
+                kind: DfsArcType::Forward,
+                embedded: false,
+                inverted: false,
+                reduction_endpoint_arc: None,
+            });
+            embedding.arcs.push(EmbeddingArcRecord {
+                original_arc: Some(5),
+                source_slot: 5,
+                target_slot: 3,
+                twin: 4,
+                next: None,
+                prev: None,
+                visited: false,
+                kind: DfsArcType::Back,
+                embedded: false,
+                inverted: false,
+                reduction_endpoint_arc: None,
+            });
+            embedding.forward_arc_head_index_by_primary_slot[3] = Some(0);
+
+            let mut vertices = vec![
+                DfsVertexState {
+                    parent: None,
+                    parent_arc: None,
+                    dfi: usize::MAX,
+                    least_ancestor: usize::MAX,
+                    lowpoint: usize::MAX,
+                    singleton_sorted_dfs_child: None,
+                    sorted_dfs_children: Vec::new(),
+                    sorted_forward_arcs: Vec::new(),
+                };
+                7
+            ];
+            vertices[3].sorted_forward_arcs = vec![4];
+
+            let preprocessing = DfsPreprocessing {
+                adjacency_arcs: Vec::new(),
+                arcs: vec![
+                    DfsArcRecord { source: 3, target: 5, twin: 1, kind: DfsArcType::Forward },
+                    DfsArcRecord { source: 5, target: 3, twin: 0, kind: DfsArcType::Back },
+                ],
+                vertices,
+                vertex_by_dfi: Vec::new(),
+                dfs_roots: vec![3],
+            };
+
+            (embedding, preprocessing)
+        }
+
         #[test]
         fn test_reduce_external_face_path_to_edge_round_trips() {
             let mut embedding = simple_reduction_embedding();
@@ -6016,6 +6369,44 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_normalize_slot_boundary_arcs_recovers_both_boundaries_from_interior_arcs() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[1].first_arc = Some(2);
+            embedding.slots[1].last_arc = Some(1);
+
+            embedding.normalize_slot_boundary_arcs(1);
+
+            assert_eq!(embedding.slots[1].first_arc, Some(1));
+            assert_eq!(embedding.slots[1].last_arc, Some(2));
+        }
+
+        #[test]
+        fn test_find_nonouterplanarity_context_returns_lower_face_pertinent_vertex() {
+            let embedding = simple_nonouterplanarity_context_embedding(true);
+
+            assert_eq!(embedding.find_pertinent_vertex_on_lower_face(1, 3), Some(2));
+            assert_eq!(
+                embedding.find_nonouterplanarity_context(1, 0),
+                Some(NonOuterplanarityContext {
+                    current_primary_slot: 1,
+                    x_slot: 1,
+                    y_slot: 3,
+                    w_slot: 2,
+                    x_prev_link: 1,
+                    y_prev_link: 0,
+                })
+            );
+        }
+
+        #[test]
+        fn test_find_nonouterplanarity_context_returns_none_without_lower_face_pertinent_vertex() {
+            let embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(embedding.find_pertinent_vertex_on_lower_face(1, 3), None);
+            assert_eq!(embedding.find_nonouterplanarity_context(1, 0), None);
+        }
+
+        #[test]
         fn test_find_pertinent_vertex_between_active_sides_parallel_finds_middle_slot() {
             let mut embedding = simple_reduction_embedding();
             embedding.slots[1].pertinent_edge = Some(0);
@@ -6023,6 +6414,16 @@ pub(crate) mod embedding {
             assert_eq!(
                 embedding.find_pertinent_vertex_between_active_sides_parallel(0, 0, 2, 1),
                 Some(1)
+            );
+        }
+
+        #[test]
+        fn test_find_pertinent_vertex_between_active_sides_parallel_returns_none() {
+            let embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.find_pertinent_vertex_between_active_sides_parallel(1, 1, 3, 0),
+                None
             );
         }
 
@@ -6062,6 +6463,45 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_reduce_path_to_edge_with_explicit_kinds_handles_direct_singleton_edge() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[0].ext_face = [None, None];
+            embedding.slots[1].ext_face = [None, Some(2)];
+
+            let reduction = embedding
+                .reduce_path_to_edge_with_explicit_kinds(
+                    0,
+                    0,
+                    1,
+                    1,
+                    DfsArcType::Child,
+                    DfsArcType::Parent,
+                )
+                .unwrap();
+
+            assert_eq!(reduction, None);
+            assert_eq!(embedding.slots[0].ext_face, [Some(1), Some(1)]);
+            assert_eq!(embedding.slots[1].ext_face, [Some(0), Some(2)]);
+        }
+
+        #[test]
+        fn test_reduce_xy_path_to_edge_with_explicit_kinds_returns_none_for_direct_xy_edge() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            let reduction = embedding
+                .reduce_xy_path_to_edge_with_explicit_kinds(
+                    2,
+                    1,
+                    DfsArcType::Forward,
+                    DfsArcType::Back,
+                )
+                .unwrap();
+
+            assert_eq!(reduction, None);
+            assert_eq!(embedding.arcs.len(), 8);
+        }
+
+        #[test]
         fn test_mark_tree_path_slots_visited_errors_on_missing_step() {
             let mut embedding = simple_reduction_embedding();
 
@@ -6092,11 +6532,291 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_tree_path_slots_between_ancestor_and_root_copy_descendant() {
+            let embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.tree_path_slots_between_ancestor_and_descendant(1, 0),
+                Ok(vec![1, 0])
+            );
+        }
+
+        #[test]
+        fn test_tree_path_slots_between_ancestor_and_descendant_errors_on_root_copy_cycle() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.slots[0].kind =
+                EmbeddingSlotKind::RootCopy { parent_primary_slot: 0, dfs_child_primary_slot: 1 };
+
+            assert_eq!(
+                embedding.tree_path_slots_between_ancestor_and_descendant(1, 0),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 1,
+                    start_side: 0,
+                    end_slot: 0,
+                })
+            );
+        }
+
+        #[test]
         fn test_cumulative_orientation_on_tree_path_accumulates_child_inversions() {
             let mut embedding = simple_reduction_embedding();
             embedding.arcs[2].inverted = true;
 
             assert_eq!(embedding.cumulative_orientation_on_tree_path(0, 2), Ok(true));
+        }
+
+        #[test]
+        fn test_real_ext_face_neighbor_updates_previous_link_for_nonsingleton_neighbor() {
+            let embedding = simple_nonouterplanarity_context_embedding(false);
+            let mut previous_link = 1usize;
+
+            let next_slot = embedding.real_ext_face_neighbor(0, &mut previous_link);
+
+            assert_eq!(next_slot, 1);
+            assert_eq!(previous_link, 1);
+        }
+
+        #[test]
+        #[should_panic(expected = "external-face link must be initialized")]
+        fn test_ext_face_vertex_panics_when_external_face_link_is_missing() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[0].ext_face[0] = None;
+
+            let _ = embedding.ext_face_vertex(0, 0);
+        }
+
+        #[test]
+        #[should_panic(expected = "external-face traversal requires an incident arc")]
+        fn test_real_ext_face_neighbor_panics_without_incident_arc() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[0].first_arc = None;
+            embedding.slots[0].last_arc = None;
+
+            let mut previous_link = 0usize;
+            let _ = embedding.real_ext_face_neighbor(0, &mut previous_link);
+        }
+
+        #[test]
+        fn test_orient_full_bicomp_from_root_inverts_descendants_and_clears_signs() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.arcs[0].inverted = true;
+
+            embedding.orient_full_bicomp_from_root(0, false);
+
+            assert_eq!(embedding.slots[1].first_arc, Some(2));
+            assert_eq!(embedding.slots[1].last_arc, Some(1));
+            assert_eq!(embedding.slots[1].ext_face, [Some(2), Some(0)]);
+            assert!(!embedding.arcs[0].inverted);
+        }
+
+        #[test]
+        fn test_last_visited_arc_on_slot_returns_last_marked_arc() {
+            let mut embedding = simple_reduction_embedding();
+
+            assert_eq!(embedding.last_visited_arc_on_slot(1), None);
+
+            embedding.arcs[2].visited = true;
+            assert_eq!(embedding.last_visited_arc_on_slot(1), Some(2));
+        }
+
+        #[test]
+        fn test_find_descendant_with_least_ancestor_below_descends_into_subtree() {
+            let embedding = simple_straddling_bridge_embedding();
+
+            assert_eq!(embedding.find_descendant_with_least_ancestor_below(5, 1), Some(6));
+        }
+
+        #[test]
+        fn test_test_for_straddling_bridge_skips_excluded_child_and_returns_descendant() {
+            let embedding = simple_straddling_bridge_embedding();
+
+            assert_eq!(embedding.test_for_straddling_bridge(3, 7, 1), Some(6));
+        }
+
+        #[test]
+        fn test_mark_k4_closest_xy_path_rejects_invalid_target_slot() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            let context = K4Context {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                x_prev_link: 1,
+                y_prev_link: 0,
+            };
+
+            assert_eq!(
+                embedding.mark_k4_closest_xy_path(&context, 1, &[]),
+                Err(WalkDownExecutionError::InvalidK4Context)
+            );
+        }
+
+        #[test]
+        fn test_delete_unmarked_edges_in_k4_path_component_skips_twin_after_deletion() {
+            let mut embedding = simple_reduction_embedding();
+
+            embedding.delete_unmarked_edges_in_k4_path_component(0, 2, &[0, 1, 2]);
+
+            assert_eq!(embedding.slots[0].first_arc, None);
+            assert_eq!(embedding.slots[1].first_arc, None);
+            assert_eq!(embedding.slots[2].first_arc, None);
+            assert_eq!(embedding.arcs[0].source_slot, usize::MAX);
+            assert_eq!(embedding.arcs[1].source_slot, usize::MAX);
+            assert_eq!(embedding.arcs[2].source_slot, usize::MAX);
+            assert_eq!(embedding.arcs[3].source_slot, usize::MAX);
+        }
+
+        #[test]
+        fn test_handle_k4_blocked_bicomp_completes_on_same_root_reblock() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.handling_k4_blocked_bicomp = true;
+
+            assert_eq!(
+                embedding.handle_k4_blocked_bicomp(&preprocessing, 1, 0, 0),
+                Ok(K4BlockedBicompOutcome::Completed)
+            );
+            assert!(embedding.k4_reblocked_same_root);
+        }
+
+        #[test]
+        fn test_resolve_child_subtree_action_short_circuits_reduced_k33_bicomp() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.slots[0].k33_minor_e_reduced = true;
+
+            assert_eq!(
+                embedding.resolve_child_subtree_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    None,
+                    super::super::EmbeddingRunMode::K33Search,
+                ),
+                Ok(ChildSubtreeAction::AdvanceAndReturn(WalkDownChildOutcome::Completed))
+            );
+        }
+
+        #[test]
+        fn test_resolve_child_subtree_action_short_circuits_same_root_k4_reblock() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.handling_k4_blocked_bicomp = true;
+
+            assert_eq!(
+                embedding.resolve_child_subtree_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    None,
+                    super::super::EmbeddingRunMode::K4Search,
+                ),
+                Ok(ChildSubtreeAction::Return(WalkDownChildOutcome::Completed))
+            );
+            assert!(embedding.k4_reblocked_same_root);
+        }
+
+        #[test]
+        fn test_resolve_pertinent_root_walk_action_returns_blocked_bicomp_for_planarity_mode() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.resolve_pertinent_root_walk_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    1,
+                    0,
+                    0,
+                    &[],
+                    super::super::EmbeddingRunMode::Planarity,
+                ),
+                Err(WalkDownExecutionError::BlockedBicomp {
+                    context: BlockedBicompContext {
+                        current_primary_slot: 1,
+                        walk_root_copy_slot: 0,
+                        walk_root_side: 1,
+                        cut_vertex_slot: 1,
+                        cut_vertex_entry_side: 0,
+                        blocked_root_copy_slot: 0,
+                    },
+                })
+            );
+        }
+
+        #[test]
+        fn test_find_nonplanarity_bicomp_root_returns_matching_root_copy() {
+            let (mut embedding, preprocessing) = simple_forward_arc_fixture();
+
+            assert_eq!(embedding.find_nonplanarity_bicomp_root(&preprocessing, 3), Some(8));
+        }
+
+        #[test]
+        fn test_child_subtree_forward_arc_head_returns_matching_forward_arc() {
+            let (mut embedding, preprocessing) = simple_forward_arc_fixture();
+
+            assert_eq!(
+                embedding.child_subtree_forward_arc_head(&preprocessing, 3, 4, None),
+                Some(4)
+            );
+        }
+
+        #[test]
+        fn test_child_subtree_forward_arc_head_returns_none_outside_child_range() {
+            let (mut embedding, preprocessing) = simple_forward_arc_fixture();
+
+            assert_eq!(
+                embedding.child_subtree_forward_arc_head(&preprocessing, 3, 4, Some(5)),
+                None
+            );
+        }
+
+        #[test]
+        fn test_walk_down_execution_error_display_and_conversion() {
+            let messages = [
+                (
+                    WalkDownExecutionError::BlockedBicomp {
+                        context: BlockedBicompContext {
+                            current_primary_slot: 0,
+                            walk_root_copy_slot: 1,
+                            walk_root_side: 0,
+                            cut_vertex_slot: 2,
+                            cut_vertex_entry_side: 1,
+                            blocked_root_copy_slot: 3,
+                        },
+                    },
+                    "walk-down was blocked by a pertinent bicomp during outerplanarity traversal",
+                ),
+                (
+                    WalkDownExecutionError::InvalidK23Context,
+                    "K23 obstruction search failed to initialize non-outerplanarity context",
+                ),
+                (
+                    WalkDownExecutionError::InvalidK4Context,
+                    "K4 search failed to initialize blocked-bicomp context",
+                ),
+                (
+                    WalkDownExecutionError::InvalidK33Context,
+                    "K33 search failed to initialize nonplanarity context",
+                ),
+                (
+                    WalkDownExecutionError::UnembeddedForwardArcInChildSubtree { forward_arc: 7 },
+                    "walk-down finished with an unembedded forward arc remaining in the child subtree",
+                ),
+            ];
+
+            for (error, expected) in messages {
+                assert_eq!(error.to_string(), expected);
+            }
+
+            let mutation_error = EmbeddingMutationError::MissingSlotArc { slot: 1, side: 0 };
+            let converted: WalkDownExecutionError = mutation_error.clone().into();
+            assert_eq!(converted, WalkDownExecutionError::Mutation(mutation_error));
         }
 
         #[test]
@@ -6623,6 +7343,14 @@ mod tests {
                 node_count: 3,
             }),
             PlanarityError::InvalidEdgeEndpoint { endpoint: 3, node_count: 3 }
+        );
+    }
+
+    #[test]
+    fn test_preprocessing_maps_self_loop_to_public_error() {
+        assert_eq!(
+            LocalSimpleGraph::map_local_simple_graph_error(LocalSimpleGraphError::SelfLoop),
+            PlanarityError::SelfLoopsUnsupported
         );
     }
 
