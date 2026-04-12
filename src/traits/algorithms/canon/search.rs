@@ -25,7 +25,7 @@ use num_traits::AsPrimitive;
 
 use super::{
     BacktrackableOrderedPartition, PartitionCellId, RefinementTrace,
-    refine_partition_to_labeled_equitable_with_trace,
+    refine::RefinementTraceStorage, refine_partition_to_labeled_equitable_with_trace,
     refine_partition_to_labeled_equitable_with_trace_from_splitters,
 };
 use crate::{
@@ -186,9 +186,11 @@ struct SearchState<EdgeLabel> {
     first_order: Option<Rc<[usize]>>,
     first_leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
     first_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    first_packed_path: Option<Rc<[u32]>>,
     first_choice_path: Option<Rc<[usize]>>,
     best_order: Option<Rc<[usize]>>,
     best_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    best_packed_path: Option<Rc<[u32]>>,
     best_choice_path: Option<Rc<[usize]>>,
     first_path_orbits_global: KnownOrbits,
     first_path_orbits_by_depth: Vec<KnownOrbits>,
@@ -199,7 +201,8 @@ struct SearchState<EdgeLabel> {
 struct SearchOutcome<EdgeLabel> {
     order: Rc<[usize]>,
     leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
-    path_invariants: Rc<[Rc<RefinementTrace<EdgeLabel>>]>,
+    path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    packed_path: Option<Rc<[u32]>>,
     sibling_orbits: KnownOrbits,
     choice_path: Rc<[usize]>,
 }
@@ -433,9 +436,11 @@ where
         first_order: None,
         first_leaf_signature: None,
         first_path_invariants: None,
+        first_packed_path: None,
         first_choice_path: None,
         best_order: None,
         best_path_invariants: None,
+        best_packed_path: None,
         best_choice_path: None,
         first_path_orbits_global: KnownOrbits::new(order),
         first_path_orbits_by_depth: Vec::new(),
@@ -443,6 +448,10 @@ where
         long_prune_records: Vec::new(),
     };
     let mut path_invariants = vec![Rc::new(root_trace)];
+    let mut packed_path = match &path_invariants[0].storage {
+        RefinementTraceStorage::Packed(words) => Some(words.clone()),
+        RefinementTraceStorage::Events(_) => None,
+    };
     let mut choice_path = Vec::new();
     let mut component_endpoints = Vec::new();
     let search_return = search_canonical_labeling(
@@ -455,6 +464,7 @@ where
         &mut partition,
         &mut state,
         &mut path_invariants,
+        &mut packed_path,
         &mut choice_path,
         &mut component_endpoints,
         0,
@@ -561,6 +571,7 @@ fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     partition: &mut BacktrackableOrderedPartition,
     state: &mut SearchState<EdgeLabel>,
     path_invariants: &mut Vec<Rc<RefinementTrace<EdgeLabel>>>,
+    packed_path: &mut Option<Vec<u32>>,
     choice_path: &mut Vec<usize>,
     component_endpoints: &mut Vec<ComponentEndpoint>,
     active_component_endpoint_len: usize,
@@ -581,12 +592,19 @@ where
         state.stats.search_nodes += 1;
     }
     if partition.is_discrete() {
-        if let Some(best_path) = state.best_path_invariants.as_deref() {
-            let discrete_cmp_to_best = path_invariants_prefix_cmp(path_invariants, best_path);
-            let discrete_equal_to_first_path =
-                state.first_path_invariants.as_deref().is_some_and(|first_path| {
-                    path_invariants_prefix_equal_strict(path_invariants, first_path)
-                });
+        if state.best_path_invariants.is_some() || state.best_packed_path.is_some() {
+            let discrete_cmp_to_best = path_prefix_cmp(
+                packed_path.as_deref(),
+                path_invariants,
+                state.best_packed_path.as_deref(),
+                state.best_path_invariants.as_deref(),
+            );
+            let discrete_equal_to_first_path = path_prefix_equal_strict(
+                packed_path.as_deref(),
+                path_invariants,
+                state.first_packed_path.as_deref(),
+                state.first_path_invariants.as_deref(),
+            );
             if !discrete_equal_to_first_path && discrete_cmp_to_best == core::cmp::Ordering::Less {
                 state.stats.pruned_path_signatures += 1;
                 return SearchReturn {
@@ -612,16 +630,26 @@ where
                 order_snapshot.as_ref(),
             ))
         });
-        let path_invariants_snapshot =
-            Rc::<[Rc<RefinementTrace<EdgeLabel>>]>::from(path_invariants.clone());
+        let packed_path_snapshot = packed_path.as_ref().map(|path| Rc::<[u32]>::from(path.clone()));
+        let path_invariants_snapshot = if packed_path_snapshot.is_none() {
+            Some(Rc::<[Rc<RefinementTrace<EdgeLabel>>]>::from(path_invariants.clone()))
+        } else {
+            None
+        };
         let choice_path_snapshot = Rc::<[usize]>::from(choice_path.clone());
         let had_first_order = state.first_order.is_some();
-        let comparison_to_best =
-            compare_candidate_to_best(path_invariants, state.best_path_invariants.as_deref());
-        let candidate_path_matches_first =
-            state.first_path_invariants.as_deref().is_some_and(|first_path| {
-                path_invariants_lex_cmp(path_invariants, first_path) == core::cmp::Ordering::Equal
-            });
+        let comparison_to_best = compare_candidate_to_best(
+            packed_path.as_deref(),
+            path_invariants,
+            state.best_packed_path.as_deref(),
+            state.best_path_invariants.as_deref(),
+        );
+        let candidate_path_matches_first = path_lex_cmp(
+            packed_path.as_deref(),
+            path_invariants,
+            state.first_packed_path.as_deref(),
+            state.first_path_invariants.as_deref(),
+        ) == core::cmp::Ordering::Equal;
         let candidate_equals_first = candidate_path_matches_first
             && state.first_order.as_ref().is_some_and(|first_order| {
                 leaf_orders_equal(
@@ -638,12 +666,14 @@ where
         if state.first_order.is_none() {
             state.first_order = Some(order_snapshot.clone());
             state.first_leaf_signature.clone_from(&leaf_signature);
-            state.first_path_invariants = Some(path_invariants_snapshot.clone());
+            state.first_path_invariants.clone_from(&path_invariants_snapshot);
+            state.first_packed_path.clone_from(&packed_path_snapshot);
             state.first_choice_path = Some(choice_path_snapshot.clone());
         }
         if comparison_to_best == core::cmp::Ordering::Greater {
             state.best_order = Some(order_snapshot.clone());
-            state.best_path_invariants = Some(path_invariants_snapshot.clone());
+            state.best_path_invariants.clone_from(&path_invariants_snapshot);
+            state.best_packed_path.clone_from(&packed_path_snapshot);
             state.best_choice_path = Some(choice_path_snapshot.clone());
             state.best_path_orbits = KnownOrbits::new(nodes.len());
         }
@@ -652,6 +682,7 @@ where
                 order: order_snapshot.clone(),
                 leaf_signature,
                 path_invariants: path_invariants_snapshot,
+                packed_path: packed_path_snapshot,
                 sibling_orbits: KnownOrbits::new(nodes.len()),
                 choice_path: choice_path_snapshot,
             }),
@@ -711,22 +742,32 @@ where
     let mut best_choice: Option<usize> = None;
     let mut node_first_path_automorphism: Option<Vec<usize>> = None;
     let target_cell_len = partition.cell_len(target_cell);
-    if let Some(best_path) = state.best_path_invariants.as_deref() {
-        let equal_to_first_path =
-            state.first_path_invariants.as_deref().is_some_and(|first_path| {
-                path_invariants_prefix_equal_strict(path_invariants, first_path)
-            });
-        let cmp_to_best = path_invariants_prefix_cmp(path_invariants, best_path);
-        if !equal_to_first_path && cmp_to_best == core::cmp::Ordering::Less {
-            state.stats.pruned_path_signatures += 1;
-            partition.goto_backtrack_point(node_backtrack_point);
-            component_endpoints.truncate(previous_component_endpoint_len);
-            return SearchReturn {
-                best: None,
-                first_path_automorphism: None,
-                best_path_backjump_depth: None,
-            };
-        }
+    let node_path_is_equal_to_first_prefix = path_prefix_equal_strict(
+        packed_path.as_deref(),
+        path_invariants,
+        state.first_packed_path.as_deref(),
+        state.first_path_invariants.as_deref(),
+    );
+    let node_path_cmp_to_best_prefix =
+        (state.best_path_invariants.is_some() || state.best_packed_path.is_some()).then(|| {
+            path_prefix_cmp(
+                packed_path.as_deref(),
+                path_invariants,
+                state.best_packed_path.as_deref(),
+                state.best_path_invariants.as_deref(),
+            )
+        });
+    if node_path_cmp_to_best_prefix == Some(core::cmp::Ordering::Less)
+        && !node_path_is_equal_to_first_prefix
+    {
+        state.stats.pruned_path_signatures += 1;
+        partition.goto_backtrack_point(node_backtrack_point);
+        component_endpoints.truncate(previous_component_endpoint_len);
+        return SearchReturn {
+            best: None,
+            first_path_automorphism: None,
+            best_path_backjump_depth: None,
+        };
     }
 
     for (candidate_index, element) in candidate_choices.iter().copied().enumerate() {
@@ -780,24 +821,60 @@ where
             &mut *edge_label,
             [individualized],
         );
-        path_invariants.push(Rc::new(child_trace));
+        let packed_backtrack_len = packed_path.as_ref().map(Vec::len);
+        let child_trace_on_stack =
+            !matches!(child_trace.storage, RefinementTraceStorage::Packed(_));
+        if let (Some(current_packed_path), RefinementTraceStorage::Packed(words)) =
+            (packed_path.as_mut(), &child_trace.storage)
+        {
+            current_packed_path.extend_from_slice(words);
+        }
         choice_path.push(element);
         let had_first_path_before_child = state.first_choice_path.is_some();
         let had_best_before_child = state.best_order.is_some();
         let previous_best_order = state.best_order.clone();
         let previous_best_path_invariants = state.best_path_invariants.clone();
+        let previous_best_packed_path = state.best_packed_path.clone();
         let previous_best_choice_path = state.best_choice_path.clone();
         let child_path_matches_first_prefix =
             choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path);
         let child_is_on_first_path = node_is_on_first_path && child_path_matches_first_prefix;
-        let child_path_is_equal_to_first_prefix =
-            state.first_path_invariants.as_ref().is_some_and(|first_path_invariants| {
-                path_invariants_prefix_equal_strict(path_invariants, first_path_invariants)
+        let child_parent_prefix_equal_to_first = path_prefix_equal_strict(
+            packed_path.as_deref(),
+            path_invariants,
+            state.first_packed_path.as_deref(),
+            state.first_path_invariants.as_deref(),
+        );
+        let child_parent_prefix_cmp_to_best =
+            (state.best_path_invariants.is_some() || state.best_packed_path.is_some()).then(|| {
+                path_prefix_cmp(
+                    packed_path.as_deref(),
+                    path_invariants,
+                    state.best_packed_path.as_deref(),
+                    state.best_path_invariants.as_deref(),
+                )
             });
-        let child_path_cmp_to_best_prefix =
-            state.best_path_invariants.as_ref().map(|best_path_invariants| {
-                path_invariants_prefix_cmp(path_invariants, best_path_invariants)
-            });
+        let child_path_is_equal_to_first_prefix = child_path_prefix_equal_to_reference(
+            child_parent_prefix_equal_to_first,
+            &child_trace,
+            packed_backtrack_len,
+            state.first_packed_path.as_deref(),
+            state.first_path_invariants.as_deref(),
+            depth + 1,
+        );
+        let child_path_cmp_to_best_prefix = child_parent_prefix_cmp_to_best.map(|parent_cmp| {
+            child_path_prefix_cmp_to_reference(
+                parent_cmp,
+                &child_trace,
+                packed_backtrack_len,
+                state.best_packed_path.as_deref(),
+                state.best_path_invariants.as_deref(),
+                depth + 1,
+            )
+        });
+        if child_trace_on_stack {
+            path_invariants.push(Rc::new(child_trace));
+        }
         let child_path_is_equal_to_best_prefix =
             child_path_cmp_to_best_prefix.is_some_and(|cmp| cmp == core::cmp::Ordering::Equal);
         let child_path_is_not_worse_than_best_prefix =
@@ -805,11 +882,14 @@ where
         let child_is_on_best_path = node_is_on_best_path
             && choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path);
         let local_best_matches_first_path = if let Some(current_best) = best.as_mut() {
-            let current_best_path_matches_first =
-                state.first_path_invariants.as_deref().is_some_and(|first_path| {
-                    path_invariants_lex_cmp(current_best.path_invariants.as_ref(), first_path)
-                        == core::cmp::Ordering::Equal
-                });
+            let current_best_path_matches_first = (state.first_path_invariants.is_some()
+                || state.first_packed_path.is_some())
+                && path_lex_cmp(
+                    current_best.packed_path.as_deref(),
+                    current_best.path_invariants.as_deref().unwrap_or(&[]),
+                    state.first_packed_path.as_deref(),
+                    state.first_path_invariants.as_deref(),
+                ) == core::cmp::Ordering::Equal;
             current_best_path_matches_first
                 && state.first_order.as_ref().is_some_and(|first_order| {
                     leaf_orders_equal(
@@ -999,7 +1079,10 @@ where
                 });
         if reached_component_endpoint {
             choice_path.pop();
-            path_invariants.pop();
+            if child_trace_on_stack {
+                path_invariants.pop();
+            }
+            truncate_packed_path(packed_path, packed_backtrack_len);
             partition.goto_backtrack_point(backtrack_point);
             if break_after_component_endpoint_automorphism {
                 if node_is_on_first_path {
@@ -1060,7 +1143,10 @@ where
                 }
             }
             choice_path.pop();
-            path_invariants.pop();
+            if child_trace_on_stack {
+                path_invariants.pop();
+            }
+            truncate_packed_path(packed_path, packed_backtrack_len);
             partition.goto_backtrack_point(backtrack_point);
             break;
         }
@@ -1074,6 +1160,7 @@ where
             partition,
             state,
             path_invariants,
+            packed_path,
             choice_path,
             component_endpoints,
             child_active_component_endpoint_len,
@@ -1086,7 +1173,10 @@ where
         let child_first_path_automorphism = child_return.first_path_automorphism.clone();
         let child_best_path_backjump_depth = child_return.best_path_backjump_depth;
         choice_path.pop();
-        path_invariants.pop();
+        if child_trace_on_stack {
+            path_invariants.pop();
+        }
+        truncate_packed_path(packed_path, packed_backtrack_len);
         partition.goto_backtrack_point(backtrack_point);
         let Some(candidate) = child_return.best else {
             if let Some(automorphism) = child_first_path_automorphism.as_deref() {
@@ -1142,11 +1232,14 @@ where
         let mut candidate_sibling_orbits = candidate.sibling_orbits.clone();
         local_orbits.ingest_known_orbits(&mut candidate_sibling_orbits);
 
-        let candidate_path_matches_first =
-            state.first_path_invariants.as_deref().is_some_and(|first_path| {
-                path_invariants_lex_cmp(candidate.path_invariants.as_ref(), first_path)
-                    == core::cmp::Ordering::Equal
-            });
+        let candidate_path_matches_first = (state.first_path_invariants.is_some()
+            || state.first_packed_path.is_some())
+            && path_lex_cmp(
+                candidate.packed_path.as_deref(),
+                candidate.path_invariants.as_deref().unwrap_or(&[]),
+                state.first_packed_path.as_deref(),
+                state.first_path_invariants.as_deref(),
+            ) == core::cmp::Ordering::Equal;
         let candidate_equals_first_path = candidate_path_matches_first
             && state.first_order.as_ref().is_some_and(|first_order| {
                 leaf_orders_equal(
@@ -1217,26 +1310,38 @@ where
                 && !node_is_on_first_path
         };
         let comparison_to_local_best = compare_candidate_to_best(
-            candidate.path_invariants.as_ref(),
-            best.as_ref().map(|current_best| current_best.path_invariants.as_ref()),
+            candidate.packed_path.as_deref(),
+            candidate.path_invariants.as_deref().unwrap_or(&[]),
+            best.as_ref().and_then(|current_best| current_best.packed_path.as_deref()),
+            best.as_ref().and_then(|current_best| current_best.path_invariants.as_deref()),
         );
-        let candidate_matches_previous_best_path =
-            previous_best_path_invariants.as_ref().is_some_and(|best_path_invariants| {
-                path_invariants_lex_cmp(candidate.path_invariants.as_ref(), best_path_invariants)
-                    == core::cmp::Ordering::Equal
-            });
-        let candidate_matches_previous_best_automorphism = previous_best_order
-            .as_ref()
-            .map(|best_order| leaf_automorphism(best_order, candidate.order.as_ref()))
-            .filter(|automorphism| {
-                is_labeled_graph_automorphism(
-                    adjacency,
-                    nodes,
-                    vertex_labels,
-                    edge_label,
-                    automorphism,
-                )
-            });
+        let candidate_matches_previous_best_path = (previous_best_path_invariants.is_some()
+            || previous_best_packed_path.is_some())
+            && path_lex_cmp(
+                candidate.packed_path.as_deref(),
+                candidate.path_invariants.as_deref().unwrap_or(&[]),
+                previous_best_packed_path.as_deref(),
+                previous_best_path_invariants.as_deref(),
+            ) == core::cmp::Ordering::Equal;
+        let candidate_matches_previous_best_automorphism = if had_best_before_child
+            && !child_is_on_best_path
+            && !candidate_matches_previous_best_path
+        {
+            previous_best_order
+                .as_ref()
+                .map(|best_order| leaf_automorphism(best_order, candidate.order.as_ref()))
+                .filter(|automorphism| {
+                    is_labeled_graph_automorphism(
+                        adjacency,
+                        nodes,
+                        vertex_labels,
+                        edge_label,
+                        automorphism,
+                    )
+                })
+        } else {
+            None
+        };
         let candidate_equals_local_best_certificate =
             if comparison_to_local_best == core::cmp::Ordering::Equal {
                 best.as_mut().is_some_and(|current_best| {
@@ -2127,49 +2232,177 @@ where
     refined
 }
 
-fn path_invariants_prefix_cmp<EdgeLabel>(
-    current: &[Rc<RefinementTrace<EdgeLabel>>],
-    best: &[Rc<RefinementTrace<EdgeLabel>>],
-) -> core::cmp::Ordering
-where
-    EdgeLabel: Ord + Clone,
-{
-    let limit = current.len().min(best.len());
-    for index in 0..limit {
-        let cmp = compare_refinement_trace(current[index].as_ref(), best[index].as_ref());
-        if cmp != core::cmp::Ordering::Equal {
-            return cmp;
-        }
+fn truncate_packed_path(packed_path: &mut Option<Vec<u32>>, length: Option<usize>) {
+    if let (Some(packed_path), Some(length)) = (packed_path.as_mut(), length) {
+        packed_path.truncate(length);
     }
-    core::cmp::Ordering::Equal
 }
 
-fn path_invariants_lex_cmp<EdgeLabel>(
-    current: &[Rc<RefinementTrace<EdgeLabel>>],
-    best: &[Rc<RefinementTrace<EdgeLabel>>],
-) -> core::cmp::Ordering
-where
-    EdgeLabel: Ord + Clone,
-{
-    let prefix_cmp = path_invariants_prefix_cmp(current, best);
-    if prefix_cmp != core::cmp::Ordering::Equal {
-        return prefix_cmp;
-    }
-    current.len().cmp(&best.len())
-}
-
-fn path_invariants_prefix_equal_strict<EdgeLabel>(
-    current: &[Rc<RefinementTrace<EdgeLabel>>],
-    reference: &[Rc<RefinementTrace<EdgeLabel>>],
+fn child_path_prefix_equal_to_reference<EdgeLabel>(
+    parent_prefix_equal: bool,
+    child_trace: &RefinementTrace<EdgeLabel>,
+    packed_offset: Option<usize>,
+    reference_packed: Option<&[u32]>,
+    reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+    child_depth: usize,
 ) -> bool
 where
     EdgeLabel: Ord + Clone,
 {
-    current.len() <= reference.len()
-        && current
-            .iter()
-            .zip(reference.iter())
-            .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+    if !parent_prefix_equal {
+        return false;
+    }
+
+    match (&child_trace.storage, reference_packed, reference_traces) {
+        (RefinementTraceStorage::Packed(words), Some(reference), None) => {
+            let start = packed_offset.expect("packed child trace requires packed path offset");
+            let end = start + words.len();
+            end <= reference.len() && &reference[start..end] == words.as_slice()
+        }
+        (RefinementTraceStorage::Events(_), None, Some(reference)) => {
+            reference
+                .get(child_depth)
+                .is_some_and(|expected| refinement_trace_equal(child_trace, expected.as_ref()))
+        }
+        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, None) => {
+            false
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
+}
+
+fn child_path_prefix_cmp_to_reference<EdgeLabel>(
+    parent_prefix_cmp: core::cmp::Ordering,
+    child_trace: &RefinementTrace<EdgeLabel>,
+    packed_offset: Option<usize>,
+    reference_packed: Option<&[u32]>,
+    reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+    child_depth: usize,
+) -> core::cmp::Ordering
+where
+    EdgeLabel: Ord + Clone,
+{
+    if parent_prefix_cmp != core::cmp::Ordering::Equal {
+        return parent_prefix_cmp;
+    }
+
+    match (&child_trace.storage, reference_packed, reference_traces) {
+        (RefinementTraceStorage::Packed(words), Some(reference), None) => {
+            let start = packed_offset.expect("packed child trace requires packed path offset");
+            if start >= reference.len() {
+                return core::cmp::Ordering::Equal;
+            }
+            let available = words.len().min(reference.len() - start);
+            words[..available].cmp(&reference[start..(start + available)])
+        }
+        (RefinementTraceStorage::Events(_), None, Some(reference)) => {
+            reference.get(child_depth).map_or(core::cmp::Ordering::Equal, |expected| {
+                compare_refinement_trace(child_trace, expected.as_ref())
+            })
+        }
+        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, None) => {
+            core::cmp::Ordering::Equal
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
+}
+
+fn packed_path_prefix_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
+    let limit = current.len().min(best.len());
+    current[..limit].cmp(&best[..limit])
+}
+
+fn packed_path_lex_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
+    current.cmp(best)
+}
+
+fn packed_path_prefix_equal_strict(current: &[u32], reference: &[u32]) -> bool {
+    current.len() <= reference.len() && current == &reference[..current.len()]
+}
+
+fn path_prefix_cmp<EdgeLabel>(
+    current_packed: Option<&[u32]>,
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    best_packed: Option<&[u32]>,
+    best_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+) -> core::cmp::Ordering
+where
+    EdgeLabel: Ord + Clone,
+{
+    if best_packed.is_none() && best_traces.is_none() {
+        return core::cmp::Ordering::Greater;
+    }
+
+    match (current_packed, best_packed) {
+        (Some(current), Some(best)) => packed_path_prefix_cmp(current, best),
+        (None, None) => {
+            let best = best_traces.expect("trace path comparison requires trace snapshots");
+            let limit = current_traces.len().min(best.len());
+            for index in 0..limit {
+                let cmp =
+                    compare_refinement_trace(current_traces[index].as_ref(), best[index].as_ref());
+                if cmp != core::cmp::Ordering::Equal {
+                    return cmp;
+                }
+            }
+            core::cmp::Ordering::Equal
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
+}
+
+fn path_lex_cmp<EdgeLabel>(
+    current_packed: Option<&[u32]>,
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    best_packed: Option<&[u32]>,
+    best_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+) -> core::cmp::Ordering
+where
+    EdgeLabel: Ord + Clone,
+{
+    if best_packed.is_none() && best_traces.is_none() {
+        return core::cmp::Ordering::Greater;
+    }
+
+    match (current_packed, best_packed) {
+        (Some(current), Some(best)) => packed_path_lex_cmp(current, best),
+        (None, None) => {
+            let best = best_traces.expect("trace path comparison requires trace snapshots");
+            let prefix_cmp = path_prefix_cmp(None, current_traces, None, Some(best));
+            if prefix_cmp != core::cmp::Ordering::Equal {
+                return prefix_cmp;
+            }
+            current_traces.len().cmp(&best.len())
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
+}
+
+fn path_prefix_equal_strict<EdgeLabel>(
+    current_packed: Option<&[u32]>,
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference_packed: Option<&[u32]>,
+    reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+) -> bool
+where
+    EdgeLabel: Ord + Clone,
+{
+    if reference_packed.is_none() && reference_traces.is_none() {
+        return false;
+    }
+
+    match (current_packed, reference_packed) {
+        (Some(current), Some(reference)) => packed_path_prefix_equal_strict(current, reference),
+        (None, None) => {
+            let reference = reference_traces.expect("trace path equality requires trace snapshots");
+            current_traces.len() <= reference.len()
+                && current_traces
+                    .iter()
+                    .zip(reference.iter())
+                    .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
 }
 
 fn compare_refinement_trace<EdgeLabel>(
@@ -2179,9 +2412,19 @@ fn compare_refinement_trace<EdgeLabel>(
 where
     EdgeLabel: Ord + Clone,
 {
-    let event_cmp = current.events.cmp(&best.events);
-    if event_cmp != core::cmp::Ordering::Equal {
-        return event_cmp;
+    let storage_cmp = match (&current.storage, &best.storage) {
+        (
+            RefinementTraceStorage::Packed(current_words),
+            RefinementTraceStorage::Packed(best_words),
+        ) => current_words.cmp(best_words),
+        (
+            RefinementTraceStorage::Events(current_events),
+            RefinementTraceStorage::Events(best_events),
+        ) => current_events.cmp(best_events),
+        _ => unreachable!("refinement traces of the same search must use the same storage form"),
+    };
+    if storage_cmp != core::cmp::Ordering::Equal {
+        return storage_cmp;
     }
 
     let length_cmp = current.subcertificate_length.cmp(&best.subcertificate_length);
@@ -2201,18 +2444,37 @@ where
 {
     current.subcertificate_length == reference.subcertificate_length
         && current.eqref_hash == reference.eqref_hash
-        && current.events == reference.events
+        && match (&current.storage, &reference.storage) {
+            (
+                RefinementTraceStorage::Packed(current_words),
+                RefinementTraceStorage::Packed(reference_words),
+            ) => current_words == reference_words,
+            (
+                RefinementTraceStorage::Events(current_events),
+                RefinementTraceStorage::Events(reference_events),
+            ) => current_events == reference_events,
+            _ => false,
+        }
 }
 
 fn compare_candidate_to_best<EdgeLabel>(
-    candidate_path: &[Rc<RefinementTrace<EdgeLabel>>],
-    best_path: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+    candidate_packed_path: Option<&[u32]>,
+    candidate_trace_path: &[Rc<RefinementTrace<EdgeLabel>>],
+    best_packed_path: Option<&[u32]>,
+    best_trace_path: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
 ) -> core::cmp::Ordering
 where
     EdgeLabel: Ord + Clone,
 {
-    match best_path {
-        None => core::cmp::Ordering::Greater,
-        Some(best_path) => path_invariants_lex_cmp(candidate_path, best_path),
+    match (best_packed_path, best_trace_path) {
+        (None, None) => core::cmp::Ordering::Greater,
+        _ => {
+            path_lex_cmp(
+                candidate_packed_path,
+                candidate_trace_path,
+                best_packed_path,
+                best_trace_path,
+            )
+        }
     }
 }
