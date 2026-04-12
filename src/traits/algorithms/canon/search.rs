@@ -15,11 +15,7 @@
 //! certificate / bad-node logic. It does include a partial `bliss`-style
 //! component-recursion path.
 
-use alloc::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 
 use num_traits::AsPrimitive;
 
@@ -162,13 +158,14 @@ impl KnownOrbits {
     }
 
     fn ingest_known_orbits(&mut self, other: &mut Self) {
-        let mut representatives = BTreeMap::new();
+        let mut representatives = vec![usize::MAX; other.parents.len()];
         for element in 0..other.parents.len() {
             let root = other.find(element);
-            if let Some(&representative) = representatives.get(&root) {
-                self.union(representative, element);
+            let representative = &mut representatives[root];
+            if *representative == usize::MAX {
+                *representative = element;
             } else {
-                representatives.insert(root, element);
+                self.union(*representative, element);
             }
         }
     }
@@ -470,6 +467,8 @@ where
         0,
         true,
         false,
+        false,
+        None,
         true,
         0,
         options.splitting_heuristic,
@@ -560,7 +559,11 @@ where
     }
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    clippy::too_many_lines
+)]
 fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     graph: &G,
     adjacency: &AdjacencyBitMatrix,
@@ -577,6 +580,8 @@ fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     active_component_endpoint_len: usize,
     current_node_is_on_first_path: bool,
     current_node_is_on_best_path: bool,
+    current_node_path_is_equal_to_first_prefix: bool,
+    current_node_path_cmp_to_best_prefix: Option<core::cmp::Ordering>,
     count_current_node: bool,
     depth: usize,
     splitting_heuristic: CanonSplittingHeuristic,
@@ -592,20 +597,10 @@ where
         state.stats.search_nodes += 1;
     }
     if partition.is_discrete() {
-        if state.best_path_invariants.is_some() || state.best_packed_path.is_some() {
-            let discrete_cmp_to_best = path_prefix_cmp(
-                packed_path.as_deref(),
-                path_invariants,
-                state.best_packed_path.as_deref(),
-                state.best_path_invariants.as_deref(),
-            );
-            let discrete_equal_to_first_path = path_prefix_equal_strict(
-                packed_path.as_deref(),
-                path_invariants,
-                state.first_packed_path.as_deref(),
-                state.first_path_invariants.as_deref(),
-            );
-            if !discrete_equal_to_first_path && discrete_cmp_to_best == core::cmp::Ordering::Less {
+        if let Some(discrete_cmp_to_best) = current_node_path_cmp_to_best_prefix {
+            if !current_node_path_is_equal_to_first_prefix
+                && discrete_cmp_to_best == core::cmp::Ordering::Less
+            {
                 state.stats.pruned_path_signatures += 1;
                 return SearchReturn {
                     best: None,
@@ -623,13 +618,20 @@ where
             })
             .collect::<Vec<_>>();
         let order_snapshot = Rc::<[usize]>::from(order);
-        let leaf_signature = (core::mem::size_of::<EdgeLabel>() == 0).then(|| {
-            Rc::new(build_unlabeled_leaf_signature(
-                adjacency,
-                vertex_label_ids,
-                order_snapshot.as_ref(),
-            ))
-        });
+        let mut leaf_signature: Option<Rc<UnlabeledLeafSignature>> = None;
+        let mut ensure_leaf_signature = || {
+            if core::mem::size_of::<EdgeLabel>() != 0 {
+                return None;
+            }
+            if leaf_signature.is_none() {
+                leaf_signature = Some(Rc::new(build_unlabeled_leaf_signature(
+                    adjacency,
+                    vertex_label_ids,
+                    order_snapshot.as_ref(),
+                )));
+            }
+            leaf_signature.clone()
+        };
         let packed_path_snapshot = packed_path.as_ref().map(|path| Rc::<[u32]>::from(path.clone()));
         let path_invariants_snapshot = if packed_path_snapshot.is_none() {
             Some(Rc::<[Rc<RefinementTrace<EdgeLabel>>]>::from(path_invariants.clone()))
@@ -652,20 +654,21 @@ where
         ) == core::cmp::Ordering::Equal;
         let candidate_equals_first = candidate_path_matches_first
             && state.first_order.as_ref().is_some_and(|first_order| {
+                let candidate_leaf_signature = ensure_leaf_signature();
                 leaf_orders_equal(
                     adjacency,
                     nodes,
                     vertex_labels,
                     edge_label,
                     order_snapshot.as_ref(),
-                    leaf_signature.as_deref(),
+                    candidate_leaf_signature.as_deref(),
                     first_order.as_ref(),
                     state.first_leaf_signature.as_deref(),
                 )
             });
         if state.first_order.is_none() {
             state.first_order = Some(order_snapshot.clone());
-            state.first_leaf_signature.clone_from(&leaf_signature);
+            state.first_leaf_signature = ensure_leaf_signature();
             state.first_path_invariants.clone_from(&path_invariants_snapshot);
             state.first_packed_path.clone_from(&packed_path_snapshot);
             state.first_choice_path = Some(choice_path_snapshot.clone());
@@ -732,9 +735,10 @@ where
             choice_path.as_slice(),
             &candidate_choices,
             &state.long_prune_records,
+            nodes.len(),
         )
     } else {
-        BTreeSet::new()
+        Vec::new()
     };
     let mut local_orbits = KnownOrbits::new(nodes.len());
     let mut explored_choices = Vec::new();
@@ -742,21 +746,8 @@ where
     let mut best_choice: Option<usize> = None;
     let mut node_first_path_automorphism: Option<Vec<usize>> = None;
     let target_cell_len = partition.cell_len(target_cell);
-    let node_path_is_equal_to_first_prefix = path_prefix_equal_strict(
-        packed_path.as_deref(),
-        path_invariants,
-        state.first_packed_path.as_deref(),
-        state.first_path_invariants.as_deref(),
-    );
-    let node_path_cmp_to_best_prefix =
-        (state.best_path_invariants.is_some() || state.best_packed_path.is_some()).then(|| {
-            path_prefix_cmp(
-                packed_path.as_deref(),
-                path_invariants,
-                state.best_packed_path.as_deref(),
-                state.best_path_invariants.as_deref(),
-            )
-        });
+    let node_path_is_equal_to_first_prefix = current_node_path_is_equal_to_first_prefix;
+    let node_path_cmp_to_best_prefix = current_node_path_cmp_to_best_prefix;
     if node_path_cmp_to_best_prefix == Some(core::cmp::Ordering::Less)
         && !node_path_is_equal_to_first_prefix
     {
@@ -799,7 +790,7 @@ where
             continue;
         }
 
-        if long_prune_redundant.contains(&element) {
+        if long_prune_redundant.get(element).copied().unwrap_or(false) {
             state.stats.pruned_sibling_orbits += 1;
             continue;
         }
@@ -1166,6 +1157,8 @@ where
             child_active_component_endpoint_len,
             if descended_via_first_component_boundary { false } else { child_is_on_first_path },
             if descended_via_first_component_boundary { false } else { child_is_on_best_path },
+            child_path_is_equal_to_first_prefix,
+            child_path_cmp_to_best_prefix,
             depth == 0 || !descended_via_first_component_boundary,
             depth + 1,
             splitting_heuristic,
@@ -1963,14 +1956,15 @@ fn compute_long_prune_redundant(
     choice_path: &[usize],
     candidates: &[usize],
     records: &[LongPruneRecord],
-) -> BTreeSet<usize> {
-    let mut redundant = BTreeSet::new();
+    order: usize,
+) -> Vec<bool> {
+    let mut redundant = vec![false; order];
 
     for record in records {
         if choice_path.iter().all(|&choice| record.fixed.get(choice).copied().unwrap_or(false)) {
             for &candidate in candidates {
                 if !record.mcrs.get(candidate).copied().unwrap_or(true) {
-                    redundant.insert(candidate);
+                    redundant[candidate] = true;
                 }
             }
         }
