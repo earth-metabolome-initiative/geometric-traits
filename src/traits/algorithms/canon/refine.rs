@@ -1086,3 +1086,203 @@ where
 
     NeighbourCountSignature { counts }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        impls::{CSR2D, SortedVec, SymmetricCSR2D, ValuedCSR2D},
+        naive_structs::GenericGraph,
+        prelude::*,
+        traits::{Edges, EdgesBuilder, SparseValuedMatrix2D, VocabularyBuilder},
+    };
+
+    type LabeledUndirectedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, u8>>;
+    type LabeledUndirectedGraph = GenericGraph<SortedVec<usize>, LabeledUndirectedEdges>;
+
+    fn build_undirected_graph(
+        number_of_nodes: usize,
+        edges: &[(usize, usize)],
+    ) -> UndiGraph<usize> {
+        let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+            .expected_number_of_symbols(number_of_nodes)
+            .symbols((0..number_of_nodes).enumerate())
+            .build()
+            .unwrap();
+        let mut canonical_edges: Vec<(usize, usize)> =
+            edges
+                .iter()
+                .map(|&(source, destination)| {
+                    if source <= destination {
+                        (source, destination)
+                    } else {
+                        (destination, source)
+                    }
+                })
+                .collect();
+        canonical_edges.sort_unstable();
+        canonical_edges.dedup();
+        let edges: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiEdgesBuilder::default()
+            .expected_number_of_edges(canonical_edges.len())
+            .expected_shape(number_of_nodes)
+            .edges(canonical_edges.into_iter())
+            .build()
+            .unwrap();
+
+        UndiGraph::from((nodes, edges))
+    }
+
+    fn build_bidirectional_labeled_graph(
+        number_of_nodes: usize,
+        edges: &[(usize, usize, u8)],
+    ) -> LabeledUndirectedGraph {
+        let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+            .expected_number_of_symbols(number_of_nodes)
+            .symbols((0..number_of_nodes).enumerate())
+            .build()
+            .unwrap();
+        let mut upper_edges: Vec<(usize, usize, u8)> = edges
+            .iter()
+            .map(|&(source, destination, label)| {
+                if source <= destination {
+                    (source, destination, label)
+                } else {
+                    (destination, source, label)
+                }
+            })
+            .collect();
+        upper_edges.sort_unstable_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+        upper_edges.dedup();
+        let edges: LabeledUndirectedEdges =
+            SymmetricCSR2D::from_sorted_upper_triangular_entries(number_of_nodes, upper_edges)
+                .unwrap();
+
+        GenericGraph::from((nodes, edges))
+    }
+
+    fn sorted_partition_classes(partition: &BacktrackableOrderedPartition) -> Vec<Vec<usize>> {
+        let mut classes = partition
+            .cells()
+            .map(|cell| {
+                let mut elements = cell.elements().to_vec();
+                elements.sort_unstable();
+                elements
+            })
+            .collect::<Vec<_>>();
+        classes.sort_unstable();
+        classes
+    }
+
+    #[test]
+    fn test_unit_touched_elements_if_single_label_covers_empty_mixed_and_uniform_inputs() {
+        assert_eq!(unit_touched_elements_if_single_label::<u8>(&[]), None);
+        assert_eq!(
+            unit_touched_elements_if_single_label(&[(2, 7_u8), (4, 7_u8)]),
+            Some((7, vec![2, 4]))
+        );
+        assert_eq!(unit_touched_elements_if_single_label(&[(2, 7_u8), (4, 9_u8)]), None);
+    }
+
+    #[test]
+    fn test_labelled_signature_to_splitter_counts_repeated_labels() {
+        let graph = build_bidirectional_labeled_graph(4, &[(0, 1, 2), (0, 2, 1), (0, 3, 1)]);
+        let nodes: Vec<_> = graph.node_ids().collect();
+        let matrix = Edges::matrix(graph.edges());
+        let mut in_splitter = DenseMarker::new(4);
+        in_splitter.mark(1);
+        in_splitter.mark(2);
+        in_splitter.mark(3);
+
+        let signature = labelled_signature_to_splitter(
+            &graph,
+            &nodes,
+            &in_splitter,
+            0,
+            &mut |source, destination| matrix.sparse_value_at(source, destination).unwrap(),
+        );
+
+        assert_eq!(signature.counts, vec![(1, 2), (2, 1)]);
+    }
+
+    #[test]
+    fn test_unsigned_non_unit_analysis_from_counts_matches_graph_count_variant() {
+        let graph = build_undirected_graph(4, &[(0, 1), (0, 2)]);
+        let nodes: Vec<_> = graph.node_ids().collect();
+        let partition = BacktrackableOrderedPartition::new(4);
+        let cell = partition.cell_of(0);
+        let mut in_splitter = DenseMarker::new(4);
+        in_splitter.mark(0);
+
+        let from_graph = analyse_non_unit_cell_to_splitter_unsigned::<_, ()>(
+            &partition,
+            &graph,
+            &nodes,
+            &in_splitter,
+            cell,
+        );
+        let from_counts = analyse_non_unit_cell_to_splitter_unsigned_from_counts::<()>(
+            &partition,
+            cell,
+            &[0, 1, 1, 0],
+        );
+
+        match (from_graph, from_counts) {
+            (
+                NonUnitCellSplitAnalysis::UnsignedCounts {
+                    max_invariant: graph_max,
+                    max_invariant_count: graph_max_count,
+                    all_equal: graph_all_equal,
+                    counts_in_current_order: graph_counts,
+                },
+                NonUnitCellSplitAnalysis::UnsignedCounts {
+                    max_invariant: counts_max,
+                    max_invariant_count: counts_max_count,
+                    all_equal: counts_all_equal,
+                    counts_in_current_order: counts_counts,
+                },
+            ) => {
+                assert_eq!(graph_max, counts_max);
+                assert_eq!(graph_max_count, counts_max_count);
+                assert_eq!(graph_all_equal, counts_all_equal);
+                assert_eq!(graph_counts, counts_counts);
+            }
+            _ => panic!("expected unsigned-count analyses"),
+        }
+    }
+
+    #[test]
+    fn test_refine_with_pop_sequence_covers_singleton_label_fast_path() {
+        let graph = build_bidirectional_labeled_graph(5, &[(0, 2, 7), (0, 3, 7), (2, 3, 1)]);
+        let matrix = Edges::matrix(graph.edges());
+        let mut partition = BacktrackableOrderedPartition::new(5);
+        let root = partition.cell_of(0);
+        let singleton = partition.individualize(root, 0);
+        let mut pop_sequence = Vec::new();
+
+        let (changed, trace) = refine_partition_to_labeled_equitable_with_trace_and_pop_sequence(
+            &graph,
+            &mut partition,
+            |source, destination| matrix.sparse_value_at(source, destination).unwrap(),
+            [singleton],
+            &mut pop_sequence,
+        );
+
+        assert!(changed);
+        assert!(!pop_sequence.is_empty());
+        assert_eq!(sorted_partition_classes(&partition), vec![vec![0], vec![1, 4], vec![2, 3]]);
+        match trace.storage {
+            RefinementTraceStorage::Events(events) => {
+                let target_edges = events
+                    .iter()
+                    .filter(|event| {
+                        matches!(event, RefinementTraceEvent::Edge { edge_label: 7, .. })
+                    })
+                    .count();
+                assert_eq!(target_edges, 2);
+            }
+            RefinementTraceStorage::Packed(_) => {
+                panic!("labeled refinement should store event traces")
+            }
+        }
+    }
+}
