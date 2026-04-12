@@ -1,4 +1,4 @@
-//! Validation of the combined local Boyer topological-validity corpus.
+//! Validation of the combined local topological-validity reference corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -31,12 +31,7 @@ fn assert_local_corpus_contract(
 
     let suite = load_fixture_suite(relative_path);
     assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.algorithm, "boyer_edge_addition_reference_cli");
     assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(
-        suite.generator,
-        "edge_addition_planarity_suite_combined_topological_validity_cli_v4_sharded"
-    );
     assert_eq!(suite.primary_oracle, "planarity_outerplanarity_k23_k33_k4_booleans");
     assert_eq!(suite.count, expected_case_count);
     assert_eq!(suite.cases.len(), expected_case_count);

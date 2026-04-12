@@ -125,6 +125,47 @@ fn test_k33_homeomorph_accepts_fuzzer_regression_20260411_b() {
 }
 
 #[test]
+fn test_k33_homeomorph_accepts_fuzzer_regression_20260412() {
+    let (case, expected) = k33_case(
+        "fuzzer_regression_20260412",
+        "fuzzer",
+        16,
+        &[
+            [0, 1],
+            [0, 7],
+            [0, 11],
+            [0, 15],
+            [1, 5],
+            [1, 11],
+            [2, 4],
+            [3, 5],
+            [3, 10],
+            [3, 15],
+            [4, 5],
+            [4, 12],
+            [4, 13],
+            [5, 6],
+            [5, 7],
+            [5, 10],
+            [5, 11],
+            [5, 12],
+            [5, 15],
+            [7, 8],
+            [7, 11],
+            [7, 15],
+            [8, 9],
+            [9, 15],
+            [11, 12],
+            [11, 15],
+            [14, 15],
+        ],
+        true,
+    );
+    let graph = build_undigraph(&case);
+    assert_eq!(graph.has_k33_homeomorph().unwrap(), expected);
+}
+
+#[test]
 #[allow(clippy::too_many_lines)]
 fn test_k33_homeomorph_semantic_cases() {
     let cases = [

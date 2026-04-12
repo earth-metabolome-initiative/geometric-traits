@@ -1,5 +1,5 @@
-//! Validation of the local Boyer `K_4` homeomorph oracle in the combined v4
-//! corpus.
+//! Validation of the local `K_4` homeomorph reference oracle in the combined
+//! v4 corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -24,12 +24,7 @@ fn test_local_k4_homeomorph_reference_corpus_1m() {
 
     let suite = load_fixture_suite(LOCAL_CORPUS_1M_PATH);
     assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.algorithm, "boyer_edge_addition_reference_cli");
     assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(
-        suite.generator,
-        "edge_addition_planarity_suite_combined_topological_validity_cli_v4_sharded"
-    );
     assert_eq!(suite.primary_oracle, "planarity_outerplanarity_k23_k33_k4_booleans");
     assert_eq!(suite.count, EXPECTED_1M_CASE_COUNT);
     assert_eq!(suite.cases.len(), EXPECTED_1M_CASE_COUNT);

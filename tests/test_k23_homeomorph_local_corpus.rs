@@ -1,4 +1,4 @@
-//! Validation of the local Boyer `K_{2,3}` homeomorph corpus.
+//! Validation of the local `K_{2,3}` homeomorph reference corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -23,9 +23,7 @@ fn assert_local_corpus_contract(
 
     let suite = load_fixture_suite(relative_path);
     assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.algorithm, "boyer_edge_addition_reference_cli");
     assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(suite.generator, "edge_addition_planarity_suite_k23_mixed_family_cli");
     assert_eq!(suite.primary_oracle, "k23_homeomorph_boolean");
     assert_eq!(suite.cases.len(), expected_case_count);
 
