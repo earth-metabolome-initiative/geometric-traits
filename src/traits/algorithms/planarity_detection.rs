@@ -1108,40 +1108,13 @@ pub(crate) mod embedding {
                     preprocessing.vertices[original_vertex].least_ancestor;
                 lowpoint_by_primary_slot[primary_slot] =
                     preprocessing.vertices[original_vertex].lowpoint;
-            }
 
-            let mut arcs = Vec::with_capacity(preprocessing.arcs.len());
-            for (original_arc, arc) in preprocessing.arcs.iter().enumerate() {
-                arcs.push(EmbeddingArcRecord {
-                    original_arc: Some(original_arc),
-                    source_slot: primary_slot_by_original_vertex[arc.source],
-                    target_slot: primary_slot_by_original_vertex[arc.target],
-                    twin: arc.twin,
-                    next: None,
-                    prev: None,
-                    visited: false,
-                    kind: arc.kind,
-                    embedded: false,
-                    inverted: false,
-                    reduction_endpoint_arc: None,
-                });
-            }
-
-            for (primary_slot, &original_vertex) in preprocessing.vertex_by_dfi.iter().enumerate() {
                 let Some(parent_arc) = preprocessing.vertices[original_vertex].parent_arc else {
                     continue;
                 };
                 let child_arc = preprocessing.arcs[parent_arc].twin;
                 let root_copy_slot = root_copy_by_primary_dfi[primary_slot]
                     .expect("non-root DFS child must have an associated root copy");
-
-                arcs[parent_arc].source_slot = primary_slot;
-                arcs[parent_arc].target_slot = root_copy_slot;
-                arcs[parent_arc].embedded = true;
-
-                arcs[child_arc].source_slot = root_copy_slot;
-                arcs[child_arc].target_slot = primary_slot;
-                arcs[child_arc].embedded = true;
 
                 slots[primary_slot].first_arc = Some(parent_arc);
                 slots[primary_slot].last_arc = Some(parent_arc);
@@ -1150,6 +1123,44 @@ pub(crate) mod embedding {
                 slots[root_copy_slot].first_arc = Some(child_arc);
                 slots[root_copy_slot].last_arc = Some(child_arc);
                 slots[root_copy_slot].ext_face = [Some(primary_slot), Some(primary_slot)];
+            }
+
+            let mut arcs = Vec::with_capacity(preprocessing.arcs.len());
+            for (original_arc, arc) in preprocessing.arcs.iter().enumerate() {
+                let mut source_slot = primary_slot_by_original_vertex[arc.source];
+                let mut target_slot = primary_slot_by_original_vertex[arc.target];
+                let mut embedded = false;
+                match arc.kind {
+                    DfsArcType::Parent => {
+                        let root_copy_slot = root_copy_by_primary_dfi[source_slot]
+                            .expect("non-root DFS child must have an associated root copy");
+                        target_slot = root_copy_slot;
+                        embedded = true;
+                    }
+                    DfsArcType::Child => {
+                        let child_primary_slot = target_slot;
+                        let root_copy_slot = root_copy_by_primary_dfi[child_primary_slot]
+                            .expect("non-root DFS child must have an associated root copy");
+                        source_slot = root_copy_slot;
+                        target_slot = child_primary_slot;
+                        embedded = true;
+                    }
+                    DfsArcType::Unclassified | DfsArcType::Back | DfsArcType::Forward => {}
+                }
+
+                arcs.push(EmbeddingArcRecord {
+                    original_arc: Some(original_arc),
+                    source_slot,
+                    target_slot,
+                    twin: arc.twin,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: arc.kind,
+                    embedded,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                });
             }
 
             Self {
