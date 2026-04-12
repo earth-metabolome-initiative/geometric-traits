@@ -1118,6 +1118,103 @@ impl BacktrackableOrderedPartition {
 mod tests {
     use super::*;
 
+    fn sorted_cell_classes(partition: &BacktrackableOrderedPartition) -> Vec<Vec<usize>> {
+        let mut classes = partition
+            .cells()
+            .map(|cell| {
+                let mut elements = cell.elements().to_vec();
+                elements.sort_unstable();
+                elements
+            })
+            .collect::<Vec<_>>();
+        classes.sort_unstable();
+        classes
+    }
+
+    #[test]
+    fn test_new_zero_order_partition_is_empty_and_discrete() {
+        let partition = BacktrackableOrderedPartition::new(0);
+
+        assert_eq!(partition.order(), 0);
+        assert!(partition.is_discrete());
+        assert_eq!(partition.number_of_discrete_cells(), 0);
+        assert_eq!(partition.cells().count(), 0);
+    }
+
+    #[test]
+    fn test_split_cell_by_binary_invariant_like_bliss_covers_both_swap_directions() {
+        let mut mostly_ones = BacktrackableOrderedPartition::new(5);
+        let root = mostly_ones.cell_of(0);
+        let produced = mostly_ones.split_cell_by_binary_invariant_like_bliss(root, 3, |element| {
+            matches!(element, 0 | 2 | 4)
+        });
+
+        assert_eq!(produced.len(), 2);
+        assert_eq!(sorted_cell_classes(&mostly_ones), vec![vec![0, 2, 4], vec![1, 3]]);
+        for &element in &[1, 3] {
+            assert_eq!(mostly_ones.cell_of(element), produced[0]);
+        }
+        for &element in &[0, 2, 4] {
+            assert_eq!(mostly_ones.cell_of(element), produced[1]);
+        }
+
+        let mut few_ones = BacktrackableOrderedPartition::new(5);
+        let root = few_ones.cell_of(0);
+        let produced = few_ones
+            .split_cell_by_binary_invariant_like_bliss(root, 2, |element| matches!(element, 1 | 3));
+
+        assert_eq!(produced.len(), 2);
+        assert_eq!(sorted_cell_classes(&few_ones), vec![vec![0, 2, 4], vec![1, 3]]);
+        for &element in &[0, 2, 4] {
+            assert_eq!(few_ones.cell_of(element), produced[0]);
+        }
+        for &element in &[1, 3] {
+            assert_eq!(few_ones.cell_of(element), produced[1]);
+        }
+    }
+
+    #[test]
+    fn test_unsigned_split_helpers_cover_binary_counting_and_large_invariant_paths() {
+        let mut binary = BacktrackableOrderedPartition::new(5);
+        let root = binary.cell_of(0);
+        let produced = binary
+            .split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+                root,
+                &[1, 0, 1, 1, 0],
+                1,
+                3,
+            );
+
+        assert_eq!(produced.len(), 2);
+        assert_eq!(sorted_cell_classes(&binary), vec![vec![0, 2, 3], vec![1, 4]]);
+
+        let mut counting = BacktrackableOrderedPartition::new(6);
+        let root = counting.cell_of(0);
+        let produced = counting
+            .split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+                root,
+                &[2, 0, 1, 2, 1, 0],
+                2,
+                2,
+            );
+
+        assert_eq!(produced.len(), 3);
+        assert_eq!(sorted_cell_classes(&counting), vec![vec![0, 3], vec![1, 5], vec![2, 4]]);
+
+        let mut fallback = BacktrackableOrderedPartition::new(5);
+        let root = fallback.cell_of(0);
+        let produced = fallback
+            .split_cell_by_unsigned_invariants_in_current_order_like_bliss_with_summary(
+                root,
+                &[300, 0, 300, 1, 1],
+                300,
+                2,
+            );
+
+        assert_eq!(produced.len(), 3);
+        assert_eq!(sorted_cell_classes(&fallback), vec![vec![0, 2], vec![1], vec![3, 4]]);
+    }
+
     #[test]
     fn test_split_cell_by_tail_elements_in_order_reorders_fully_touched_cells() {
         let mut partition = BacktrackableOrderedPartition::new(2);
