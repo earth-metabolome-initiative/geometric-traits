@@ -334,6 +334,7 @@ fn child_subtree_forward_arc_head(
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod preprocessing {
     use alloc::{vec, vec::Vec};
+    use core::slice;
 
     use num_traits::AsPrimitive;
 
@@ -363,6 +364,7 @@ pub(crate) mod preprocessing {
         pub(crate) dfi: usize,
         pub(crate) least_ancestor: usize,
         pub(crate) lowpoint: usize,
+        pub(crate) singleton_sorted_dfs_child: Option<usize>,
         pub(crate) sorted_dfs_children: Vec<usize>,
         pub(crate) sorted_forward_arcs: Vec<usize>,
     }
@@ -374,6 +376,33 @@ pub(crate) mod preprocessing {
         pub(crate) vertices: Vec<DfsVertexState>,
         pub(crate) vertex_by_dfi: Vec<usize>,
         pub(crate) dfs_roots: Vec<usize>,
+    }
+
+    impl DfsPreprocessing {
+        pub(crate) fn sorted_dfs_children(&self, vertex: usize) -> &[usize] {
+            let state = &self.vertices[vertex];
+            if state.sorted_dfs_children.is_empty() {
+                if let Some(child) = state.singleton_sorted_dfs_child.as_ref() {
+                    slice::from_ref(child)
+                } else {
+                    &state.sorted_dfs_children
+                }
+            } else {
+                &state.sorted_dfs_children
+            }
+        }
+
+        fn push_sorted_dfs_child(&mut self, vertex: usize, child: usize) {
+            let state = &mut self.vertices[vertex];
+            if let Some(existing_child) = state.singleton_sorted_dfs_child.take() {
+                state.sorted_dfs_children.push(existing_child);
+                state.sorted_dfs_children.push(child);
+            } else if state.sorted_dfs_children.is_empty() {
+                state.singleton_sorted_dfs_child = Some(child);
+            } else {
+                state.sorted_dfs_children.push(child);
+            }
+        }
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -574,6 +603,7 @@ pub(crate) mod preprocessing {
                         dfi: usize::MAX,
                         least_ancestor: usize::MAX,
                         lowpoint: usize::MAX,
+                        singleton_sorted_dfs_child: None,
                         sorted_dfs_children: Vec::new(),
                         sorted_forward_arcs: Vec::new(),
                     };
@@ -639,7 +669,7 @@ pub(crate) mod preprocessing {
                     preprocessing.arcs[arc_id].kind = DfsArcType::Child;
                     let twin = preprocessing.arcs[arc_id].twin;
                     preprocessing.arcs[twin].kind = DfsArcType::Parent;
-                    preprocessing.vertices[vertex].sorted_dfs_children.push(target);
+                    preprocessing.push_sorted_dfs_child(vertex, target);
                     Self::dfs_visit(
                         target,
                         Some(vertex),
@@ -1068,15 +1098,13 @@ pub(crate) mod embedding {
             let mut lowpoint_by_primary_slot = vec![usize::MAX; number_of_vertices];
             let mut forward_arc_head_index_by_primary_slot = vec![None; number_of_vertices];
             for (primary_slot, &original_vertex) in preprocessing.vertex_by_dfi.iter().enumerate() {
-                let child_count = preprocessing.vertices[original_vertex].sorted_dfs_children.len();
+                let child_count = preprocessing.sorted_dfs_children(original_vertex).len();
                 let mut singleton_sorted_dfs_child = None;
                 let mut sorted_dfs_children =
                     if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
                 let mut separated_dfs_children =
                     if child_count <= 1 { Vec::new() } else { Vec::with_capacity(child_count) };
-                for &child_original_vertex in
-                    &preprocessing.vertices[original_vertex].sorted_dfs_children
-                {
+                for &child_original_vertex in preprocessing.sorted_dfs_children(original_vertex) {
                     let child_slot = primary_slot_by_original_vertex[child_original_vertex];
                     if child_count == 1 {
                         singleton_sorted_dfs_child = Some(child_slot);
@@ -6511,11 +6539,11 @@ mod tests {
         assert_eq!(graph.vertices[4].dfi, 4);
         assert_eq!(graph.vertices[5].dfi, 5);
 
-        assert_eq!(graph.vertices[0].sorted_dfs_children, vec![1]);
-        assert_eq!(graph.vertices[1].sorted_dfs_children, vec![2]);
-        assert_eq!(graph.vertices[2].sorted_dfs_children, vec![3]);
-        assert!(graph.vertices[3].sorted_dfs_children.is_empty());
-        assert_eq!(graph.vertices[4].sorted_dfs_children, vec![5]);
+        assert_eq!(graph.sorted_dfs_children(0), &[1]);
+        assert_eq!(graph.sorted_dfs_children(1), &[2]);
+        assert_eq!(graph.sorted_dfs_children(2), &[3]);
+        assert!(graph.sorted_dfs_children(3).is_empty());
+        assert_eq!(graph.sorted_dfs_children(4), &[5]);
 
         assert_eq!(graph.vertex_by_dfi, vec![0, 1, 2, 3, 4, 5]);
 
@@ -6605,11 +6633,11 @@ mod tests {
             LocalSimpleGraph::try_from_undirected_graph(&graph).unwrap().preprocess();
 
         assert_eq!(preprocessing.dfs_roots, vec![0]);
-        assert_eq!(preprocessing.vertices[0].sorted_dfs_children, vec![1]);
-        assert_eq!(preprocessing.vertices[1].sorted_dfs_children, vec![2]);
-        assert_eq!(preprocessing.vertices[2].sorted_dfs_children, vec![3]);
-        assert_eq!(preprocessing.vertices[3].sorted_dfs_children, vec![4]);
-        assert!(preprocessing.vertices[4].sorted_dfs_children.is_empty());
+        assert_eq!(preprocessing.sorted_dfs_children(0), &[1]);
+        assert_eq!(preprocessing.sorted_dfs_children(1), &[2]);
+        assert_eq!(preprocessing.sorted_dfs_children(2), &[3]);
+        assert_eq!(preprocessing.sorted_dfs_children(3), &[4]);
+        assert!(preprocessing.sorted_dfs_children(4).is_empty());
     }
 
     #[test]
