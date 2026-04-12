@@ -5787,10 +5787,12 @@ pub(crate) mod embedding {
         use super::{
             BlockedBicompContext, ChildSubtreeAction, EmbeddingArcRecord, EmbeddingMutationError,
             EmbeddingSlot, EmbeddingSlotKind, EmbeddingState, K4BlockedBicompOutcome, K4Context,
-            NonOuterplanarityContext, WalkDownChildOutcome, WalkDownExecutionError,
+            K33ExtraTestOutcome, K33MinorEContext, NonOuterplanarityContext, WalkDownChildOutcome,
+            WalkDownExecutionError, WalkDownFrame,
         };
         use crate::traits::algorithms::planarity_detection::preprocessing::{
             DfsArcRecord, DfsArcType, DfsPreprocessing, DfsVertexState, LocalSimpleGraph,
+            LocalSimpleGraphError,
         };
 
         #[allow(clippy::too_many_lines)]
@@ -6302,6 +6304,44 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_reduce_external_face_path_to_edge_restores_reduced_edge_before_reducing_again() {
+            let mut embedding = simple_reduction_embedding();
+
+            let first_reduction = embedding
+                .reduce_external_face_path_to_edge(
+                    0,
+                    0,
+                    2,
+                    1,
+                    DfsArcType::Child,
+                    DfsArcType::Parent,
+                )
+                .unwrap()
+                .expect("path 0-1-2 should reduce to a synthetic edge");
+            let second_reduction = embedding
+                .reduce_external_face_path_to_edge(
+                    0,
+                    0,
+                    2,
+                    1,
+                    DfsArcType::Child,
+                    DfsArcType::Parent,
+                )
+                .unwrap()
+                .expect("reduced edge should be restored and reduced again");
+
+            assert_ne!(first_reduction, second_reduction);
+            assert_eq!(embedding.slots[1].first_arc, None);
+            assert_eq!(embedding.slots[1].last_arc, None);
+            assert_eq!(embedding.arcs[second_reduction].target_slot, 2);
+            assert_eq!(embedding.arcs[second_reduction].reduction_endpoint_arc, Some(0));
+            assert_eq!(
+                embedding.arcs[embedding.arcs[second_reduction].twin].reduction_endpoint_arc,
+                Some(3)
+            );
+        }
+
+        #[test]
         fn test_clear_bicomp_search_state_resets_slot_and_arc_flags() {
             let mut embedding = simple_reduction_embedding();
             let reset_value = embedding.primary_slot_by_original_vertex.len();
@@ -6378,6 +6418,18 @@ pub(crate) mod embedding {
 
             assert_eq!(embedding.slots[1].first_arc, Some(1));
             assert_eq!(embedding.slots[1].last_arc, Some(2));
+        }
+
+        #[test]
+        fn test_normalize_slot_boundary_arcs_clears_stale_nonlocal_boundaries() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[1].first_arc = Some(0);
+            embedding.slots[1].last_arc = Some(3);
+
+            embedding.normalize_slot_boundary_arcs(1);
+
+            assert_eq!(embedding.slots[1].first_arc, None);
+            assert_eq!(embedding.slots[1].last_arc, None);
         }
 
         #[test]
@@ -6463,6 +6515,35 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_reduce_path_to_edge_by_endpoint_arcs_restores_reduced_edge_before_reducing_again() {
+            let mut embedding = simple_reduction_embedding();
+
+            let first_reduction = embedding
+                .reduce_path_to_edge_by_endpoint_arcs(0, 0, 2, 3)
+                .unwrap()
+                .expect("path 0-1-2 should reduce to a synthetic edge");
+            let second_reduction = embedding
+                .reduce_path_to_edge_by_endpoint_arcs(
+                    0,
+                    first_reduction,
+                    2,
+                    embedding.arcs[first_reduction].twin,
+                )
+                .unwrap()
+                .expect("reduced edge should be restored and reduced again");
+
+            assert_ne!(first_reduction, second_reduction);
+            assert_eq!(embedding.arcs[second_reduction].source_slot, 0);
+            assert_eq!(embedding.arcs[second_reduction].target_slot, 2);
+            assert!(embedding.arcs[second_reduction].reduction_endpoint_arc.is_some());
+            assert!(
+                embedding.arcs[embedding.arcs[second_reduction].twin]
+                    .reduction_endpoint_arc
+                    .is_some()
+            );
+        }
+
+        #[test]
         fn test_reduce_path_to_edge_with_explicit_kinds_handles_direct_singleton_edge() {
             let mut embedding = simple_reduction_embedding();
             embedding.slots[0].ext_face = [None, None];
@@ -6502,6 +6583,66 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_reduce_xy_path_to_edge_with_explicit_kinds_restores_reduced_edge_before_retrying() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            let first_reduction = embedding
+                .reduce_xy_path_to_edge_with_explicit_kinds(
+                    2,
+                    0,
+                    DfsArcType::Forward,
+                    DfsArcType::Back,
+                )
+                .unwrap()
+                .expect("xy path should reduce to a synthetic edge");
+            let second_reduction = embedding
+                .reduce_xy_path_to_edge_with_explicit_kinds(
+                    2,
+                    0,
+                    DfsArcType::Forward,
+                    DfsArcType::Back,
+                )
+                .unwrap()
+                .expect("reduced xy edge should be restored and reduced again");
+
+            assert_ne!(first_reduction, second_reduction);
+            assert_eq!(embedding.arcs[second_reduction].target_slot, 0);
+            assert_eq!(embedding.arcs[second_reduction].reduction_endpoint_arc, Some(3));
+            assert_eq!(
+                embedding.arcs[embedding.arcs[second_reduction].twin].reduction_endpoint_arc,
+                Some(7)
+            );
+        }
+
+        #[test]
+        fn test_reduce_xy_path_to_edge_with_explicit_kinds_restores_reduced_edge_on_end_slot() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            let first_reduction = embedding
+                .reduce_xy_path_to_edge_with_explicit_kinds(
+                    0,
+                    2,
+                    DfsArcType::Back,
+                    DfsArcType::Forward,
+                )
+                .unwrap()
+                .expect("xy path should reduce to a synthetic edge");
+            let second_reduction = embedding
+                .reduce_xy_path_to_edge_with_explicit_kinds(
+                    0,
+                    2,
+                    DfsArcType::Back,
+                    DfsArcType::Forward,
+                )
+                .unwrap()
+                .expect("reduced xy edge should be restored and reduced again");
+
+            assert_ne!(first_reduction, second_reduction);
+            assert_eq!(embedding.arcs[second_reduction].source_slot, 0);
+            assert_eq!(embedding.arcs[second_reduction].target_slot, 2);
+        }
+
+        #[test]
         fn test_mark_tree_path_slots_visited_errors_on_missing_step() {
             let mut embedding = simple_reduction_embedding();
 
@@ -6516,10 +6657,57 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_mark_tree_path_between_slots_visited_accepts_reversed_order() {
+            let mut embedding = simple_reduction_embedding();
+
+            assert_eq!(embedding.mark_tree_path_between_slots_visited(2, 0), Ok(()));
+            assert!(embedding.slots[0].visited);
+            assert!(embedding.slots[1].visited);
+            assert!(embedding.slots[2].visited);
+            assert!(embedding.arcs[0].visited);
+            assert!(embedding.arcs[1].visited);
+            assert!(embedding.arcs[2].visited);
+            assert!(embedding.arcs[3].visited);
+        }
+
+        #[test]
         fn test_mark_current_dfs_path_in_bicomp_errors_without_parent_arc() {
             let mut embedding = simple_reduction_embedding();
             embedding.slots[2].first_arc = None;
             embedding.slots[2].last_arc = None;
+
+            assert_eq!(
+                embedding.mark_current_dfs_path_in_bicomp(0, 2),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 0,
+                    start_side: 0,
+                    end_slot: 2,
+                })
+            );
+        }
+
+        #[test]
+        fn test_mark_current_dfs_path_in_bicomp_errors_on_parent_cycle() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.arcs[3].target_slot = 2;
+
+            assert_eq!(
+                embedding.mark_current_dfs_path_in_bicomp(0, 2),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 0,
+                    start_side: 0,
+                    end_slot: 2,
+                })
+            );
+        }
+
+        #[test]
+        fn test_mark_current_dfs_path_in_bicomp_errors_when_intermediate_parent_arc_is_missing() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[1].first_arc = Some(2);
+            embedding.slots[1].last_arc = Some(2);
+            embedding.arcs[2].prev = None;
+            embedding.arcs[2].next = None;
 
             assert_eq!(
                 embedding.mark_current_dfs_path_in_bicomp(0, 2),
@@ -6563,6 +6751,65 @@ pub(crate) mod embedding {
             embedding.arcs[2].inverted = true;
 
             assert_eq!(embedding.cumulative_orientation_on_tree_path(0, 2), Ok(true));
+        }
+
+        #[test]
+        fn test_cumulative_orientation_on_tree_path_uses_twin_child_inversion() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.arcs[0].kind = DfsArcType::Forward;
+            embedding.arcs[1].kind = DfsArcType::Child;
+            embedding.arcs[1].inverted = true;
+
+            embedding.arcs.push(EmbeddingArcRecord {
+                original_arc: None,
+                source_slot: 1,
+                target_slot: 0,
+                twin: 5,
+                next: Some(1),
+                prev: None,
+                visited: false,
+                kind: DfsArcType::Parent,
+                embedded: true,
+                inverted: false,
+                reduction_endpoint_arc: None,
+            });
+            embedding.arcs.push(EmbeddingArcRecord {
+                original_arc: None,
+                source_slot: 0,
+                target_slot: 1,
+                twin: 4,
+                next: None,
+                prev: Some(0),
+                visited: false,
+                kind: DfsArcType::Child,
+                embedded: true,
+                inverted: false,
+                reduction_endpoint_arc: None,
+            });
+            embedding.arcs[0].next = Some(5);
+            embedding.arcs[1].prev = Some(4);
+            embedding.slots[0].last_arc = Some(5);
+            embedding.slots[1].first_arc = Some(4);
+
+            assert_eq!(embedding.cumulative_orientation_on_tree_path(0, 1), Ok(true));
+        }
+
+        #[test]
+        fn test_cumulative_orientation_on_tree_path_errors_on_missing_step() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.slots[1].first_arc = Some(1);
+            embedding.slots[1].last_arc = Some(1);
+            embedding.arcs[1].prev = None;
+            embedding.arcs[1].next = None;
+
+            assert_eq!(
+                embedding.cumulative_orientation_on_tree_path(0, 2),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 0,
+                    start_side: 0,
+                    end_slot: 2,
+                })
+            );
         }
 
         #[test]
@@ -6610,6 +6857,18 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_orient_full_bicomp_from_root_preserves_signs_when_requested() {
+            let mut embedding = simple_reduction_embedding();
+            embedding.arcs[0].inverted = true;
+
+            embedding.orient_full_bicomp_from_root(0, true);
+
+            assert_eq!(embedding.slots[1].first_arc, Some(2));
+            assert_eq!(embedding.slots[1].last_arc, Some(1));
+            assert!(embedding.arcs[0].inverted);
+        }
+
+        #[test]
         fn test_last_visited_arc_on_slot_returns_last_marked_arc() {
             let mut embedding = simple_reduction_embedding();
 
@@ -6634,6 +6893,248 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_run_extra_k33_tests_returns_e1_when_xy_interior_is_pertinent() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(true);
+            let context = K33MinorEContext {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 0,
+                z_slot: 2,
+                px_slot: 1,
+                py_slot: 3,
+                ux: 1,
+                uy: 1,
+                uz: 1,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(embedding.run_extra_k33_tests(&context), Ok(Some(K33ExtraTestOutcome::E1)));
+        }
+
+        #[test]
+        fn test_run_extra_k33_tests_returns_none_when_extra_bridges_are_absent() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            let context = K33MinorEContext {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                z_slot: 2,
+                px_slot: 1,
+                py_slot: 3,
+                ux: 1,
+                uy: 1,
+                uz: 1,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(embedding.run_extra_k33_tests(&context), Ok(None));
+        }
+
+        #[test]
+        fn test_run_extra_k33_tests_returns_e6_for_straddling_bridge_on_uz() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.least_ancestor_by_primary_slot[3] = 0;
+            let context = K33MinorEContext {
+                current_primary_slot: 3,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                z_slot: 2,
+                px_slot: 1,
+                py_slot: 3,
+                ux: 2,
+                uy: 2,
+                uz: 1,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(embedding.run_extra_k33_tests(&context), Ok(Some(K33ExtraTestOutcome::E6)));
+        }
+
+        #[test]
+        fn test_run_extra_k33_tests_returns_e7_for_straddling_bridge_on_ux() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.least_ancestor_by_primary_slot[3] = 0;
+            let context = K33MinorEContext {
+                current_primary_slot: 3,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                z_slot: 2,
+                px_slot: 1,
+                py_slot: 3,
+                ux: 1,
+                uy: 2,
+                uz: 2,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(embedding.run_extra_k33_tests(&context), Ok(Some(K33ExtraTestOutcome::E7)));
+        }
+
+        #[test]
+        fn test_reduce_k33_minor_e_bicomp_handles_min_x_max_y_case() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.arcs[2].visited = true;
+            embedding.arcs[3].visited = true;
+            let context = K33MinorEContext {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                z_slot: 2,
+                px_slot: 1,
+                py_slot: 3,
+                ux: 1,
+                uy: 1,
+                uz: 1,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(
+                embedding.reduce_k33_minor_e_bicomp(&context),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 2,
+                    start_side: 0,
+                    end_slot: 3,
+                })
+            );
+        }
+
+        #[test]
+        fn test_reduce_k33_minor_e_bicomp_handles_max_w_case() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            let context = K33MinorEContext {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 2,
+                y_slot: 1,
+                w_slot: 3,
+                z_slot: 2,
+                px_slot: 2,
+                py_slot: 1,
+                ux: 1,
+                uy: 1,
+                uz: 1,
+                obstruction_marks: vec![super::K33ObstructionMark::Unmarked; 4],
+            };
+
+            assert_eq!(
+                embedding.reduce_k33_minor_e_bicomp(&context),
+                Err(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: 1,
+                    start_side: 0,
+                    end_slot: 0,
+                })
+            );
+        }
+
+        #[test]
+        fn test_find_k33_merge_blocker_prefers_current_slot_over_frames() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.slots[2].k33_merge_blocker = Some(1);
+            embedding.slots[1].k33_merge_blocker = Some(0);
+
+            assert_eq!(
+                embedding.find_k33_merge_blocker(
+                    3,
+                    2,
+                    0,
+                    &[WalkDownFrame {
+                        cut_vertex_slot: 1,
+                        cut_vertex_entry_side: 0,
+                        root_copy_slot: 0,
+                        root_side: 1,
+                    }]
+                ),
+                Some((2, 1, 0))
+            );
+        }
+
+        #[test]
+        fn test_find_k33_merge_blocker_falls_back_to_latest_frame() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.slots[1].k33_merge_blocker = Some(0);
+            embedding.slots[3].k33_merge_blocker = Some(2);
+
+            assert_eq!(
+                embedding.find_k33_merge_blocker(
+                    3,
+                    2,
+                    0,
+                    &[
+                        WalkDownFrame {
+                            cut_vertex_slot: 1,
+                            cut_vertex_entry_side: 0,
+                            root_copy_slot: 0,
+                            root_side: 1,
+                        },
+                        WalkDownFrame {
+                            cut_vertex_slot: 3,
+                            cut_vertex_entry_side: 1,
+                            root_copy_slot: 9,
+                            root_side: 0,
+                        },
+                    ]
+                ),
+                Some((3, 2, 9))
+            );
+        }
+
+        #[test]
+        fn test_find_k33_merge_blocker_returns_none_without_frames() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.slots[2].k33_merge_blocker = Some(1);
+
+            assert_eq!(embedding.find_k33_merge_blocker(3, 2, 0, &[]), None);
+        }
+
+        #[test]
+        fn test_local_simple_graph_from_edges_rejects_self_loop() {
+            assert_eq!(
+                LocalSimpleGraph::from_edges(3, &[[1, 1]]),
+                Err(LocalSimpleGraphError::SelfLoop)
+            );
+        }
+
+        #[test]
+        fn test_local_simple_graph_from_edges_rejects_out_of_range_endpoint() {
+            assert_eq!(
+                LocalSimpleGraph::from_edges(3, &[[0, 3]]),
+                Err(LocalSimpleGraphError::OutOfRange { endpoint: 3, node_count: 3 })
+            );
+        }
+
+        #[test]
+        fn test_local_simple_graph_from_edges_rejects_parallel_edges_after_normalization() {
+            assert_eq!(
+                LocalSimpleGraph::from_edges(3, &[[0, 1], [1, 0]]),
+                Err(LocalSimpleGraphError::ParallelEdge)
+            );
+        }
+
+        #[test]
+        fn test_local_simple_graph_preprocess_tracks_multiple_roots_and_inline_single_children() {
+            let preprocessing =
+                LocalSimpleGraph::from_edges(4, &[[0, 1], [2, 3]]).unwrap().into_preprocessing();
+
+            assert_eq!(preprocessing.dfs_roots, vec![0, 2]);
+            assert_eq!(preprocessing.vertices[0].singleton_sorted_dfs_child, Some(1));
+            assert_eq!(preprocessing.vertices[2].singleton_sorted_dfs_child, Some(3));
+            assert!(preprocessing.vertices[0].sorted_dfs_children.is_empty());
+            assert!(preprocessing.vertices[2].sorted_dfs_children.is_empty());
+            assert_eq!(preprocessing.sorted_dfs_children(0), &[1]);
+            assert_eq!(preprocessing.sorted_dfs_children(2), &[3]);
+        }
+
+        #[test]
         fn test_mark_k4_closest_xy_path_rejects_invalid_target_slot() {
             let mut embedding = simple_nonouterplanarity_context_embedding(false);
             let context = K4Context {
@@ -6649,6 +7150,43 @@ pub(crate) mod embedding {
             assert_eq!(
                 embedding.mark_k4_closest_xy_path(&context, 1, &[]),
                 Err(WalkDownExecutionError::InvalidK4Context)
+            );
+        }
+
+        #[test]
+        fn test_reduce_k4_path_component_reduces_tree_path_and_preserves_inversion() {
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.arcs[2].inverted = true;
+            let context = K4Context {
+                current_primary_slot: 1,
+                root_copy_slot: 0,
+                x_slot: 1,
+                y_slot: 3,
+                w_slot: 2,
+                x_prev_link: 1,
+                y_prev_link: 0,
+            };
+
+            assert_eq!(embedding.reduce_k4_path_component(&context, 1, 2), Ok(()));
+
+            let reduction_arc = embedding
+                .arcs
+                .iter()
+                .enumerate()
+                .find(|(_, arc)| {
+                    arc.source_slot == 0
+                        && arc.target_slot == 2
+                        && arc.reduction_endpoint_arc.is_some()
+                })
+                .map(|(index, _)| index)
+                .expect("expected a synthetic root-to-active reduction arc");
+            let twin = embedding.arcs[reduction_arc].twin;
+
+            assert!(
+                (embedding.arcs[reduction_arc].kind == DfsArcType::Child
+                    && embedding.arcs[reduction_arc].inverted)
+                    || (embedding.arcs[twin].kind == DfsArcType::Child
+                        && embedding.arcs[twin].inverted)
             );
         }
 
@@ -6720,6 +7258,42 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_resolve_child_subtree_action_invalid_k33_context_advances_and_returns_completed() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.resolve_child_subtree_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    None,
+                    super::super::EmbeddingRunMode::K33Search,
+                ),
+                Ok(ChildSubtreeAction::AdvanceAndReturn(WalkDownChildOutcome::Completed))
+            );
+        }
+
+        #[test]
+        fn test_resolve_child_subtree_action_invalid_k4_context_advances_and_returns_completed() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.resolve_child_subtree_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    None,
+                    super::super::EmbeddingRunMode::K4Search,
+                ),
+                Ok(ChildSubtreeAction::AdvanceAndReturn(WalkDownChildOutcome::Completed))
+            );
+        }
+
+        #[test]
         fn test_resolve_pertinent_root_walk_action_returns_blocked_bicomp_for_planarity_mode() {
             let preprocessing = simple_tree_preprocessing();
             let mut embedding = simple_nonouterplanarity_context_embedding(false);
@@ -6750,10 +7324,62 @@ pub(crate) mod embedding {
         }
 
         #[test]
+        fn test_resolve_pertinent_root_walk_action_propagates_invalid_k33_context() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+
+            assert_eq!(
+                embedding.resolve_pertinent_root_walk_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    1,
+                    0,
+                    0,
+                    &[],
+                    super::super::EmbeddingRunMode::K33Search,
+                ),
+                Err(WalkDownExecutionError::InvalidK33Context)
+            );
+        }
+
+        #[test]
+        fn test_resolve_pertinent_root_walk_action_returns_completed_for_same_root_k4_reblock() {
+            let preprocessing = simple_tree_preprocessing();
+            let mut embedding = simple_nonouterplanarity_context_embedding(false);
+            embedding.handling_k4_blocked_bicomp = true;
+
+            assert_eq!(
+                embedding.resolve_pertinent_root_walk_action(
+                    &preprocessing,
+                    1,
+                    0,
+                    1,
+                    1,
+                    0,
+                    0,
+                    &[],
+                    super::super::EmbeddingRunMode::K4Search,
+                ),
+                Ok(super::PertinentRootWalkAction::Return(WalkDownChildOutcome::Completed,))
+            );
+            assert!(embedding.k4_reblocked_same_root);
+        }
+
+        #[test]
         fn test_find_nonplanarity_bicomp_root_returns_matching_root_copy() {
             let (mut embedding, preprocessing) = simple_forward_arc_fixture();
 
             assert_eq!(embedding.find_nonplanarity_bicomp_root(&preprocessing, 3), Some(8));
+        }
+
+        #[test]
+        fn test_child_arc_enters_descendant_bicomp_rejects_non_child_and_missing_root_copy() {
+            let embedding = simple_reduction_embedding();
+
+            assert!(!embedding.child_arc_enters_descendant_bicomp(0, 1));
+            assert!(!embedding.child_arc_enters_descendant_bicomp(0, 2));
         }
 
         #[test]
@@ -6772,6 +7398,38 @@ pub(crate) mod embedding {
 
             assert_eq!(
                 embedding.child_subtree_forward_arc_head(&preprocessing, 3, 4, Some(5)),
+                None
+            );
+        }
+
+        #[test]
+        fn test_top_level_child_subtree_forward_arc_head_accepts_equal_child_slot() {
+            let (embedding, preprocessing) = simple_forward_arc_fixture();
+
+            assert_eq!(
+                super::super::child_subtree_forward_arc_head(
+                    &preprocessing,
+                    &embedding,
+                    3,
+                    5,
+                    None
+                ),
+                Some(4)
+            );
+        }
+
+        #[test]
+        fn test_top_level_child_subtree_forward_arc_head_respects_next_child_bound() {
+            let (embedding, preprocessing) = simple_forward_arc_fixture();
+
+            assert_eq!(
+                super::super::child_subtree_forward_arc_head(
+                    &preprocessing,
+                    &embedding,
+                    3,
+                    5,
+                    Some(5),
+                ),
                 None
             );
         }
