@@ -26,11 +26,27 @@ pub(crate) enum RefinementTraceEvent<EdgeLabel> {
     Edge { unit_cell_first: usize, target_index: usize, edge_label: EdgeLabel },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RefinementTraceStorage<EdgeLabel> {
+    Packed(Vec<u32>),
+    Events(Vec<RefinementTraceEvent<EdgeLabel>>),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct RefinementTrace<EdgeLabel> {
-    pub(crate) events: Vec<RefinementTraceEvent<EdgeLabel>>,
+    pub(crate) storage: RefinementTraceStorage<EdgeLabel>,
     pub(crate) subcertificate_length: usize,
     pub(crate) eqref_hash: u64,
+}
+
+const CERT_SPLIT: u32 = 0;
+const CERT_EDGE: u32 = 1;
+
+#[inline]
+#[allow(clippy::cast_possible_truncation)]
+fn packed_word(value: usize) -> u32 {
+    debug_assert!(u32::try_from(value).is_ok());
+    value as u32
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
@@ -207,6 +223,7 @@ where
 
     let mut changed_any = false;
     let mut events = Vec::new();
+    let mut packed_events = (core::mem::size_of::<EdgeLabel>() == 0).then(Vec::new);
     let mut eqref_hash = EqRefHash::default();
     let mut in_queue = vec![false; order];
     let mut splitter_queue = VecDeque::new();
@@ -276,11 +293,19 @@ where
                         if let Some(touched_cell) = produced.last().copied() {
                             let produced_first = partition.cell_first(touched_cell);
                             for offset in 0..partition.cell_len(touched_cell) {
-                                events.push(RefinementTraceEvent::Edge {
-                                    unit_cell_first: splitter_first,
-                                    target_index: produced_first + offset,
-                                    edge_label: label.clone(),
-                                });
+                                if let Some(packed) = packed_events.as_mut() {
+                                    packed.extend_from_slice(&[
+                                        CERT_EDGE,
+                                        packed_word(splitter_first),
+                                        packed_word(produced_first + offset),
+                                    ]);
+                                } else {
+                                    events.push(RefinementTraceEvent::Edge {
+                                        unit_cell_first: splitter_first,
+                                        target_index: produced_first + offset,
+                                        edge_label: label.clone(),
+                                    });
+                                }
                             }
                         }
                         produced
@@ -310,11 +335,19 @@ where
                             debug_assert_eq!(signature.counts[0].1, 1);
                             let produced_first = partition.cell_first(produced_cell);
                             for offset in 0..elements.len() {
-                                events.push(RefinementTraceEvent::Edge {
-                                    unit_cell_first: splitter_first,
-                                    target_index: produced_first + offset,
-                                    edge_label: signature.counts[0].0.clone(),
-                                });
+                                if let Some(packed) = packed_events.as_mut() {
+                                    packed.extend_from_slice(&[
+                                        CERT_EDGE,
+                                        packed_word(splitter_first),
+                                        packed_word(produced_first + offset),
+                                    ]);
+                                } else {
+                                    events.push(RefinementTraceEvent::Edge {
+                                        unit_cell_first: splitter_first,
+                                        target_index: produced_first + offset,
+                                        edge_label: signature.counts[0].0.clone(),
+                                    });
+                                }
                             }
                         }
                         produced
@@ -325,11 +358,19 @@ where
                         .expect("unit or singleton touched cells must contain one touched element")
                         .1
                         .clone();
-                    events.push(RefinementTraceEvent::Edge {
-                        unit_cell_first: splitter_first,
-                        target_index: partition.cell_first(cell),
-                        edge_label: touched_label,
-                    });
+                    if let Some(packed) = packed_events.as_mut() {
+                        packed.extend_from_slice(&[
+                            CERT_EDGE,
+                            packed_word(splitter_first),
+                            packed_word(partition.cell_first(cell)),
+                        ]);
+                    } else {
+                        events.push(RefinementTraceEvent::Edge {
+                            unit_cell_first: splitter_first,
+                            target_index: partition.cell_first(cell),
+                            edge_label: touched_label,
+                        });
+                    }
                     vec![cell]
                 };
                 if produced.len() > 1 {
@@ -416,10 +457,18 @@ where
             for &produced_cell in &produced {
                 eqref_hash.update(partition.cell_first(produced_cell));
                 eqref_hash.update(partition.cell_len(produced_cell));
-                events.push(RefinementTraceEvent::Split {
-                    first: partition.cell_first(produced_cell),
-                    length: partition.cell_len(produced_cell),
-                });
+                if let Some(packed) = packed_events.as_mut() {
+                    packed.extend_from_slice(&[
+                        CERT_SPLIT,
+                        packed_word(partition.cell_first(produced_cell)),
+                        packed_word(partition.cell_len(produced_cell)),
+                    ]);
+                } else {
+                    events.push(RefinementTraceEvent::Split {
+                        first: partition.cell_first(produced_cell),
+                        length: partition.cell_len(produced_cell),
+                    });
+                }
             }
             if produced.len() <= 1 {
                 continue;
@@ -445,13 +494,19 @@ where
         }
     }
 
+    let storage = if let Some(packed) = packed_events {
+        RefinementTraceStorage::Packed(packed)
+    } else {
+        RefinementTraceStorage::Events(events)
+    };
+    let subcertificate_length = match &storage {
+        RefinementTraceStorage::Packed(words) => words.len(),
+        RefinementTraceStorage::Events(events) => events.len(),
+    };
+
     (
         changed_any,
-        RefinementTrace {
-            subcertificate_length: events.len(),
-            eqref_hash: eqref_hash.value(),
-            events,
-        },
+        RefinementTrace { storage, subcertificate_length, eqref_hash: eqref_hash.value() },
     )
 }
 
