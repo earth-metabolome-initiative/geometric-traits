@@ -395,6 +395,14 @@ pub(crate) mod preprocessing {
     }
 
     impl LocalSimpleGraph {
+        fn build_adjacency_arcs_from_degrees(degrees: Vec<usize>) -> Vec<Vec<usize>> {
+            let mut adjacency_arcs = Vec::with_capacity(degrees.len());
+            for degree in degrees {
+                adjacency_arcs.push(Vec::with_capacity(degree));
+            }
+            adjacency_arcs
+        }
+
         #[inline]
         pub(crate) fn map_local_simple_graph_error(error: LocalSimpleGraphError) -> PlanarityError {
             match error {
@@ -469,23 +477,86 @@ pub(crate) mod preprocessing {
             G: UndirectedMonopartiteMonoplexGraph,
             G::NodeId: AsPrimitive<usize>,
         {
-            if graph.has_self_loops() {
-                return Err(PlanarityError::SelfLoopsUnsupported);
-            }
-
-            let mut edges = Vec::with_capacity(graph.number_of_edges().as_() / 2);
+            let node_count = graph.number_of_nodes().as_();
+            let mut degrees = vec![0usize; node_count];
+            let mut edge_count = 0usize;
+            let mut previous_edge = None;
+            let mut sorted_unique = true;
             for source in graph.node_ids() {
                 let source_index = source.as_();
+                if source_index >= node_count {
+                    return Err(PlanarityError::InvalidEdgeEndpoint {
+                        endpoint: source_index,
+                        node_count,
+                    });
+                }
                 for target in graph.neighbors(source) {
                     let target_index = target.as_();
+                    if target_index >= node_count {
+                        return Err(PlanarityError::InvalidEdgeEndpoint {
+                            endpoint: target_index,
+                            node_count,
+                        });
+                    }
+                    if source_index == target_index {
+                        return Err(PlanarityError::SelfLoopsUnsupported);
+                    }
                     if source_index < target_index {
-                        edges.push([source_index, target_index]);
+                        let edge = [source_index, target_index];
+                        if previous_edge.is_some_and(|previous| previous >= edge) {
+                            sorted_unique = false;
+                        }
+                        previous_edge = Some(edge);
+                        edge_count += 1;
+                        degrees[source_index] += 1;
+                        degrees[target_index] += 1;
                     }
                 }
             }
 
-            Self::from_edges(graph.number_of_nodes().as_(), &edges)
-                .map_err(Self::map_local_simple_graph_error)
+            if sorted_unique {
+                let mut adjacency_arcs = Self::build_adjacency_arcs_from_degrees(degrees);
+                let mut arcs = Vec::with_capacity(edge_count * 2);
+
+                for source in graph.node_ids() {
+                    let source_index = source.as_();
+                    for target in graph.neighbors(source) {
+                        let target_index = target.as_();
+                        if source_index < target_index {
+                            let left_arc = arcs.len();
+                            let right_arc = left_arc + 1;
+                            arcs.push(DfsArcRecord {
+                                source: source_index,
+                                target: target_index,
+                                twin: right_arc,
+                                kind: DfsArcType::Unclassified,
+                            });
+                            arcs.push(DfsArcRecord {
+                                source: target_index,
+                                target: source_index,
+                                twin: left_arc,
+                                kind: DfsArcType::Unclassified,
+                            });
+                            adjacency_arcs[source_index].push(left_arc);
+                            adjacency_arcs[target_index].push(right_arc);
+                        }
+                    }
+                }
+
+                Ok(Self { adjacency_arcs, arcs })
+            } else {
+                let mut edges = Vec::with_capacity(edge_count);
+                for source in graph.node_ids() {
+                    let source_index = source.as_();
+                    for target in graph.neighbors(source) {
+                        let target_index = target.as_();
+                        if source_index < target_index {
+                            edges.push([source_index, target_index]);
+                        }
+                    }
+                }
+                Self::from_edges(node_count, &edges).map_err(Self::map_local_simple_graph_error)
+            }
         }
 
         pub(crate) fn preprocess(&self) -> DfsPreprocessing {
@@ -555,7 +626,7 @@ pub(crate) mod preprocessing {
             preprocessing.vertices[vertex].least_ancestor = vertex_dfi;
             preprocessing.vertex_by_dfi.push(vertex);
 
-            let mut child_lowpoints = Vec::new();
+            let mut lowpoint = vertex_dfi;
             for &arc_id in &adjacency_arcs[vertex] {
                 let target = preprocessing.arcs[arc_id].target;
                 match preprocessing.arcs[arc_id].kind {
@@ -580,7 +651,7 @@ pub(crate) mod preprocessing {
                         visited,
                         next_dfi,
                     );
-                    child_lowpoints.push(preprocessing.vertices[target].lowpoint);
+                    lowpoint = lowpoint.min(preprocessing.vertices[target].lowpoint);
                 } else if Some(target) != parent {
                     debug_assert!(
                         preprocessing.vertices[target].dfi < preprocessing.vertices[vertex].dfi
@@ -592,13 +663,10 @@ pub(crate) mod preprocessing {
                     preprocessing.vertices[vertex].least_ancestor = preprocessing.vertices[vertex]
                         .least_ancestor
                         .min(preprocessing.vertices[target].dfi);
+                    lowpoint = lowpoint.min(preprocessing.vertices[target].dfi);
                 }
             }
 
-            let mut lowpoint = preprocessing.vertices[vertex].least_ancestor;
-            for child_lowpoint in child_lowpoints {
-                lowpoint = lowpoint.min(child_lowpoint);
-            }
             preprocessing.vertices[vertex].lowpoint = lowpoint;
         }
     }
