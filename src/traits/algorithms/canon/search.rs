@@ -1,19 +1,20 @@
-//! First individualization-refinement canonizer for simple undirected labeled
-//! graphs.
+//! `bliss`-aligned individualization-refinement canonizer for simple
+//! undirected labeled graphs.
 //!
-//! This implementation intentionally starts small:
+//! The search follows the same broad structure as `bliss`:
 //!
-//! - seed the partition from vertex labels
-//! - refine to the stable labeled equitable partition
+//! - seed the partition from vertex labels and simple unsigned invariants
+//! - refine to a labeled equitable partition
 //! - depth-first individualization on residual non-singleton cells
-//! - compare leaves using a deterministic graph certificate
-//! - record a refinement trace for future `bliss`-style subtree comparison
-//! - sibling-level orbit pruning from discovered automorphisms
+//! - track first-path / best-path state and discovered automorphisms during
+//!   search
+//! - use long-prune records and component-recursion-style endpoints on the hot
+//!   path
 //!
-//! It still does **not** yet implement the full richer pruning machinery
-//! present in `bliss`, such as failure recording and the remaining streamed
-//! certificate / bad-node logic. It does include a partial `bliss`-style
-//! component-recursion path.
+//! This is still a recursive Rust port rather than a line-by-line translation
+//! of `AbstractGraph::search()`. The main remaining structural gap is that it
+//! does not yet implement the full `bliss` failure-recording and streamed
+//! certificate/bad-node machinery.
 
 use alloc::{collections::BTreeMap, rc::Rc, vec::Vec};
 
@@ -178,17 +179,21 @@ impl KnownOrbits {
     }
 }
 
+struct StoredSearchPath<EdgeLabel> {
+    order: Rc<[usize]>,
+    leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
+    path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
+    packed_path: Option<Rc<[u32]>>,
+    choice_path: Rc<[usize]>,
+    path_info: Option<Rc<[SearchPathInfo]>>,
+}
+
 struct SearchState<EdgeLabel> {
     stats: CanonicalSearchStats,
-    first_order: Option<Rc<[usize]>>,
-    first_leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
-    first_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
-    first_packed_path: Option<Rc<[u32]>>,
-    first_choice_path: Option<Rc<[usize]>>,
-    best_order: Option<Rc<[usize]>>,
-    best_path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
-    best_packed_path: Option<Rc<[u32]>>,
-    best_choice_path: Option<Rc<[usize]>>,
+    first_path: Option<StoredSearchPath<EdgeLabel>>,
+    first_path_revision: usize,
+    best_path: Option<StoredSearchPath<EdgeLabel>>,
+    best_path_revision: usize,
     first_path_orbits_global: KnownOrbits,
     first_path_orbits_by_depth: Vec<KnownOrbits>,
     best_path_orbits: KnownOrbits,
@@ -200,8 +205,103 @@ struct SearchOutcome<EdgeLabel> {
     leaf_signature: Option<Rc<UnlabeledLeafSignature>>,
     path_invariants: Option<Rc<[Rc<RefinementTrace<EdgeLabel>>]>>,
     packed_path: Option<Rc<[u32]>>,
+    path_info: Option<Rc<[SearchPathInfo]>>,
     sibling_orbits: KnownOrbits,
     choice_path: Rc<[usize]>,
+}
+
+impl<EdgeLabel> StoredSearchPath<EdgeLabel> {
+    fn path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
+        self.path_invariants.as_deref()
+    }
+
+    fn packed_path(&self) -> Option<&[u32]> {
+        self.packed_path.as_deref()
+    }
+
+    fn choice_path(&self) -> &[usize] {
+        self.choice_path.as_ref()
+    }
+
+    fn path_info(&self) -> Option<&[SearchPathInfo]> {
+        self.path_info.as_deref()
+    }
+}
+
+impl<EdgeLabel> SearchState<EdgeLabel> {
+    fn first_order(&self) -> Option<&[usize]> {
+        self.first_path.as_ref().map(|path| path.order.as_ref())
+    }
+
+    fn first_leaf_signature(&self) -> Option<&UnlabeledLeafSignature> {
+        self.first_path.as_ref().and_then(|path| path.leaf_signature.as_ref().map(Rc::as_ref))
+    }
+
+    fn first_path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
+        self.first_path.as_ref().and_then(StoredSearchPath::path_invariants)
+    }
+
+    fn first_packed_path(&self) -> Option<&[u32]> {
+        self.first_path.as_ref().and_then(StoredSearchPath::packed_path)
+    }
+
+    fn first_choice_path(&self) -> Option<&[usize]> {
+        self.first_path.as_ref().map(StoredSearchPath::choice_path)
+    }
+
+    fn best_order(&self) -> Option<&[usize]> {
+        self.best_path.as_ref().map(|path| path.order.as_ref())
+    }
+
+    fn best_path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
+        self.best_path.as_ref().and_then(StoredSearchPath::path_invariants)
+    }
+
+    fn best_packed_path(&self) -> Option<&[u32]> {
+        self.best_path.as_ref().and_then(StoredSearchPath::packed_path)
+    }
+
+    fn best_choice_path(&self) -> Option<&[usize]> {
+        self.best_path.as_ref().map(StoredSearchPath::choice_path)
+    }
+
+    fn first_path_info(&self) -> Option<&[SearchPathInfo]> {
+        self.first_path.as_ref().and_then(StoredSearchPath::path_info)
+    }
+
+    fn best_path_info(&self) -> Option<&[SearchPathInfo]> {
+        self.best_path.as_ref().and_then(StoredSearchPath::path_info)
+    }
+}
+
+fn build_search_path_info<EdgeLabel>(
+    choice_path: &[usize],
+    path_invariants: &[Rc<RefinementTrace<EdgeLabel>>],
+) -> Rc<[SearchPathInfo]>
+where
+    EdgeLabel: Ord + Clone,
+{
+    debug_assert_eq!(choice_path.len(), path_invariants.len().saturating_sub(1));
+    let mut certificate_index = 0usize;
+    Rc::<[SearchPathInfo]>::from(
+        choice_path
+            .iter()
+            .copied()
+            .zip(path_invariants.iter().skip(1))
+            .map(|(splitting_element, trace)| {
+                let info = SearchPathInfo {
+                    splitting_element,
+                    certificate_index,
+                    subcertificate_length: trace.subcertificate_length,
+                    eqref_hash: trace.eqref_hash,
+                };
+                debug_assert_eq!(info.splitting_element, splitting_element);
+                debug_assert_eq!(info.eqref_hash, trace.eqref_hash);
+                certificate_index = info.certificate_index + info.subcertificate_length;
+                info
+            })
+            .collect::<Vec<_>>(),
+    )
 }
 
 impl<EdgeLabel> SearchOutcome<EdgeLabel>
@@ -236,6 +336,111 @@ struct SearchReturn<EdgeLabel> {
     best_path_backjump_depth: Option<usize>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SearchPathInfo {
+    splitting_element: usize,
+    certificate_index: usize,
+    subcertificate_length: usize,
+    eqref_hash: u64,
+}
+
+/// Per-node first-path / best-path relation state, mirroring the `bliss`
+/// `TreeNode` certificate fields closely enough for the current recursive port.
+#[derive(Clone, Copy, Debug)]
+struct SearchPathState {
+    fp_on: bool,
+    in_best_path: bool,
+    fp_cert_equal: bool,
+    fp_cert_equal_revision: usize,
+    cmp_to_best_path: Option<core::cmp::Ordering>,
+    cmp_to_best_path_revision: usize,
+}
+
+impl SearchPathState {
+    fn with_live_membership<EdgeLabel>(
+        self,
+        state: &SearchState<EdgeLabel>,
+        choice_path: &[usize],
+        first_path_known_on_entry: bool,
+        best_path_known_on_entry: bool,
+    ) -> Self {
+        if let Some(first_path_info) = state.first_path_info() {
+            debug_assert_eq!(
+                first_path_info.len(),
+                state.first_choice_path().map_or(0, <[usize]>::len),
+            );
+        }
+        if let Some(best_path_info) = state.best_path_info() {
+            debug_assert_eq!(
+                best_path_info.len(),
+                state.best_choice_path().map_or(0, <[usize]>::len),
+            );
+        }
+        Self {
+            fp_on: self.fp_on
+                || (!first_path_known_on_entry
+                    && choice_path_is_prefix_of(state.first_choice_path(), choice_path)),
+            in_best_path: self.in_best_path
+                || (!best_path_known_on_entry
+                    && choice_path_is_prefix_of(state.best_choice_path(), choice_path)),
+            ..self
+        }
+    }
+
+    fn refresh_relations<EdgeLabel>(
+        &mut self,
+        state: &SearchState<EdgeLabel>,
+        current_packed: Option<&[u32]>,
+        current_path_info: Option<&[SearchPathInfo]>,
+        current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    ) where
+        EdgeLabel: Ord + Clone,
+    {
+        if self.fp_cert_equal_revision != state.first_path_revision {
+            self.fp_cert_equal = path_prefix_equal_strict(
+                current_packed,
+                current_path_info,
+                current_traces,
+                state.first_packed_path(),
+                state.first_path_info(),
+                state.first_path_invariants(),
+            );
+            self.fp_cert_equal_revision = state.first_path_revision;
+        }
+        if self.cmp_to_best_path_revision != state.best_path_revision {
+            self.cmp_to_best_path = (state.best_path_invariants().is_some()
+                || state.best_packed_path().is_some())
+            .then(|| {
+                path_prefix_cmp(
+                    current_packed,
+                    current_path_info,
+                    current_traces,
+                    state.best_packed_path(),
+                    state.best_path_info(),
+                    state.best_path_invariants(),
+                )
+            });
+            self.cmp_to_best_path_revision = state.best_path_revision;
+        }
+    }
+
+    fn best_path_equal(self) -> bool {
+        self.cmp_to_best_path == Some(core::cmp::Ordering::Equal)
+    }
+
+    fn best_path_not_worse(self) -> bool {
+        self.cmp_to_best_path.is_some_and(|cmp| cmp != core::cmp::Ordering::Less)
+    }
+
+    fn is_worse_than_best_off_first(self) -> bool {
+        self.cmp_to_best_path == Some(core::cmp::Ordering::Less) && !self.fp_cert_equal
+    }
+
+    fn for_component_continuation(self) -> Self {
+        Self { fp_on: false, in_best_path: false, ..self }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct LongPruneRecord {
     fixed: Vec<bool>,
@@ -249,6 +454,19 @@ struct ComponentEndpoint {
     first_checked: bool,
     best_checked: bool,
     creation_choice_path: Vec<usize>,
+}
+
+impl ComponentEndpoint {
+    fn creation_path_is_prefix_of(&self, choice_path: Option<&[usize]>) -> bool {
+        choice_path.is_some_and(|choice_path| {
+            self.creation_choice_path.len() <= choice_path.len()
+                && self
+                    .creation_choice_path
+                    .iter()
+                    .zip(choice_path.iter())
+                    .all(|(left, right)| left == right)
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -430,15 +648,10 @@ where
             leaf_nodes: usize::from(!root_is_discrete),
             ..CanonicalSearchStats::default()
         },
-        first_order: None,
-        first_leaf_signature: None,
-        first_path_invariants: None,
-        first_packed_path: None,
-        first_choice_path: None,
-        best_order: None,
-        best_path_invariants: None,
-        best_packed_path: None,
-        best_choice_path: None,
+        first_path: None,
+        first_path_revision: 0,
+        best_path: None,
+        best_path_revision: 0,
         first_path_orbits_global: KnownOrbits::new(order),
         first_path_orbits_by_depth: Vec::new(),
         best_path_orbits: KnownOrbits::new(order),
@@ -449,6 +662,7 @@ where
         RefinementTraceStorage::Packed(words) => Some(words.clone()),
         RefinementTraceStorage::Events(_) => None,
     };
+    let mut packed_path_info = Vec::new();
     let mut choice_path = Vec::new();
     let mut component_endpoints = Vec::new();
     let search_return = search_canonical_labeling(
@@ -462,13 +676,18 @@ where
         &mut state,
         &mut path_invariants,
         &mut packed_path,
+        &mut packed_path_info,
         &mut choice_path,
         &mut component_endpoints,
         0,
-        true,
-        false,
-        false,
-        None,
+        SearchPathState {
+            fp_on: true,
+            in_best_path: false,
+            fp_cert_equal: false,
+            fp_cert_equal_revision: 0,
+            cmp_to_best_path: None,
+            cmp_to_best_path_revision: 0,
+        },
         true,
         0,
         options.splitting_heuristic,
@@ -559,11 +778,7 @@ where
     }
 }
 
-#[allow(
-    clippy::fn_params_excessive_bools,
-    clippy::too_many_arguments,
-    clippy::too_many_lines
-)]
+#[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments, clippy::too_many_lines)]
 fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     graph: &G,
     adjacency: &AdjacencyBitMatrix,
@@ -575,13 +790,11 @@ fn search_canonical_labeling<G, VertexLabel, EdgeLabel, EF>(
     state: &mut SearchState<EdgeLabel>,
     path_invariants: &mut Vec<Rc<RefinementTrace<EdgeLabel>>>,
     packed_path: &mut Option<Vec<u32>>,
+    packed_path_info: &mut Vec<SearchPathInfo>,
     choice_path: &mut Vec<usize>,
     component_endpoints: &mut Vec<ComponentEndpoint>,
     active_component_endpoint_len: usize,
-    current_node_is_on_first_path: bool,
-    current_node_is_on_best_path: bool,
-    current_node_path_is_equal_to_first_prefix: bool,
-    current_node_path_cmp_to_best_prefix: Option<core::cmp::Ordering>,
+    current_path_state: SearchPathState,
     count_current_node: bool,
     depth: usize,
     splitting_heuristic: CanonSplittingHeuristic,
@@ -597,17 +810,13 @@ where
         state.stats.search_nodes += 1;
     }
     if partition.is_discrete() {
-        if let Some(discrete_cmp_to_best) = current_node_path_cmp_to_best_prefix {
-            if !current_node_path_is_equal_to_first_prefix
-                && discrete_cmp_to_best == core::cmp::Ordering::Less
-            {
-                state.stats.pruned_path_signatures += 1;
-                return SearchReturn {
-                    best: None,
-                    first_path_automorphism: None,
-                    best_path_backjump_depth: None,
-                };
-            }
+        if current_path_state.is_worse_than_best_off_first() {
+            state.stats.pruned_path_signatures += 1;
+            return SearchReturn {
+                best: None,
+                first_path_automorphism: None,
+                best_path_backjump_depth: None,
+            };
         }
         state.stats.leaf_nodes += 1;
         let order = partition
@@ -639,21 +848,32 @@ where
             None
         };
         let choice_path_snapshot = Rc::<[usize]>::from(choice_path.clone());
-        let had_first_order = state.first_order.is_some();
+        let path_info_snapshot = if packed_path_snapshot.is_some() {
+            Some(Rc::<[SearchPathInfo]>::from(packed_path_info.clone()))
+        } else {
+            path_invariants_snapshot
+                .as_ref()
+                .map(|_| build_search_path_info(choice_path, path_invariants))
+        };
+        let had_first_order = state.first_path.is_some();
         let comparison_to_best = compare_candidate_to_best(
             packed_path.as_deref(),
+            Some(packed_path_info.as_slice()),
             path_invariants,
-            state.best_packed_path.as_deref(),
-            state.best_path_invariants.as_deref(),
+            state.best_packed_path(),
+            state.best_path_info(),
+            state.best_path_invariants(),
         );
-        let candidate_path_matches_first = path_lex_cmp(
+        let candidate_path_matches_first = path_equal_strict(
             packed_path.as_deref(),
+            Some(packed_path_info.as_slice()),
             path_invariants,
-            state.first_packed_path.as_deref(),
-            state.first_path_invariants.as_deref(),
-        ) == core::cmp::Ordering::Equal;
+            state.first_packed_path(),
+            state.first_path_info(),
+            state.first_path_invariants(),
+        );
         let candidate_equals_first = candidate_path_matches_first
-            && state.first_order.as_ref().is_some_and(|first_order| {
+            && state.first_order().is_some_and(|first_order| {
                 let candidate_leaf_signature = ensure_leaf_signature();
                 leaf_orders_equal(
                     adjacency,
@@ -662,22 +882,31 @@ where
                     edge_label,
                     order_snapshot.as_ref(),
                     candidate_leaf_signature.as_deref(),
-                    first_order.as_ref(),
-                    state.first_leaf_signature.as_deref(),
+                    first_order,
+                    state.first_leaf_signature(),
                 )
             });
-        if state.first_order.is_none() {
-            state.first_order = Some(order_snapshot.clone());
-            state.first_leaf_signature = ensure_leaf_signature();
-            state.first_path_invariants.clone_from(&path_invariants_snapshot);
-            state.first_packed_path.clone_from(&packed_path_snapshot);
-            state.first_choice_path = Some(choice_path_snapshot.clone());
+        if state.first_path.is_none() {
+            state.first_path = Some(StoredSearchPath {
+                order: order_snapshot.clone(),
+                leaf_signature: ensure_leaf_signature(),
+                path_invariants: path_invariants_snapshot.clone(),
+                packed_path: packed_path_snapshot.clone(),
+                choice_path: choice_path_snapshot.clone(),
+                path_info: path_info_snapshot.clone(),
+            });
+            state.first_path_revision += 1;
         }
         if comparison_to_best == core::cmp::Ordering::Greater {
-            state.best_order = Some(order_snapshot.clone());
-            state.best_path_invariants.clone_from(&path_invariants_snapshot);
-            state.best_packed_path.clone_from(&packed_path_snapshot);
-            state.best_choice_path = Some(choice_path_snapshot.clone());
+            state.best_path = Some(StoredSearchPath {
+                order: order_snapshot.clone(),
+                leaf_signature: None,
+                path_invariants: path_invariants_snapshot.clone(),
+                packed_path: packed_path_snapshot.clone(),
+                choice_path: choice_path_snapshot.clone(),
+                path_info: path_info_snapshot.clone(),
+            });
+            state.best_path_revision += 1;
             state.best_path_orbits = KnownOrbits::new(nodes.len());
         }
         return SearchReturn {
@@ -686,16 +915,16 @@ where
                 leaf_signature,
                 path_invariants: path_invariants_snapshot,
                 packed_path: packed_path_snapshot,
+                path_info: path_info_snapshot,
                 sibling_orbits: KnownOrbits::new(nodes.len()),
                 choice_path: choice_path_snapshot,
             }),
             first_path_automorphism: if had_first_order
                 && candidate_equals_first
-                && !current_node_is_on_first_path
+                && !current_path_state.fp_on
             {
                 state
-                    .first_order
-                    .as_ref()
+                    .first_order()
                     .map(|first_order| leaf_automorphism(first_order, order_snapshot.as_ref()))
             } else {
                 None
@@ -707,11 +936,20 @@ where
     let node_backtrack_point = partition.set_backtrack_point();
     let previous_component_endpoint_len = component_endpoints.len();
     let mut active_component_endpoint_len = active_component_endpoint_len;
-    let first_path_known_on_entry = state.first_choice_path.is_some();
-    let best_path_known_on_entry = state.best_choice_path.is_some();
-    let mut node_is_on_first_path = current_node_is_on_first_path
-        || (!first_path_known_on_entry
-            && choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path));
+    let first_path_known_on_entry = state.first_path.is_some();
+    let best_path_known_on_entry = state.best_path.is_some();
+    let mut node_path_state = current_path_state.with_live_membership(
+        state,
+        choice_path,
+        first_path_known_on_entry,
+        best_path_known_on_entry,
+    );
+    node_path_state.refresh_relations(
+        state,
+        packed_path.as_deref(),
+        Some(packed_path_info.as_slice()),
+        path_invariants,
+    );
     let target_cell = prepare_component_recursion_and_choose_target_cell(
         graph,
         nodes,
@@ -721,16 +959,18 @@ where
         component_endpoints,
         &mut active_component_endpoint_len,
     );
+    let best_path_invariants =
+        state.best_path.as_ref().and_then(|path| path.path_invariants.clone());
     let candidate_choices = candidate_split_elements(
         graph,
         edge_label,
         partition,
         target_cell,
         path_invariants.as_slice(),
-        state.best_path_invariants.as_deref(),
+        best_path_invariants.as_deref(),
         &mut state.stats,
     );
-    let long_prune_redundant = if !node_is_on_first_path && depth >= 1 {
+    let long_prune_redundant = if !node_path_state.fp_on && depth >= 1 {
         compute_long_prune_redundant(
             choice_path.as_slice(),
             &candidate_choices,
@@ -746,11 +986,7 @@ where
     let mut best_choice: Option<usize> = None;
     let mut node_first_path_automorphism: Option<Vec<usize>> = None;
     let target_cell_len = partition.cell_len(target_cell);
-    let node_path_is_equal_to_first_prefix = current_node_path_is_equal_to_first_prefix;
-    let node_path_cmp_to_best_prefix = current_node_path_cmp_to_best_prefix;
-    if node_path_cmp_to_best_prefix == Some(core::cmp::Ordering::Less)
-        && !node_path_is_equal_to_first_prefix
-    {
+    if node_path_state.is_worse_than_best_off_first() {
         state.stats.pruned_path_signatures += 1;
         partition.goto_backtrack_point(node_backtrack_point);
         component_endpoints.truncate(previous_component_endpoint_len);
@@ -762,14 +998,20 @@ where
     }
 
     for (candidate_index, element) in candidate_choices.iter().copied().enumerate() {
-        node_is_on_first_path = current_node_is_on_first_path
-            || (!first_path_known_on_entry
-                && choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path));
-        let node_is_on_best_path = current_node_is_on_best_path
-            || (!best_path_known_on_entry
-                && choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path));
-        if state.first_choice_path.is_some()
-            && node_is_on_first_path
+        node_path_state = current_path_state.with_live_membership(
+            state,
+            choice_path,
+            first_path_known_on_entry,
+            best_path_known_on_entry,
+        );
+        node_path_state.refresh_relations(
+            state,
+            packed_path.as_deref(),
+            Some(packed_path_info.as_slice()),
+            path_invariants,
+        );
+        if state.first_path.is_some()
+            && node_path_state.fp_on
             && !state.first_path_orbits_global.is_minimal_representative(element)
         {
             state.stats.pruned_sibling_orbits += 1;
@@ -779,8 +1021,8 @@ where
             continue;
         }
 
-        if state.best_choice_path.is_some()
-            && node_is_on_best_path
+        if state.best_path.is_some()
+            && node_path_state.in_best_path
             && !state.best_path_orbits.is_minimal_representative(element)
         {
             state.stats.pruned_sibling_orbits += 1;
@@ -813,44 +1055,44 @@ where
             [individualized],
         );
         let packed_backtrack_len = packed_path.as_ref().map(Vec::len);
+        let packed_path_info_backtrack_len = packed_path_info.len();
         let child_trace_on_stack =
             !matches!(child_trace.storage, RefinementTraceStorage::Packed(_));
         if let (Some(current_packed_path), RefinementTraceStorage::Packed(words)) =
             (packed_path.as_mut(), &child_trace.storage)
         {
             current_packed_path.extend_from_slice(words);
+            packed_path_info.push(SearchPathInfo {
+                splitting_element: element,
+                certificate_index: packed_backtrack_len.unwrap_or(0),
+                subcertificate_length: child_trace.subcertificate_length,
+                eqref_hash: child_trace.eqref_hash,
+            });
         }
         choice_path.push(element);
-        let had_first_path_before_child = state.first_choice_path.is_some();
-        let had_best_before_child = state.best_order.is_some();
-        let previous_best_order = state.best_order.clone();
-        let previous_best_path_invariants = state.best_path_invariants.clone();
-        let previous_best_packed_path = state.best_packed_path.clone();
-        let previous_best_choice_path = state.best_choice_path.clone();
+        let had_first_path_before_child = state.first_path.is_some();
+        let had_best_before_child = state.best_path.is_some();
+        let previous_best_order = state.best_path.as_ref().map(|path| path.order.clone());
+        let previous_best_path_invariants =
+            state.best_path.as_ref().and_then(|path| path.path_invariants.clone());
+        let previous_best_packed_path =
+            state.best_path.as_ref().and_then(|path| path.packed_path.clone());
+        let previous_best_path_info =
+            state.best_path.as_ref().and_then(|path| path.path_info.clone());
+        let previous_best_choice_path =
+            state.best_path.as_ref().map(|path| path.choice_path.clone());
         let child_path_matches_first_prefix =
-            choice_path_is_prefix_of(state.first_choice_path.as_deref(), choice_path);
-        let child_is_on_first_path = node_is_on_first_path && child_path_matches_first_prefix;
-        let child_parent_prefix_equal_to_first = path_prefix_equal_strict(
-            packed_path.as_deref(),
-            path_invariants,
-            state.first_packed_path.as_deref(),
-            state.first_path_invariants.as_deref(),
-        );
-        let child_parent_prefix_cmp_to_best =
-            (state.best_path_invariants.is_some() || state.best_packed_path.is_some()).then(|| {
-                path_prefix_cmp(
-                    packed_path.as_deref(),
-                    path_invariants,
-                    state.best_packed_path.as_deref(),
-                    state.best_path_invariants.as_deref(),
-                )
-            });
+            choice_path_is_prefix_of(state.first_choice_path(), choice_path);
+        let child_is_on_first_path = node_path_state.fp_on && child_path_matches_first_prefix;
+        let child_parent_prefix_equal_to_first = node_path_state.fp_cert_equal;
+        let child_parent_prefix_cmp_to_best = node_path_state.cmp_to_best_path;
         let child_path_is_equal_to_first_prefix = child_path_prefix_equal_to_reference(
             child_parent_prefix_equal_to_first,
             &child_trace,
             packed_backtrack_len,
-            state.first_packed_path.as_deref(),
-            state.first_path_invariants.as_deref(),
+            state.first_packed_path(),
+            state.first_path_info(),
+            state.first_path_invariants(),
             depth + 1,
         );
         let child_path_cmp_to_best_prefix = child_parent_prefix_cmp_to_best.map(|parent_cmp| {
@@ -858,31 +1100,38 @@ where
                 parent_cmp,
                 &child_trace,
                 packed_backtrack_len,
-                state.best_packed_path.as_deref(),
-                state.best_path_invariants.as_deref(),
+                state.best_packed_path(),
+                state.best_path_info(),
+                state.best_path_invariants(),
                 depth + 1,
             )
         });
         if child_trace_on_stack {
             path_invariants.push(Rc::new(child_trace));
         }
-        let child_path_is_equal_to_best_prefix =
-            child_path_cmp_to_best_prefix.is_some_and(|cmp| cmp == core::cmp::Ordering::Equal);
-        let child_path_is_not_worse_than_best_prefix =
-            child_path_cmp_to_best_prefix.is_some_and(|cmp| cmp != core::cmp::Ordering::Less);
-        let child_is_on_best_path = node_is_on_best_path
-            && choice_path_is_prefix_of(state.best_choice_path.as_deref(), choice_path);
+        let child_is_on_best_path = node_path_state.in_best_path
+            && choice_path_is_prefix_of(state.best_choice_path(), choice_path);
+        let child_path_state = SearchPathState {
+            fp_on: child_is_on_first_path,
+            in_best_path: child_is_on_best_path,
+            fp_cert_equal: child_path_is_equal_to_first_prefix,
+            fp_cert_equal_revision: state.first_path_revision,
+            cmp_to_best_path: child_path_cmp_to_best_prefix,
+            cmp_to_best_path_revision: state.best_path_revision,
+        };
         let local_best_matches_first_path = if let Some(current_best) = best.as_mut() {
-            let current_best_path_matches_first = (state.first_path_invariants.is_some()
-                || state.first_packed_path.is_some())
-                && path_lex_cmp(
+            let current_best_path_matches_first = (state.first_path_invariants().is_some()
+                || state.first_packed_path().is_some())
+                && path_equal_strict(
                     current_best.packed_path.as_deref(),
+                    current_best.path_info.as_deref(),
                     current_best.path_invariants.as_deref().unwrap_or(&[]),
-                    state.first_packed_path.as_deref(),
-                    state.first_path_invariants.as_deref(),
-                ) == core::cmp::Ordering::Equal;
+                    state.first_packed_path(),
+                    state.first_path_info(),
+                    state.first_path_invariants(),
+                );
             current_best_path_matches_first
-                && state.first_order.as_ref().is_some_and(|first_order| {
+                && state.first_order().is_some_and(|first_order| {
                     leaf_orders_equal(
                         adjacency,
                         nodes,
@@ -890,8 +1139,8 @@ where
                         edge_label,
                         current_best.order.as_ref(),
                         current_best.leaf_signature.as_deref(),
-                        first_order.as_ref(),
-                        state.first_leaf_signature.as_deref(),
+                        first_order,
+                        state.first_leaf_signature(),
                     )
                 })
         } else {
@@ -912,24 +1161,10 @@ where
                     }
                     let mut continue_to_next_component = false;
                     let endpoint_created_on_first_path =
-                        state.first_choice_path.as_ref().is_some_and(|first_choice_path| {
-                            endpoint.creation_choice_path.len() <= first_choice_path.len()
-                                && endpoint
-                                    .creation_choice_path
-                                    .iter()
-                                    .zip(first_choice_path.iter())
-                                    .all(|(left, right)| left == right)
-                        });
+                        endpoint.creation_path_is_prefix_of(state.first_choice_path());
                     let endpoint_created_on_best_path =
-                        state.best_choice_path.as_ref().is_some_and(|best_choice_path| {
-                            endpoint.creation_choice_path.len() <= best_choice_path.len()
-                                && endpoint
-                                    .creation_choice_path
-                                    .iter()
-                                    .zip(best_choice_path.iter())
-                                    .all(|(left, right)| left == right)
-                        });
-                    if state.first_order.is_none() || child_path_is_equal_to_first_prefix {
+                        endpoint.creation_path_is_prefix_of(state.best_choice_path());
+                    if state.first_path.is_none() || child_path_state.fp_cert_equal {
                         if !endpoint.first_checked {
                             endpoint.first_checked = true;
                             if depth > 0 {
@@ -937,8 +1172,8 @@ where
                             }
                             continue_to_next_component = true;
                         } else if endpoint_created_on_first_path {
-                            if let Some(first_choice_path) = state.first_choice_path.as_ref() {
-                                let automorphism = state.first_order.as_ref().map(|first_order| {
+                            if let Some(first_choice_path) = state.first_choice_path() {
+                                let automorphism = state.first_order().map(|first_order| {
                                     first_path_automorphism_for_current_partition(
                                         partition,
                                         first_order,
@@ -1000,18 +1235,18 @@ where
                             continue_to_next_component = true;
                         }
                     }
-                    if child_path_is_not_worse_than_best_prefix {
+                    if child_path_state.best_path_not_worse() {
                         if !endpoint.best_checked {
                             endpoint.best_checked = true;
-                            if depth > 0 && !child_path_is_equal_to_best_prefix {
+                            if depth > 0 && !child_path_state.best_path_equal() {
                                 state.stats.search_nodes += 1;
                             }
                             continue_to_next_component = true;
                         } else if endpoint_created_on_best_path
-                            && !current_node_is_on_best_path
-                            && child_path_is_equal_to_best_prefix
+                            && !current_path_state.in_best_path
+                            && child_path_state.best_path_equal()
                         {
-                            if let Some(best_order) = state.best_order.as_ref() {
+                            if let Some(best_order) = state.best_order() {
                                 let automorphism = first_path_automorphism_for_current_partition(
                                     partition, best_order,
                                 );
@@ -1036,11 +1271,11 @@ where
                                 let current_choice_path = &choice_path[..choice_path.len() - 1];
                                 let gca_with_first = common_prefix_len(
                                     current_choice_path,
-                                    state.first_choice_path.as_deref(),
+                                    state.first_choice_path(),
                                 );
                                 let gca_with_best = common_prefix_len(
                                     current_choice_path,
-                                    state.best_choice_path.as_deref(),
+                                    state.best_choice_path(),
                                 );
                                 component_endpoint_best_path_backjump_depth = if gca_with_first
                                     < current_choice_path.len()
@@ -1074,9 +1309,10 @@ where
                 path_invariants.pop();
             }
             truncate_packed_path(packed_path, packed_backtrack_len);
+            packed_path_info.truncate(packed_path_info_backtrack_len);
             partition.goto_backtrack_point(backtrack_point);
             if break_after_component_endpoint_automorphism {
-                if node_is_on_first_path {
+                if node_path_state.fp_on {
                     continue;
                 }
                 node_first_path_automorphism = component_endpoint_first_path_automorphism;
@@ -1089,7 +1325,7 @@ where
                     return SearchReturn {
                         best: best
                             .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-                        first_path_automorphism: if node_is_on_first_path {
+                        first_path_automorphism: if node_path_state.fp_on {
                             None
                         } else {
                             node_first_path_automorphism
@@ -1103,11 +1339,11 @@ where
             }
             continue;
         }
-        let early_component_first_path_automorphism = !node_is_on_first_path
+        let early_component_first_path_automorphism = !node_path_state.fp_on
             && active_component_endpoint(component_endpoints, active_component_endpoint_len)
                 .is_some_and(|endpoint| endpoint.first_checked && local_best_matches_first_path)
             && !partition.is_discrete()
-            && child_path_is_equal_to_first_prefix
+            && child_path_state.fp_cert_equal
             && partition.non_singleton_cells().count() == 1
             && target_cell_len == 2;
         let child_active_component_endpoint_len = if descended_via_first_component_boundary {
@@ -1116,7 +1352,9 @@ where
             active_component_endpoint_len
         };
         if early_component_first_path_automorphism {
-            if let Some(first_choice_path) = state.first_choice_path.as_ref() {
+            if let Some(first_choice_path) =
+                state.first_path.as_ref().map(|path| path.choice_path.clone())
+            {
                 state.stats.automorphisms_found += 1;
                 if let Some((first_difference_depth, (&current_choice, &first_choice))) =
                     choice_path
@@ -1138,6 +1376,7 @@ where
                 path_invariants.pop();
             }
             truncate_packed_path(packed_path, packed_backtrack_len);
+            packed_path_info.truncate(packed_path_info_backtrack_len);
             partition.goto_backtrack_point(backtrack_point);
             break;
         }
@@ -1152,13 +1391,15 @@ where
             state,
             path_invariants,
             packed_path,
+            packed_path_info,
             choice_path,
             component_endpoints,
             child_active_component_endpoint_len,
-            if descended_via_first_component_boundary { false } else { child_is_on_first_path },
-            if descended_via_first_component_boundary { false } else { child_is_on_best_path },
-            child_path_is_equal_to_first_prefix,
-            child_path_cmp_to_best_prefix,
+            if descended_via_first_component_boundary {
+                child_path_state.for_component_continuation()
+            } else {
+                child_path_state
+            },
             depth == 0 || !descended_via_first_component_boundary,
             depth + 1,
             splitting_heuristic,
@@ -1170,6 +1411,7 @@ where
             path_invariants.pop();
         }
         truncate_packed_path(packed_path, packed_backtrack_len);
+        packed_path_info.truncate(packed_path_info_backtrack_len);
         partition.goto_backtrack_point(backtrack_point);
         let Some(candidate) = child_return.best else {
             if let Some(automorphism) = child_first_path_automorphism.as_deref() {
@@ -1178,7 +1420,7 @@ where
                 state.first_path_orbits_global.ingest_automorphism(automorphism);
                 state.long_prune_records.push(long_prune_record_from_automorphism(automorphism));
                 local_orbits.ingest_automorphism(automorphism);
-                if !node_is_on_first_path {
+                if !node_path_state.fp_on {
                     node_first_path_automorphism = child_first_path_automorphism;
                     break;
                 }
@@ -1190,7 +1432,7 @@ where
                     return SearchReturn {
                         best: best
                             .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-                        first_path_automorphism: if node_is_on_first_path {
+                        first_path_automorphism: if node_path_state.fp_on {
                             None
                         } else {
                             node_first_path_automorphism
@@ -1210,7 +1452,7 @@ where
                 component_endpoints.truncate(previous_component_endpoint_len);
                 return SearchReturn {
                     best: best.map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-                    first_path_automorphism: if node_is_on_first_path {
+                    first_path_automorphism: if node_path_state.fp_on {
                         None
                     } else {
                         node_first_path_automorphism
@@ -1225,16 +1467,18 @@ where
         let mut candidate_sibling_orbits = candidate.sibling_orbits.clone();
         local_orbits.ingest_known_orbits(&mut candidate_sibling_orbits);
 
-        let candidate_path_matches_first = (state.first_path_invariants.is_some()
-            || state.first_packed_path.is_some())
-            && path_lex_cmp(
+        let candidate_path_matches_first = (state.first_path_invariants().is_some()
+            || state.first_packed_path().is_some())
+            && path_equal_strict(
                 candidate.packed_path.as_deref(),
+                candidate.path_info.as_deref(),
                 candidate.path_invariants.as_deref().unwrap_or(&[]),
-                state.first_packed_path.as_deref(),
-                state.first_path_invariants.as_deref(),
-            ) == core::cmp::Ordering::Equal;
+                state.first_packed_path(),
+                state.first_path_info(),
+                state.first_path_invariants(),
+            );
         let candidate_equals_first_path = candidate_path_matches_first
-            && state.first_order.as_ref().is_some_and(|first_order| {
+            && state.first_order().is_some_and(|first_order| {
                 leaf_orders_equal(
                     adjacency,
                     nodes,
@@ -1242,19 +1486,21 @@ where
                     edge_label,
                     candidate.order.as_ref(),
                     candidate.leaf_signature.as_deref(),
-                    first_order.as_ref(),
-                    state.first_leaf_signature.as_deref(),
+                    first_order,
+                    state.first_leaf_signature(),
                 )
             });
         let candidate_matches_first_path_automorphism = candidate_equals_first_path
             && had_first_path_before_child
             && !child_is_on_first_path
-            && child_path_is_equal_to_first_prefix;
+            && child_path_state.fp_cert_equal;
         if candidate_matches_first_path_automorphism {
-            if let Some(first_choice_path) = state.first_choice_path.clone() {
+            if let Some(first_choice_path) =
+                state.first_path.as_ref().map(|path| path.choice_path.clone())
+            {
                 state.stats.automorphisms_found += 1;
                 if let Some(&first_choice) = first_choice_path.get(depth) {
-                    let first_order = state.first_order.clone();
+                    let first_order = state.first_path.as_ref().map(|path| path.order.clone());
                     {
                         let first_path_orbits =
                             first_path_orbits_at_depth_mut(state, depth, nodes.len());
@@ -1279,8 +1525,7 @@ where
         let candidate_first_path_automorphism = child_first_path_automorphism.or_else(|| {
             if candidate_matches_first_path_automorphism {
                 state
-                    .first_order
-                    .as_ref()
+                    .first_order()
                     .map(|first_order| leaf_automorphism(first_order, candidate.order.as_ref()))
             } else {
                 None
@@ -1288,34 +1533,36 @@ where
         });
         let prune_remaining_siblings_after_first_path_match = if component_endpoints.is_empty() {
             candidate_equals_first_path
-                && child_path_is_equal_to_first_prefix
+                && child_path_state.fp_cert_equal
                 && candidate_choices[(candidate_index + 1)..].iter().copied().all(|remaining| {
                     explored_choices
                         .iter()
                         .any(|&previous| local_orbits.same_set(previous, remaining))
-                        || (state.first_choice_path.is_some()
-                            && node_is_on_first_path
+                        || (state.first_path.is_some()
+                            && node_path_state.fp_on
                             && !state.first_path_orbits_global.is_minimal_representative(remaining))
                 })
         } else {
-            candidate_equals_first_path
-                && child_path_is_equal_to_first_prefix
-                && !node_is_on_first_path
+            candidate_equals_first_path && child_path_state.fp_cert_equal && !node_path_state.fp_on
         };
         let comparison_to_local_best = compare_candidate_to_best(
             candidate.packed_path.as_deref(),
+            candidate.path_info.as_deref(),
             candidate.path_invariants.as_deref().unwrap_or(&[]),
             best.as_ref().and_then(|current_best| current_best.packed_path.as_deref()),
+            best.as_ref().and_then(|current_best| current_best.path_info.as_deref()),
             best.as_ref().and_then(|current_best| current_best.path_invariants.as_deref()),
         );
         let candidate_matches_previous_best_path = (previous_best_path_invariants.is_some()
             || previous_best_packed_path.is_some())
-            && path_lex_cmp(
+            && path_equal_strict(
                 candidate.packed_path.as_deref(),
+                candidate.path_info.as_deref(),
                 candidate.path_invariants.as_deref().unwrap_or(&[]),
                 previous_best_packed_path.as_deref(),
+                previous_best_path_info.as_deref(),
                 previous_best_path_invariants.as_deref(),
-            ) == core::cmp::Ordering::Equal;
+            );
         let candidate_matches_previous_best_automorphism = if had_best_before_child
             && !child_is_on_best_path
             && !candidate_matches_previous_best_path
@@ -1379,10 +1626,8 @@ where
                 state.long_prune_records.push(long_prune_record_from_automorphism(&automorphism));
                 local_orbits.ingest_automorphism(&automorphism);
 
-                let gca_with_first = common_prefix_len(
-                    candidate.choice_path.as_ref(),
-                    state.first_choice_path.as_deref(),
-                );
+                let gca_with_first =
+                    common_prefix_len(candidate.choice_path.as_ref(), state.first_choice_path());
                 let gca_with_best = common_prefix_len(
                     candidate.choice_path.as_ref(),
                     Some(best_choice_path.as_ref()),
@@ -1410,7 +1655,7 @@ where
                         return SearchReturn {
                             best: best
                                 .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-                            first_path_automorphism: if node_is_on_first_path {
+                            first_path_automorphism: if node_path_state.fp_on {
                                 None
                             } else {
                                 node_first_path_automorphism
@@ -1425,12 +1670,13 @@ where
             }
         }
 
-        match (&mut best, comparison_to_local_best) {
-            (_, core::cmp::Ordering::Greater) | (None, _) => {
-                best = Some(candidate);
-                best_choice = Some(element);
-            }
-            _ => {}
+        let candidate_is_new_local_best = matches!(
+            (&best, comparison_to_local_best),
+            (_, core::cmp::Ordering::Greater) | (None, _)
+        );
+        if candidate_is_new_local_best {
+            best = Some(candidate);
+            best_choice = Some(element);
         }
 
         if let Some(automorphism) = candidate_first_path_automorphism.as_deref() {
@@ -1440,7 +1686,7 @@ where
                 state.first_path_orbits_global.ingest_automorphism(automorphism);
                 local_orbits.ingest_automorphism(automorphism);
             }
-            if !node_is_on_first_path {
+            if !node_path_state.fp_on {
                 node_first_path_automorphism = candidate_first_path_automorphism;
                 break;
             }
@@ -1455,7 +1701,7 @@ where
     component_endpoints.truncate(previous_component_endpoint_len);
     SearchReturn {
         best: best.map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-        first_path_automorphism: if node_is_on_first_path {
+        first_path_automorphism: if node_path_state.fp_on {
             None
         } else {
             node_first_path_automorphism
@@ -2237,6 +2483,7 @@ fn child_path_prefix_equal_to_reference<EdgeLabel>(
     child_trace: &RefinementTrace<EdgeLabel>,
     packed_offset: Option<usize>,
     reference_packed: Option<&[u32]>,
+    reference_path_info: Option<&[SearchPathInfo]>,
     reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
     child_depth: usize,
 ) -> bool
@@ -2247,18 +2494,32 @@ where
         return false;
     }
 
-    match (&child_trace.storage, reference_packed, reference_traces) {
-        (RefinementTraceStorage::Packed(words), Some(reference), None) => {
-            let start = packed_offset.expect("packed child trace requires packed path offset");
+    match (&child_trace.storage, reference_packed, reference_path_info, reference_traces) {
+        (RefinementTraceStorage::Packed(words), Some(reference), reference_path_info, None) => {
+            let start = reference_path_info
+                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
+                .map_or_else(
+                    || packed_offset.expect("packed child trace requires packed path offset"),
+                    |info| info.certificate_index,
+                );
             let end = start + words.len();
-            end <= reference.len() && &reference[start..end] == words.as_slice()
+            if end > reference.len() {
+                return false;
+            }
+            reference_path_info
+                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
+                .is_none_or(|info| {
+                    info.subcertificate_length == child_trace.subcertificate_length
+                        && info.eqref_hash == child_trace.eqref_hash
+                })
+                && reference[start..end] == words[..]
         }
-        (RefinementTraceStorage::Events(_), None, Some(reference)) => {
+        (RefinementTraceStorage::Events(_), None, _, Some(reference)) => {
             reference
                 .get(child_depth)
                 .is_some_and(|expected| refinement_trace_equal(child_trace, expected.as_ref()))
         }
-        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, None) => {
+        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, _, None) => {
             false
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
@@ -2270,6 +2531,7 @@ fn child_path_prefix_cmp_to_reference<EdgeLabel>(
     child_trace: &RefinementTrace<EdgeLabel>,
     packed_offset: Option<usize>,
     reference_packed: Option<&[u32]>,
+    reference_path_info: Option<&[SearchPathInfo]>,
     reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
     child_depth: usize,
 ) -> core::cmp::Ordering
@@ -2280,8 +2542,18 @@ where
         return parent_prefix_cmp;
     }
 
-    match (&child_trace.storage, reference_packed, reference_traces) {
-        (RefinementTraceStorage::Packed(words), Some(reference), None) => {
+    match (&child_trace.storage, reference_packed, reference_path_info, reference_traces) {
+        (RefinementTraceStorage::Packed(words), Some(reference), reference_path_info, None) => {
+            if let Some(info) = reference_path_info
+                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
+            {
+                let start = info.certificate_index;
+                let end = start + words.len();
+                if end > reference.len() {
+                    return core::cmp::Ordering::Greater;
+                }
+                return words[..].cmp(&reference[start..end]);
+            }
             let start = packed_offset.expect("packed child trace requires packed path offset");
             if start >= reference.len() {
                 return core::cmp::Ordering::Equal;
@@ -2289,12 +2561,12 @@ where
             let available = words.len().min(reference.len() - start);
             words[..available].cmp(&reference[start..(start + available)])
         }
-        (RefinementTraceStorage::Events(_), None, Some(reference)) => {
+        (RefinementTraceStorage::Events(_), None, _, Some(reference)) => {
             reference.get(child_depth).map_or(core::cmp::Ordering::Equal, |expected| {
                 compare_refinement_trace(child_trace, expected.as_ref())
             })
         }
-        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, None) => {
+        (RefinementTraceStorage::Packed(_) | RefinementTraceStorage::Events(_), None, _, None) => {
             core::cmp::Ordering::Equal
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
@@ -2304,6 +2576,43 @@ where
 fn packed_path_prefix_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
     let limit = current.len().min(best.len());
     current[..limit].cmp(&best[..limit])
+}
+
+fn packed_path_segment_cmp(
+    current: &[u32],
+    current_info: &[SearchPathInfo],
+    best: &[u32],
+    best_info: &[SearchPathInfo],
+    prefix_only: bool,
+) -> core::cmp::Ordering {
+    if current_info.is_empty() || best_info.is_empty() {
+        return if prefix_only { packed_path_prefix_cmp(current, best) } else { current.cmp(best) };
+    }
+
+    let current_root_end = current_info[0].certificate_index;
+    let best_root_end = best_info[0].certificate_index;
+    if current_root_end != best_root_end {
+        return if prefix_only { packed_path_prefix_cmp(current, best) } else { current.cmp(best) };
+    }
+    debug_assert_eq!(current[..current_root_end], best[..best_root_end]);
+
+    for (current_segment, best_segment) in current_info.iter().zip(best_info.iter()) {
+        if current_segment.subcertificate_length == best_segment.subcertificate_length
+            && current_segment.eqref_hash == best_segment.eqref_hash
+        {
+            continue;
+        }
+        let current_start = current_segment.certificate_index;
+        let current_end = current_start + current_segment.subcertificate_length;
+        let best_start = best_segment.certificate_index;
+        let best_end = best_start + best_segment.subcertificate_length;
+        let segment_cmp = current[current_start..current_end].cmp(&best[best_start..best_end]);
+        if segment_cmp != core::cmp::Ordering::Equal {
+            return segment_cmp;
+        }
+    }
+
+    if prefix_only { core::cmp::Ordering::Equal } else { current.len().cmp(&best.len()) }
 }
 
 fn packed_path_lex_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
@@ -2316,8 +2625,10 @@ fn packed_path_prefix_equal_strict(current: &[u32], reference: &[u32]) -> bool {
 
 fn path_prefix_cmp<EdgeLabel>(
     current_packed: Option<&[u32]>,
+    current_path_info: Option<&[SearchPathInfo]>,
     current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
     best_packed: Option<&[u32]>,
+    best_path_info: Option<&[SearchPathInfo]>,
     best_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
 ) -> core::cmp::Ordering
 where
@@ -2328,7 +2639,15 @@ where
     }
 
     match (current_packed, best_packed) {
-        (Some(current), Some(best)) => packed_path_prefix_cmp(current, best),
+        (Some(current), Some(best)) => {
+            if let (Some(current_path_info), Some(best_path_info)) =
+                (current_path_info, best_path_info)
+            {
+                packed_path_segment_cmp(current, current_path_info, best, best_path_info, true)
+            } else {
+                packed_path_prefix_cmp(current, best)
+            }
+        }
         (None, None) => {
             let best = best_traces.expect("trace path comparison requires trace snapshots");
             let limit = current_traces.len().min(best.len());
@@ -2347,8 +2666,10 @@ where
 
 fn path_lex_cmp<EdgeLabel>(
     current_packed: Option<&[u32]>,
+    current_path_info: Option<&[SearchPathInfo]>,
     current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
     best_packed: Option<&[u32]>,
+    best_path_info: Option<&[SearchPathInfo]>,
     best_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
 ) -> core::cmp::Ordering
 where
@@ -2359,10 +2680,18 @@ where
     }
 
     match (current_packed, best_packed) {
-        (Some(current), Some(best)) => packed_path_lex_cmp(current, best),
+        (Some(current), Some(best)) => {
+            if let (Some(current_path_info), Some(best_path_info)) =
+                (current_path_info, best_path_info)
+            {
+                packed_path_segment_cmp(current, current_path_info, best, best_path_info, false)
+            } else {
+                packed_path_lex_cmp(current, best)
+            }
+        }
         (None, None) => {
             let best = best_traces.expect("trace path comparison requires trace snapshots");
-            let prefix_cmp = path_prefix_cmp(None, current_traces, None, Some(best));
+            let prefix_cmp = path_prefix_cmp(None, None, current_traces, None, None, Some(best));
             if prefix_cmp != core::cmp::Ordering::Equal {
                 return prefix_cmp;
             }
@@ -2374,8 +2703,10 @@ where
 
 fn path_prefix_equal_strict<EdgeLabel>(
     current_packed: Option<&[u32]>,
+    current_path_info: Option<&[SearchPathInfo]>,
     current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
     reference_packed: Option<&[u32]>,
+    reference_path_info: Option<&[SearchPathInfo]>,
     reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
 ) -> bool
 where
@@ -2386,10 +2717,105 @@ where
     }
 
     match (current_packed, reference_packed) {
-        (Some(current), Some(reference)) => packed_path_prefix_equal_strict(current, reference),
+        (Some(current), Some(reference)) => {
+            if let (Some(current_path_info), Some(reference_path_info)) =
+                (current_path_info, reference_path_info)
+            {
+                if current_path_info.len() > reference_path_info.len()
+                    || current_path_info.iter().zip(reference_path_info.iter()).any(
+                        |(current, reference)| {
+                            current.subcertificate_length != reference.subcertificate_length
+                                || current.eqref_hash != reference.eqref_hash
+                        },
+                    )
+                {
+                    return false;
+                }
+                if current_path_info.is_empty() {
+                    return packed_path_prefix_equal_strict(current, reference);
+                }
+                debug_assert_eq!(
+                    current_path_info[0].certificate_index,
+                    reference_path_info[0].certificate_index,
+                );
+                return current_path_info.iter().zip(reference_path_info.iter()).all(
+                    |(current_info, reference_info)| {
+                        let current_start = current_info.certificate_index;
+                        let current_end = current_start + current_info.subcertificate_length;
+                        let reference_start = reference_info.certificate_index;
+                        let reference_end = reference_start + reference_info.subcertificate_length;
+                        current[current_start..current_end]
+                            == reference[reference_start..reference_end]
+                    },
+                );
+            }
+            packed_path_prefix_equal_strict(current, reference)
+        }
         (None, None) => {
             let reference = reference_traces.expect("trace path equality requires trace snapshots");
             current_traces.len() <= reference.len()
+                && current_traces
+                    .iter()
+                    .zip(reference.iter())
+                    .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+        }
+        _ => unreachable!("packed and trace path modes must not mix within one search"),
+    }
+}
+
+fn path_equal_strict<EdgeLabel>(
+    current_packed: Option<&[u32]>,
+    current_path_info: Option<&[SearchPathInfo]>,
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference_packed: Option<&[u32]>,
+    reference_path_info: Option<&[SearchPathInfo]>,
+    reference_traces: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
+) -> bool
+where
+    EdgeLabel: Ord + Clone,
+{
+    if reference_packed.is_none() && reference_traces.is_none() {
+        return false;
+    }
+
+    match (current_packed, reference_packed) {
+        (Some(current), Some(reference)) => {
+            if let (Some(current_path_info), Some(reference_path_info)) =
+                (current_path_info, reference_path_info)
+            {
+                if current_path_info.len() != reference_path_info.len()
+                    || current_path_info.iter().zip(reference_path_info.iter()).any(
+                        |(current, reference)| {
+                            current.subcertificate_length != reference.subcertificate_length
+                                || current.eqref_hash != reference.eqref_hash
+                        },
+                    )
+                {
+                    return false;
+                }
+                if current_path_info.is_empty() {
+                    return current == reference;
+                }
+                debug_assert_eq!(
+                    current_path_info[0].certificate_index,
+                    reference_path_info[0].certificate_index,
+                );
+                return current_path_info.iter().zip(reference_path_info.iter()).all(
+                    |(current_info, reference_info)| {
+                        let current_start = current_info.certificate_index;
+                        let current_end = current_start + current_info.subcertificate_length;
+                        let reference_start = reference_info.certificate_index;
+                        let reference_end = reference_start + reference_info.subcertificate_length;
+                        current[current_start..current_end]
+                            == reference[reference_start..reference_end]
+                    },
+                );
+            }
+            current == reference
+        }
+        (None, None) => {
+            let reference = reference_traces.expect("trace path equality requires trace snapshots");
+            current_traces.len() == reference.len()
                 && current_traces
                     .iter()
                     .zip(reference.iter())
@@ -2453,8 +2879,10 @@ where
 
 fn compare_candidate_to_best<EdgeLabel>(
     candidate_packed_path: Option<&[u32]>,
+    candidate_path_info: Option<&[SearchPathInfo]>,
     candidate_trace_path: &[Rc<RefinementTrace<EdgeLabel>>],
     best_packed_path: Option<&[u32]>,
+    best_path_info: Option<&[SearchPathInfo]>,
     best_trace_path: Option<&[Rc<RefinementTrace<EdgeLabel>>]>,
 ) -> core::cmp::Ordering
 where
@@ -2465,8 +2893,10 @@ where
         _ => {
             path_lex_cmp(
                 candidate_packed_path,
+                candidate_path_info,
                 candidate_trace_path,
                 best_packed_path,
+                best_path_info,
                 best_trace_path,
             )
         }
