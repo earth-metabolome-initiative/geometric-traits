@@ -244,6 +244,130 @@ fn prepare_fixture_cases() -> Vec<FixtureBenchCase> {
     .collect()
 }
 
+#[allow(clippy::too_many_lines)]
+fn prepare_regression_cases() -> Vec<FixtureBenchCase> {
+    [
+        (
+            "erdos_renyi_0397370",
+            "erdos_renyi",
+            build_undigraph(
+                14,
+                &[
+                    [0, 4],
+                    [0, 5],
+                    [1, 5],
+                    [1, 6],
+                    [1, 9],
+                    [2, 4],
+                    [3, 4],
+                    [3, 9],
+                    [3, 10],
+                    [3, 13],
+                    [4, 10],
+                    [6, 7],
+                    [7, 8],
+                    [7, 10],
+                    [7, 11],
+                    [7, 12],
+                    [7, 13],
+                    [8, 11],
+                    [8, 13],
+                    [9, 13],
+                    [12, 13],
+                ],
+            ),
+            true,
+        ),
+        (
+            "erdos_renyi_0517930",
+            "erdos_renyi",
+            build_undigraph(
+                8,
+                &[
+                    [0, 2],
+                    [0, 3],
+                    [0, 5],
+                    [1, 3],
+                    [1, 4],
+                    [1, 7],
+                    [2, 3],
+                    [2, 5],
+                    [3, 4],
+                    [3, 6],
+                    [3, 7],
+                    [5, 7],
+                    [6, 7],
+                ],
+            ),
+            true,
+        ),
+        (
+            "erdos_renyi_0562680",
+            "erdos_renyi",
+            build_undigraph(
+                13,
+                &[
+                    [0, 9],
+                    [0, 10],
+                    [0, 12],
+                    [1, 8],
+                    [1, 9],
+                    [2, 3],
+                    [2, 4],
+                    [3, 6],
+                    [3, 8],
+                    [3, 9],
+                    [3, 11],
+                    [3, 12],
+                    [4, 5],
+                    [5, 9],
+                    [6, 10],
+                    [6, 11],
+                    [7, 10],
+                    [8, 9],
+                ],
+            ),
+            false,
+        ),
+        (
+            "fuzzer_regression_20260411",
+            "fuzzer",
+            build_undigraph(
+                15,
+                &[
+                    [0, 3],
+                    [0, 10],
+                    [0, 11],
+                    [3, 10],
+                    [3, 11],
+                    [3, 12],
+                    [3, 13],
+                    [4, 12],
+                    [4, 14],
+                    [7, 12],
+                    [7, 14],
+                    [9, 10],
+                    [9, 13],
+                    [9, 14],
+                    [10, 11],
+                ],
+            ),
+            true,
+        ),
+    ]
+    .into_iter()
+    .map(|(name, family, graph, expected_has_k4_homeomorph)| {
+        FixtureBenchCase {
+            name: name.to_string(),
+            family: family.to_string(),
+            logical_edge_count: logical_edge_count(&graph),
+            graph,
+            expected_has_k4_homeomorph,
+        }
+    })
+    .collect()
+}
+
 fn prepare_scaling_cases() -> Vec<ScalingBenchCase> {
     [
         ("path_4096", wrap_undi(path_graph(4_096)), false),
@@ -339,5 +463,24 @@ fn bench_scaling_cases(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(k4_homeomorph, bench_semantic_cases, bench_scaling_cases);
+fn bench_regression_cases(c: &mut Criterion) {
+    let cases = prepare_regression_cases();
+    assert_cases_match_oracle(&cases);
+
+    let mut group = c.benchmark_group("k4_homeomorph_regressions");
+    group.sample_size(10);
+    group.warm_up_time(Duration::from_millis(500));
+    group.measurement_time(Duration::from_secs(2));
+    for case in &cases {
+        group.throughput(Throughput::Elements(
+            u64::try_from(case.logical_edge_count).expect("edge count should fit into u64"),
+        ));
+        group.bench_function(BenchmarkId::new("case", &case.name), |b| {
+            b.iter(|| black_box(case.graph.has_k4_homeomorph().unwrap()));
+        });
+    }
+    group.finish();
+}
+
+criterion_group!(k4_homeomorph, bench_semantic_cases, bench_scaling_cases, bench_regression_cases);
 criterion_main!(k4_homeomorph);

@@ -2,9 +2,9 @@
 //! [`crate::traits::MonopartiteGraph`]s.
 
 use crate::traits::{
-    BiconnectedComponentsError, K23HomeomorphError, K33HomeomorphError, K4HomeomorphError,
-    MinimumCycleBasisError, ModularityError, OuterplanarityError, PlanarityError,
-    EssentialCyclesError, RelevantCyclesError, connected_components::ConnectedComponentsError,
+    BiconnectedComponentsError, EssentialCyclesError, K4HomeomorphError, K23HomeomorphError,
+    K33HomeomorphError, MinimumCycleBasisError, ModularityError, OuterplanarityError,
+    PlanarityError, RelevantCyclesError, connected_components::ConnectedComponentsError,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
