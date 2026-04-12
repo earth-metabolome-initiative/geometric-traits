@@ -129,7 +129,7 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     let simple_graph = preprocessing::LocalSimpleGraph::try_from_undirected_graph(graph)?;
-    let preprocessing = simple_graph.preprocess();
+    let preprocessing = simple_graph.into_preprocessing();
     Ok(run_planarity_engine(&preprocessing))
 }
 
@@ -139,7 +139,7 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     let simple_graph = preprocessing::LocalSimpleGraph::try_from_undirected_graph(graph)?;
-    let preprocessing = simple_graph.preprocess();
+    let preprocessing = simple_graph.into_preprocessing();
     Ok(run_outerplanarity_engine(&preprocessing))
 }
 
@@ -151,7 +151,7 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     let simple_graph = preprocessing::LocalSimpleGraph::try_from_undirected_graph(graph)?;
-    let preprocessing = simple_graph.preprocess();
+    let preprocessing = simple_graph.into_preprocessing();
     Ok(run_k23_homeomorph_engine(&preprocessing))
 }
 
@@ -164,7 +164,7 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     let simple_graph = preprocessing::LocalSimpleGraph::try_from_undirected_graph(graph)?;
-    let preprocessing = simple_graph.preprocess();
+    let preprocessing = simple_graph.into_preprocessing();
     Ok(run_k4_homeomorph_engine(&preprocessing))
 }
 
@@ -335,7 +335,7 @@ fn child_subtree_forward_arc_head(
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub(crate) mod preprocessing {
-    use alloc::{collections::BTreeSet, vec, vec::Vec};
+    use alloc::{vec, vec::Vec};
 
     use num_traits::AsPrimitive;
 
@@ -410,9 +410,7 @@ pub(crate) mod preprocessing {
             node_count: usize,
             edges: &[[usize; 2]],
         ) -> Result<Self, LocalSimpleGraphError> {
-            let mut seen = BTreeSet::new();
-            let mut adjacency_arcs = vec![Vec::new(); node_count];
-            let mut arcs = Vec::with_capacity(edges.len() * 2);
+            let mut normalized_edges = Vec::with_capacity(edges.len());
 
             for &[left, right] in edges {
                 if left >= node_count {
@@ -424,11 +422,27 @@ pub(crate) mod preprocessing {
                 if left == right {
                     return Err(LocalSimpleGraphError::SelfLoop);
                 }
-                let normalized = if left <= right { [left, right] } else { [right, left] };
-                if !seen.insert(normalized) {
+                normalized_edges.push(if left <= right { [left, right] } else { [right, left] });
+            }
+
+            normalized_edges.sort_unstable();
+            for edge_index in 1..normalized_edges.len() {
+                if normalized_edges[edge_index - 1] == normalized_edges[edge_index] {
                     return Err(LocalSimpleGraphError::ParallelEdge);
                 }
+            }
 
+            let mut degrees = vec![0usize; node_count];
+            for &[left, right] in &normalized_edges {
+                degrees[left] += 1;
+                degrees[right] += 1;
+            }
+
+            let mut adjacency_arcs =
+                degrees.into_iter().map(Vec::with_capacity).collect::<Vec<_>>();
+            let mut arcs = Vec::with_capacity(edges.len() * 2);
+
+            for [left, right] in normalized_edges {
                 let left_arc = arcs.len();
                 let right_arc = left_arc + 1;
                 arcs.push(DfsArcRecord {
@@ -445,10 +459,6 @@ pub(crate) mod preprocessing {
                 });
                 adjacency_arcs[left].push(left_arc);
                 adjacency_arcs[right].push(right_arc);
-            }
-
-            for incident_arcs in &mut adjacency_arcs {
-                incident_arcs.sort_unstable_by_key(|&arc_id| arcs[arc_id].target);
             }
 
             Ok(Self { adjacency_arcs, arcs })
@@ -479,9 +489,15 @@ pub(crate) mod preprocessing {
         }
 
         pub(crate) fn preprocess(&self) -> DfsPreprocessing {
+            self.clone().into_preprocessing()
+        }
+
+        pub(crate) fn into_preprocessing(self) -> DfsPreprocessing {
+            let Self { adjacency_arcs, arcs } = self;
+            let adjacency_len = adjacency_arcs.len();
             let mut preprocessing = DfsPreprocessing {
-                adjacency_arcs: self.adjacency_arcs.clone(),
-                arcs: self.arcs.clone(),
+                adjacency_arcs: Vec::new(),
+                arcs,
                 vertices: vec![
                     DfsVertexState {
                         parent: None,
@@ -492,15 +508,15 @@ pub(crate) mod preprocessing {
                         sorted_dfs_children: Vec::new(),
                         sorted_forward_arcs: Vec::new(),
                     };
-                    self.adjacency_arcs.len()
+                    adjacency_len
                 ],
-                vertex_by_dfi: Vec::with_capacity(self.adjacency_arcs.len()),
+                vertex_by_dfi: Vec::with_capacity(adjacency_len),
                 dfs_roots: Vec::new(),
             };
-            let mut visited = vec![false; self.adjacency_arcs.len()];
+            let mut visited = vec![false; adjacency_len];
             let mut next_dfi = 0usize;
 
-            for root in 0..self.adjacency_arcs.len() {
+            for root in 0..adjacency_len {
                 if visited[root] {
                     continue;
                 }
@@ -509,13 +525,14 @@ pub(crate) mod preprocessing {
                     root,
                     None,
                     None,
-                    &self.adjacency_arcs,
+                    &adjacency_arcs,
                     &mut preprocessing,
                     &mut visited,
                     &mut next_dfi,
                 );
             }
 
+            preprocessing.adjacency_arcs = adjacency_arcs;
             preprocessing
         }
 
@@ -980,15 +997,18 @@ pub(crate) mod embedding {
 
             let mut least_ancestor_by_primary_slot = vec![usize::MAX; number_of_vertices];
             let mut lowpoint_by_primary_slot = vec![usize::MAX; number_of_vertices];
+            let mut forward_arc_head_index_by_primary_slot = vec![None; number_of_vertices];
             for (primary_slot, &original_vertex) in preprocessing.vertex_by_dfi.iter().enumerate() {
-                let sorted_dfs_children = preprocessing.vertices[original_vertex]
-                    .sorted_dfs_children
-                    .iter()
-                    .map(|&child_original_vertex| {
-                        primary_slot_by_original_vertex[child_original_vertex]
-                    })
-                    .collect::<Vec<_>>();
-                let mut separated_dfs_children = sorted_dfs_children.clone();
+                let child_count = preprocessing.vertices[original_vertex].sorted_dfs_children.len();
+                let mut sorted_dfs_children = Vec::with_capacity(child_count);
+                let mut separated_dfs_children = Vec::with_capacity(child_count);
+                for &child_original_vertex in
+                    &preprocessing.vertices[original_vertex].sorted_dfs_children
+                {
+                    let child_slot = primary_slot_by_original_vertex[child_original_vertex];
+                    sorted_dfs_children.push(child_slot);
+                    separated_dfs_children.push(child_slot);
+                }
                 separated_dfs_children.sort_unstable_by_key(|&child_slot| {
                     (
                         preprocessing.vertices[preprocessing.vertex_by_dfi[child_slot]].lowpoint,
@@ -998,32 +1018,31 @@ pub(crate) mod embedding {
                 slots[primary_slot].future_pertinent_child = sorted_dfs_children.first().copied();
                 slots[primary_slot].sorted_dfs_children = sorted_dfs_children;
                 slots[primary_slot].separated_dfs_children = separated_dfs_children;
+                if !preprocessing.vertices[original_vertex].sorted_forward_arcs.is_empty() {
+                    forward_arc_head_index_by_primary_slot[primary_slot] = Some(0);
+                }
                 least_ancestor_by_primary_slot[primary_slot] =
                     preprocessing.vertices[original_vertex].least_ancestor;
                 lowpoint_by_primary_slot[primary_slot] =
                     preprocessing.vertices[original_vertex].lowpoint;
             }
 
-            let mut arcs = preprocessing
-                .arcs
-                .iter()
-                .enumerate()
-                .map(|(original_arc, arc)| {
-                    EmbeddingArcRecord {
-                        original_arc: Some(original_arc),
-                        source_slot: primary_slot_by_original_vertex[arc.source],
-                        target_slot: primary_slot_by_original_vertex[arc.target],
-                        twin: arc.twin,
-                        next: None,
-                        prev: None,
-                        visited: false,
-                        kind: arc.kind,
-                        embedded: false,
-                        inverted: false,
-                        reduction_endpoint_arc: None,
-                    }
-                })
-                .collect::<Vec<_>>();
+            let mut arcs = Vec::with_capacity(preprocessing.arcs.len());
+            for (original_arc, arc) in preprocessing.arcs.iter().enumerate() {
+                arcs.push(EmbeddingArcRecord {
+                    original_arc: Some(original_arc),
+                    source_slot: primary_slot_by_original_vertex[arc.source],
+                    target_slot: primary_slot_by_original_vertex[arc.target],
+                    twin: arc.twin,
+                    next: None,
+                    prev: None,
+                    visited: false,
+                    kind: arc.kind,
+                    embedded: false,
+                    inverted: false,
+                    reduction_endpoint_arc: None,
+                });
+            }
 
             for (primary_slot, &original_vertex) in preprocessing.vertex_by_dfi.iter().enumerate() {
                 let Some(parent_arc) = preprocessing.vertices[original_vertex].parent_arc else {
@@ -1057,14 +1076,7 @@ pub(crate) mod embedding {
                 root_copy_by_primary_dfi,
                 least_ancestor_by_primary_slot,
                 lowpoint_by_primary_slot,
-                forward_arc_head_index_by_primary_slot: preprocessing
-                    .vertex_by_dfi
-                    .iter()
-                    .map(|&original_vertex| {
-                        (!preprocessing.vertices[original_vertex].sorted_forward_arcs.is_empty())
-                            .then_some(0)
-                    })
-                    .collect(),
+                forward_arc_head_index_by_primary_slot,
                 handling_k4_blocked_bicomp: false,
                 k4_reblocked_same_root: false,
             }
