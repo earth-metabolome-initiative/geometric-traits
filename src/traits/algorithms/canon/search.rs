@@ -210,6 +210,14 @@ struct SearchOutcome<EdgeLabel> {
     choice_path: Rc<[usize]>,
 }
 
+trait SearchPathSnapshot<EdgeLabel> {
+    fn order(&self) -> &[usize];
+    fn leaf_signature(&self) -> Option<&UnlabeledLeafSignature>;
+    fn path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]>;
+    fn packed_path(&self) -> Option<&[u32]>;
+    fn path_info(&self) -> Option<&[SearchPathInfo]>;
+}
+
 impl<EdgeLabel> StoredSearchPath<EdgeLabel> {
     fn path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
         self.path_invariants.as_deref()
@@ -228,50 +236,150 @@ impl<EdgeLabel> StoredSearchPath<EdgeLabel> {
     }
 }
 
+impl<EdgeLabel> SearchPathSnapshot<EdgeLabel> for StoredSearchPath<EdgeLabel> {
+    fn order(&self) -> &[usize] {
+        self.order.as_ref()
+    }
+
+    fn leaf_signature(&self) -> Option<&UnlabeledLeafSignature> {
+        self.leaf_signature.as_ref().map(Rc::as_ref)
+    }
+
+    fn path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
+        StoredSearchPath::path_invariants(self)
+    }
+
+    fn packed_path(&self) -> Option<&[u32]> {
+        StoredSearchPath::packed_path(self)
+    }
+
+    fn path_info(&self) -> Option<&[SearchPathInfo]> {
+        StoredSearchPath::path_info(self)
+    }
+}
+
+impl<EdgeLabel> SearchPathSnapshot<EdgeLabel> for SearchOutcome<EdgeLabel> {
+    fn order(&self) -> &[usize] {
+        self.order.as_ref()
+    }
+
+    fn leaf_signature(&self) -> Option<&UnlabeledLeafSignature> {
+        self.leaf_signature.as_ref().map(Rc::as_ref)
+    }
+
+    fn path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
+        self.path_invariants.as_deref()
+    }
+
+    fn packed_path(&self) -> Option<&[u32]> {
+        self.packed_path.as_deref()
+    }
+
+    fn path_info(&self) -> Option<&[SearchPathInfo]> {
+        self.path_info.as_deref()
+    }
+}
+
 impl<EdgeLabel> SearchState<EdgeLabel> {
+    fn first_path_snapshot(&self) -> Option<&StoredSearchPath<EdgeLabel>> {
+        self.first_path.as_ref()
+    }
+
+    fn best_path_snapshot(&self) -> Option<&StoredSearchPath<EdgeLabel>> {
+        self.best_path.as_ref()
+    }
+
     fn first_order(&self) -> Option<&[usize]> {
-        self.first_path.as_ref().map(|path| path.order.as_ref())
+        self.first_path_snapshot().map(SearchPathSnapshot::order)
     }
 
     fn first_leaf_signature(&self) -> Option<&UnlabeledLeafSignature> {
-        self.first_path.as_ref().and_then(|path| path.leaf_signature.as_ref().map(Rc::as_ref))
+        self.first_path_snapshot().and_then(SearchPathSnapshot::leaf_signature)
     }
 
     fn first_path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
-        self.first_path.as_ref().and_then(StoredSearchPath::path_invariants)
+        self.first_path_snapshot().and_then(SearchPathSnapshot::path_invariants)
     }
 
     fn first_packed_path(&self) -> Option<&[u32]> {
-        self.first_path.as_ref().and_then(StoredSearchPath::packed_path)
+        self.first_path_snapshot().and_then(SearchPathSnapshot::packed_path)
     }
 
     fn first_choice_path(&self) -> Option<&[usize]> {
-        self.first_path.as_ref().map(StoredSearchPath::choice_path)
+        self.first_path_snapshot().map(StoredSearchPath::choice_path)
     }
 
     fn best_order(&self) -> Option<&[usize]> {
-        self.best_path.as_ref().map(|path| path.order.as_ref())
+        self.best_path_snapshot().map(SearchPathSnapshot::order)
     }
 
     fn best_path_invariants(&self) -> Option<&[Rc<RefinementTrace<EdgeLabel>>]> {
-        self.best_path.as_ref().and_then(StoredSearchPath::path_invariants)
+        self.best_path_snapshot().and_then(SearchPathSnapshot::path_invariants)
     }
 
     fn best_packed_path(&self) -> Option<&[u32]> {
-        self.best_path.as_ref().and_then(StoredSearchPath::packed_path)
+        self.best_path_snapshot().and_then(SearchPathSnapshot::packed_path)
     }
 
     fn best_choice_path(&self) -> Option<&[usize]> {
-        self.best_path.as_ref().map(StoredSearchPath::choice_path)
+        self.best_path_snapshot().map(StoredSearchPath::choice_path)
     }
 
     fn first_path_info(&self) -> Option<&[SearchPathInfo]> {
-        self.first_path.as_ref().and_then(StoredSearchPath::path_info)
+        self.first_path_snapshot().and_then(SearchPathSnapshot::path_info)
     }
 
     fn best_path_info(&self) -> Option<&[SearchPathInfo]> {
-        self.best_path.as_ref().and_then(StoredSearchPath::path_info)
+        self.best_path_snapshot().and_then(SearchPathSnapshot::path_info)
     }
+}
+
+fn search_path_snapshot_matches_candidate_path<S, EdgeLabel>(
+    snapshot: &S,
+    candidate_packed_path: Option<&[u32]>,
+    candidate_path_info: Option<&[SearchPathInfo]>,
+    candidate_trace_path: &[Rc<RefinementTrace<EdgeLabel>>],
+) -> bool
+where
+    S: SearchPathSnapshot<EdgeLabel>,
+    EdgeLabel: Ord + Clone,
+{
+    path_equal_strict(
+        candidate_packed_path,
+        candidate_path_info,
+        candidate_trace_path,
+        snapshot.packed_path(),
+        snapshot.path_info(),
+        snapshot.path_invariants(),
+    )
+}
+
+fn search_path_snapshot_matches_candidate_certificate<NodeId, S, VertexLabel, EdgeLabel, EF>(
+    adjacency: &AdjacencyBitMatrix,
+    nodes: &[NodeId],
+    vertex_labels: &[VertexLabel],
+    edge_label: &mut EF,
+    snapshot: &S,
+    candidate_order: &[usize],
+    candidate_leaf_signature: Option<&UnlabeledLeafSignature>,
+) -> bool
+where
+    NodeId: Copy,
+    VertexLabel: Ord + Clone,
+    EdgeLabel: Ord + Clone,
+    EF: FnMut(NodeId, NodeId) -> EdgeLabel,
+    S: SearchPathSnapshot<EdgeLabel>,
+{
+    leaf_orders_equal(
+        adjacency,
+        nodes,
+        vertex_labels,
+        edge_label,
+        candidate_order,
+        candidate_leaf_signature,
+        snapshot.order(),
+        snapshot.leaf_signature(),
+    )
 }
 
 fn build_search_path_info<EdgeLabel>(
@@ -864,28 +972,22 @@ where
             state.best_path_info(),
             state.best_path_invariants(),
         );
-        let candidate_path_matches_first = path_equal_strict(
-            packed_path.as_deref(),
-            Some(packed_path_info.as_slice()),
-            path_invariants,
-            state.first_packed_path(),
-            state.first_path_info(),
-            state.first_path_invariants(),
-        );
-        let candidate_equals_first = candidate_path_matches_first
-            && state.first_order().is_some_and(|first_order| {
-                let candidate_leaf_signature = ensure_leaf_signature();
-                leaf_orders_equal(
-                    adjacency,
-                    nodes,
-                    vertex_labels,
-                    edge_label,
-                    order_snapshot.as_ref(),
-                    candidate_leaf_signature.as_deref(),
-                    first_order,
-                    state.first_leaf_signature(),
-                )
-            });
+        let candidate_equals_first = state.first_path_snapshot().is_some_and(|first_path| {
+            search_path_snapshot_matches_candidate_path(
+                first_path,
+                packed_path.as_deref(),
+                Some(packed_path_info.as_slice()),
+                path_invariants,
+            ) && search_path_snapshot_matches_candidate_certificate(
+                adjacency,
+                nodes,
+                vertex_labels,
+                edge_label,
+                first_path,
+                order_snapshot.as_ref(),
+                ensure_leaf_signature().as_deref(),
+            )
+        });
         if state.first_path.is_none() {
             state.first_path = Some(StoredSearchPath {
                 order: order_snapshot.clone(),
@@ -1467,29 +1569,22 @@ where
         let mut candidate_sibling_orbits = candidate.sibling_orbits.clone();
         local_orbits.ingest_known_orbits(&mut candidate_sibling_orbits);
 
-        let candidate_path_matches_first = (state.first_path_invariants().is_some()
-            || state.first_packed_path().is_some())
-            && path_equal_strict(
+        let candidate_equals_first_path = state.first_path_snapshot().is_some_and(|first_path| {
+            search_path_snapshot_matches_candidate_path(
+                first_path,
                 candidate.packed_path.as_deref(),
                 candidate.path_info.as_deref(),
                 candidate.path_invariants.as_deref().unwrap_or(&[]),
-                state.first_packed_path(),
-                state.first_path_info(),
-                state.first_path_invariants(),
-            );
-        let candidate_equals_first_path = candidate_path_matches_first
-            && state.first_order().is_some_and(|first_order| {
-                leaf_orders_equal(
-                    adjacency,
-                    nodes,
-                    vertex_labels,
-                    edge_label,
-                    candidate.order.as_ref(),
-                    candidate.leaf_signature.as_deref(),
-                    first_order,
-                    state.first_leaf_signature(),
-                )
-            });
+            ) && search_path_snapshot_matches_candidate_certificate(
+                adjacency,
+                nodes,
+                vertex_labels,
+                edge_label,
+                first_path,
+                candidate.order.as_ref(),
+                candidate.leaf_signature.as_deref(),
+            )
+        });
         let candidate_matches_first_path_automorphism = candidate_equals_first_path
             && had_first_path_before_child
             && !child_is_on_first_path
@@ -1582,23 +1677,19 @@ where
         } else {
             None
         };
-        let candidate_equals_local_best_certificate =
-            if comparison_to_local_best == core::cmp::Ordering::Equal {
-                best.as_mut().is_some_and(|current_best| {
-                    leaf_orders_equal(
-                        adjacency,
-                        nodes,
-                        vertex_labels,
-                        edge_label,
-                        candidate.order.as_ref(),
-                        candidate.leaf_signature.as_deref(),
-                        current_best.order.as_ref(),
-                        current_best.leaf_signature.as_deref(),
-                    )
-                })
-            } else {
-                false
-            };
+        let candidate_equals_local_best_certificate = comparison_to_local_best
+            == core::cmp::Ordering::Equal
+            && best.as_ref().is_some_and(|current_best| {
+                search_path_snapshot_matches_candidate_certificate(
+                    adjacency,
+                    nodes,
+                    vertex_labels,
+                    edge_label,
+                    current_best,
+                    candidate.order.as_ref(),
+                    candidate.leaf_signature.as_deref(),
+                )
+            });
 
         if candidate_equals_local_best_certificate {
             let current_best =
@@ -2478,6 +2569,157 @@ fn truncate_packed_path(packed_path: &mut Option<Vec<u32>>, length: Option<usize
     }
 }
 
+fn packed_child_reference_segment<'a>(
+    reference: &'a [u32],
+    reference_path_info: Option<&'a [SearchPathInfo]>,
+    packed_offset: Option<usize>,
+    child_depth: usize,
+    child_segment_len: usize,
+) -> Option<(&'a [u32], Option<&'a SearchPathInfo>)> {
+    let reference_info =
+        reference_path_info.and_then(|path_info| path_info.get(child_depth.saturating_sub(1)));
+    let start = reference_info.map_or_else(
+        || packed_offset.expect("packed child trace requires packed path offset"),
+        |info| info.certificate_index,
+    );
+    let end = start + child_segment_len;
+    reference.get(start..end).map(|segment| (segment, reference_info))
+}
+
+fn trace_path_prefix_cmp<EdgeLabel>(
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+) -> core::cmp::Ordering
+where
+    EdgeLabel: Ord + Clone,
+{
+    let limit = current_traces.len().min(reference_traces.len());
+    for index in 0..limit {
+        let cmp = compare_refinement_trace(
+            current_traces[index].as_ref(),
+            reference_traces[index].as_ref(),
+        );
+        if cmp != core::cmp::Ordering::Equal {
+            return cmp;
+        }
+    }
+    core::cmp::Ordering::Equal
+}
+
+fn trace_path_prefix_equal<EdgeLabel>(
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+) -> bool
+where
+    EdgeLabel: Ord + Clone,
+{
+    current_traces.len() <= reference_traces.len()
+        && current_traces
+            .iter()
+            .zip(reference_traces.iter())
+            .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+}
+
+fn trace_path_equal<EdgeLabel>(
+    current_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+    reference_traces: &[Rc<RefinementTrace<EdgeLabel>>],
+) -> bool
+where
+    EdgeLabel: Ord + Clone,
+{
+    current_traces.len() == reference_traces.len()
+        && current_traces
+            .iter()
+            .zip(reference_traces.iter())
+            .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+}
+
+fn packed_path_prefix_cmp(current: &[u32], reference: &[u32]) -> core::cmp::Ordering {
+    let limit = current.len().min(reference.len());
+    current[..limit].cmp(&reference[..limit])
+}
+
+fn packed_path_compare(
+    current: &[u32],
+    current_info: Option<&[SearchPathInfo]>,
+    reference: &[u32],
+    reference_info: Option<&[SearchPathInfo]>,
+    prefix_only: bool,
+) -> core::cmp::Ordering {
+    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info) {
+        if !current_info.is_empty() && !reference_info.is_empty() {
+            let current_root_end = current_info[0].certificate_index;
+            let reference_root_end = reference_info[0].certificate_index;
+            if current_root_end == reference_root_end {
+                debug_assert_eq!(current[..current_root_end], reference[..reference_root_end]);
+                let current_suffix = &current[current_root_end..];
+                let reference_suffix = &reference[reference_root_end..];
+                return if prefix_only {
+                    let limit = current_suffix.len().min(reference_suffix.len());
+                    current_suffix[..limit].cmp(&reference_suffix[..limit])
+                } else {
+                    current_suffix.cmp(reference_suffix)
+                };
+            }
+        }
+    }
+
+    if prefix_only { packed_path_prefix_cmp(current, reference) } else { current.cmp(reference) }
+}
+
+fn packed_path_equal(
+    current: &[u32],
+    current_info: Option<&[SearchPathInfo]>,
+    reference: &[u32],
+    reference_info: Option<&[SearchPathInfo]>,
+    prefix_only: bool,
+) -> bool {
+    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info) {
+        if !current_info.is_empty() && !reference_info.is_empty() {
+            let current_root_end = current_info[0].certificate_index;
+            let reference_root_end = reference_info[0].certificate_index;
+            if current_root_end != reference_root_end {
+                return false;
+            }
+            let current_suffix = &current[current_root_end..];
+            let reference_suffix = &reference[reference_root_end..];
+            return if prefix_only {
+                current_suffix.len() <= reference_suffix.len()
+                    && current_suffix == &reference_suffix[..current_suffix.len()]
+            } else {
+                current_suffix == reference_suffix
+            };
+        }
+    }
+
+    if prefix_only {
+        current.len() <= reference.len() && current == &reference[..current.len()]
+    } else {
+        current == reference
+    }
+}
+
+#[cfg(test)]
+fn packed_path_suffix_cmp(
+    current: &[u32],
+    current_info: &[SearchPathInfo],
+    reference: &[u32],
+    reference_info: &[SearchPathInfo],
+    prefix_only: bool,
+) -> core::cmp::Ordering {
+    packed_path_compare(current, Some(current_info), reference, Some(reference_info), prefix_only)
+}
+
+#[cfg(test)]
+fn packed_path_lex_cmp(current: &[u32], reference: &[u32]) -> core::cmp::Ordering {
+    packed_path_compare(current, None, reference, None, false)
+}
+
+#[cfg(test)]
+fn packed_path_prefix_equal_strict(current: &[u32], reference: &[u32]) -> bool {
+    packed_path_equal(current, None, reference, None, true)
+}
+
 fn child_path_prefix_equal_to_reference<EdgeLabel>(
     parent_prefix_equal: bool,
     child_trace: &RefinementTrace<EdgeLabel>,
@@ -2496,23 +2738,19 @@ where
 
     match (&child_trace.storage, reference_packed, reference_path_info, reference_traces) {
         (RefinementTraceStorage::Packed(words), Some(reference), reference_path_info, None) => {
-            let start = reference_path_info
-                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
-                .map_or_else(
-                    || packed_offset.expect("packed child trace requires packed path offset"),
-                    |info| info.certificate_index,
-                );
-            let end = start + words.len();
-            if end > reference.len() {
-                return false;
-            }
-            reference_path_info
-                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
-                .is_none_or(|info| {
+            packed_child_reference_segment(
+                reference,
+                reference_path_info,
+                packed_offset,
+                child_depth,
+                words.len(),
+            )
+            .is_some_and(|(segment, reference_info)| {
+                reference_info.is_none_or(|info| {
                     info.subcertificate_length == child_trace.subcertificate_length
                         && info.eqref_hash == child_trace.eqref_hash
-                })
-                && reference[start..end] == words[..]
+                }) && segment == words.as_slice()
+            })
         }
         (RefinementTraceStorage::Events(_), None, _, Some(reference)) => {
             reference
@@ -2544,22 +2782,27 @@ where
 
     match (&child_trace.storage, reference_packed, reference_path_info, reference_traces) {
         (RefinementTraceStorage::Packed(words), Some(reference), reference_path_info, None) => {
-            if let Some(info) = reference_path_info
-                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
-            {
-                let start = info.certificate_index;
-                let end = start + words.len();
-                if end > reference.len() {
-                    return core::cmp::Ordering::Greater;
+            if let Some((segment, reference_info)) = packed_child_reference_segment(
+                reference,
+                reference_path_info,
+                packed_offset,
+                child_depth,
+                words.len(),
+            ) {
+                if reference_info.is_some() {
+                    words.as_slice().cmp(segment)
+                } else {
+                    let available = words.len().min(segment.len());
+                    words[..available].cmp(&segment[..available])
                 }
-                return words[..].cmp(&reference[start..end]);
+            } else if reference_path_info
+                .and_then(|path_info| path_info.get(child_depth.saturating_sub(1)))
+                .is_some()
+            {
+                core::cmp::Ordering::Greater
+            } else {
+                core::cmp::Ordering::Equal
             }
-            let start = packed_offset.expect("packed child trace requires packed path offset");
-            if start >= reference.len() {
-                return core::cmp::Ordering::Equal;
-            }
-            let available = words.len().min(reference.len() - start);
-            words[..available].cmp(&reference[start..(start + available)])
         }
         (RefinementTraceStorage::Events(_), None, _, Some(reference)) => {
             reference.get(child_depth).map_or(core::cmp::Ordering::Equal, |expected| {
@@ -2571,47 +2814,6 @@ where
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
     }
-}
-
-fn packed_path_prefix_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
-    let limit = current.len().min(best.len());
-    current[..limit].cmp(&best[..limit])
-}
-
-fn packed_path_suffix_cmp(
-    current: &[u32],
-    current_info: &[SearchPathInfo],
-    best: &[u32],
-    best_info: &[SearchPathInfo],
-    prefix_only: bool,
-) -> core::cmp::Ordering {
-    if current_info.is_empty() || best_info.is_empty() {
-        return if prefix_only { packed_path_prefix_cmp(current, best) } else { current.cmp(best) };
-    }
-
-    let current_root_end = current_info[0].certificate_index;
-    let best_root_end = best_info[0].certificate_index;
-    if current_root_end != best_root_end {
-        return if prefix_only { packed_path_prefix_cmp(current, best) } else { current.cmp(best) };
-    }
-    debug_assert_eq!(current[..current_root_end], best[..best_root_end]);
-
-    let current_suffix = &current[current_root_end..];
-    let best_suffix = &best[best_root_end..];
-    if prefix_only {
-        let limit = current_suffix.len().min(best_suffix.len());
-        current_suffix[..limit].cmp(&best_suffix[..limit])
-    } else {
-        current_suffix.cmp(best_suffix)
-    }
-}
-
-fn packed_path_lex_cmp(current: &[u32], best: &[u32]) -> core::cmp::Ordering {
-    current.cmp(best)
-}
-
-fn packed_path_prefix_equal_strict(current: &[u32], reference: &[u32]) -> bool {
-    current.len() <= reference.len() && current == &reference[..current.len()]
 }
 
 fn path_prefix_cmp<EdgeLabel>(
@@ -2631,25 +2833,11 @@ where
 
     match (current_packed, best_packed) {
         (Some(current), Some(best)) => {
-            if let (Some(current_path_info), Some(best_path_info)) =
-                (current_path_info, best_path_info)
-            {
-                packed_path_suffix_cmp(current, current_path_info, best, best_path_info, true)
-            } else {
-                packed_path_prefix_cmp(current, best)
-            }
+            packed_path_compare(current, current_path_info, best, best_path_info, true)
         }
         (None, None) => {
             let best = best_traces.expect("trace path comparison requires trace snapshots");
-            let limit = current_traces.len().min(best.len());
-            for index in 0..limit {
-                let cmp =
-                    compare_refinement_trace(current_traces[index].as_ref(), best[index].as_ref());
-                if cmp != core::cmp::Ordering::Equal {
-                    return cmp;
-                }
-            }
-            core::cmp::Ordering::Equal
+            trace_path_prefix_cmp(current_traces, best)
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
     }
@@ -2672,17 +2860,11 @@ where
 
     match (current_packed, best_packed) {
         (Some(current), Some(best)) => {
-            if let (Some(current_path_info), Some(best_path_info)) =
-                (current_path_info, best_path_info)
-            {
-                packed_path_suffix_cmp(current, current_path_info, best, best_path_info, false)
-            } else {
-                packed_path_lex_cmp(current, best)
-            }
+            packed_path_compare(current, current_path_info, best, best_path_info, false)
         }
         (None, None) => {
             let best = best_traces.expect("trace path comparison requires trace snapshots");
-            let prefix_cmp = path_prefix_cmp(None, None, current_traces, None, None, Some(best));
+            let prefix_cmp = trace_path_prefix_cmp(current_traces, best);
             if prefix_cmp != core::cmp::Ordering::Equal {
                 return prefix_cmp;
             }
@@ -2709,30 +2891,11 @@ where
 
     match (current_packed, reference_packed) {
         (Some(current), Some(reference)) => {
-            if let (Some(current_path_info), Some(reference_path_info)) =
-                (current_path_info, reference_path_info)
-            {
-                if current_path_info.is_empty() {
-                    return packed_path_prefix_equal_strict(current, reference);
-                }
-                let current_root_end = current_path_info[0].certificate_index;
-                let reference_root_end = reference_path_info[0].certificate_index;
-                if current_root_end != reference_root_end {
-                    return false;
-                }
-                return current[current_root_end..]
-                    == reference[reference_root_end
-                        ..(reference_root_end + (current.len() - current_root_end))];
-            }
-            packed_path_prefix_equal_strict(current, reference)
+            packed_path_equal(current, current_path_info, reference, reference_path_info, true)
         }
         (None, None) => {
             let reference = reference_traces.expect("trace path equality requires trace snapshots");
-            current_traces.len() <= reference.len()
-                && current_traces
-                    .iter()
-                    .zip(reference.iter())
-                    .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+            trace_path_prefix_equal(current_traces, reference)
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
     }
@@ -2755,28 +2918,11 @@ where
 
     match (current_packed, reference_packed) {
         (Some(current), Some(reference)) => {
-            if let (Some(current_path_info), Some(reference_path_info)) =
-                (current_path_info, reference_path_info)
-            {
-                if current_path_info.is_empty() {
-                    return current == reference;
-                }
-                let current_root_end = current_path_info[0].certificate_index;
-                let reference_root_end = reference_path_info[0].certificate_index;
-                if current_root_end != reference_root_end {
-                    return false;
-                }
-                return current[current_root_end..] == reference[reference_root_end..];
-            }
-            current == reference
+            packed_path_equal(current, current_path_info, reference, reference_path_info, false)
         }
         (None, None) => {
             let reference = reference_traces.expect("trace path equality requires trace snapshots");
-            current_traces.len() == reference.len()
-                && current_traces
-                    .iter()
-                    .zip(reference.iter())
-                    .all(|(left, right)| refinement_trace_equal(left.as_ref(), right.as_ref()))
+            trace_path_equal(current_traces, reference)
         }
         _ => unreachable!("packed and trace path modes must not mix within one search"),
     }
