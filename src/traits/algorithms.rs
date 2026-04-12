@@ -51,6 +51,8 @@ pub use planarity_detection::{PlanarityDetection, PlanarityError};
 #[cfg(feature = "alloc")]
 pub mod outerplanarity_detection;
 #[cfg(feature = "alloc")]
+mod topology_wrapper_macros;
+#[cfg(feature = "alloc")]
 pub use outerplanarity_detection::{OuterplanarityDetection, OuterplanarityError};
 #[cfg(feature = "alloc")]
 pub mod k23_homeomorph_detection;

@@ -6034,6 +6034,119 @@ mod tests {
         super::run_k23_homeomorph_engine(&preprocessing)
     }
 
+    fn run_search_engine_stepwise(
+        preprocessing: &super::preprocessing::DfsPreprocessing,
+        mode: super::EmbeddingRunMode,
+        found_outcome: WalkDownChildOutcome,
+    ) -> Result<bool, alloc::string::String> {
+        let mut embedding = EmbeddingState::from_preprocessing(preprocessing);
+
+        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
+            for slot in &mut embedding.slots {
+                slot.pertinent_edge = None;
+            }
+
+            let original_vertex = match embedding.slots[current_primary_slot].kind {
+                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
+                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
+            };
+
+            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
+                embedding.walk_up(current_primary_slot, forward_arc);
+            }
+            embedding.slots[current_primary_slot].pertinent_roots.clear();
+
+            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
+            for child_index in 0..child_count {
+                let child_primary_slot =
+                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
+                    continue;
+                }
+                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
+                else {
+                    continue;
+                };
+                if embedding.slots[root_copy_slot].first_arc.is_none() {
+                    continue;
+                }
+
+                match embedding.walk_down_child(
+                    preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    mode,
+                ) {
+                    Ok(WalkDownChildOutcome::Completed) => {}
+                    Ok(outcome) if outcome == found_outcome => return Ok(true),
+                    Ok(other) => {
+                        return Err(alloc::format!(
+                            "unexpected outcome {other:?} at step={current_primary_slot}, child={child_primary_slot}, root={root_copy_slot}"
+                        ));
+                    }
+                    Err(error) => {
+                        return Err(alloc::format!(
+                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
+                        ));
+                    }
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    fn run_search_engine_stepwise_on_edges(
+        node_count: usize,
+        edges: &[[usize; 2]],
+        mode: super::EmbeddingRunMode,
+        found_outcome: WalkDownChildOutcome,
+    ) -> Result<bool, alloc::string::String> {
+        let preprocessing = LocalSimpleGraph::from_edges(node_count, edges).unwrap().preprocess();
+        run_search_engine_stepwise(&preprocessing, mode, found_outcome)
+    }
+
+    fn assert_direct_search_regression(
+        node_count: usize,
+        edges: &[[usize; 2]],
+        expected_planar: bool,
+        run_search: fn(&super::preprocessing::DfsPreprocessing) -> bool,
+        expected_search: bool,
+    ) {
+        let preprocessing = LocalSimpleGraph::from_edges(node_count, edges).unwrap().preprocess();
+
+        assert_eq!(run_planarity_engine(&preprocessing), expected_planar);
+        assert_eq!(run_search(&preprocessing), expected_search);
+    }
+
+    macro_rules! stepwise_search_regression_test {
+        ($name:ident, $mode:expr, $outcome:expr, $expected:expr, $node_count:expr, $edges:expr) => {
+            #[test]
+            fn $name() {
+                assert_eq!(
+                    run_search_engine_stepwise_on_edges($node_count, $edges, $mode, $outcome)
+                        .unwrap(),
+                    $expected
+                );
+            }
+        };
+    }
+
+    macro_rules! direct_search_regression_test {
+        ($name:ident, $runner:expr, $expected_planar:expr, $expected_search:expr, $node_count:expr, $edges:expr) => {
+            #[test]
+            fn $name() {
+                assert_direct_search_regression(
+                    $node_count,
+                    $edges,
+                    $expected_planar,
+                    $runner,
+                    $expected_search,
+                );
+            }
+        };
+    }
+
     #[allow(clippy::too_many_lines)]
     fn run_engine_stepwise(
         node_count: usize,
@@ -7041,1217 +7154,540 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_k33_engine_stepwise_rejects_k5_subdivision_000008_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 3],
-                [0, 5],
-                [0, 7],
-                [0, 10],
-                [1, 3],
-                [1, 6],
-                [1, 11],
-                [1, 12],
-                [2, 9],
-                [2, 11],
-                [2, 13],
-                [2, 14],
-                [3, 13],
-                [3, 15],
-                [4, 10],
-                [4, 12],
-                [4, 14],
-                [4, 15],
-                [5, 6],
-                [7, 8],
-                [8, 9],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => {
-                        panic!(
-                            "unexpected K33Found at step={current_primary_slot}, child={child_primary_slot}, root={root_copy_slot}"
-                        );
-                    }
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_001692_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            14,
-            &[
-                [0, 2],
-                [0, 5],
-                [0, 6],
-                [0, 7],
-                [0, 10],
-                [0, 13],
-                [1, 6],
-                [1, 10],
-                [1, 12],
-                [2, 3],
-                [2, 6],
-                [2, 7],
-                [2, 10],
-                [3, 11],
-                [3, 13],
-                [5, 7],
-                [5, 9],
-                [5, 12],
-                [5, 13],
-                [6, 8],
-                [7, 10],
-                [8, 12],
-                [11, 12],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_000000_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            13,
-            &[
-                [0, 1],
-                [0, 9],
-                [0, 10],
-                [0, 11],
-                [0, 12],
-                [1, 7],
-                [1, 8],
-                [1, 9],
-                [2, 6],
-                [2, 10],
-                [3, 4],
-                [4, 6],
-                [4, 8],
-                [4, 10],
-                [4, 12],
-                [5, 12],
-                [6, 9],
-                [7, 8],
-                [7, 12],
-                [8, 10],
-                [9, 10],
-                [9, 12],
-                [10, 11],
-                [10, 12],
-                [11, 12],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_000081_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            10,
-            &[
-                [0, 4],
-                [0, 6],
-                [0, 7],
-                [1, 3],
-                [1, 7],
-                [1, 9],
-                [2, 6],
-                [2, 7],
-                [2, 8],
-                [2, 9],
-                [3, 4],
-                [3, 6],
-                [3, 7],
-                [3, 8],
-                [4, 6],
-                [4, 7],
-                [4, 8],
-                [5, 9],
-                [6, 8],
-                [7, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_000081_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            10,
-            &[
-                [0, 4],
-                [0, 6],
-                [0, 7],
-                [1, 3],
-                [1, 7],
-                [1, 9],
-                [2, 6],
-                [2, 7],
-                [2, 8],
-                [2, 9],
-                [3, 4],
-                [3, 6],
-                [3, 7],
-                [3, 8],
-                [4, 6],
-                [4, 7],
-                [4, 8],
-                [5, 9],
-                [6, 8],
-                [7, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_000792_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            12,
-            &[
-                [0, 2],
-                [0, 3],
-                [0, 4],
-                [0, 10],
-                [1, 2],
-                [1, 3],
-                [1, 5],
-                [1, 6],
-                [1, 7],
-                [1, 8],
-                [2, 3],
-                [2, 4],
-                [2, 7],
-                [2, 8],
-                [2, 9],
-                [3, 4],
-                [3, 7],
-                [3, 10],
-                [4, 9],
-                [4, 10],
-                [5, 6],
-                [5, 9],
-                [6, 7],
-                [6, 8],
-                [6, 9],
-                [6, 10],
-                [7, 8],
-                [7, 9],
-                [7, 10],
-                [9, 10],
-                [10, 11],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_000792_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            12,
-            &[
-                [0, 2],
-                [0, 3],
-                [0, 4],
-                [0, 10],
-                [1, 2],
-                [1, 3],
-                [1, 5],
-                [1, 6],
-                [1, 7],
-                [1, 8],
-                [2, 3],
-                [2, 4],
-                [2, 7],
-                [2, 8],
-                [2, 9],
-                [3, 4],
-                [3, 7],
-                [3, 10],
-                [4, 9],
-                [4, 10],
-                [5, 6],
-                [5, 9],
-                [6, 7],
-                [6, 8],
-                [6, 9],
-                [6, 10],
-                [7, 8],
-                [7, 9],
-                [7, 10],
-                [9, 10],
-                [10, 11],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_001467_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 6],
-                [0, 9],
-                [0, 13],
-                [1, 5],
-                [1, 11],
-                [1, 14],
-                [2, 13],
-                [3, 6],
-                [3, 13],
-                [4, 7],
-                [5, 6],
-                [5, 7],
-                [5, 9],
-                [6, 8],
-                [7, 12],
-                [7, 14],
-                [8, 9],
-                [8, 11],
-                [8, 15],
-                [9, 11],
-                [9, 14],
-                [10, 11],
-                [11, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_001467_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 6],
-                [0, 9],
-                [0, 13],
-                [1, 5],
-                [1, 11],
-                [1, 14],
-                [2, 13],
-                [3, 6],
-                [3, 13],
-                [4, 7],
-                [5, 6],
-                [5, 7],
-                [5, 9],
-                [6, 8],
-                [7, 12],
-                [7, 14],
-                [8, 9],
-                [8, 11],
-                [8, 15],
-                [9, 11],
-                [9, 14],
-                [10, 11],
-                [11, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_002340_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            9,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 3],
-                [1, 2],
-                [1, 3],
-                [1, 4],
-                [3, 4],
-                [3, 5],
-                [3, 6],
-                [3, 7],
-                [4, 5],
-                [4, 6],
-                [4, 7],
-                [4, 8],
-                [5, 6],
-                [5, 7],
-                [5, 8],
-                [6, 7],
-                [6, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_002340_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            9,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 3],
-                [1, 2],
-                [1, 3],
-                [1, 4],
-                [3, 4],
-                [3, 5],
-                [3, 6],
-                [3, 7],
-                [4, 5],
-                [4, 6],
-                [4, 7],
-                [4, 8],
-                [5, 6],
-                [5, 7],
-                [5, 8],
-                [6, 7],
-                [6, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_007290_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            9,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 4],
-                [0, 5],
-                [0, 7],
-                [0, 8],
-                [1, 2],
-                [1, 4],
-                [1, 7],
-                [2, 5],
-                [2, 6],
-                [3, 4],
-                [3, 5],
-                [3, 8],
-                [4, 5],
-                [5, 7],
-                [5, 8],
-                [7, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_rejects_k5_subdivision_000017_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 2],
-                [0, 3],
-                [0, 5],
-                [0, 8],
-                [1, 7],
-                [1, 9],
-                [1, 10],
-                [1, 11],
-                [2, 9],
-                [2, 12],
-                [2, 14],
-                [3, 10],
-                [3, 13],
-                [3, 15],
-                [4, 8],
-                [4, 11],
-                [4, 14],
-                [4, 15],
-                [5, 6],
-                [6, 7],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                let outcome = embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                );
-                match outcome {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => {
-                        panic!(
-                            "unexpected K33 at step={current_primary_slot}, child={child_primary_slot}"
-                        );
-                    }
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_rejects_k5_subdivision_000863_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 4],
-                [0, 5],
-                [1, 7],
-                [1, 8],
-                [1, 9],
-                [2, 7],
-                [2, 10],
-                [2, 11],
-                [3, 6],
-                [3, 8],
-                [3, 10],
-                [3, 14],
-                [4, 9],
-                [4, 13],
-                [4, 15],
-                [5, 6],
-                [11, 12],
-                [12, 13],
-                [14, 15],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                let outcome = embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                );
-                match outcome {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => {
-                        panic!(
-                            "unexpected K33 at step={current_primary_slot}, child={child_primary_slot}"
-                        );
-                    }
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_007290_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            9,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 4],
-                [0, 5],
-                [0, 7],
-                [0, 8],
-                [1, 2],
-                [1, 4],
-                [1, 7],
-                [2, 5],
-                [2, 6],
-                [3, 4],
-                [3, 5],
-                [3, 8],
-                [4, 5],
-                [5, 7],
-                [5, 8],
-                [7, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_017523_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            7,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 6],
-                [1, 2],
-                [1, 3],
-                [1, 4],
-                [1, 6],
-                [2, 3],
-                [2, 4],
-                [2, 5],
-                [3, 6],
-                [4, 6],
-                [5, 6],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_k33_subdivision_000024_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 3],
-                [0, 6],
-                [0, 7],
-                [1, 8],
-                [1, 10],
-                [1, 11],
-                [2, 4],
-                [2, 5],
-                [2, 13],
-                [3, 9],
-                [3, 15],
-                [4, 6],
-                [4, 10],
-                [5, 7],
-                [5, 12],
-                [8, 9],
-                [11, 12],
-                [13, 14],
-                [14, 15],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                let outcome = embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                );
-                match outcome {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_rejects_k5_subdivision_000008_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        false,
+        16,
+        &[
+            [0, 3],
+            [0, 5],
+            [0, 7],
+            [0, 10],
+            [1, 3],
+            [1, 6],
+            [1, 11],
+            [1, 12],
+            [2, 9],
+            [2, 11],
+            [2, 13],
+            [2, 14],
+            [3, 13],
+            [3, 15],
+            [4, 10],
+            [4, 12],
+            [4, 14],
+            [4, 15],
+            [5, 6],
+            [7, 8],
+            [8, 9],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_001692_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        14,
+        &[
+            [0, 2],
+            [0, 5],
+            [0, 6],
+            [0, 7],
+            [0, 10],
+            [0, 13],
+            [1, 6],
+            [1, 10],
+            [1, 12],
+            [2, 3],
+            [2, 6],
+            [2, 7],
+            [2, 10],
+            [3, 11],
+            [3, 13],
+            [5, 7],
+            [5, 9],
+            [5, 12],
+            [5, 13],
+            [6, 8],
+            [7, 10],
+            [8, 12],
+            [11, 12],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_000000_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        13,
+        &[
+            [0, 1],
+            [0, 9],
+            [0, 10],
+            [0, 11],
+            [0, 12],
+            [1, 7],
+            [1, 8],
+            [1, 9],
+            [2, 6],
+            [2, 10],
+            [3, 4],
+            [4, 6],
+            [4, 8],
+            [4, 10],
+            [4, 12],
+            [5, 12],
+            [6, 9],
+            [7, 8],
+            [7, 12],
+            [8, 10],
+            [9, 10],
+            [9, 12],
+            [10, 11],
+            [10, 12],
+            [11, 12],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_000081_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        10,
+        &[
+            [0, 4],
+            [0, 6],
+            [0, 7],
+            [1, 3],
+            [1, 7],
+            [1, 9],
+            [2, 6],
+            [2, 7],
+            [2, 8],
+            [2, 9],
+            [3, 4],
+            [3, 6],
+            [3, 7],
+            [3, 8],
+            [4, 6],
+            [4, 7],
+            [4, 8],
+            [5, 9],
+            [6, 8],
+            [7, 8],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_000081_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        10,
+        &[
+            [0, 4],
+            [0, 6],
+            [0, 7],
+            [1, 3],
+            [1, 7],
+            [1, 9],
+            [2, 6],
+            [2, 7],
+            [2, 8],
+            [2, 9],
+            [3, 4],
+            [3, 6],
+            [3, 7],
+            [3, 8],
+            [4, 6],
+            [4, 7],
+            [4, 8],
+            [5, 9],
+            [6, 8],
+            [7, 8],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_000792_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        12,
+        &[
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [0, 10],
+            [1, 2],
+            [1, 3],
+            [1, 5],
+            [1, 6],
+            [1, 7],
+            [1, 8],
+            [2, 3],
+            [2, 4],
+            [2, 7],
+            [2, 8],
+            [2, 9],
+            [3, 4],
+            [3, 7],
+            [3, 10],
+            [4, 9],
+            [4, 10],
+            [5, 6],
+            [5, 9],
+            [6, 7],
+            [6, 8],
+            [6, 9],
+            [6, 10],
+            [7, 8],
+            [7, 9],
+            [7, 10],
+            [9, 10],
+            [10, 11],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_000792_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        12,
+        &[
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [0, 10],
+            [1, 2],
+            [1, 3],
+            [1, 5],
+            [1, 6],
+            [1, 7],
+            [1, 8],
+            [2, 3],
+            [2, 4],
+            [2, 7],
+            [2, 8],
+            [2, 9],
+            [3, 4],
+            [3, 7],
+            [3, 10],
+            [4, 9],
+            [4, 10],
+            [5, 6],
+            [5, 9],
+            [6, 7],
+            [6, 8],
+            [6, 9],
+            [6, 10],
+            [7, 8],
+            [7, 9],
+            [7, 10],
+            [9, 10],
+            [10, 11],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_001467_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        16,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 13],
+            [1, 5],
+            [1, 11],
+            [1, 14],
+            [2, 13],
+            [3, 6],
+            [3, 13],
+            [4, 7],
+            [5, 6],
+            [5, 7],
+            [5, 9],
+            [6, 8],
+            [7, 12],
+            [7, 14],
+            [8, 9],
+            [8, 11],
+            [8, 15],
+            [9, 11],
+            [9, 14],
+            [10, 11],
+            [11, 13],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_001467_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        16,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 13],
+            [1, 5],
+            [1, 11],
+            [1, 14],
+            [2, 13],
+            [3, 6],
+            [3, 13],
+            [4, 7],
+            [5, 6],
+            [5, 7],
+            [5, 9],
+            [6, 8],
+            [7, 12],
+            [7, 14],
+            [8, 9],
+            [8, 11],
+            [8, 15],
+            [9, 11],
+            [9, 14],
+            [10, 11],
+            [11, 13],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_002340_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        9,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 3],
+            [1, 2],
+            [1, 3],
+            [1, 4],
+            [3, 4],
+            [3, 5],
+            [3, 6],
+            [3, 7],
+            [4, 5],
+            [4, 6],
+            [4, 7],
+            [4, 8],
+            [5, 6],
+            [5, 7],
+            [5, 8],
+            [6, 7],
+            [6, 8],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_002340_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        9,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 3],
+            [1, 2],
+            [1, 3],
+            [1, 4],
+            [3, 4],
+            [3, 5],
+            [3, 6],
+            [3, 7],
+            [4, 5],
+            [4, 6],
+            [4, 7],
+            [4, 8],
+            [5, 6],
+            [5, 7],
+            [5, 8],
+            [6, 7],
+            [6, 8],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_007290_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        9,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 4],
+            [0, 5],
+            [0, 7],
+            [0, 8],
+            [1, 2],
+            [1, 4],
+            [1, 7],
+            [2, 5],
+            [2, 6],
+            [3, 4],
+            [3, 5],
+            [3, 8],
+            [4, 5],
+            [5, 7],
+            [5, 8],
+            [7, 8],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_rejects_k5_subdivision_000017_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        false,
+        16,
+        &[
+            [0, 2],
+            [0, 3],
+            [0, 5],
+            [0, 8],
+            [1, 7],
+            [1, 9],
+            [1, 10],
+            [1, 11],
+            [2, 9],
+            [2, 12],
+            [2, 14],
+            [3, 10],
+            [3, 13],
+            [3, 15],
+            [4, 8],
+            [4, 11],
+            [4, 14],
+            [4, 15],
+            [5, 6],
+            [6, 7],
+            [12, 13],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_rejects_k5_subdivision_000863_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        false,
+        16,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 4],
+            [0, 5],
+            [1, 7],
+            [1, 8],
+            [1, 9],
+            [2, 7],
+            [2, 10],
+            [2, 11],
+            [3, 6],
+            [3, 8],
+            [3, 10],
+            [3, 14],
+            [4, 9],
+            [4, 13],
+            [4, 15],
+            [5, 6],
+            [11, 12],
+            [12, 13],
+            [14, 15],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_007290_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        9,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 4],
+            [0, 5],
+            [0, 7],
+            [0, 8],
+            [1, 2],
+            [1, 4],
+            [1, 7],
+            [2, 5],
+            [2, 6],
+            [3, 4],
+            [3, 5],
+            [3, 8],
+            [4, 5],
+            [5, 7],
+            [5, 8],
+            [7, 8],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_017523_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        7,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 6],
+            [1, 2],
+            [1, 3],
+            [1, 4],
+            [1, 6],
+            [2, 3],
+            [2, 4],
+            [2, 5],
+            [3, 6],
+            [4, 6],
+            [5, 6],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_k33_subdivision_000024_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        16,
+        &[
+            [0, 3],
+            [0, 6],
+            [0, 7],
+            [1, 8],
+            [1, 10],
+            [1, 11],
+            [2, 4],
+            [2, 5],
+            [2, 13],
+            [3, 9],
+            [3, 15],
+            [4, 6],
+            [4, 10],
+            [5, 7],
+            [5, 12],
+            [8, 9],
+            [11, 12],
+            [13, 14],
+            [14, 15],
+        ]
+    );
 
     #[test]
     fn test_k33_engine_rejects_wheel_seven_regression() {
@@ -8355,1732 +7791,769 @@ mod tests {
         ));
     }
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn test_k23_engine_stepwise_accepts_erdos_renyi_000306_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            10,
-            &[
-                [0, 4],
-                [0, 5],
-                [0, 7],
-                [1, 9],
-                [2, 5],
-                [2, 6],
-                [2, 7],
-                [3, 4],
-                [3, 6],
-                [3, 7],
-                [3, 8],
-                [5, 9],
-                [6, 9],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K23Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => return,
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K23");
-    }
-
-    #[test]
-    fn test_k23_engine_stepwise_accepts_erdos_renyi_0089600_combined_reference_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            9,
-            &[
-                [0, 2],
-                [0, 3],
-                [0, 4],
-                [0, 6],
-                [0, 7],
-                [1, 2],
-                [1, 6],
-                [1, 8],
-                [2, 6],
-                [3, 7],
-                [3, 8],
-                [4, 5],
-                [4, 7],
-                [5, 6],
-                [5, 7],
-                [6, 7],
-                [7, 8],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K23Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => return,
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K23");
-    }
-
-    #[test]
-    fn test_k23_engine_stepwise_accepts_erdos_renyi_0293070_combined_reference_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            12,
-            &[
-                [0, 4],
-                [0, 7],
-                [0, 9],
-                [0, 11],
-                [1, 2],
-                [1, 4],
-                [1, 7],
-                [2, 7],
-                [3, 6],
-                [3, 7],
-                [3, 11],
-                [4, 10],
-                [5, 6],
-                [5, 7],
-                [5, 8],
-                [5, 11],
-                [6, 7],
-                [7, 8],
-                [7, 9],
-                [7, 11],
-                [9, 10],
-                [9, 11],
-                [10, 11],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K23Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => return,
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K23");
-    }
-
-    #[test]
-    fn test_k33_engine_rejects_k5_subdivision_000008_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 3],
-                [0, 5],
-                [0, 7],
-                [0, 10],
-                [1, 3],
-                [1, 6],
-                [1, 11],
-                [1, 12],
-                [2, 9],
-                [2, 11],
-                [2, 13],
-                [2, 14],
-                [3, 13],
-                [3, 15],
-                [4, 10],
-                [4, 12],
-                [4, 14],
-                [4, 15],
-                [5, 6],
-                [7, 8],
-                [8, 9],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => {
-                        panic!(
-                            "false positive at step={current_primary_slot}, child={child_primary_slot}"
-                        );
-                    }
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_k33_engine_rejects_k5_subdivision_000017_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 2],
-                [0, 3],
-                [0, 5],
-                [0, 8],
-                [1, 7],
-                [1, 9],
-                [1, 10],
-                [1, 11],
-                [2, 9],
-                [2, 12],
-                [2, 14],
-                [3, 10],
-                [3, 13],
-                [3, 15],
-                [4, 8],
-                [4, 11],
-                [4, 14],
-                [4, 15],
-                [5, 6],
-                [6, 7],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => {
-                        panic!(
-                            "false positive at step={current_primary_slot}, child={child_primary_slot}"
-                        );
-                    }
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_0237330_combined_reference_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            7,
-            &[
-                [0, 1],
-                [0, 3],
-                [0, 4],
-                [0, 5],
-                [1, 2],
-                [1, 3],
-                [1, 4],
-                [1, 5],
-                [2, 5],
-                [3, 4],
-                [3, 5],
-                [3, 6],
-                [4, 5],
-                [4, 6],
-                [5, 6],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_0199830_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            10,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 5],
-                [0, 7],
-                [1, 2],
-                [1, 5],
-                [1, 7],
-                [2, 4],
-                [2, 6],
-                [2, 7],
-                [4, 7],
-                [4, 9],
-                [5, 7],
-                [5, 9],
-                [6, 9],
-                [7, 9],
-                [8, 9],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_0199830_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            10,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 5],
-                [0, 7],
-                [1, 2],
-                [1, 5],
-                [1, 7],
-                [2, 4],
-                [2, 6],
-                [2, 7],
-                [4, 7],
-                [4, 9],
-                [5, 7],
-                [5, 9],
-                [6, 9],
-                [7, 9],
-                [8, 9],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_0300350_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            14,
-            &[
-                [0, 7],
-                [0, 9],
-                [0, 10],
-                [0, 13],
-                [1, 5],
-                [1, 13],
-                [2, 8],
-                [2, 12],
-                [3, 5],
-                [3, 6],
-                [3, 8],
-                [4, 7],
-                [4, 8],
-                [4, 9],
-                [4, 13],
-                [5, 9],
-                [8, 10],
-                [8, 12],
-                [8, 13],
-                [9, 13],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_0300350_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            14,
-            &[
-                [0, 7],
-                [0, 9],
-                [0, 10],
-                [0, 13],
-                [1, 5],
-                [1, 13],
-                [2, 8],
-                [2, 12],
-                [3, 5],
-                [3, 6],
-                [3, 8],
-                [4, 7],
-                [4, 8],
-                [4, 9],
-                [4, 13],
-                [5, 9],
-                [8, 10],
-                [8, 12],
-                [8, 13],
-                [9, 13],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_erdos_renyi_0343220_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            12,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 4],
-                [0, 5],
-                [0, 7],
-                [2, 5],
-                [2, 6],
-                [2, 7],
-                [2, 9],
-                [3, 4],
-                [3, 7],
-                [4, 7],
-                [5, 6],
-                [5, 7],
-                [5, 9],
-                [6, 7],
-                [6, 8],
-                [6, 11],
-                [7, 8],
-                [7, 9],
-                [7, 10],
-                [8, 10],
-                [9, 10],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_erdos_renyi_0343220_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            12,
-            &[
-                [0, 1],
-                [0, 2],
-                [0, 4],
-                [0, 5],
-                [0, 7],
-                [2, 5],
-                [2, 6],
-                [2, 7],
-                [2, 9],
-                [3, 4],
-                [3, 7],
-                [4, 7],
-                [5, 6],
-                [5, 7],
-                [5, 9],
-                [6, 7],
-                [6, 8],
-                [6, 11],
-                [7, 8],
-                [7, 9],
-                [7, 10],
-                [8, 10],
-                [9, 10],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_fuzzer_regression_20260411_direct() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 6],
-                [0, 9],
-                [0, 10],
-                [0, 12],
-                [0, 13],
-                [3, 9],
-                [3, 10],
-                [3, 12],
-                [3, 13],
-                [5, 9],
-                [7, 10],
-                [9, 10],
-                [9, 13],
-                [10, 11],
-                [10, 12],
-                [11, 13],
-                [12, 13],
-                [12, 14],
-                [13, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_fuzzer_regression_20260411() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 6],
-                [0, 9],
-                [0, 10],
-                [0, 12],
-                [0, 13],
-                [3, 9],
-                [3, 10],
-                [3, 12],
-                [3, 13],
-                [5, 9],
-                [7, 10],
-                [9, 10],
-                [9, 13],
-                [10, 11],
-                [10, 12],
-                [11, 13],
-                [12, 13],
-                [12, 14],
-                [13, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_fuzzer_regression_20260411_b() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 6],
-                [0, 9],
-                [0, 12],
-                [0, 13],
-                [3, 9],
-                [3, 10],
-                [3, 12],
-                [3, 13],
-                [5, 9],
-                [5, 13],
-                [6, 14],
-                [7, 10],
-                [9, 10],
-                [9, 13],
-                [10, 11],
-                [10, 14],
-                [11, 13],
-                [12, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k33_engine_accepts_fuzzer_regression_20260412_direct() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 1],
-                [0, 7],
-                [0, 11],
-                [0, 15],
-                [1, 5],
-                [1, 11],
-                [2, 4],
-                [3, 5],
-                [3, 10],
-                [3, 15],
-                [4, 5],
-                [4, 12],
-                [4, 13],
-                [5, 6],
-                [5, 7],
-                [5, 10],
-                [5, 11],
-                [5, 12],
-                [5, 15],
-                [7, 8],
-                [7, 11],
-                [7, 15],
-                [8, 9],
-                [9, 15],
-                [11, 12],
-                [11, 15],
-                [14, 15],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(!run_planarity_engine(&preprocessing));
-        assert!(run_k33_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k33_engine_stepwise_accepts_fuzzer_regression_20260412() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 1],
-                [0, 7],
-                [0, 11],
-                [0, 15],
-                [1, 5],
-                [1, 11],
-                [2, 4],
-                [3, 5],
-                [3, 10],
-                [3, 15],
-                [4, 5],
-                [4, 12],
-                [4, 13],
-                [5, 6],
-                [5, 7],
-                [5, 10],
-                [5, 11],
-                [5, 12],
-                [5, 15],
-                [7, 8],
-                [7, 11],
-                [7, 15],
-                [8, 9],
-                [9, 15],
-                [11, 12],
-                [11, 15],
-                [14, 15],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K33Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => return,
-                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K33");
-    }
-
-    #[test]
-    fn test_k4_engine_accepts_erdos_renyi_0025860_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 4],
-                [0, 6],
-                [0, 11],
-                [1, 8],
-                [1, 10],
-                [2, 7],
-                [3, 4],
-                [3, 11],
-                [4, 8],
-                [4, 11],
-                [6, 7],
-                [6, 8],
-                [6, 12],
-                [7, 10],
-                [8, 11],
-                [8, 12],
-                [9, 12],
-                [9, 13],
-                [9, 14],
-                [11, 13],
-                [11, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(run_planarity_engine(&preprocessing));
-        assert!(run_k4_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k4_engine_stepwise_accepts_erdos_renyi_0025860_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 4],
-                [0, 6],
-                [0, 11],
-                [1, 8],
-                [1, 10],
-                [2, 7],
-                [3, 4],
-                [3, 11],
-                [4, 8],
-                [4, 11],
-                [6, 7],
-                [6, 8],
-                [6, 12],
-                [7, 10],
-                [8, 11],
-                [8, 12],
-                [9, 12],
-                [9, 13],
-                [9, 14],
-                [11, 13],
-                [11, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K4Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => return,
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K4");
-    }
-
-    #[test]
-    fn test_k4_engine_accepts_erdos_renyi_0048200_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 5],
-                [0, 7],
-                [0, 10],
-                [1, 7],
-                [1, 14],
-                [2, 4],
-                [2, 14],
-                [5, 10],
-                [5, 13],
-                [5, 15],
-                [6, 9],
-                [7, 10],
-                [7, 11],
-                [7, 12],
-                [7, 13],
-                [8, 9],
-                [8, 10],
-                [8, 14],
-                [9, 11],
-                [10, 13],
-                [12, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(run_planarity_engine(&preprocessing));
-        assert!(run_k4_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k4_engine_accepts_erdos_renyi_0001210_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            7,
-            &[[0, 1], [0, 4], [0, 6], [1, 2], [1, 3], [1, 5], [2, 6], [3, 4], [4, 6], [5, 6]],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(run_planarity_engine(&preprocessing));
-        assert!(run_k4_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k4_engine_accepts_erdos_renyi_0397370_direct_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            14,
-            &[
-                [0, 4],
-                [0, 5],
-                [1, 5],
-                [1, 6],
-                [1, 9],
-                [2, 4],
-                [3, 4],
-                [3, 9],
-                [3, 10],
-                [3, 13],
-                [4, 10],
-                [6, 7],
-                [7, 8],
-                [7, 10],
-                [7, 11],
-                [7, 12],
-                [7, 13],
-                [8, 11],
-                [8, 13],
-                [9, 13],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(run_planarity_engine(&preprocessing));
-        assert!(run_k4_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k4_engine_accepts_fuzzer_regression_20260411_direct() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 3],
-                [0, 10],
-                [0, 11],
-                [3, 10],
-                [3, 11],
-                [3, 12],
-                [3, 13],
-                [4, 12],
-                [4, 14],
-                [7, 12],
-                [7, 14],
-                [9, 10],
-                [9, 13],
-                [9, 14],
-                [10, 11],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        assert!(run_planarity_engine(&preprocessing));
-        assert!(run_k4_homeomorph_engine(&preprocessing));
-    }
-
-    #[test]
-    fn test_k4_engine_stepwise_accepts_fuzzer_regression_20260411() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            15,
-            &[
-                [0, 3],
-                [0, 10],
-                [0, 11],
-                [3, 10],
-                [3, 11],
-                [3, 12],
-                [3, 13],
-                [4, 12],
-                [4, 14],
-                [7, 12],
-                [7, 14],
-                [9, 10],
-                [9, 13],
-                [9, 14],
-                [10, 11],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K4Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => return,
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K4");
-    }
-
-    #[test]
-    fn test_k4_engine_stepwise_accepts_erdos_renyi_0397370_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            14,
-            &[
-                [0, 4],
-                [0, 5],
-                [1, 5],
-                [1, 6],
-                [1, 9],
-                [2, 4],
-                [3, 4],
-                [3, 9],
-                [3, 10],
-                [3, 13],
-                [4, 10],
-                [6, 7],
-                [7, 8],
-                [7, 10],
-                [7, 11],
-                [7, 12],
-                [7, 13],
-                [8, 11],
-                [8, 13],
-                [9, 13],
-                [12, 13],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K4Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => return,
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K4");
-    }
-
-    #[test]
-    fn test_k4_engine_stepwise_accepts_erdos_renyi_0048200_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            16,
-            &[
-                [0, 5],
-                [0, 7],
-                [0, 10],
-                [1, 7],
-                [1, 14],
-                [2, 4],
-                [2, 14],
-                [5, 10],
-                [5, 13],
-                [5, 15],
-                [6, 9],
-                [7, 10],
-                [7, 11],
-                [7, 12],
-                [7, 13],
-                [8, 9],
-                [8, 10],
-                [8, 14],
-                [9, 11],
-                [10, 13],
-                [12, 14],
-            ],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K4Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => return,
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K4");
-    }
-
-    #[test]
-    fn test_k4_engine_stepwise_accepts_erdos_renyi_0001210_regression() {
-        let preprocessing = LocalSimpleGraph::from_edges(
-            7,
-            &[[0, 1], [0, 4], [0, 6], [1, 2], [1, 3], [1, 5], [2, 6], [3, 4], [4, 6], [5, 6]],
-        )
-        .unwrap()
-        .preprocess();
-
-        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
-
-        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
-            for slot in &mut embedding.slots {
-                slot.pertinent_edge = None;
-            }
-
-            let original_vertex = match embedding.slots[current_primary_slot].kind {
-                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
-                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
-            };
-
-            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
-                embedding.walk_up(current_primary_slot, forward_arc);
-            }
-            embedding.slots[current_primary_slot].pertinent_roots.clear();
-
-            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
-            for child_index in 0..child_count {
-                let child_primary_slot =
-                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
-                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
-                    continue;
-                }
-                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
-                else {
-                    continue;
-                };
-                if embedding.slots[root_copy_slot].first_arc.is_none() {
-                    continue;
-                }
-
-                match embedding.walk_down_child(
-                    &preprocessing,
-                    current_primary_slot,
-                    root_copy_slot,
-                    super::EmbeddingRunMode::K4Search,
-                ) {
-                    Ok(WalkDownChildOutcome::Completed) => {}
-                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K33Found) => unreachable!(),
-                    Ok(WalkDownChildOutcome::K4Found) => return,
-                    Err(error) => {
-                        panic!(
-                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
-                        );
-                    }
-                }
-            }
-        }
-
-        panic!("engine completed without finding K4");
-    }
+    stepwise_search_regression_test!(
+        test_k23_engine_stepwise_accepts_erdos_renyi_000306_regression,
+        super::EmbeddingRunMode::K23Search,
+        WalkDownChildOutcome::K23Found,
+        true,
+        10,
+        &[
+            [0, 4],
+            [0, 5],
+            [0, 7],
+            [1, 9],
+            [2, 5],
+            [2, 6],
+            [2, 7],
+            [3, 4],
+            [3, 6],
+            [3, 7],
+            [3, 8],
+            [5, 9],
+            [6, 9],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k23_engine_stepwise_accepts_erdos_renyi_0089600_combined_reference_regression,
+        super::EmbeddingRunMode::K23Search,
+        WalkDownChildOutcome::K23Found,
+        true,
+        9,
+        &[
+            [0, 2],
+            [0, 3],
+            [0, 4],
+            [0, 6],
+            [0, 7],
+            [1, 2],
+            [1, 6],
+            [1, 8],
+            [2, 6],
+            [3, 7],
+            [3, 8],
+            [4, 5],
+            [4, 7],
+            [5, 6],
+            [5, 7],
+            [6, 7],
+            [7, 8],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k23_engine_stepwise_accepts_erdos_renyi_0293070_combined_reference_regression,
+        super::EmbeddingRunMode::K23Search,
+        WalkDownChildOutcome::K23Found,
+        true,
+        12,
+        &[
+            [0, 4],
+            [0, 7],
+            [0, 9],
+            [0, 11],
+            [1, 2],
+            [1, 4],
+            [1, 7],
+            [2, 7],
+            [3, 6],
+            [3, 7],
+            [3, 11],
+            [4, 10],
+            [5, 6],
+            [5, 7],
+            [5, 8],
+            [5, 11],
+            [6, 7],
+            [7, 8],
+            [7, 9],
+            [7, 11],
+            [9, 10],
+            [9, 11],
+            [10, 11],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_rejects_k5_subdivision_000008_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        false,
+        16,
+        &[
+            [0, 3],
+            [0, 5],
+            [0, 7],
+            [0, 10],
+            [1, 3],
+            [1, 6],
+            [1, 11],
+            [1, 12],
+            [2, 9],
+            [2, 11],
+            [2, 13],
+            [2, 14],
+            [3, 13],
+            [3, 15],
+            [4, 10],
+            [4, 12],
+            [4, 14],
+            [4, 15],
+            [5, 6],
+            [7, 8],
+            [8, 9],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_rejects_k5_subdivision_000017_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        false,
+        16,
+        &[
+            [0, 2],
+            [0, 3],
+            [0, 5],
+            [0, 8],
+            [1, 7],
+            [1, 9],
+            [1, 10],
+            [1, 11],
+            [2, 9],
+            [2, 12],
+            [2, 14],
+            [3, 10],
+            [3, 13],
+            [3, 15],
+            [4, 8],
+            [4, 11],
+            [4, 14],
+            [4, 15],
+            [5, 6],
+            [6, 7],
+            [12, 13],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_0237330_combined_reference_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        7,
+        &[
+            [0, 1],
+            [0, 3],
+            [0, 4],
+            [0, 5],
+            [1, 2],
+            [1, 3],
+            [1, 4],
+            [1, 5],
+            [2, 5],
+            [3, 4],
+            [3, 5],
+            [3, 6],
+            [4, 5],
+            [4, 6],
+            [5, 6],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_0199830_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        10,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 5],
+            [0, 7],
+            [1, 2],
+            [1, 5],
+            [1, 7],
+            [2, 4],
+            [2, 6],
+            [2, 7],
+            [4, 7],
+            [4, 9],
+            [5, 7],
+            [5, 9],
+            [6, 9],
+            [7, 9],
+            [8, 9],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_0199830_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        10,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 5],
+            [0, 7],
+            [1, 2],
+            [1, 5],
+            [1, 7],
+            [2, 4],
+            [2, 6],
+            [2, 7],
+            [4, 7],
+            [4, 9],
+            [5, 7],
+            [5, 9],
+            [6, 9],
+            [7, 9],
+            [8, 9],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_0300350_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        14,
+        &[
+            [0, 7],
+            [0, 9],
+            [0, 10],
+            [0, 13],
+            [1, 5],
+            [1, 13],
+            [2, 8],
+            [2, 12],
+            [3, 5],
+            [3, 6],
+            [3, 8],
+            [4, 7],
+            [4, 8],
+            [4, 9],
+            [4, 13],
+            [5, 9],
+            [8, 10],
+            [8, 12],
+            [8, 13],
+            [9, 13],
+            [12, 13],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_0300350_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        14,
+        &[
+            [0, 7],
+            [0, 9],
+            [0, 10],
+            [0, 13],
+            [1, 5],
+            [1, 13],
+            [2, 8],
+            [2, 12],
+            [3, 5],
+            [3, 6],
+            [3, 8],
+            [4, 7],
+            [4, 8],
+            [4, 9],
+            [4, 13],
+            [5, 9],
+            [8, 10],
+            [8, 12],
+            [8, 13],
+            [9, 13],
+            [12, 13],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_erdos_renyi_0343220_direct_regression,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        12,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 4],
+            [0, 5],
+            [0, 7],
+            [2, 5],
+            [2, 6],
+            [2, 7],
+            [2, 9],
+            [3, 4],
+            [3, 7],
+            [4, 7],
+            [5, 6],
+            [5, 7],
+            [5, 9],
+            [6, 7],
+            [6, 8],
+            [6, 11],
+            [7, 8],
+            [7, 9],
+            [7, 10],
+            [8, 10],
+            [9, 10],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_erdos_renyi_0343220_regression,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        12,
+        &[
+            [0, 1],
+            [0, 2],
+            [0, 4],
+            [0, 5],
+            [0, 7],
+            [2, 5],
+            [2, 6],
+            [2, 7],
+            [2, 9],
+            [3, 4],
+            [3, 7],
+            [4, 7],
+            [5, 6],
+            [5, 7],
+            [5, 9],
+            [6, 7],
+            [6, 8],
+            [6, 11],
+            [7, 8],
+            [7, 9],
+            [7, 10],
+            [8, 10],
+            [9, 10],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_fuzzer_regression_20260411_direct,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        15,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 10],
+            [0, 12],
+            [0, 13],
+            [3, 9],
+            [3, 10],
+            [3, 12],
+            [3, 13],
+            [5, 9],
+            [7, 10],
+            [9, 10],
+            [9, 13],
+            [10, 11],
+            [10, 12],
+            [11, 13],
+            [12, 13],
+            [12, 14],
+            [13, 14],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_fuzzer_regression_20260411,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        15,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 10],
+            [0, 12],
+            [0, 13],
+            [3, 9],
+            [3, 10],
+            [3, 12],
+            [3, 13],
+            [5, 9],
+            [7, 10],
+            [9, 10],
+            [9, 13],
+            [10, 11],
+            [10, 12],
+            [11, 13],
+            [12, 13],
+            [12, 14],
+            [13, 14],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_fuzzer_regression_20260411_b,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        15,
+        &[
+            [0, 6],
+            [0, 9],
+            [0, 12],
+            [0, 13],
+            [3, 9],
+            [3, 10],
+            [3, 12],
+            [3, 13],
+            [5, 9],
+            [5, 13],
+            [6, 14],
+            [7, 10],
+            [9, 10],
+            [9, 13],
+            [10, 11],
+            [10, 14],
+            [11, 13],
+            [12, 14],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k33_engine_accepts_fuzzer_regression_20260412_direct,
+        run_k33_homeomorph_engine,
+        false,
+        true,
+        16,
+        &[
+            [0, 1],
+            [0, 7],
+            [0, 11],
+            [0, 15],
+            [1, 5],
+            [1, 11],
+            [2, 4],
+            [3, 5],
+            [3, 10],
+            [3, 15],
+            [4, 5],
+            [4, 12],
+            [4, 13],
+            [5, 6],
+            [5, 7],
+            [5, 10],
+            [5, 11],
+            [5, 12],
+            [5, 15],
+            [7, 8],
+            [7, 11],
+            [7, 15],
+            [8, 9],
+            [9, 15],
+            [11, 12],
+            [11, 15],
+            [14, 15],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k33_engine_stepwise_accepts_fuzzer_regression_20260412,
+        super::EmbeddingRunMode::K33Search,
+        WalkDownChildOutcome::K33Found,
+        true,
+        16,
+        &[
+            [0, 1],
+            [0, 7],
+            [0, 11],
+            [0, 15],
+            [1, 5],
+            [1, 11],
+            [2, 4],
+            [3, 5],
+            [3, 10],
+            [3, 15],
+            [4, 5],
+            [4, 12],
+            [4, 13],
+            [5, 6],
+            [5, 7],
+            [5, 10],
+            [5, 11],
+            [5, 12],
+            [5, 15],
+            [7, 8],
+            [7, 11],
+            [7, 15],
+            [8, 9],
+            [9, 15],
+            [11, 12],
+            [11, 15],
+            [14, 15],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k4_engine_accepts_erdos_renyi_0025860_direct_regression,
+        run_k4_homeomorph_engine,
+        true,
+        true,
+        15,
+        &[
+            [0, 4],
+            [0, 6],
+            [0, 11],
+            [1, 8],
+            [1, 10],
+            [2, 7],
+            [3, 4],
+            [3, 11],
+            [4, 8],
+            [4, 11],
+            [6, 7],
+            [6, 8],
+            [6, 12],
+            [7, 10],
+            [8, 11],
+            [8, 12],
+            [9, 12],
+            [9, 13],
+            [9, 14],
+            [11, 13],
+            [11, 14],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k4_engine_stepwise_accepts_erdos_renyi_0025860_regression,
+        super::EmbeddingRunMode::K4Search,
+        WalkDownChildOutcome::K4Found,
+        true,
+        15,
+        &[
+            [0, 4],
+            [0, 6],
+            [0, 11],
+            [1, 8],
+            [1, 10],
+            [2, 7],
+            [3, 4],
+            [3, 11],
+            [4, 8],
+            [4, 11],
+            [6, 7],
+            [6, 8],
+            [6, 12],
+            [7, 10],
+            [8, 11],
+            [8, 12],
+            [9, 12],
+            [9, 13],
+            [9, 14],
+            [11, 13],
+            [11, 14],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k4_engine_accepts_erdos_renyi_0048200_direct_regression,
+        run_k4_homeomorph_engine,
+        true,
+        true,
+        16,
+        &[
+            [0, 5],
+            [0, 7],
+            [0, 10],
+            [1, 7],
+            [1, 14],
+            [2, 4],
+            [2, 14],
+            [5, 10],
+            [5, 13],
+            [5, 15],
+            [6, 9],
+            [7, 10],
+            [7, 11],
+            [7, 12],
+            [7, 13],
+            [8, 9],
+            [8, 10],
+            [8, 14],
+            [9, 11],
+            [10, 13],
+            [12, 14],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k4_engine_accepts_erdos_renyi_0001210_direct_regression,
+        run_k4_homeomorph_engine,
+        true,
+        true,
+        7,
+        &[[0, 1], [0, 4], [0, 6], [1, 2], [1, 3], [1, 5], [2, 6], [3, 4], [4, 6], [5, 6]]
+    );
+
+    direct_search_regression_test!(
+        test_k4_engine_accepts_erdos_renyi_0397370_direct_regression,
+        run_k4_homeomorph_engine,
+        true,
+        true,
+        14,
+        &[
+            [0, 4],
+            [0, 5],
+            [1, 5],
+            [1, 6],
+            [1, 9],
+            [2, 4],
+            [3, 4],
+            [3, 9],
+            [3, 10],
+            [3, 13],
+            [4, 10],
+            [6, 7],
+            [7, 8],
+            [7, 10],
+            [7, 11],
+            [7, 12],
+            [7, 13],
+            [8, 11],
+            [8, 13],
+            [9, 13],
+            [12, 13],
+        ]
+    );
+
+    direct_search_regression_test!(
+        test_k4_engine_accepts_fuzzer_regression_20260411_direct,
+        run_k4_homeomorph_engine,
+        true,
+        true,
+        15,
+        &[
+            [0, 3],
+            [0, 10],
+            [0, 11],
+            [3, 10],
+            [3, 11],
+            [3, 12],
+            [3, 13],
+            [4, 12],
+            [4, 14],
+            [7, 12],
+            [7, 14],
+            [9, 10],
+            [9, 13],
+            [9, 14],
+            [10, 11],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k4_engine_stepwise_accepts_fuzzer_regression_20260411,
+        super::EmbeddingRunMode::K4Search,
+        WalkDownChildOutcome::K4Found,
+        true,
+        15,
+        &[
+            [0, 3],
+            [0, 10],
+            [0, 11],
+            [3, 10],
+            [3, 11],
+            [3, 12],
+            [3, 13],
+            [4, 12],
+            [4, 14],
+            [7, 12],
+            [7, 14],
+            [9, 10],
+            [9, 13],
+            [9, 14],
+            [10, 11],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k4_engine_stepwise_accepts_erdos_renyi_0397370_regression,
+        super::EmbeddingRunMode::K4Search,
+        WalkDownChildOutcome::K4Found,
+        true,
+        14,
+        &[
+            [0, 4],
+            [0, 5],
+            [1, 5],
+            [1, 6],
+            [1, 9],
+            [2, 4],
+            [3, 4],
+            [3, 9],
+            [3, 10],
+            [3, 13],
+            [4, 10],
+            [6, 7],
+            [7, 8],
+            [7, 10],
+            [7, 11],
+            [7, 12],
+            [7, 13],
+            [8, 11],
+            [8, 13],
+            [9, 13],
+            [12, 13],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k4_engine_stepwise_accepts_erdos_renyi_0048200_regression,
+        super::EmbeddingRunMode::K4Search,
+        WalkDownChildOutcome::K4Found,
+        true,
+        16,
+        &[
+            [0, 5],
+            [0, 7],
+            [0, 10],
+            [1, 7],
+            [1, 14],
+            [2, 4],
+            [2, 14],
+            [5, 10],
+            [5, 13],
+            [5, 15],
+            [6, 9],
+            [7, 10],
+            [7, 11],
+            [7, 12],
+            [7, 13],
+            [8, 9],
+            [8, 10],
+            [8, 14],
+            [9, 11],
+            [10, 13],
+            [12, 14],
+        ]
+    );
+
+    stepwise_search_regression_test!(
+        test_k4_engine_stepwise_accepts_erdos_renyi_0001210_regression,
+        super::EmbeddingRunMode::K4Search,
+        WalkDownChildOutcome::K4Found,
+        true,
+        7,
+        &[[0, 1], [0, 4], [0, 6], [1, 2], [1, 3], [1, 5], [2, 6], [3, 4], [4, 6], [5, 6]]
+    );
 }

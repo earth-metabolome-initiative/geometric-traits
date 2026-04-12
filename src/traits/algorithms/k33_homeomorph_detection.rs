@@ -6,71 +6,22 @@
 
 use num_traits::AsPrimitive;
 
+use super::topology_wrapper_macros::define_planarity_derived_error;
 use crate::traits::{
-    MonopartiteGraph, UndirectedMonopartiteMonoplexGraph,
+    UndirectedMonopartiteMonoplexGraph,
     algorithms::{
         PlanarityError,
         planarity_detection::{self, preprocessing::LocalSimpleGraph},
     },
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-/// Error type for `K_{3,3}` homeomorph detection.
-pub enum K33HomeomorphError {
-    /// The graph contains self-loops, which are unsupported by the intended
-    /// simple undirected implementation.
-    #[error(
-        "The K33 homeomorph algorithm currently supports only simple undirected graphs and does not accept self-loops."
-    )]
-    SelfLoopsUnsupported,
-    /// Parallel edges are unsupported by the intended public contract.
-    #[error(
-        "The K33 homeomorph algorithm currently supports only simple undirected graphs and does not accept parallel edges."
-    )]
-    ParallelEdgesUnsupported,
-    /// The graph implementation exposed an endpoint outside the node range.
-    #[error(
-        "The graph exposed edge endpoint {endpoint}, which is out of range for node_count={node_count}."
-    )]
-    InvalidEdgeEndpoint {
-        /// The offending endpoint value exposed by the graph.
-        endpoint: usize,
-        /// The graph node count used to validate endpoints.
-        node_count: usize,
-    },
-}
-
-impl From<K33HomeomorphError>
-    for crate::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError
-{
-    #[inline]
-    fn from(error: K33HomeomorphError) -> Self {
-        Self::K33HomeomorphError(error)
-    }
-}
-
-impl<G: MonopartiteGraph> From<K33HomeomorphError> for crate::errors::MonopartiteError<G> {
-    #[inline]
-    fn from(error: K33HomeomorphError) -> Self {
-        Self::AlgorithmError(error.into())
-    }
-}
-
-#[allow(clippy::needless_pass_by_value)]
-#[inline]
-fn map_planarity_error_to_k33_homeomorph_error<G: MonopartiteGraph>(
-    error: PlanarityError,
-) -> crate::errors::MonopartiteError<G> {
-    match error {
-        PlanarityError::SelfLoopsUnsupported => K33HomeomorphError::SelfLoopsUnsupported.into(),
-        PlanarityError::ParallelEdgesUnsupported => {
-            K33HomeomorphError::ParallelEdgesUnsupported.into()
-        }
-        PlanarityError::InvalidEdgeEndpoint { endpoint, node_count } => {
-            K33HomeomorphError::InvalidEdgeEndpoint { endpoint, node_count }.into()
-        }
-    }
-}
+define_planarity_derived_error!(
+    /// Error type for `K_{3,3}` homeomorph detection.
+    pub enum K33HomeomorphError => K33HomeomorphError,
+    mapper = map_planarity_error_to_k33_homeomorph_error,
+    self_loop = "The K33 homeomorph algorithm currently supports only simple undirected graphs and does not accept self-loops.",
+    parallel = "The K33 homeomorph algorithm currently supports only simple undirected graphs and does not accept parallel edges."
+);
 
 /// Trait providing `K_{3,3}` homeomorph detection for simple undirected graphs.
 pub trait K33HomeomorphDetection: UndirectedMonopartiteMonoplexGraph {
