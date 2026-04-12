@@ -142,3 +142,25 @@ fn test_equitable_refinement_matches_wl_from_seed_and_edge_labels() {
     assert!(changed);
     assert_eq!(partition_classes(&partition), color_classes(&wl_colors));
 }
+
+#[test]
+fn test_equitable_refinement_from_singleton_splitter_uses_edge_label_groups() {
+    let graph = build_bidirectional_labeled_graph(
+        5,
+        &[(0, 1, 1), (0, 2, 2), (0, 3, 2), (0, 4, 3), (2, 3, 1)],
+    );
+    let matrix = Edges::matrix(graph.edges());
+    let mut partition = BacktrackableOrderedPartition::new(5);
+    let root = partition.cell_of(0);
+    let singleton = partition.individualize(root, 0);
+
+    assert_eq!(partition.cell_elements(singleton), &[0]);
+
+    let changed =
+        refine_partition_to_labeled_equitable(&graph, &mut partition, |source, destination| {
+            matrix.sparse_value_at(source, destination).unwrap()
+        });
+
+    assert!(changed);
+    assert_eq!(partition_classes(&partition), vec![vec![0], vec![1], vec![2, 3], vec![4]]);
+}
