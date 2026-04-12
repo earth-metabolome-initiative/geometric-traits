@@ -114,14 +114,17 @@ struct KnownOrbits {
 }
 
 impl KnownOrbits {
+    #[inline]
     fn new(order: usize) -> Self {
         Self { parents: (0..order).collect(), ranks: vec![0; order], minima: (0..order).collect() }
     }
 
+    #[inline]
     fn same_set(&mut self, left: usize, right: usize) -> bool {
         self.find(left) == self.find(right)
     }
 
+    #[inline]
     fn is_minimal_representative(&mut self, element: usize) -> bool {
         let root = self.find(element);
         self.minima[root] == element
@@ -130,20 +133,30 @@ impl KnownOrbits {
     fn ingest_leaf_automorphism(&mut self, left_order: &[usize], right_order: &[usize]) {
         debug_assert_eq!(left_order.len(), right_order.len());
         for (&left, &right) in left_order.iter().zip(right_order.iter()) {
-            self.union(left, right);
+            if left != right {
+                self.union(left, right);
+            }
         }
     }
 
+    #[inline]
     fn find(&mut self, element: usize) -> usize {
-        let parent = self.parents[element];
-        if parent == element {
-            return element;
+        let mut root = element;
+        while self.parents[root] != root {
+            root = self.parents[root];
         }
-        let root = self.find(parent);
-        self.parents[element] = root;
+
+        let mut current = element;
+        while self.parents[current] != current {
+            let parent = self.parents[current];
+            self.parents[current] = root;
+            current = parent;
+        }
+
         root
     }
 
+    #[inline]
     fn union(&mut self, left: usize, right: usize) {
         let mut left_root = self.find(left);
         let mut right_root = self.find(right);
@@ -176,7 +189,9 @@ impl KnownOrbits {
     fn ingest_automorphism(&mut self, automorphism: &[usize]) {
         debug_assert_eq!(self.parents.len(), automorphism.len());
         for (vertex, &image) in automorphism.iter().enumerate() {
-            self.union(vertex, image);
+            if vertex != image {
+                self.union(vertex, image);
+            }
         }
     }
 }
@@ -190,6 +205,24 @@ struct StoredSearchPath<EdgeLabel> {
     path_info: Option<Rc<[SearchPathInfo]>>,
 }
 
+struct SearchWorkspace {
+    neighbour_counts: Vec<usize>,
+    touched_neighbour_cells: Vec<usize>,
+    component_seen: Vec<bool>,
+    component_cells: Vec<PartitionCellId>,
+}
+
+impl SearchWorkspace {
+    fn new(order: usize) -> Self {
+        Self {
+            neighbour_counts: vec![0; order],
+            touched_neighbour_cells: Vec::new(),
+            component_seen: vec![false; order],
+            component_cells: Vec::new(),
+        }
+    }
+}
+
 struct SearchState<EdgeLabel> {
     stats: CanonicalSearchStats,
     first_path: Option<StoredSearchPath<EdgeLabel>>,
@@ -201,6 +234,7 @@ struct SearchState<EdgeLabel> {
     best_path_orbits: KnownOrbits,
     long_prune_records: Vec<LongPruneRecord>,
     refine_workspace: RefinementWorkspace<EdgeLabel>,
+    search_workspace: SearchWorkspace,
 }
 
 struct SearchOutcome<EdgeLabel> {
@@ -776,6 +810,7 @@ where
         best_path_orbits: KnownOrbits::new(order),
         long_prune_records: Vec::new(),
         refine_workspace,
+        search_workspace: SearchWorkspace::new(order),
     };
     let mut path_invariants = vec![Rc::new(root_trace)];
     let mut packed_path = match &path_invariants[0].storage {
@@ -954,7 +989,8 @@ where
             }
             if leaf_signature.is_none() {
                 leaf_signature = Some(Rc::new(build_unlabeled_leaf_signature(
-                    adjacency,
+                    graph,
+                    nodes,
                     vertex_label_ids,
                     order_snapshot.as_ref(),
                 )));
@@ -1068,6 +1104,7 @@ where
         graph,
         nodes,
         partition,
+        &mut state.search_workspace,
         splitting_heuristic,
         choice_path,
         component_endpoints,
@@ -1891,6 +1928,7 @@ fn prepare_component_recursion_and_choose_target_cell<G>(
     graph: &G,
     nodes: &[G::NodeId],
     partition: &mut BacktrackableOrderedPartition,
+    search_workspace: &mut SearchWorkspace,
     splitting_heuristic: CanonSplittingHeuristic,
     choice_path: &[usize],
     component_endpoints: &mut Vec<ComponentEndpoint>,
@@ -1908,18 +1946,20 @@ where
             active_component_endpoint(component_endpoints, *active_component_endpoint_len)
                 .map_or(partition.order(), |endpoint| endpoint.discrete_cell_limit);
         let Some((component_cells, component_elements, preferred_cell)) =
-            find_first_component_at_level(
+            find_first_component_at_level_in_workspace(
                 graph,
                 nodes,
                 partition,
+                search_workspace,
                 active_level,
                 splitting_heuristic,
             )
         else {
-            return choose_target_cell_at_level(
+            return choose_target_cell_at_level_in_workspace(
                 graph,
                 nodes,
                 partition,
+                search_workspace,
                 splitting_heuristic,
                 active_level,
             );
@@ -1940,6 +1980,7 @@ where
     }
 }
 
+#[cfg(test)]
 fn find_first_component_at_level<G>(
     graph: &G,
     nodes: &[G::NodeId],
@@ -1951,44 +1992,67 @@ where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize> + Copy,
 {
+    let mut workspace = SearchWorkspace::new(partition.order());
+    find_first_component_at_level_in_workspace(
+        graph,
+        nodes,
+        partition,
+        &mut workspace,
+        component_level,
+        splitting_heuristic,
+    )
+}
+
+fn find_first_component_at_level_in_workspace<G>(
+    graph: &G,
+    nodes: &[G::NodeId],
+    partition: &BacktrackableOrderedPartition,
+    workspace: &mut SearchWorkspace,
+    component_level: usize,
+    splitting_heuristic: CanonSplittingHeuristic,
+) -> Option<(Vec<PartitionCellId>, usize, PartitionCellId)>
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize> + Copy,
+{
     let seed_cell = partition
         .non_singleton_cells()
         .find(|cell| partition.cell_component_level(cell.id()) == component_level)
         .map(super::partition::PartitionCellView::id)?;
-    let mut component_cells = vec![seed_cell];
-    let mut seen = vec![false; partition.order()];
-    seen[seed_cell.index()] = true;
-    let mut neighbour_counts = vec![0usize; partition.order()];
-    let mut touched_neighbour_cells = Vec::new();
+    workspace.component_cells.clear();
+    workspace.component_cells.push(seed_cell);
+    workspace.component_seen.fill(false);
+    workspace.component_seen[seed_cell.index()] = true;
+    workspace.touched_neighbour_cells.clear();
     let mut preferred_cell = seed_cell;
     let mut preferred_first = partition.cell_first(seed_cell);
     let mut preferred_size = partition.cell_len(seed_cell);
     let mut preferred_nuconn = 0usize;
     let mut cursor = 0usize;
 
-    while cursor < component_cells.len() {
-        let cell_id = component_cells[cursor];
+    while cursor < workspace.component_cells.len() {
+        let cell_id = workspace.component_cells[cursor];
         cursor += 1;
         let nuconn = 1 + nontrivial_neighbour_cell_count_with_scratch(
             graph,
             nodes,
             partition,
             cell_id,
-            &mut neighbour_counts,
-            &mut touched_neighbour_cells,
+            &mut workspace.neighbour_counts,
+            &mut workspace.touched_neighbour_cells,
         );
 
-        for &neighbour_cell in &touched_neighbour_cells {
+        for &neighbour_cell in &workspace.touched_neighbour_cells {
             let neighbour_cell_id = PartitionCellId::from_index(neighbour_cell);
-            if neighbour_counts[neighbour_cell] == partition.cell_len(neighbour_cell_id) {
+            if workspace.neighbour_counts[neighbour_cell] == partition.cell_len(neighbour_cell_id) {
                 continue;
             }
-            if !seen[neighbour_cell] {
-                seen[neighbour_cell] = true;
-                component_cells.push(neighbour_cell_id);
+            if !workspace.component_seen[neighbour_cell] {
+                workspace.component_seen[neighbour_cell] = true;
+                workspace.component_cells.push(neighbour_cell_id);
             }
         }
-        clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+        clear_neighbour_counts(&mut workspace.neighbour_counts, &workspace.touched_neighbour_cells);
         let cell_first = partition.cell_first(cell_id);
         let cell_size = partition.cell_len(cell_id);
         let replace_preferred = match splitting_heuristic {
@@ -2028,14 +2092,15 @@ where
     }
 
     let component_elements =
-        component_cells.iter().map(|&cell| partition.cell_len(cell)).sum::<usize>();
-    Some((component_cells, component_elements, preferred_cell))
+        workspace.component_cells.iter().map(|&cell| partition.cell_len(cell)).sum::<usize>();
+    Some((workspace.component_cells.clone(), component_elements, preferred_cell))
 }
 
-fn choose_target_cell_at_level<G>(
+fn choose_target_cell_at_level_in_workspace<G>(
     graph: &G,
     nodes: &[G::NodeId],
     partition: &BacktrackableOrderedPartition,
+    search_workspace: &mut SearchWorkspace,
     splitting_heuristic: CanonSplittingHeuristic,
     component_level: usize,
 ) -> PartitionCellId
@@ -2048,9 +2113,17 @@ where
         .filter(|cell| partition.cell_component_level(cell.id()) == component_level)
         .map(super::partition::PartitionCellView::id)
         .collect::<Vec<_>>();
-    choose_target_cell_among(graph, nodes, partition, splitting_heuristic, &candidates)
+    choose_target_cell_among_in_workspace(
+        graph,
+        nodes,
+        partition,
+        search_workspace,
+        splitting_heuristic,
+        &candidates,
+    )
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_lines)]
 fn choose_target_cell_among<G>(
     graph: &G,
@@ -2063,8 +2136,31 @@ where
     G: MonoplexMonopartiteGraph,
     G::NodeId: AsPrimitive<usize> + Copy,
 {
-    let mut neighbour_counts = vec![0usize; partition.order()];
-    let mut touched_neighbour_cells = Vec::new();
+    let mut workspace = SearchWorkspace::new(partition.order());
+    choose_target_cell_among_in_workspace(
+        graph,
+        nodes,
+        partition,
+        &mut workspace,
+        splitting_heuristic,
+        candidates,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn choose_target_cell_among_in_workspace<G>(
+    graph: &G,
+    nodes: &[G::NodeId],
+    partition: &BacktrackableOrderedPartition,
+    workspace: &mut SearchWorkspace,
+    splitting_heuristic: CanonSplittingHeuristic,
+    candidates: &[PartitionCellId],
+) -> PartitionCellId
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize> + Copy,
+{
+    workspace.touched_neighbour_cells.clear();
     match splitting_heuristic {
         CanonSplittingHeuristic::First => {
             candidates
@@ -2108,20 +2204,28 @@ where
                 nodes,
                 partition,
                 best,
-                &mut neighbour_counts,
-                &mut touched_neighbour_cells,
+                &mut workspace.neighbour_counts,
+                &mut workspace.touched_neighbour_cells,
             );
-            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+            clear_neighbour_counts(
+                &mut workspace.neighbour_counts,
+                &workspace.touched_neighbour_cells,
+            );
+            workspace.touched_neighbour_cells.clear();
             for &cell in &candidates[1..] {
                 let value = nontrivial_neighbour_cell_count_with_scratch(
                     graph,
                     nodes,
                     partition,
                     cell,
-                    &mut neighbour_counts,
-                    &mut touched_neighbour_cells,
+                    &mut workspace.neighbour_counts,
+                    &mut workspace.touched_neighbour_cells,
                 );
-                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+                clear_neighbour_counts(
+                    &mut workspace.neighbour_counts,
+                    &workspace.touched_neighbour_cells,
+                );
+                workspace.touched_neighbour_cells.clear();
                 if value > best_value
                     || (value == best_value
                         && partition.cell_first(cell) < partition.cell_first(best))
@@ -2141,20 +2245,28 @@ where
                 nodes,
                 partition,
                 best,
-                &mut neighbour_counts,
-                &mut touched_neighbour_cells,
+                &mut workspace.neighbour_counts,
+                &mut workspace.touched_neighbour_cells,
             );
-            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+            clear_neighbour_counts(
+                &mut workspace.neighbour_counts,
+                &workspace.touched_neighbour_cells,
+            );
+            workspace.touched_neighbour_cells.clear();
             for &cell in &candidates[1..] {
                 let value = nontrivial_neighbour_cell_count_with_scratch(
                     graph,
                     nodes,
                     partition,
                     cell,
-                    &mut neighbour_counts,
-                    &mut touched_neighbour_cells,
+                    &mut workspace.neighbour_counts,
+                    &mut workspace.touched_neighbour_cells,
                 );
-                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+                clear_neighbour_counts(
+                    &mut workspace.neighbour_counts,
+                    &workspace.touched_neighbour_cells,
+                );
+                workspace.touched_neighbour_cells.clear();
                 if value > best_value
                     || (value == best_value
                         && (partition.cell_len(cell) < partition.cell_len(best)
@@ -2176,20 +2288,28 @@ where
                 nodes,
                 partition,
                 best,
-                &mut neighbour_counts,
-                &mut touched_neighbour_cells,
+                &mut workspace.neighbour_counts,
+                &mut workspace.touched_neighbour_cells,
             );
-            clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+            clear_neighbour_counts(
+                &mut workspace.neighbour_counts,
+                &workspace.touched_neighbour_cells,
+            );
+            workspace.touched_neighbour_cells.clear();
             for &cell in &candidates[1..] {
                 let value = nontrivial_neighbour_cell_count_with_scratch(
                     graph,
                     nodes,
                     partition,
                     cell,
-                    &mut neighbour_counts,
-                    &mut touched_neighbour_cells,
+                    &mut workspace.neighbour_counts,
+                    &mut workspace.touched_neighbour_cells,
                 );
-                clear_neighbour_counts(&mut neighbour_counts, &touched_neighbour_cells);
+                clear_neighbour_counts(
+                    &mut workspace.neighbour_counts,
+                    &workspace.touched_neighbour_cells,
+                );
+                workspace.touched_neighbour_cells.clear();
                 if value > best_value
                     || (value == best_value
                         && (partition.cell_len(cell) > partition.cell_len(best)
@@ -2205,6 +2325,7 @@ where
     }
 }
 
+#[inline]
 fn nontrivial_neighbour_cell_count_with_scratch<G>(
     graph: &G,
     nodes: &[G::NodeId],
@@ -2219,6 +2340,7 @@ where
 {
     touched_neighbour_cells.clear();
     let representative = nodes[partition.cell_elements(cell_id)[0]];
+    let mut fully_touched_cells = 0usize;
 
     for neighbour in graph.successors(representative) {
         let neighbour_cell = partition.cell_of(neighbour.as_());
@@ -2227,22 +2349,21 @@ where
             continue;
         }
         let neighbour_cell_index = neighbour_cell.index();
-        if neighbour_counts[neighbour_cell_index] == 0 {
+        let previous = neighbour_counts[neighbour_cell_index];
+        if previous == 0 {
             touched_neighbour_cells.push(neighbour_cell_index);
         }
-        neighbour_counts[neighbour_cell_index] += 1;
-    }
-
-    let mut count = 0usize;
-    for &neighbour_cell_index in touched_neighbour_cells.iter() {
-        let neighbour_cell = PartitionCellId::from_index(neighbour_cell_index);
-        if neighbour_counts[neighbour_cell_index] < partition.cell_len(neighbour_cell) {
-            count += 1;
+        let updated = previous + 1;
+        neighbour_counts[neighbour_cell_index] = updated;
+        if updated == neighbour_cell_len {
+            fully_touched_cells += 1;
         }
     }
-    count
+
+    touched_neighbour_cells.len().saturating_sub(fully_touched_cells)
 }
 
+#[inline]
 fn clear_neighbour_counts(neighbour_counts: &mut [usize], touched_neighbour_cells: &[usize]) {
     for &neighbour_cell_index in touched_neighbour_cells {
         neighbour_counts[neighbour_cell_index] = 0;
@@ -2364,16 +2485,22 @@ where
     }
 }
 
+#[inline]
 fn upper_triangle_offset(order_len: usize, left: usize, right: usize) -> usize {
     debug_assert!(left < right);
     left * (2 * order_len - left - 1) / 2 + (right - left - 1)
 }
 
-fn build_unlabeled_leaf_signature(
-    adjacency: &AdjacencyBitMatrix,
+fn build_unlabeled_leaf_signature<G>(
+    graph: &G,
+    nodes: &[G::NodeId],
     vertex_label_ids: &[usize],
     order: &[usize],
-) -> UnlabeledLeafSignature {
+) -> UnlabeledLeafSignature
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize> + Copy,
+{
     let ordered_vertex_labels =
         order.iter().map(|&vertex| vertex_label_ids[vertex]).collect::<Vec<_>>().into();
     let mut rank_by_vertex = vec![0usize; order.len()];
@@ -2383,29 +2510,21 @@ fn build_unlabeled_leaf_signature(
 
     let mut present_edge_offsets = Vec::with_capacity(order.len().saturating_mul(4));
     for source in 0..order.len() {
-        let row_start = adjacency.row_start(source);
         let source_rank = rank_by_vertex[source];
-        for word in 0..adjacency.words_per_row {
-            let mut bits = adjacency.bits[row_start + word];
-            while bits != 0 {
-                let bit = bits.trailing_zeros() as usize;
-                let destination = word * (u64::BITS as usize) + bit;
-                bits &= bits - 1;
-                if destination <= source || destination >= order.len() {
-                    continue;
-                }
-                let destination_rank = rank_by_vertex[destination];
-                let (left_rank, right_rank) = if source_rank < destination_rank {
-                    (source_rank, destination_rank)
-                } else {
-                    (destination_rank, source_rank)
-                };
-                present_edge_offsets.push(upper_triangle_offset(
-                    order.len(),
-                    left_rank,
-                    right_rank,
-                ));
+        for destination in graph.successors(nodes[source]) {
+            let destination = destination.as_();
+            if destination >= order.len() {
+                continue;
             }
+            let destination_rank = rank_by_vertex[destination];
+            if destination_rank <= source_rank {
+                continue;
+            }
+            present_edge_offsets.push(upper_triangle_offset(
+                order.len(),
+                source_rank,
+                destination_rank,
+            ));
         }
     }
     present_edge_offsets.sort_unstable();
@@ -3164,6 +3283,7 @@ mod tests {
             best_path_orbits: KnownOrbits::new(3),
             long_prune_records: vec![],
             refine_workspace: RefinementWorkspace::new(3),
+            search_workspace: SearchWorkspace::new(3),
         };
 
         assert_eq!(state.first_order(), Some(&[2, 0, 1][..]));
@@ -3174,7 +3294,10 @@ mod tests {
         assert_eq!(state.best_packed_path(), Some(&[30, 31][..]));
         assert_eq!(state.first_path_info().map(<[SearchPathInfo]>::len), Some(2));
         assert_eq!(state.best_path_info().map(<[SearchPathInfo]>::len), Some(1));
-        assert_eq!(state.first_leaf_signature().unwrap().present_edge_offsets.as_ref(), &[0, 2]);
+        assert_eq!(
+            state.first_leaf_signature().unwrap().present_edge_offsets.as_ref(),
+            &[0_usize, 2]
+        );
     }
 
     #[test]
@@ -3208,6 +3331,7 @@ mod tests {
             best_path_orbits: KnownOrbits::new(2),
             long_prune_records: vec![],
             refine_workspace: RefinementWorkspace::new(2),
+            search_workspace: SearchWorkspace::new(2),
         };
         let mut path_state = SearchPathState {
             fp_on: false,
@@ -3620,10 +3744,12 @@ mod tests {
         let mut promoted_partition = build_partition_from_groups(&[0, 0, 1, 1, 1, 2, 2, 3, 3]);
         let mut component_endpoints = Vec::new();
         let mut active_component_endpoint_len = 0;
+        let mut search_workspace = SearchWorkspace::new(promoted_partition.order());
         let selected = prepare_component_recursion_and_choose_target_cell(
             &promoted_graph,
             &promoted_nodes,
             &mut promoted_partition,
+            &mut search_workspace,
             CanonSplittingHeuristic::FirstLargestMaxNeighbours,
             &[],
             &mut component_endpoints,
@@ -3953,5 +4079,111 @@ mod tests {
         assert_eq!(packed_path, Some(vec![1, 2]));
         truncate_packed_path(&mut packed_path, None);
         assert_eq!(packed_path, Some(vec![1, 2]));
+    }
+
+    #[test]
+    fn test_search_outcome_snapshot_accessors_cover_outcome_storage() {
+        let path_invariants = Rc::<[Rc<RefinementTrace<()>>]>::from(vec![packed_trace(&[7, 8], 2)]);
+        let path_info = Rc::<[SearchPathInfo]>::from(vec![SearchPathInfo {
+            splitting_element: 4,
+            certificate_index: 0,
+            subcertificate_length: 2,
+            eqref_hash: 2,
+        }]);
+        let outcome = SearchOutcome {
+            order: Rc::from(vec![2_usize, 0, 1]),
+            leaf_signature: Some(Rc::new(UnlabeledLeafSignature {
+                vertex_label_ids: Rc::from(vec![1_usize, 2, 3]),
+                present_edge_offsets: Rc::from(vec![0_usize, 2]),
+            })),
+            path_invariants: Some(path_invariants.clone()),
+            packed_path: Some(Rc::from(vec![7_u32, 8])),
+            path_info: Some(path_info.clone()),
+            sibling_orbits: KnownOrbits::new(3),
+            choice_path: Rc::from(vec![4_usize]),
+        };
+
+        assert_eq!(SearchPathSnapshot::order(&outcome), &[2, 0, 1]);
+        assert_eq!(
+            SearchPathSnapshot::leaf_signature(&outcome)
+                .expect("leaf signature should exist")
+                .present_edge_offsets
+                .as_ref(),
+            &[0_usize, 2]
+        );
+        assert_eq!(
+            SearchPathSnapshot::path_invariants(&outcome)
+                .expect("path invariants should exist")
+                .len(),
+            1
+        );
+        assert_eq!(
+            SearchPathSnapshot::packed_path(&outcome).expect("packed path should exist"),
+            &[7_u32, 8]
+        );
+        assert_eq!(
+            SearchPathSnapshot::path_info(&outcome).expect("path info should exist")[0]
+                .splitting_element,
+            4
+        );
+    }
+
+    #[test]
+    fn test_choose_target_cell_at_level_in_workspace_covers_wrapper_branch() {
+        let graph = build_test_graph(6, &[]);
+        let nodes = graph.node_ids().collect::<Vec<_>>();
+        let partition = build_partition_from_groups(&[0, 0, 1, 1, 2, 3]);
+        let candidates =
+            partition.non_singleton_cells().map(PartitionCellView::id).collect::<Vec<_>>();
+
+        let mut first_largest_workspace = SearchWorkspace::new(partition.order());
+        let first_largest = choose_target_cell_at_level_in_workspace(
+            &graph,
+            &nodes,
+            &partition,
+            &mut first_largest_workspace,
+            CanonSplittingHeuristic::FirstLargest,
+            0,
+        );
+        let mut max_neighbour_workspace = SearchWorkspace::new(partition.order());
+        let first_largest_max_neighbours = choose_target_cell_at_level_in_workspace(
+            &graph,
+            &nodes,
+            &partition,
+            &mut max_neighbour_workspace,
+            CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+            0,
+        );
+
+        assert_eq!(first_largest, candidates[0]);
+        assert_eq!(first_largest_max_neighbours, candidates[0]);
+    }
+
+    #[test]
+    fn test_packed_helper_fallbacks_cover_missing_info_paths() {
+        let packed_equal = RefinementTrace {
+            storage: RefinementTraceStorage::<u8>::Packed(vec![20_u32, 21]),
+            subcertificate_length: 2,
+            eqref_hash: 2,
+        };
+        let same_packed = RefinementTrace {
+            storage: RefinementTraceStorage::<u8>::Packed(vec![20_u32, 21]),
+            subcertificate_length: 2,
+            eqref_hash: 2,
+        };
+
+        assert!(refinement_trace_equal(&packed_equal, &same_packed));
+        assert_eq!(
+            child_path_prefix_cmp_to_reference(
+                core::cmp::Ordering::Equal,
+                &packed_equal,
+                Some(2),
+                Some(&[10_u32, 11, 20, 21]),
+                None,
+                None,
+                1,
+            ),
+            core::cmp::Ordering::Equal,
+        );
     }
 }
