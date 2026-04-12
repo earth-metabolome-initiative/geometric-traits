@@ -104,7 +104,7 @@ where
     G::NodeId: AsPrimitive<usize>,
 {
     let simple_graph = LocalSimpleGraph::try_from_undirected_graph(graph)?;
-    let preprocessing = simple_graph.preprocess();
+    let preprocessing = simple_graph.into_preprocessing();
     Ok(planarity_detection::run_k33_homeomorph_engine(&preprocessing))
 }
 
