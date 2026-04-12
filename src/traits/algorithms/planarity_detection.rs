@@ -1429,31 +1429,12 @@ pub(crate) mod embedding {
             Ok(())
         }
 
-        fn reduce_external_face_path_to_edge_preserving_kinds(
-            &mut self,
-            start_slot: usize,
-            start_side: usize,
-            end_slot: usize,
-            end_side: usize,
-        ) -> Result<Option<usize>, EmbeddingMutationError> {
-            let start_kind =
-                self.slot_arc(start_slot, start_side).map(|arc| self.arcs[arc].kind).ok_or(
-                    EmbeddingMutationError::MissingSlotArc { slot: start_slot, side: start_side },
-                )?;
-            let end_kind = self
-                .slot_arc(end_slot, end_side)
-                .map(|arc| self.arcs[arc].kind)
-                .ok_or(EmbeddingMutationError::MissingSlotArc { slot: end_slot, side: end_side })?;
-
-            self.reduce_external_face_path_to_edge(
-                start_slot, start_side, end_slot, end_side, start_kind, end_kind,
-            )
-        }
-
-        fn reduce_xy_path_to_edge_preserving_kinds(
+        fn reduce_xy_path_to_edge_with_explicit_kinds(
             &mut self,
             start_slot: usize,
             end_slot: usize,
+            start_kind: DfsArcType,
+            end_kind: DfsArcType,
         ) -> Result<Option<usize>, EmbeddingMutationError> {
             let mut start_outer_arc = self.slots[start_slot]
                 .first_arc
@@ -1481,8 +1462,6 @@ pub(crate) mod embedding {
                 end_xy_arc = self.next_arc_circular(end_slot, end_outer_arc);
             }
 
-            let start_kind = self.arcs[start_xy_arc].kind;
-            let end_kind = self.arcs[end_xy_arc].kind;
             let start_prev = self.arcs[start_xy_arc].prev;
             let start_next = self.arcs[start_xy_arc].next;
             let end_prev = self.arcs[end_xy_arc].prev;
@@ -3065,6 +3044,297 @@ pub(crate) mod embedding {
             }
         }
 
+        fn clear_inverted_flags_in_bicomp(&mut self, bicomp_root_copy_slot: usize) {
+            let mut stack = vec![bicomp_root_copy_slot];
+            let mut seen = vec![false; self.slots.len()];
+
+            while let Some(slot) = stack.pop() {
+                if seen[slot] {
+                    continue;
+                }
+                seen[slot] = true;
+
+                let mut current_arc = self.slots[slot].first_arc;
+                while let Some(arc) = current_arc {
+                    current_arc = self.arcs[arc].next;
+                    self.arcs[arc].inverted = false;
+
+                    if !self.arc_stays_in_bicomp(bicomp_root_copy_slot, arc) {
+                        continue;
+                    }
+
+                    let neighbor_slot = self.arcs[arc].target_slot;
+                    if !seen[neighbor_slot] {
+                        stack.push(neighbor_slot);
+                    }
+                }
+            }
+        }
+
+        fn mark_arc_pair_visited(&mut self, arc: usize) {
+            self.arcs[arc].visited = true;
+            let twin = self.arcs[arc].twin;
+            self.arcs[twin].visited = true;
+            self.slots[self.arcs[arc].source_slot].visited = true;
+            self.slots[self.arcs[arc].target_slot].visited = true;
+        }
+
+        fn mark_tree_path_between_slots_visited(
+            &mut self,
+            first_slot: usize,
+            second_slot: usize,
+        ) -> Result<(), EmbeddingMutationError> {
+            if let Ok(path_slots) =
+                self.tree_path_slots_between_ancestor_and_descendant(first_slot, second_slot)
+            {
+                return self.mark_tree_path_slots_visited(&path_slots);
+            }
+
+            let path_slots =
+                self.tree_path_slots_between_ancestor_and_descendant(second_slot, first_slot)?;
+            self.mark_tree_path_slots_visited(&path_slots)
+        }
+
+        fn first_visited_arc_on_slot(&self, slot: usize) -> Option<usize> {
+            let first_arc = self.slots[slot].first_arc?;
+            let mut arc = first_arc;
+            loop {
+                if self.arcs[arc].visited {
+                    return Some(arc);
+                }
+                arc = self.next_arc_circular(slot, arc);
+                if arc == first_arc {
+                    return None;
+                }
+            }
+        }
+
+        fn last_visited_arc_on_slot(&self, slot: usize) -> Option<usize> {
+            let last_arc = self.slots[slot].last_arc?;
+            let mut arc = last_arc;
+            loop {
+                if self.arcs[arc].visited {
+                    return Some(arc);
+                }
+                arc = self.prev_arc_circular(slot, arc);
+                if arc == last_arc {
+                    return None;
+                }
+            }
+        }
+
+        fn delete_unmarked_edges_in_bicomp(&mut self, bicomp_root_copy_slot: usize) {
+            let mut arcs_to_unlink = Vec::new();
+
+            for slot in self.collect_full_bicomp_slots(bicomp_root_copy_slot) {
+                let mut current_arc = self.slots[slot].first_arc;
+                while let Some(arc) = current_arc {
+                    current_arc = self.arcs[arc].next;
+                    if !self.arcs[arc].visited && arc < self.arcs[arc].twin {
+                        arcs_to_unlink.push(arc);
+                    }
+                }
+            }
+
+            arcs_to_unlink.sort_unstable();
+            arcs_to_unlink.dedup();
+            for arc in arcs_to_unlink {
+                self.delete_arc_pair_permanently(arc);
+            }
+        }
+
+        #[allow(clippy::too_many_lines)]
+        fn reduce_k33_minor_e_bicomp(
+            &mut self,
+            context: &K33MinorEContext,
+        ) -> Result<(), EmbeddingMutationError> {
+            self.orient_bicomp_from_root(context.root_copy_slot, false);
+
+            let min_slot =
+                core::cmp::min(context.x_slot, core::cmp::min(context.y_slot, context.w_slot));
+            let max_slot =
+                core::cmp::max(context.x_slot, core::cmp::max(context.y_slot, context.w_slot));
+
+            let mut root_to_x_is_tree = true;
+            let mut x_to_w_is_tree = true;
+            let mut w_to_y_is_tree = true;
+            let mut y_to_root_is_tree = true;
+            let mut cross_path_is_tree = true;
+
+            let (a_arc, a_slot, b_arc, b_slot) = if min_slot == context.x_slot {
+                let a_arc = self.slots[context.root_copy_slot].last_arc.ok_or(
+                    EmbeddingMutationError::MissingSlotArc {
+                        slot: context.root_copy_slot,
+                        side: 1,
+                    },
+                )?;
+                let a_slot = self.arcs[a_arc].target_slot;
+                y_to_root_is_tree = false;
+
+                if max_slot == context.y_slot {
+                    let b_arc = self.last_visited_arc_on_slot(context.x_slot).ok_or(
+                        EmbeddingMutationError::MissingExternalFacePath {
+                            start_slot: context.x_slot,
+                            start_side: 1,
+                            end_slot: context.y_slot,
+                        },
+                    )?;
+                    let b_slot = self.arcs[b_arc].target_slot;
+                    cross_path_is_tree = false;
+                    (a_arc, a_slot, b_arc, b_slot)
+                } else if max_slot == context.w_slot {
+                    let b_arc = self.slots[context.x_slot].first_arc.ok_or(
+                        EmbeddingMutationError::MissingSlotArc { slot: context.x_slot, side: 0 },
+                    )?;
+                    let b_slot = self.arcs[b_arc].target_slot;
+                    x_to_w_is_tree = false;
+                    (a_arc, a_slot, b_arc, b_slot)
+                } else {
+                    return Err(EmbeddingMutationError::MissingExternalFacePath {
+                        start_slot: context.root_copy_slot,
+                        start_side: 0,
+                        end_slot: max_slot,
+                    });
+                }
+            } else {
+                let a_arc = self.slots[context.root_copy_slot].first_arc.ok_or(
+                    EmbeddingMutationError::MissingSlotArc {
+                        slot: context.root_copy_slot,
+                        side: 0,
+                    },
+                )?;
+                let a_slot = self.arcs[a_arc].target_slot;
+                root_to_x_is_tree = false;
+
+                if max_slot == context.x_slot {
+                    let b_arc = self.first_visited_arc_on_slot(context.y_slot).ok_or(
+                        EmbeddingMutationError::MissingExternalFacePath {
+                            start_slot: context.y_slot,
+                            start_side: 0,
+                            end_slot: context.x_slot,
+                        },
+                    )?;
+                    let b_slot = self.arcs[b_arc].target_slot;
+                    cross_path_is_tree = false;
+                    (a_arc, a_slot, b_arc, b_slot)
+                } else if max_slot == context.w_slot {
+                    let b_arc = self.slots[context.y_slot].last_arc.ok_or(
+                        EmbeddingMutationError::MissingSlotArc { slot: context.y_slot, side: 1 },
+                    )?;
+                    let b_slot = self.arcs[b_arc].target_slot;
+                    w_to_y_is_tree = false;
+                    (a_arc, a_slot, b_arc, b_slot)
+                } else {
+                    return Err(EmbeddingMutationError::MissingExternalFacePath {
+                        start_slot: context.root_copy_slot,
+                        start_side: 1,
+                        end_slot: max_slot,
+                    });
+                }
+            };
+
+            self.clear_all_visited_flags_in_bicomp(context.root_copy_slot);
+            self.mark_tree_path_between_slots_visited(context.root_copy_slot, max_slot)?;
+            self.mark_tree_path_between_slots_visited(
+                if min_slot == context.x_slot { context.y_slot } else { context.x_slot },
+                a_slot,
+            )?;
+            self.mark_arc_pair_visited(a_arc);
+            self.mark_tree_path_between_slots_visited(max_slot, b_slot)?;
+            self.mark_arc_pair_visited(b_arc);
+
+            self.delete_unmarked_edges_in_bicomp(context.root_copy_slot);
+            self.clear_all_visited_flags_in_bicomp(context.root_copy_slot);
+            self.clear_inverted_flags_in_bicomp(context.root_copy_slot);
+
+            let rx_end_side = self
+                .external_face_entry_side(context.root_copy_slot, 0, context.x_slot)
+                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: context.root_copy_slot,
+                    start_side: 0,
+                    end_slot: context.x_slot,
+                })?;
+            let xw_end_side = self
+                .external_face_entry_side(context.x_slot, 1 ^ rx_end_side, context.w_slot)
+                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: context.x_slot,
+                    start_side: 1 ^ rx_end_side,
+                    end_slot: context.w_slot,
+                })?;
+            let wy_end_side = self
+                .external_face_entry_side(context.w_slot, 1 ^ xw_end_side, context.y_slot)
+                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: context.w_slot,
+                    start_side: 1 ^ xw_end_side,
+                    end_slot: context.y_slot,
+                })?;
+            let yr_end_side = self
+                .external_face_entry_side(context.y_slot, 1 ^ wy_end_side, context.root_copy_slot)
+                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
+                    start_slot: context.y_slot,
+                    start_side: 1 ^ wy_end_side,
+                    end_slot: context.root_copy_slot,
+                })?;
+
+            let (rx_start_kind, rx_end_kind) = self.reduction_edge_kinds(
+                context.root_copy_slot,
+                context.x_slot,
+                root_to_x_is_tree,
+            );
+            let (xw_start_kind, xw_end_kind) =
+                self.reduction_edge_kinds(context.x_slot, context.w_slot, x_to_w_is_tree);
+            let (wy_start_kind, wy_end_kind) =
+                self.reduction_edge_kinds(context.w_slot, context.y_slot, w_to_y_is_tree);
+            let (yr_start_kind, yr_end_kind) = self.reduction_edge_kinds(
+                context.y_slot,
+                context.root_copy_slot,
+                y_to_root_is_tree,
+            );
+            let (cross_path_start_kind, cross_path_end_kind) =
+                self.reduction_edge_kinds(context.x_slot, context.y_slot, cross_path_is_tree);
+
+            let _ = self.reduce_external_face_path_to_edge(
+                context.root_copy_slot,
+                0,
+                context.x_slot,
+                rx_end_side,
+                rx_start_kind,
+                rx_end_kind,
+            )?;
+            let _ = self.reduce_external_face_path_to_edge(
+                context.x_slot,
+                1 ^ rx_end_side,
+                context.w_slot,
+                xw_end_side,
+                xw_start_kind,
+                xw_end_kind,
+            )?;
+            let _ = self.reduce_external_face_path_to_edge(
+                context.w_slot,
+                1 ^ xw_end_side,
+                context.y_slot,
+                wy_end_side,
+                wy_start_kind,
+                wy_end_kind,
+            )?;
+            let _ = self.reduce_external_face_path_to_edge(
+                context.y_slot,
+                1 ^ wy_end_side,
+                context.root_copy_slot,
+                yr_end_side,
+                yr_start_kind,
+                yr_end_kind,
+            )?;
+            let _ = self.reduce_xy_path_to_edge_with_explicit_kinds(
+                context.x_slot,
+                context.y_slot,
+                cross_path_start_kind,
+                cross_path_end_kind,
+            )?;
+
+            Ok(())
+        }
+
         #[allow(dead_code)]
         fn collect_full_bicomp_slots(&self, root_copy_slot: usize) -> Vec<usize> {
             let mut stack = vec![root_copy_slot];
@@ -3792,8 +4062,9 @@ pub(crate) mod embedding {
             &self,
             current_primary_slot: usize,
             current_slot: usize,
+            current_root_copy_slot: usize,
             frames: &[WalkDownFrame],
-        ) -> Option<(usize, usize)> {
+        ) -> Option<(usize, usize, usize)> {
             if frames.is_empty() {
                 return None;
             }
@@ -3801,13 +4072,13 @@ pub(crate) mod embedding {
             self.slots[current_slot]
                 .k33_merge_blocker
                 .filter(|&u_max| current_primary_slot > u_max)
-                .map(|u_max| (current_slot, u_max))
+                .map(|u_max| (current_slot, u_max, current_root_copy_slot))
                 .or_else(|| {
                     frames.iter().rev().find_map(|frame| {
                         self.slots[frame.cut_vertex_slot]
                             .k33_merge_blocker
                             .filter(|&u_max| current_primary_slot > u_max)
-                            .map(|u_max| (frame.cut_vertex_slot, u_max))
+                            .map(|u_max| (frame.cut_vertex_slot, u_max, frame.root_copy_slot))
                     })
                 })
         }
@@ -3888,9 +4159,15 @@ pub(crate) mod embedding {
             preprocessing: &DfsPreprocessing,
             merge_blocker_slot: usize,
             u_max: usize,
+            root_copy_slot: usize,
         ) -> Result<bool, WalkDownExecutionError> {
             let mut probe = self.clone();
-            match probe.find_k33_with_merge_blocker(preprocessing, merge_blocker_slot, u_max) {
+            match probe.find_k33_with_merge_blocker(
+                preprocessing,
+                merge_blocker_slot,
+                u_max,
+                root_copy_slot,
+            ) {
                 Ok(found) => Ok(found),
                 Err(WalkDownExecutionError::InvalidK33Context) => Ok(false),
                 Err(error) => Err(error),
@@ -3901,22 +4178,21 @@ pub(crate) mod embedding {
             &mut self,
             preprocessing: &DfsPreprocessing,
             merge_blocker_slot: usize,
-            u_max: usize,
+            _u_max: usize,
+            _root_copy_slot: usize,
         ) -> Result<bool, WalkDownExecutionError> {
-            let mut root_copy_slot = merge_blocker_slot;
-            let mut root_prev_link = 1usize;
-            let mut steps_remaining = self.slots.len() + 1;
-            while !matches!(self.slots[root_copy_slot].kind, EmbeddingSlotKind::RootCopy { .. }) {
-                if steps_remaining == 0 {
-                    return Err(WalkDownExecutionError::InvalidK33Context);
-                }
-                root_copy_slot = self.real_ext_face_neighbor(root_copy_slot, &mut root_prev_link);
-                steps_remaining -= 1;
-            }
-
             self.orient_embedding_from_active_bicomps(true);
             self.restore_all_reduced_paths();
             self.orient_embedding_from_active_bicomps(false);
+
+            let mut root_prev_link = 1usize;
+            let mut root_copy_slot = merge_blocker_slot;
+            while !matches!(self.slots[root_copy_slot].kind, EmbeddingSlotKind::RootCopy { .. }) {
+                root_copy_slot = self.real_ext_face_neighbor(root_copy_slot, &mut root_prev_link);
+                if root_copy_slot == merge_blocker_slot {
+                    return Err(WalkDownExecutionError::InvalidK33Context);
+                }
+            }
 
             let current_primary_slot = self.primary_from_root(root_copy_slot);
 
@@ -3928,52 +4204,48 @@ pub(crate) mod embedding {
                 }
             };
             for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
+                if self.arcs[forward_arc].source_slot == usize::MAX
+                    || self.arcs[forward_arc].target_slot == usize::MAX
+                    || self.arcs[forward_arc].embedded
+                {
+                    continue;
+                }
                 self.walk_up(current_primary_slot, forward_arc);
             }
-            self.slots[current_primary_slot].pertinent_roots.clear();
 
-            let search_outcome = self.classify_k33_minor(
+            let context = match self.classify_k33_minor(
                 preprocessing,
                 current_primary_slot,
                 root_copy_slot,
                 root_copy_slot,
                 None,
-            )?;
+            )? {
+                K33MinorSearchOutcome::Minor(_) => return Ok(true),
+                K33MinorSearchOutcome::MinorE(context) => context,
+            };
 
-            match search_outcome {
-                K33MinorSearchOutcome::Minor(_) => Err(WalkDownExecutionError::InvalidK33Context),
-                K33MinorSearchOutcome::MinorE(context) => {
-                    let xy_max = core::cmp::max(context.ux, context.uy);
-                    if context.z_slot != context.w_slot
-                        || context.uz > xy_max
-                        || (context.uz < xy_max && context.ux != context.uy)
-                        || (context.x_slot != context.px_slot || context.y_slot != context.py_slot)
-                    {
-                        return Ok(true);
-                    }
+            let reconstructed_u_max =
+                core::cmp::max(context.ux, core::cmp::max(context.uy, context.uz));
 
-                    let candidate_slot = if merge_blocker_slot == context.x_slot {
-                        context.x_slot
-                    } else if merge_blocker_slot == context.y_slot {
-                        context.y_slot
-                    } else {
-                        return Err(WalkDownExecutionError::InvalidK33Context);
-                    };
+            let candidate_slot = if merge_blocker_slot == context.x_slot {
+                context.x_slot
+            } else if merge_blocker_slot == context.y_slot {
+                context.y_slot
+            } else {
+                return Err(WalkDownExecutionError::InvalidK33Context);
+            };
 
-                    if self
-                        .find_descendant_external_connection_ancestor(
-                            preprocessing,
-                            current_primary_slot,
-                            candidate_slot,
-                            u_max,
-                        )
-                        .is_some_and(|ancestor_slot| ancestor_slot > u_max)
-                    {
-                        Ok(true)
-                    } else {
-                        Err(WalkDownExecutionError::InvalidK33Context)
-                    }
-                }
+            let ancestor = self.find_descendant_external_connection_ancestor(
+                preprocessing,
+                current_primary_slot,
+                candidate_slot,
+                reconstructed_u_max,
+            );
+
+            if ancestor.is_some_and(|ancestor_slot| ancestor_slot > reconstructed_u_max) {
+                Ok(true)
+            } else {
+                Err(WalkDownExecutionError::InvalidK33Context)
             }
         }
 
@@ -4038,66 +4310,7 @@ pub(crate) mod embedding {
             context: &K33MinorEContext,
         ) -> Result<(), EmbeddingMutationError> {
             self.orient_bicomp_from_root(context.root_copy_slot, true);
-            // Boyer reduces the bicomp only after reorienting it into a
-            // consistent sign-free state inside ReduceBicomp().
-            self.orient_bicomp_from_root(context.root_copy_slot, false);
-
-            let rx_end_side = self
-                .external_face_entry_side(context.root_copy_slot, 0, context.x_slot)
-                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
-                    start_slot: context.root_copy_slot,
-                    start_side: 0,
-                    end_slot: context.x_slot,
-                })?;
-            let xw_end_side = self
-                .external_face_entry_side(context.x_slot, 1 ^ rx_end_side, context.w_slot)
-                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
-                    start_slot: context.x_slot,
-                    start_side: 1 ^ rx_end_side,
-                    end_slot: context.w_slot,
-                })?;
-            let wy_end_side = self
-                .external_face_entry_side(context.w_slot, 1 ^ xw_end_side, context.y_slot)
-                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
-                    start_slot: context.w_slot,
-                    start_side: 1 ^ xw_end_side,
-                    end_slot: context.y_slot,
-                })?;
-            let yr_end_side = self
-                .external_face_entry_side(context.y_slot, 1 ^ wy_end_side, context.root_copy_slot)
-                .ok_or(EmbeddingMutationError::MissingExternalFacePath {
-                    start_slot: context.y_slot,
-                    start_side: 1 ^ wy_end_side,
-                    end_slot: context.root_copy_slot,
-                })?;
-
-            let _ = self.reduce_external_face_path_to_edge_preserving_kinds(
-                context.root_copy_slot,
-                0,
-                context.x_slot,
-                rx_end_side,
-            )?;
-            let _ = self.reduce_external_face_path_to_edge_preserving_kinds(
-                context.x_slot,
-                1 ^ rx_end_side,
-                context.w_slot,
-                xw_end_side,
-            )?;
-            let _ = self.reduce_external_face_path_to_edge_preserving_kinds(
-                context.w_slot,
-                1 ^ xw_end_side,
-                context.y_slot,
-                wy_end_side,
-            )?;
-            let _ = self.reduce_external_face_path_to_edge_preserving_kinds(
-                context.y_slot,
-                1 ^ wy_end_side,
-                context.root_copy_slot,
-                yr_end_side,
-            )?;
-            let _ = self.reduce_xy_path_to_edge_preserving_kinds(context.x_slot, context.y_slot)?;
-
-            self.clear_all_visited_flags_in_bicomp(context.root_copy_slot);
+            self.reduce_k33_minor_e_bicomp(context)?;
 
             let reset_value = self.primary_slot_by_original_vertex.len();
             self.fill_visited_info_in_bicomp(context.root_copy_slot, reset_value);
@@ -4628,6 +4841,12 @@ pub(crate) mod embedding {
         #[allow(clippy::similar_names)]
         #[allow(clippy::too_many_lines)]
         pub(crate) fn walk_up(&mut self, current_primary_slot: usize, forward_arc: usize) {
+            if self.arcs[forward_arc].source_slot == usize::MAX
+                || self.arcs[forward_arc].target_slot == usize::MAX
+            {
+                return;
+            }
+
             let descendant_primary_slot = self.arcs[forward_arc].target_slot;
             self.slots[descendant_primary_slot].pertinent_edge = Some(forward_arc);
 
@@ -4994,10 +5213,11 @@ pub(crate) mod embedding {
                     'walkdown: while current_slot != root_copy_slot {
                         if self.slots[current_slot].pertinent_edge.is_some() {
                             if mode == super::EmbeddingRunMode::K33Search {
-                                if let Some((merge_blocker_slot, u_max)) = self
-                                    .find_k33_merge_blocker(
+                                if let Some((merge_blocker_slot, u_max, merge_root_copy_slot)) =
+                                    self.find_k33_merge_blocker(
                                         current_primary_slot,
                                         current_slot,
+                                        root_copy_slot,
                                         &frames,
                                     )
                                 {
@@ -5005,6 +5225,7 @@ pub(crate) mod embedding {
                                         preprocessing,
                                         merge_blocker_slot,
                                         u_max,
+                                        merge_root_copy_slot,
                                     )? {
                                         return Ok(WalkDownChildOutcome::K33Found);
                                     }
@@ -8920,6 +9141,138 @@ mod tests {
                 [10, 14],
                 [11, 13],
                 [12, 14],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        let mut embedding = EmbeddingState::from_preprocessing(&preprocessing);
+
+        for current_primary_slot in (0..preprocessing.vertices.len()).rev() {
+            for slot in &mut embedding.slots {
+                slot.pertinent_edge = None;
+            }
+
+            let original_vertex = match embedding.slots[current_primary_slot].kind {
+                EmbeddingSlotKind::Primary { original_vertex } => original_vertex,
+                EmbeddingSlotKind::RootCopy { .. } => unreachable!(),
+            };
+
+            for &forward_arc in &preprocessing.vertices[original_vertex].sorted_forward_arcs {
+                embedding.walk_up(current_primary_slot, forward_arc);
+            }
+            embedding.slots[current_primary_slot].pertinent_roots.clear();
+
+            let child_count = embedding.slots[current_primary_slot].sorted_dfs_children.len();
+            for child_index in 0..child_count {
+                let child_primary_slot =
+                    embedding.slots[current_primary_slot].sorted_dfs_children[child_index];
+                if embedding.slots[child_primary_slot].pertinent_roots.is_empty() {
+                    continue;
+                }
+                let Some(root_copy_slot) = embedding.root_copy_by_primary_dfi[child_primary_slot]
+                else {
+                    continue;
+                };
+                if embedding.slots[root_copy_slot].first_arc.is_none() {
+                    continue;
+                }
+
+                match embedding.walk_down_child(
+                    &preprocessing,
+                    current_primary_slot,
+                    root_copy_slot,
+                    super::EmbeddingRunMode::K33Search,
+                ) {
+                    Ok(WalkDownChildOutcome::Completed) => {}
+                    Ok(WalkDownChildOutcome::K23Found) => unreachable!(),
+                    Ok(WalkDownChildOutcome::K33Found) => return,
+                    Ok(WalkDownChildOutcome::K4Found) => unreachable!(),
+                    Err(error) => {
+                        panic!(
+                            "unexpected error at step={current_primary_slot}, child={child_primary_slot}, error={error:?}"
+                        );
+                    }
+                }
+            }
+        }
+
+        panic!("engine completed without finding K33");
+    }
+
+    #[test]
+    fn test_k33_engine_accepts_fuzzer_regression_20260412_direct() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            16,
+            &[
+                [0, 1],
+                [0, 7],
+                [0, 11],
+                [0, 15],
+                [1, 5],
+                [1, 11],
+                [2, 4],
+                [3, 5],
+                [3, 10],
+                [3, 15],
+                [4, 5],
+                [4, 12],
+                [4, 13],
+                [5, 6],
+                [5, 7],
+                [5, 10],
+                [5, 11],
+                [5, 12],
+                [5, 15],
+                [7, 8],
+                [7, 11],
+                [7, 15],
+                [8, 9],
+                [9, 15],
+                [11, 12],
+                [11, 15],
+                [14, 15],
+            ],
+        )
+        .unwrap()
+        .preprocess();
+
+        assert!(!run_planarity_engine(&preprocessing));
+        assert!(run_k33_homeomorph_engine(&preprocessing));
+    }
+
+    #[test]
+    fn test_k33_engine_stepwise_accepts_fuzzer_regression_20260412() {
+        let preprocessing = LocalSimpleGraph::from_edges(
+            16,
+            &[
+                [0, 1],
+                [0, 7],
+                [0, 11],
+                [0, 15],
+                [1, 5],
+                [1, 11],
+                [2, 4],
+                [3, 5],
+                [3, 10],
+                [3, 15],
+                [4, 5],
+                [4, 12],
+                [4, 13],
+                [5, 6],
+                [5, 7],
+                [5, 10],
+                [5, 11],
+                [5, 12],
+                [5, 15],
+                [7, 8],
+                [7, 11],
+                [7, 15],
+                [8, 9],
+                [9, 15],
+                [11, 12],
+                [11, 15],
+                [14, 15],
             ],
         )
         .unwrap()
