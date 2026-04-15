@@ -284,6 +284,26 @@ and to run the crash cases:
 cargo hfuzz run-debug pairwise_bfs hfuzz_workspace/*/*.fuzz
 ```
 
+### Diameter
+
+The Diameter harness fuzzes exact undirected diameter computation on arbitrary
+undirected graphs. It checks:
+
+- deterministic results on repeated runs
+- `0` on empty and singleton graphs
+- explicit `DisconnectedGraph` errors on disconnected inputs
+- exact agreement with a brute-force BFS oracle on small graphs
+
+```bash
+cargo hfuzz run diameter
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug diameter hfuzz_workspace/*/*.fuzz
+```
+
 ### Pairwise Dijkstra
 
 The PairwiseDijkstra harness computes all-pairs non-negative weighted

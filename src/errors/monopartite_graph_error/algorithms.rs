@@ -2,9 +2,10 @@
 //! [`crate::traits::MonopartiteGraph`]s.
 
 use crate::traits::{
-    BiconnectedComponentsError, EssentialCyclesError, K4HomeomorphError, K23HomeomorphError,
-    K33HomeomorphError, MinimumCycleBasisError, ModularityError, OuterplanarityError,
-    PlanarityError, RelevantCyclesError, connected_components::ConnectedComponentsError,
+    BiconnectedComponentsError, DiameterError, EssentialCyclesError, K4HomeomorphError,
+    K23HomeomorphError, K33HomeomorphError, MinimumCycleBasisError, ModularityError,
+    OuterplanarityError, PlanarityError, RelevantCyclesError,
+    connected_components::ConnectedComponentsError,
 };
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
@@ -17,6 +18,9 @@ pub enum MonopartiteAlgorithmError {
     /// Error raised while computing connected components.
     #[error("{0}")]
     ConnectedComponentsError(ConnectedComponentsError),
+    /// Error raised while computing the diameter.
+    #[error("{0}")]
+    DiameterError(DiameterError),
     /// Error raised while computing a minimum cycle basis.
     #[error("{0}")]
     MinimumCycleBasisError(MinimumCycleBasisError),

@@ -113,6 +113,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "diameter"
+path = "fuzz_targets/diameter.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "pairwise_dijkstra"
 path = "fuzz_targets/pairwise_dijkstra.rs"
 test = false

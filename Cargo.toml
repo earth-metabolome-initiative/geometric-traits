@@ -169,3 +169,7 @@ harness = false
 [[bench]]
 name = "canon"
 harness = false
+
+[[bench]]
+name = "diameter"
+harness = false
