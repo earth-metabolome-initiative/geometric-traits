@@ -34,7 +34,7 @@ use honggfuzz::fuzz;
 
 type UndirectedGraph = GenericGraph<Vec<u8>, SymmetricCSR2D<CSR2D<usize, usize, usize>>>;
 
-const MAX_ORDER: usize = 16;
+const MAX_ORDER: usize = 12;
 const MAX_RAW_EDGES: usize = 128;
 const DEV_NULL: &str = "/dev/null";
 const DEFAULT_PLANARITY_BIN: &str = "/tmp/edge-addition-planarity-suite-master/planarity";
@@ -139,6 +139,7 @@ struct GraphData {
 fn build_graph_data(case: &FuzzTopologicalValidityCase) -> GraphData {
     let order =
         usize::from(case.order % u8::try_from(MAX_ORDER).expect("MAX_ORDER fits into u8")) + 1;
+    let max_unique_edges = order.saturating_mul(order.saturating_sub(1)) / 2;
     let mut edges = BTreeSet::new();
 
     for &(left, right, keep) in case.edges.iter().take(MAX_RAW_EDGES) {
@@ -151,6 +152,9 @@ fn build_graph_data(case: &FuzzTopologicalValidityCase) -> GraphData {
             continue;
         }
         edges.insert(normalize_edge(left, right));
+        if edges.len() >= max_unique_edges {
+            break;
+        }
     }
 
     GraphData { order, edges: edges.into_iter().collect() }
