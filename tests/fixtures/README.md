@@ -224,4 +224,11 @@ definitions instead of an upstream implementation:
 - biconnected blocks by maximal induced subgraphs with no articulation point,
   plus the `K2` dyad convention
 
-This corpus is maintained offline.
+Regenerate with:
+
+```bash
+python3 tests/fixtures/generate_biconnected_ground_truth.py
+```
+
+This script uses only the Python standard library.
+

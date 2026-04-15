@@ -67,6 +67,8 @@ pub mod k4_homeomorph_detection;
 #[cfg(feature = "alloc")]
 pub use k4_homeomorph_detection::{K4HomeomorphDetection, K4HomeomorphError};
 #[cfg(feature = "alloc")]
+pub mod canon;
+#[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
 pub mod root_nodes;
@@ -234,6 +236,13 @@ pub mod clique_ranking;
 pub mod mces;
 #[cfg(feature = "alloc")]
 pub mod node_ordering;
+#[cfg(feature = "alloc")]
+pub use canon::{
+    BacktrackableOrderedPartition, CanonSplittingHeuristic, CanonicalLabeling,
+    CanonicalLabelingOptions, CanonicalLabelingResult, CanonicalSearchStats,
+    LabeledSimpleGraphCertificate, OrderedPartitionCells, PartitionBacktrackPoint, PartitionCellId,
+    PartitionCellView, refine_partition_to_labeled_equitable,
+};
 #[cfg(feature = "alloc")]
 pub use clique_ranking::{
     ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo, FnRanker,
