@@ -239,12 +239,6 @@ test = false
 doc = false
 
 [[bin]]
-name = "canon_bliss"
-path = "fuzz_targets/canon_bliss.rs"
-test = false
-doc = false
-
-[[bin]]
 name = "node_ordering_application"
 path = "fuzz_targets/node_ordering_application.rs"
 test = false
