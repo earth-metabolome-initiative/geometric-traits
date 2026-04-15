@@ -17,9 +17,8 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     traits::{
-        CanonSplittingHeuristic, CanonicalLabelingOptions, Edges, MonoplexGraph,
-        SparseValuedMatrix2D, VocabularyBuilder, canonical_label_labeled_simple_graph,
-        canonical_label_labeled_simple_graph_with_options,
+        CanonSplittingHeuristic, CanonicalLabeling, CanonicalLabelingOptions, Edges, MonoplexGraph,
+        SparseValuedMatrix2D, VocabularyBuilder,
     },
 };
 use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
@@ -76,12 +75,12 @@ fn canonical_certificate(
     case: &CanonCase,
 ) -> geometric_traits::traits::LabeledSimpleGraphCertificate<u8, u8> {
     let matrix = Edges::matrix(case.graph.edges());
-    canonical_label_labeled_simple_graph(
-        &case.graph,
-        |node| case.vertex_labels[node],
-        |left, right| matrix.sparse_value_at(left, right).unwrap(),
-    )
-    .certificate
+    case.graph
+        .canonical_labeling(
+            |node| case.vertex_labels[node],
+            |left, right| matrix.sparse_value_at(left, right).unwrap(),
+        )
+        .certificate
 }
 
 fn random_case_count() -> usize {
@@ -189,15 +188,13 @@ fn exercise_canonizer_case_without_panic(graph: &LabeledUndirectedGraph, vertex_
         CanonSplittingHeuristic::FirstLargestMaxNeighbours,
     ];
 
-    let _default = canonical_label_labeled_simple_graph(
-        graph,
+    let _default = graph.canonical_labeling(
         |node| vertex_labels[node],
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
     );
 
     for heuristic in heuristics {
-        let _ = canonical_label_labeled_simple_graph_with_options(
-            graph,
+        let _ = graph.canonical_labeling_with_options(
             |node| vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },
@@ -263,12 +260,12 @@ fn test_canonizer_is_relabeling_invariant_across_generic_benchmark_corpus() {
         let original_certificate = canonical_certificate(&case);
         let (permuted_graph, permuted_labels) = permuted_case(&case);
         let permuted_matrix = Edges::matrix(permuted_graph.edges());
-        let permuted_certificate = canonical_label_labeled_simple_graph(
-            &permuted_graph,
-            |node| permuted_labels[node],
-            |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
-        )
-        .certificate;
+        let permuted_certificate = permuted_graph
+            .canonical_labeling(
+                |node| permuted_labels[node],
+                |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
+            )
+            .certificate;
 
         assert_eq!(
             original_certificate, permuted_certificate,
@@ -284,12 +281,12 @@ fn test_canonizer_is_relabeling_invariant_across_generic_scaling_corpus() {
         let original_certificate = canonical_certificate(&case);
         let (permuted_graph, permuted_labels) = permuted_case(&case);
         let permuted_matrix = Edges::matrix(permuted_graph.edges());
-        let permuted_certificate = canonical_label_labeled_simple_graph(
-            &permuted_graph,
-            |node| permuted_labels[node],
-            |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
-        )
-        .certificate;
+        let permuted_certificate = permuted_graph
+            .canonical_labeling(
+                |node| permuted_labels[node],
+                |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
+            )
+            .certificate;
 
         assert_eq!(
             original_certificate, permuted_certificate,
@@ -303,21 +300,23 @@ fn test_canonizer_is_relabeling_invariant_across_generic_scaling_corpus() {
 fn test_default_heuristic_matches_explicit_bliss_fsm_on_generic_benchmark_corpus() {
     for case in benchmark_cases() {
         let matrix = Edges::matrix(case.graph.edges());
-        let reference = canonical_label_labeled_simple_graph(
-            &case.graph,
-            |node| case.vertex_labels[node],
-            |left, right| matrix.sparse_value_at(left, right).unwrap(),
-        )
-        .certificate;
-        let explicit_fsm = canonical_label_labeled_simple_graph_with_options(
-            &case.graph,
-            |node| case.vertex_labels[node],
-            |left, right| matrix.sparse_value_at(left, right).unwrap(),
-            CanonicalLabelingOptions {
-                splitting_heuristic: CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
-            },
-        )
-        .certificate;
+        let reference = case
+            .graph
+            .canonical_labeling(
+                |node| case.vertex_labels[node],
+                |left, right| matrix.sparse_value_at(left, right).unwrap(),
+            )
+            .certificate;
+        let explicit_fsm = case
+            .graph
+            .canonical_labeling_with_options(
+                |node| case.vertex_labels[node],
+                |left, right| matrix.sparse_value_at(left, right).unwrap(),
+                CanonicalLabelingOptions {
+                    splitting_heuristic: CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+                },
+            )
+            .certificate;
         assert_eq!(
             reference, explicit_fsm,
             "default heuristic drifted from explicit fsm on generic benchmark case {}",

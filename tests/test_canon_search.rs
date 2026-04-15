@@ -13,8 +13,7 @@ use geometric_traits::{
     prelude::*,
     traits::{
         CanonSplittingHeuristic, CanonicalLabeling, CanonicalLabelingOptions, Edges, MonoplexGraph,
-        SparseValuedMatrix2D, VocabularyBuilder, canonical_label_labeled_simple_graph,
-        canonical_label_labeled_simple_graph_with_options,
+        SparseValuedMatrix2D, VocabularyBuilder,
     },
 };
 
@@ -64,55 +63,10 @@ fn permuted_case(case: &CanonCase) -> (LabeledUndirectedGraph, Vec<u8>) {
 }
 
 #[test]
-fn test_canonical_labeling_trait_matches_free_function_wrapper() {
-    let graph = build_bidirectional_labeled_graph(4, &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2)]);
-    let matrix = Edges::matrix(graph.edges());
-
-    let wrapper_result = canonical_label_labeled_simple_graph(
-        &graph,
-        |node| [10_u8, 10, 20, 20][node],
-        |left, right| matrix.sparse_value_at(left, right).unwrap(),
-    );
-    let trait_result = graph.canonical_labeling(
-        |node| [10_u8, 10, 20, 20][node],
-        |left, right| matrix.sparse_value_at(left, right).unwrap(),
-    );
-
-    assert_eq!(trait_result, wrapper_result);
-}
-
-#[test]
-fn test_canonical_labeling_trait_with_options_matches_free_function_wrapper() {
-    let graph = build_bidirectional_labeled_graph(
-        8,
-        &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2), (0, 4, 3), (1, 5, 3), (2, 6, 3), (3, 7, 3)],
-    );
-    let matrix = Edges::matrix(graph.edges());
-    let options = CanonicalLabelingOptions {
-        splitting_heuristic: CanonSplittingHeuristic::FirstLargestMaxNeighbours,
-    };
-
-    let wrapper_result = canonical_label_labeled_simple_graph_with_options(
-        &graph,
-        |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
-        |left, right| matrix.sparse_value_at(left, right).unwrap(),
-        options,
-    );
-    let trait_result = graph.canonical_labeling_with_options(
-        |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
-        |left, right| matrix.sparse_value_at(left, right).unwrap(),
-        options,
-    );
-
-    assert_eq!(trait_result, wrapper_result);
-}
-
-#[test]
 fn test_canonizer_is_relabeling_invariant_for_labeled_cycle() {
     let first = build_bidirectional_labeled_graph(4, &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2)]);
     let first_matrix = Edges::matrix(first.edges());
-    let first_result = canonical_label_labeled_simple_graph(
-        &first,
+    let first_result = first.canonical_labeling(
         |node| [10_u8, 10, 20, 20][node],
         |left, right| first_matrix.sparse_value_at(left, right).unwrap(),
     );
@@ -120,8 +74,7 @@ fn test_canonizer_is_relabeling_invariant_for_labeled_cycle() {
     let second =
         build_bidirectional_labeled_graph(4, &[(0, 2, 1), (2, 1, 2), (1, 3, 1), (3, 0, 2)]);
     let second_matrix = Edges::matrix(second.edges());
-    let second_result = canonical_label_labeled_simple_graph(
-        &second,
+    let second_result = second.canonical_labeling(
         |node| [10_u8, 20, 10, 20][node],
         |left, right| second_matrix.sparse_value_at(left, right).unwrap(),
     );
@@ -133,16 +86,14 @@ fn test_canonizer_is_relabeling_invariant_for_labeled_cycle() {
 fn test_canonizer_distinguishes_non_isomorphic_label_patterns() {
     let path = build_bidirectional_labeled_graph(4, &[(0, 1, 1), (1, 2, 1), (2, 3, 2)]);
     let path_matrix = Edges::matrix(path.edges());
-    let path_result = canonical_label_labeled_simple_graph(
-        &path,
+    let path_result = path.canonical_labeling(
         |node| [1_u8, 1, 1, 1][node],
         |left, right| path_matrix.sparse_value_at(left, right).unwrap(),
     );
 
     let star = build_bidirectional_labeled_graph(4, &[(0, 1, 1), (0, 2, 1), (0, 3, 2)]);
     let star_matrix = Edges::matrix(star.edges());
-    let star_result = canonical_label_labeled_simple_graph(
-        &star,
+    let star_result = star.canonical_labeling(
         |node| [1_u8, 1, 1, 1][node],
         |left, right| star_matrix.sparse_value_at(left, right).unwrap(),
     );
@@ -154,8 +105,7 @@ fn test_canonizer_distinguishes_non_isomorphic_label_patterns() {
 fn test_canonizer_returns_dense_vertex_order() {
     let graph = build_bidirectional_labeled_graph(5, &[(0, 1, 3), (1, 2, 3), (2, 3, 4), (3, 4, 3)]);
     let matrix = Edges::matrix(graph.edges());
-    let result = canonical_label_labeled_simple_graph(
-        &graph,
+    let result = graph.canonical_labeling(
         |node| [2_u8, 1, 1, 1, 2][node],
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
     );
@@ -194,8 +144,7 @@ fn test_canonizer_reports_automorphisms_on_symmetric_graph() {
         ],
     );
     let matrix = Edges::matrix(graph.edges());
-    let result = canonical_label_labeled_simple_graph(
-        &graph,
+    let result = graph.canonical_labeling(
         |node| if node < 4 { 0_u8 } else { 1_u8 },
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
     );
@@ -212,13 +161,11 @@ fn test_default_canonizer_matches_explicit_bliss_fsm_heuristic() {
         &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2), (0, 4, 3), (1, 5, 3), (2, 6, 3), (3, 7, 3)],
     );
     let matrix = Edges::matrix(graph.edges());
-    let default_result = canonical_label_labeled_simple_graph(
-        &graph,
+    let default_result = graph.canonical_labeling(
         |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
     );
-    let explicit_fsm = canonical_label_labeled_simple_graph_with_options(
-        &graph,
+    let explicit_fsm = graph.canonical_labeling_with_options(
         |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
         CanonicalLabelingOptions {
@@ -247,14 +194,12 @@ fn test_each_basic_bliss_heuristic_is_relabeling_invariant() {
     ];
 
     for heuristic in heuristics {
-        let first_result = canonical_label_labeled_simple_graph_with_options(
-            &first,
+        let first_result = first.canonical_labeling_with_options(
             |node| [10_u8, 10, 20, 20][node],
             |left, right| first_matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },
         );
-        let second_result = canonical_label_labeled_simple_graph_with_options(
-            &second,
+        let second_result = second.canonical_labeling_with_options(
             |node| [10_u8, 20, 10, 20][node],
             |left, right| second_matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },
@@ -312,8 +257,7 @@ fn test_max_neighbour_heuristics_match_pinned_dense_uniform_n9_stats() {
     ];
 
     for heuristic in heuristics {
-        let result = canonical_label_labeled_simple_graph_with_options(
-            &graph,
+        let result = graph.canonical_labeling_with_options(
             |_| 0_u8,
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },
@@ -326,8 +270,7 @@ fn test_max_neighbour_heuristics_match_pinned_dense_uniform_n9_stats() {
         );
     }
 
-    let first_largest = canonical_label_labeled_simple_graph_with_options(
-        &graph,
+    let first_largest = graph.canonical_labeling_with_options(
         |_| 0_u8,
         |left, right| matrix.sparse_value_at(left, right).unwrap(),
         CanonicalLabelingOptions { splitting_heuristic: CanonSplittingHeuristic::FirstLargest },
@@ -629,8 +572,7 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
     for case in cases {
         let graph = build_bidirectional_labeled_graph(case.vertex_labels.len(), &case.edges);
         let matrix = Edges::matrix(graph.edges());
-        let result = canonical_label_labeled_simple_graph(
-            &graph,
+        let result = graph.canonical_labeling(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
         );
@@ -659,8 +601,7 @@ fn test_timeout_cases_keep_pinned_stats() {
 
     for case in timeout_cases() {
         let matrix = Edges::matrix(case.graph.edges());
-        let result = canonical_label_labeled_simple_graph(
-            &case.graph,
+        let result = case.graph.canonical_labeling(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
         );
@@ -698,14 +639,12 @@ fn test_single_override_case_is_relabeling_invariant_across_bliss_heuristics() {
     ];
 
     for heuristic in heuristics {
-        let original = canonical_label_labeled_simple_graph_with_options(
-            &case.graph,
+        let original = case.graph.canonical_labeling_with_options(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },
         );
-        let permuted = canonical_label_labeled_simple_graph_with_options(
-            &permuted_graph,
+        let permuted = permuted_graph.canonical_labeling_with_options(
             |node| permuted_vertex_labels[node],
             |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic: heuristic },

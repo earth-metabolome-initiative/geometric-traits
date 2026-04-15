@@ -10,8 +10,8 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use geometric_traits::{
     prelude::*,
     traits::{
-        CanonSplittingHeuristic, CanonicalLabelingOptions, Edges, SparseValuedMatrix2D,
-        canonical_label_labeled_simple_graph, canonical_label_labeled_simple_graph_with_options,
+        CanonSplittingHeuristic, CanonicalLabeling, CanonicalLabelingOptions, Edges,
+        SparseValuedMatrix2D,
     },
 };
 
@@ -22,14 +22,12 @@ fn run_rust_case(case: &CanonCase) {
 fn run_rust_case_with_heuristic(case: &CanonCase, splitting_heuristic: CanonSplittingHeuristic) {
     let matrix = Edges::matrix(case.graph.edges());
     let result = if splitting_heuristic == CanonSplittingHeuristic::FirstSmallest {
-        canonical_label_labeled_simple_graph(
-            &case.graph,
+        case.graph.canonical_labeling(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
         )
     } else {
-        canonical_label_labeled_simple_graph_with_options(
-            &case.graph,
+        case.graph.canonical_labeling_with_options(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
             CanonicalLabelingOptions { splitting_heuristic },

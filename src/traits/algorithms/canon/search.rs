@@ -680,7 +680,7 @@ impl AdjacencyBitMatrix {
 /// This path preserves the current `bliss`-alignment strategy by reducing the
 /// edge-labeled graph to a vertex-labeled graph before search.
 #[must_use]
-pub fn canonical_label_labeled_simple_graph<G, VertexLabel, EdgeLabel, VF, EF>(
+pub(super) fn canonical_label_labeled_simple_graph<G, VertexLabel, EdgeLabel, VF, EF>(
     graph: &G,
     mut vertex_label: VF,
     mut edge_label: EF,
@@ -707,7 +707,7 @@ where
 /// This path preserves the current `bliss`-alignment strategy by reducing the
 /// edge-labeled graph to a vertex-labeled graph before search.
 #[must_use]
-pub fn canonical_label_labeled_simple_graph_with_options<G, VertexLabel, EdgeLabel, VF, EF>(
+pub(super) fn canonical_label_labeled_simple_graph_with_options<G, VertexLabel, EdgeLabel, VF, EF>(
     graph: &G,
     mut vertex_label: VF,
     mut edge_label: EF,

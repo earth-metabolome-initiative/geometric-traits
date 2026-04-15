@@ -241,8 +241,7 @@ pub use canon::{
     BacktrackableOrderedPartition, CanonSplittingHeuristic, CanonicalLabeling,
     CanonicalLabelingOptions, CanonicalLabelingResult, CanonicalSearchStats,
     LabeledSimpleGraphCertificate, OrderedPartitionCells, PartitionBacktrackPoint, PartitionCellId,
-    PartitionCellView, canonical_label_labeled_simple_graph,
-    canonical_label_labeled_simple_graph_with_options, refine_partition_to_labeled_equitable,
+    PartitionCellView, refine_partition_to_labeled_equitable,
 };
 #[cfg(feature = "alloc")]
 pub use clique_ranking::{

@@ -17,16 +17,15 @@ pub(crate) use refine::RefinementTrace;
 pub use refine::refine_partition_to_labeled_equitable;
 pub use search::{
     CanonSplittingHeuristic, CanonicalLabelingOptions, CanonicalLabelingResult,
-    CanonicalSearchStats, LabeledSimpleGraphCertificate, canonical_label_labeled_simple_graph,
-    canonical_label_labeled_simple_graph_with_options,
+    CanonicalSearchStats, LabeledSimpleGraphCertificate,
 };
 
 /// Trait exposing canonical labeling for simple undirected graphs with
 /// total-order vertex and edge labels.
 ///
-/// The trait-style surface matches the rest of the crate's algorithm API. The
-/// free functions remain available as compatibility wrappers around the same
-/// implementation.
+/// This is the public canonization API for the current module. The underlying
+/// search entry points stay internal so the public surface remains trait-based,
+/// like the rest of the crate's algorithm layer.
 pub trait CanonicalLabeling: MonoplexMonopartiteGraph {
     /// Computes a canonical labeling using the default canonizer options.
     #[inline]
