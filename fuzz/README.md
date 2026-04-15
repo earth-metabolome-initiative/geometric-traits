@@ -160,30 +160,6 @@ and to run the crash cases:
 cargo hfuzz run-debug lap hfuzz_workspace/*/*.fuzz
 ```
 
-### Topological Validity vs CLI
-
-This harness builds a small simple undirected graph from the fuzz input and
-cross-checks the crate against the Boyer `planarity` CLI in specific-graph
-mode for:
-
-- `-p`: planarity
-- `-o`: outerplanarity
-- `-2`: `K_{2,3}` homeomorph detection
-- `-3`: `K_{3,3}` homeomorph detection
-- `-4`: `K_4` homeomorph detection
-
-Point `PLANARITY_BIN` at the upstream `4.x` binary when needed:
-
-```bash
-PLANARITY_BIN=/tmp/edge-addition-planarity-suite-master/planarity cargo hfuzz run topological_validity_cli
-```
-
-and to run the crash cases:
-
-```bash
-PLANARITY_BIN=/tmp/edge-addition-planarity-suite-master/planarity cargo hfuzz run-debug topological_validity_cli hfuzz_workspace/*/*.fuzz
-```
-
 ### Kahn's Algorithm
 
 The Kahn algorithm is a topological sorting algorithm for directed acyclic graphs (DAGs).
