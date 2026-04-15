@@ -12,7 +12,7 @@ use geometric_traits::{
     naive_structs::GenericGraph,
     prelude::*,
     traits::{
-        CanonSplittingHeuristic, CanonicalLabelingOptions, Edges, MonoplexGraph,
+        CanonSplittingHeuristic, CanonicalLabeling, CanonicalLabelingOptions, Edges, MonoplexGraph,
         SparseValuedMatrix2D, VocabularyBuilder, canonical_label_labeled_simple_graph,
         canonical_label_labeled_simple_graph_with_options,
     },
@@ -61,6 +61,50 @@ fn permuted_case(case: &CanonCase) -> (LabeledUndirectedGraph, Vec<u8>) {
         .map(|&(source, destination, label)| (permutation[source], permutation[destination], label))
         .collect::<Vec<_>>();
     (build_bidirectional_labeled_graph(order, &edges), vertex_labels)
+}
+
+#[test]
+fn test_canonical_labeling_trait_matches_free_function_wrapper() {
+    let graph = build_bidirectional_labeled_graph(4, &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2)]);
+    let matrix = Edges::matrix(graph.edges());
+
+    let wrapper_result = canonical_label_labeled_simple_graph(
+        &graph,
+        |node| [10_u8, 10, 20, 20][node],
+        |left, right| matrix.sparse_value_at(left, right).unwrap(),
+    );
+    let trait_result = graph.canonical_labeling(
+        |node| [10_u8, 10, 20, 20][node],
+        |left, right| matrix.sparse_value_at(left, right).unwrap(),
+    );
+
+    assert_eq!(trait_result, wrapper_result);
+}
+
+#[test]
+fn test_canonical_labeling_trait_with_options_matches_free_function_wrapper() {
+    let graph = build_bidirectional_labeled_graph(
+        8,
+        &[(0, 1, 1), (1, 2, 2), (2, 3, 1), (3, 0, 2), (0, 4, 3), (1, 5, 3), (2, 6, 3), (3, 7, 3)],
+    );
+    let matrix = Edges::matrix(graph.edges());
+    let options = CanonicalLabelingOptions {
+        splitting_heuristic: CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+    };
+
+    let wrapper_result = canonical_label_labeled_simple_graph_with_options(
+        &graph,
+        |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
+        |left, right| matrix.sparse_value_at(left, right).unwrap(),
+        options,
+    );
+    let trait_result = graph.canonical_labeling_with_options(
+        |node| [5_u8, 5, 6, 6, 1, 1, 1, 1][node],
+        |left, right| matrix.sparse_value_at(left, right).unwrap(),
+        options,
+    );
+
+    assert_eq!(trait_result, wrapper_result);
 }
 
 #[test]
