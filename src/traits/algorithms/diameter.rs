@@ -163,11 +163,11 @@ fn ifub_from_profile<G: UndirectedMonopartiteMonoplexGraph>(
     distances: &mut [usize],
     parents: &mut [Option<G::NodeId>],
     queue: &mut VecDeque<G::NodeId>,
-    order: usize,
 ) -> Result<usize, DiameterError>
 where
     G::NodeId: AsPrimitive<usize>,
 {
+    let order = distances.len();
     let mut fringe_levels = vec![Vec::new(); start_eccentricity + 1];
     for &node in node_ids {
         fringe_levels[distances[node.as_()]].push(node);
@@ -283,7 +283,6 @@ where
                 &mut distances,
                 &mut parents,
                 &mut queue,
-                order,
             )?);
         }
 
@@ -308,7 +307,6 @@ where
             &mut distances,
             &mut parents,
             &mut queue,
-            order,
         )?)
     }
 }
