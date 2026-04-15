@@ -41,6 +41,50 @@ pub fn read_fixture_string(relative_path: &str) -> String {
         .unwrap_or_else(|_| panic!("failed to read fixture {}", path.display()))
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn assert_reference_corpus_contract<S, C>(
+    relative_path: &str,
+    expected_case_count: usize,
+    load_fixture_suite: impl FnOnce(&str) -> S,
+    schema_version_of: impl Fn(&S) -> u32,
+    graph_kind_of: impl Fn(&S) -> &str,
+    primary_oracle_of: impl Fn(&S) -> &str,
+    cases_of: impl Fn(&S) -> &[C],
+    family_of: impl Fn(&C) -> &str,
+    expected_graph_kind: &str,
+    expected_primary_oracle: &str,
+    expected_families: &[&str],
+) -> S {
+    let path = fixture_path(relative_path);
+    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
+
+    let suite = load_fixture_suite(relative_path);
+    assert_eq!(schema_version_of(&suite), 1);
+    assert_eq!(graph_kind_of(&suite), expected_graph_kind);
+    assert_eq!(primary_oracle_of(&suite), expected_primary_oracle);
+
+    let cases = cases_of(&suite);
+    assert_eq!(cases.len(), expected_case_count);
+
+    let observed_families: std::collections::BTreeSet<&str> = cases.iter().map(family_of).collect();
+    for expected_family in expected_families {
+        assert!(
+            observed_families.contains(expected_family),
+            "reference corpus must contain at least one {expected_family} case"
+        );
+    }
+
+    suite
+}
+
+pub fn assert_reference_corpus_family_sequence(
+    observed_sequence: &[String],
+    expected_sequence: &[&str],
+) {
+    let observed_sequence: Vec<&str> = observed_sequence.iter().map(String::as_str).collect();
+    assert_eq!(observed_sequence, expected_sequence);
+}
+
 /// Flatten a row-major nested dense matrix fixture into a single buffer.
 pub fn flatten_dense_rows(matrix: &[Vec<f64>]) -> Vec<f64> {
     matrix.iter().flat_map(|row| row.iter().copied()).collect()

@@ -7,7 +7,6 @@ mod common;
 mod topological_validity_fixture;
 
 use std::{
-    collections::BTreeSet,
     sync::atomic::{AtomicUsize, Ordering},
     time::Instant,
 };
@@ -22,43 +21,22 @@ use topological_validity_fixture::load_fixture_suite;
 const REFERENCE_CORPUS_1M_PATH: &str = "topological_validity_ground_truth_1m_v4.json.gz";
 const EXPECTED_1M_CASE_COUNT: usize = 1_000_000;
 
-fn assert_reference_corpus_contract(
-    relative_path: &str,
-    expected_case_count: usize,
-) -> topological_validity_fixture::TopologicalValidityFixtureSuite {
-    let path = common::fixture_path(relative_path);
-    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
-
-    let suite = load_fixture_suite(relative_path);
-    assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(suite.primary_oracle, "planarity_outerplanarity_k23_k33_k4_booleans");
-    assert_eq!(suite.count, expected_case_count);
-    assert_eq!(suite.cases.len(), expected_case_count);
-
-    let observed_families: BTreeSet<&str> =
-        suite.cases.iter().map(|case| case.family.as_str()).collect();
-    for expected_family in [
-        "erdos_renyi",
-        "random_tree",
-        "outerplanar_cycle_chords",
-        "wheel",
-        "theta",
-        "clique",
-        "k23_subdivision",
-        "k33_subdivision",
-        "k4_subdivision",
-        "k5_subdivision",
-    ] {
-        assert!(
-            observed_families.contains(expected_family),
-            "reference corpus must contain at least one {expected_family} case"
-        );
-    }
-
-    assert_eq!(
-        suite.family_sequence,
-        [
+#[test]
+#[ignore = "expensive checked-in combined reference corpus; run manually when needed"]
+#[allow(clippy::too_many_lines)]
+fn test_topological_validity_reference_corpus_1m_without_k4() {
+    let suite = common::assert_reference_corpus_contract(
+        REFERENCE_CORPUS_1M_PATH,
+        EXPECTED_1M_CASE_COUNT,
+        load_fixture_suite,
+        |suite| suite.schema_version,
+        |suite| suite.graph_kind.as_str(),
+        |suite| suite.primary_oracle.as_str(),
+        |suite| suite.cases.as_slice(),
+        |case| case.family.as_str(),
+        "undirected_simple_labeled",
+        "planarity_outerplanarity_k23_k33_k4_booleans",
+        &[
             "erdos_renyi",
             "random_tree",
             "outerplanar_cycle_chords",
@@ -69,17 +47,24 @@ fn assert_reference_corpus_contract(
             "k33_subdivision",
             "k4_subdivision",
             "k5_subdivision",
-        ]
+        ],
     );
-
-    suite
-}
-
-#[test]
-#[ignore = "expensive checked-in combined reference corpus; run manually when needed"]
-#[allow(clippy::too_many_lines)]
-fn test_topological_validity_reference_corpus_1m_without_k4() {
-    let suite = assert_reference_corpus_contract(REFERENCE_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
+    assert_eq!(suite.count, EXPECTED_1M_CASE_COUNT);
+    common::assert_reference_corpus_family_sequence(
+        &suite.family_sequence,
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "theta",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
     let start_index = std::env::var("TOPOLOGY_START_INDEX")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
@@ -207,7 +192,46 @@ fn test_topological_validity_reference_corpus_1m_without_k4() {
 #[ignore = "expensive checked-in combined reference corpus; run manually when needed"]
 #[allow(clippy::too_many_lines)]
 fn test_topological_validity_reference_corpus_1m_with_k4() {
-    let suite = assert_reference_corpus_contract(REFERENCE_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
+    let suite = common::assert_reference_corpus_contract(
+        REFERENCE_CORPUS_1M_PATH,
+        EXPECTED_1M_CASE_COUNT,
+        load_fixture_suite,
+        |suite| suite.schema_version,
+        |suite| suite.graph_kind.as_str(),
+        |suite| suite.primary_oracle.as_str(),
+        |suite| suite.cases.as_slice(),
+        |case| case.family.as_str(),
+        "undirected_simple_labeled",
+        "planarity_outerplanarity_k23_k33_k4_booleans",
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "theta",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
+    assert_eq!(suite.count, EXPECTED_1M_CASE_COUNT);
+    common::assert_reference_corpus_family_sequence(
+        &suite.family_sequence,
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "theta",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
     let start_index = std::env::var("TOPOLOGY_START_INDEX")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())

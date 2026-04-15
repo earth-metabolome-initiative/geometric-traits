@@ -6,49 +6,27 @@ mod common;
 #[path = "support/k33_homeomorph_fixture.rs"]
 mod k33_homeomorph_fixture;
 
-use std::collections::BTreeSet;
-
 use geometric_traits::traits::K33HomeomorphDetection;
 use k33_homeomorph_fixture::load_fixture_suite;
 
 const REFERENCE_CORPUS_100K_PATH: &str = "k33_homeomorph_ground_truth_100k.json.gz";
 const EXPECTED_100K_CASE_COUNT: usize = 100_000;
 
-fn assert_reference_corpus_contract(
-    relative_path: &str,
-    expected_case_count: usize,
-) -> k33_homeomorph_fixture::K33HomeomorphFixtureSuite {
-    let path = common::fixture_path(relative_path);
-    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
-
-    let suite = load_fixture_suite(relative_path);
-    assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(suite.primary_oracle, "k33_homeomorph_boolean");
-    assert_eq!(suite.cases.len(), expected_case_count);
-
-    let observed_families: BTreeSet<&str> =
-        suite.cases.iter().map(|case| case.family.as_str()).collect();
-    for expected_family in [
-        "erdos_renyi",
-        "random_tree",
-        "outerplanar_cycle_chords",
-        "wheel",
-        "clique",
-        "k23_subdivision",
-        "k33_subdivision",
-        "k4_subdivision",
-        "k5_subdivision",
-    ] {
-        assert!(
-            observed_families.contains(expected_family),
-            "reference corpus must contain at least one {expected_family} case"
-        );
-    }
-
-    assert_eq!(
-        suite.family_sequence,
-        [
+#[test]
+#[ignore = "expensive checked-in reference corpus; run manually when needed"]
+fn test_k33_homeomorph_reference_corpus_100k() {
+    let suite = common::assert_reference_corpus_contract(
+        REFERENCE_CORPUS_100K_PATH,
+        EXPECTED_100K_CASE_COUNT,
+        load_fixture_suite,
+        |suite| suite.schema_version,
+        |suite| suite.graph_kind.as_str(),
+        |suite| suite.primary_oracle.as_str(),
+        |suite| suite.cases.as_slice(),
+        |case| case.family.as_str(),
+        "undirected_simple_labeled",
+        "k33_homeomorph_boolean",
+        &[
             "erdos_renyi",
             "random_tree",
             "outerplanar_cycle_chords",
@@ -58,17 +36,22 @@ fn assert_reference_corpus_contract(
             "k33_subdivision",
             "k4_subdivision",
             "k5_subdivision",
-        ]
+        ],
     );
-
-    suite
-}
-
-#[test]
-#[ignore = "expensive checked-in reference corpus; run manually when needed"]
-fn test_k33_homeomorph_reference_corpus_100k() {
-    let suite =
-        assert_reference_corpus_contract(REFERENCE_CORPUS_100K_PATH, EXPECTED_100K_CASE_COUNT);
+    common::assert_reference_corpus_family_sequence(
+        &suite.family_sequence,
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
 
     let (positive_count, negative_count) =
         suite.cases.iter().enumerate().fold((0usize, 0usize), |counts, (index, case)| {

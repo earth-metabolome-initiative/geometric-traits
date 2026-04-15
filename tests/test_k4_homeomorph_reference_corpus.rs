@@ -19,15 +19,46 @@ const EXPECTED_1M_CASE_COUNT: usize = 1_000_000;
 #[test]
 #[ignore = "expensive checked-in reference corpus; run manually when needed"]
 fn test_k4_homeomorph_reference_corpus_1m() {
-    let path = common::fixture_path(REFERENCE_CORPUS_1M_PATH);
-    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
-
-    let suite = load_fixture_suite(REFERENCE_CORPUS_1M_PATH);
-    assert_eq!(suite.schema_version, 1);
-    assert_eq!(suite.graph_kind, "undirected_simple_labeled");
-    assert_eq!(suite.primary_oracle, "planarity_outerplanarity_k23_k33_k4_booleans");
+    let suite = common::assert_reference_corpus_contract(
+        REFERENCE_CORPUS_1M_PATH,
+        EXPECTED_1M_CASE_COUNT,
+        load_fixture_suite,
+        |suite| suite.schema_version,
+        |suite| suite.graph_kind.as_str(),
+        |suite| suite.primary_oracle.as_str(),
+        |suite| suite.cases.as_slice(),
+        |case| case.family.as_str(),
+        "undirected_simple_labeled",
+        "planarity_outerplanarity_k23_k33_k4_booleans",
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "theta",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
     assert_eq!(suite.count, EXPECTED_1M_CASE_COUNT);
-    assert_eq!(suite.cases.len(), EXPECTED_1M_CASE_COUNT);
+    common::assert_reference_corpus_family_sequence(
+        &suite.family_sequence,
+        &[
+            "erdos_renyi",
+            "random_tree",
+            "outerplanar_cycle_chords",
+            "wheel",
+            "theta",
+            "clique",
+            "k23_subdivision",
+            "k33_subdivision",
+            "k4_subdivision",
+            "k5_subdivision",
+        ],
+    );
 
     eprintln!("[k4-homeomorph-reference-1m] progress 0");
     let completed = AtomicUsize::new(0);

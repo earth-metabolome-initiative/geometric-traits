@@ -155,7 +155,6 @@ where
     Ok(run_k23_homeomorph_engine(&preprocessing))
 }
 
-#[allow(dead_code)]
 pub(crate) fn has_k4_homeomorph_simple_undirected_graph<G>(
     graph: &G,
 ) -> Result<bool, PlanarityError>
@@ -205,7 +204,6 @@ pub(crate) fn run_k33_homeomorph_engine(preprocessing: &preprocessing::DfsPrepro
     )
 }
 
-#[allow(dead_code)]
 pub(crate) fn run_k4_homeomorph_engine(preprocessing: &preprocessing::DfsPreprocessing) -> bool {
     if preprocessing.vertices.len() < 4 || preprocessing.arcs.len() / 2 < 6 {
         return false;
@@ -315,7 +313,7 @@ fn child_subtree_has_blocking_forward_arc_head(
     .is_some()
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
+#[allow(dead_code)]
 fn child_subtree_forward_arc_head(
     preprocessing: &preprocessing::DfsPreprocessing,
     embedding: &embedding::EmbeddingState,
@@ -784,7 +782,6 @@ pub(crate) mod embedding {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[allow(dead_code)]
     struct NonOuterplanarityContext {
         current_primary_slot: usize,
         x_slot: usize,
@@ -916,7 +913,6 @@ pub(crate) mod embedding {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[allow(dead_code)]
     pub(crate) enum K4BicompSearchOutcome {
         MinorFound,
         Continue,
@@ -930,7 +926,6 @@ pub(crate) mod embedding {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[allow(dead_code)]
     pub(crate) enum K4MinorType {
         A,
         B,
@@ -938,7 +933,6 @@ pub(crate) mod embedding {
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    #[allow(dead_code)]
     struct K4Context {
         current_primary_slot: usize,
         root_copy_slot: usize,
