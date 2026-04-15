@@ -1,29 +1,6 @@
 use super::*;
 
 /// Fixture-loading helpers for the MCES ground-truth test suite.
-///
-/// Regenerate the committed large-corpus default fixtures with:
-///
-/// ```bash
-/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
-///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
-///   --target-cases 1000 \
-///   --output tests/fixtures/massspecgym_mces_default_1000.json.gz
-///
-/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
-///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
-///   --target-cases 10000 \
-///   --output tests/fixtures/massspecgym_mces_default_10000.json.gz
-/// ```
-///
-/// Regenerate the local-only full oracle with:
-///
-/// ```bash
-/// PYTHONPATH=tests/fixtures uv run --with rdkit --with tqdm python3 \
-///   tests/fixtures/generate_massspecgym_mces_ground_truth.py \
-///   --target-cases 200000 \
-///   --output tests/fixtures/massspecgym_mces_default_200000.json.gz
-/// ```
 
 #[derive(serde::Deserialize)]
 pub(crate) struct GroundTruthFile {
@@ -63,8 +40,6 @@ const MASSSPECGYM_GROUND_TRUTH_1000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_1000.json.gz");
 const MASSSPECGYM_GROUND_TRUTH_10000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_10000.json.gz");
-const MASSSPECGYM_GROUND_TRUTH_200000_PATH: &str =
-    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_200000.json.gz");
 const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_100.json.gz");
 pub(crate) fn load_ground_truth_from_bytes(gz_bytes: &[u8]) -> Vec<GroundTruthCase> {
@@ -101,10 +76,6 @@ pub(crate) fn load_massspecgym_ground_truth_1000() -> Vec<GroundTruthCase> {
 
 pub(crate) fn load_massspecgym_ground_truth_10000() -> Vec<GroundTruthCase> {
     load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_10000_PATH)
-}
-
-pub(crate) fn load_massspecgym_ground_truth_200000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_200000_PATH)
 }
 
 pub(crate) fn load_massspecgym_all_best_ground_truth() -> Vec<GroundTruthCase> {

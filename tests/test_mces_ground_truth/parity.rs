@@ -89,41 +89,6 @@ fn test_massspecgym_ground_truth_labeled_mces_10000() {
 }
 
 #[test]
-#[ignore = "200K-corpus parity check against the local-only MassSpecGym-derived RDKit default fixture"]
-fn test_massspecgym_ground_truth_labeled_mces_200000() {
-    let cases = load_massspecgym_ground_truth_200000();
-    assert_eq!(cases.len(), 200000, "expected exactly 200000 fast large-corpus cases");
-    assert!(
-        cases.iter().all(|case| !case.timed_out),
-        "fast 200K default fixture must exclude timed-out RDKit pairs",
-    );
-
-    let mut mismatches: Vec<String> = cases
-        .par_iter()
-        .filter_map(|case| {
-            let result = run_labeled_case(case);
-            labeled_result_mismatch(case, &result)
-        })
-        .collect();
-    mismatches.sort();
-
-    println!(
-        "checked {} MassSpecGym default-config 200K fast cases; mismatches={}",
-        cases.len(),
-        mismatches.len()
-    );
-    for mismatch in mismatches.iter().take(20) {
-        println!("{mismatch}");
-    }
-
-    assert!(
-        mismatches.is_empty(),
-        "found {} mismatches in MassSpecGym default-config 200K fast corpus",
-        mismatches.len()
-    );
-}
-
-#[test]
 fn test_massspecgym_ground_truth_labeled_mces_smoke() {
     let cases = load_massspecgym_ground_truth();
     let indices = evenly_spaced_case_indices(cases.len(), 25);

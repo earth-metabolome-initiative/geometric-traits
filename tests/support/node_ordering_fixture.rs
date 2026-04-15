@@ -1,14 +1,12 @@
 #![cfg(feature = "std")]
 #![allow(dead_code)]
 
-use std::{fs, io::Read as _, path::Path};
+#[path = "fixture_io.rs"]
+mod fixture_io;
+#[path = "undigraph_fixture.rs"]
+mod undigraph_fixture;
 
-use flate2::read::GzDecoder;
-use geometric_traits::{
-    impls::{CSR2D, SortedVec, SymmetricCSR2D},
-    prelude::*,
-    traits::{EdgesBuilder, VocabularyBuilder},
-};
+use geometric_traits::prelude::*;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -112,37 +110,12 @@ pub struct PreparedNodeOrderingCase {
     pub local_clustering_descending: Vec<usize>,
 }
 
-pub fn fixture_path(relative_path: &str) -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(relative_path)
-}
-
 pub fn load_fixture_suite(relative_path: &str) -> NodeOrderingGroundTruthFixture {
-    let fixture_gz = fs::read(fixture_path(relative_path))
-        .unwrap_or_else(|_| panic!("failed to read tests/fixtures/{relative_path}"));
-    let mut json = String::new();
-    GzDecoder::new(fixture_gz.as_slice())
-        .read_to_string(&mut json)
-        .expect("gzip decompression failed");
-    serde_json::from_str(&json)
-        .unwrap_or_else(|_| panic!("`tests/fixtures/{relative_path}` must contain valid JSON"))
+    fixture_io::load_fixture_json(relative_path)
 }
 
 pub fn build_undigraph(case: &NodeOrderingGroundTruthCase) -> UndiGraph<usize> {
-    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
-        .expected_number_of_symbols(case.n)
-        .symbols((0..case.n).enumerate())
-        .build()
-        .unwrap();
-    let mut edges: Vec<(usize, usize)> =
-        case.edges.iter().map(|&[source, destination]| (source, destination)).collect();
-    edges.sort_unstable();
-    let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiEdgesBuilder::default()
-        .expected_number_of_edges(edges.len())
-        .expected_shape(case.n)
-        .edges(edges.into_iter())
-        .build()
-        .unwrap();
-    UndiGraph::from((nodes, matrix))
+    undigraph_fixture::build_undigraph(case.n, &case.edges)
 }
 
 pub fn prepare_cases(relative_path: &str) -> Vec<PreparedNodeOrderingCase> {

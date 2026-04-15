@@ -148,3 +148,19 @@ harness = false
 [[bench]]
 name = "cactus_detection"
 harness = false
+
+[[bench]]
+name = "planarity"
+harness = false
+
+[[bench]]
+name = "k23_homeomorph"
+harness = false
+
+[[bench]]
+name = "k33_homeomorph"
+harness = false
+
+[[bench]]
+name = "k4_homeomorph"
+harness = false

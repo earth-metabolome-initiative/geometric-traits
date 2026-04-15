@@ -11,10 +11,6 @@ pub use biconnected_components::{
     BiconnectedComponents, BiconnectedComponentsError, BiconnectedComponentsResult, BiconnectedEdge,
 };
 #[cfg(feature = "alloc")]
-pub mod cactus_detection;
-#[cfg(feature = "alloc")]
-pub use cactus_detection::CactusDetection;
-#[cfg(feature = "alloc")]
 pub mod minimum_cycle_basis;
 #[cfg(feature = "alloc")]
 pub use minimum_cycle_basis::{MinimumCycleBasis, MinimumCycleBasisError, MinimumCycleBasisResult};
@@ -28,6 +24,10 @@ pub use relevant_cycles::{RelevantCycles, RelevantCyclesError, RelevantCyclesRes
 pub mod essential_cycles;
 #[cfg(feature = "alloc")]
 pub use essential_cycles::{EssentialCycles, EssentialCyclesError, EssentialCyclesResult};
+#[cfg(feature = "alloc")]
+pub mod cactus_detection;
+#[cfg(feature = "alloc")]
+pub use cactus_detection::CactusDetection;
 #[cfg(feature = "alloc")]
 pub mod cycle_detection;
 #[cfg(feature = "alloc")]
@@ -44,6 +44,28 @@ pub use bipartite_detection::BipartiteDetection;
 pub mod tree_detection;
 #[cfg(feature = "alloc")]
 pub use tree_detection::TreeDetection;
+#[cfg(feature = "alloc")]
+pub mod planarity_detection;
+#[cfg(feature = "alloc")]
+pub use planarity_detection::{PlanarityDetection, PlanarityError};
+#[cfg(feature = "alloc")]
+pub mod outerplanarity_detection;
+#[cfg(feature = "alloc")]
+mod topology_wrapper_macros;
+#[cfg(feature = "alloc")]
+pub use outerplanarity_detection::{OuterplanarityDetection, OuterplanarityError};
+#[cfg(feature = "alloc")]
+pub mod k23_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k23_homeomorph_detection::{K23HomeomorphDetection, K23HomeomorphError};
+#[cfg(feature = "alloc")]
+pub mod k33_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k33_homeomorph_detection::{K33HomeomorphDetection, K33HomeomorphError};
+#[cfg(feature = "alloc")]
+pub mod k4_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k4_homeomorph_detection::{K4HomeomorphDetection, K4HomeomorphError};
 #[cfg(feature = "alloc")]
 mod node_classification;
 #[cfg(feature = "alloc")]
