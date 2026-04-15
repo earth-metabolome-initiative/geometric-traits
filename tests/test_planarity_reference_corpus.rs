@@ -1,4 +1,4 @@
-//! Validation of the local planarity reference corpus.
+//! Validation of the checked-in planarity reference corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -11,15 +11,15 @@ use std::collections::BTreeSet;
 use geometric_traits::traits::{OuterplanarityDetection, PlanarityDetection};
 use planarity_fixture::load_fixture_suite;
 
-const LOCAL_CORPUS_100K_PATH: &str = "planarity_ground_truth_100k.json.gz";
+const REFERENCE_CORPUS_100K_PATH: &str = "planarity_ground_truth_100k.json.gz";
 const EXPECTED_100K_CASE_COUNT: usize = 100_000;
 
-fn assert_local_corpus_contract(
+fn assert_reference_corpus_contract(
     relative_path: &str,
     expected_case_count: usize,
 ) -> planarity_fixture::PlanarityFixtureSuite {
     let path = common::fixture_path(relative_path);
-    assert!(path.exists(), "local corpus fixture missing at {}; generate it first", path.display());
+    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
 
     let suite = load_fixture_suite(relative_path);
     assert_eq!(suite.schema_version, 1);
@@ -41,7 +41,7 @@ fn assert_local_corpus_contract(
     ] {
         assert!(
             observed_families.contains(expected_family),
-            "local corpus must contain at least one {expected_family} case"
+            "reference corpus must contain at least one {expected_family} case"
         );
     }
 
@@ -49,8 +49,9 @@ fn assert_local_corpus_contract(
 }
 
 #[test]
-fn test_local_planarity_reference_corpus_100k() {
-    let suite = assert_local_corpus_contract(LOCAL_CORPUS_100K_PATH, EXPECTED_100K_CASE_COUNT);
+fn test_planarity_reference_corpus_100k() {
+    let suite =
+        assert_reference_corpus_contract(REFERENCE_CORPUS_100K_PATH, EXPECTED_100K_CASE_COUNT);
 
     let (planar_count, outerplanar_count, nonplanar_count) =
         suite.cases.iter().fold((0usize, 0usize, 0usize), |counts, case| {
@@ -64,17 +65,17 @@ fn test_local_planarity_reference_corpus_100k() {
 
             assert_eq!(
                 is_planar, case.is_planar,
-                "planarity mismatched local reference case {} ({})",
+                "planarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 is_outerplanar, case.is_outerplanar,
-                "outerplanarity mismatched local reference case {} ({})",
+                "outerplanarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert!(
                 !is_outerplanar || is_planar,
-                "outerplanar local reference case {} must also be planar",
+                "outerplanar reference case {} must also be planar",
                 case.name
             );
 
@@ -85,11 +86,11 @@ fn test_local_planarity_reference_corpus_100k() {
             )
         });
 
-    assert!(planar_count > 0, "local corpus should contain planar cases");
-    assert!(outerplanar_count > 0, "local corpus should contain outerplanar cases");
-    assert!(nonplanar_count > 0, "local corpus should contain nonplanar cases");
+    assert!(planar_count > 0, "reference corpus should contain planar cases");
+    assert!(outerplanar_count > 0, "reference corpus should contain outerplanar cases");
+    assert!(nonplanar_count > 0, "reference corpus should contain nonplanar cases");
     eprintln!(
-        "[planarity-local-100k] validated {} cases, planar={}, outerplanar={}, nonplanar={}",
+        "[planarity-reference-100k] validated {} cases, planar={}, outerplanar={}, nonplanar={}",
         suite.cases.len(),
         planar_count,
         outerplanar_count,

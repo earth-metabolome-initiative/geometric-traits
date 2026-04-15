@@ -65,7 +65,7 @@ fn regression_case(
         is_outerplanar: false,
         planarity_obstruction_family: None,
         outerplanarity_obstruction_family: None,
-        notes: "Regression case extracted from the Boyer local corpus.".to_string(),
+        notes: "Regression case extracted from the Boyer reference corpus.".to_string(),
     }
 }
 

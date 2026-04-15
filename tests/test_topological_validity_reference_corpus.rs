@@ -1,4 +1,4 @@
-//! Validation of the combined local topological-validity reference corpus.
+//! Validation of the combined checked-in topological-validity reference corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -19,15 +19,15 @@ use geometric_traits::traits::{
 use rayon::prelude::*;
 use topological_validity_fixture::load_fixture_suite;
 
-const LOCAL_CORPUS_1M_PATH: &str = "topological_validity_ground_truth_1m_v4.json.gz";
+const REFERENCE_CORPUS_1M_PATH: &str = "topological_validity_ground_truth_1m_v4.json.gz";
 const EXPECTED_1M_CASE_COUNT: usize = 1_000_000;
 
-fn assert_local_corpus_contract(
+fn assert_reference_corpus_contract(
     relative_path: &str,
     expected_case_count: usize,
 ) -> topological_validity_fixture::TopologicalValidityFixtureSuite {
     let path = common::fixture_path(relative_path);
-    assert!(path.exists(), "local corpus fixture missing at {}; generate it first", path.display());
+    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
 
     let suite = load_fixture_suite(relative_path);
     assert_eq!(suite.schema_version, 1);
@@ -52,7 +52,7 @@ fn assert_local_corpus_contract(
     ] {
         assert!(
             observed_families.contains(expected_family),
-            "local corpus must contain at least one {expected_family} case"
+            "reference corpus must contain at least one {expected_family} case"
         );
     }
 
@@ -76,10 +76,10 @@ fn assert_local_corpus_contract(
 }
 
 #[test]
-#[ignore = "expensive combined local oracle corpus; run manually when needed"]
+#[ignore = "expensive checked-in combined reference corpus; run manually when needed"]
 #[allow(clippy::too_many_lines)]
-fn test_local_topological_validity_reference_corpus_1m_without_k4() {
-    let suite = assert_local_corpus_contract(LOCAL_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
+fn test_topological_validity_reference_corpus_1m_without_k4() {
+    let suite = assert_reference_corpus_contract(REFERENCE_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
     let start_index = std::env::var("TOPOLOGY_START_INDEX")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
@@ -93,10 +93,10 @@ fn test_local_topological_validity_reference_corpus_1m_without_k4() {
     let cases = &suite.cases[start_index..end_index];
 
     eprintln!(
-        "[topology-local-1m] validating range [{start_index}, {end_index}) count={}",
+        "[topology-reference-1m] validating range [{start_index}, {end_index}) count={}",
         cases.len()
     );
-    eprintln!("[topology-local-1m] progress 0");
+    eprintln!("[topology-reference-1m] progress 0");
     let completed = AtomicUsize::new(0);
     let slow_threshold_ms =
         std::env::var("TOPOLOGY_TRACE_SLOW_MS").ok().and_then(|value| value.parse::<u128>().ok());
@@ -135,40 +135,40 @@ fn test_local_topological_validity_reference_corpus_1m_without_k4() {
 
             assert_eq!(
                 is_planar, case.is_planar,
-                "planarity mismatched local reference case {} ({})",
+                "planarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 is_outerplanar, case.is_outerplanar,
-                "outerplanarity mismatched local reference case {} ({})",
+                "outerplanarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 has_k23_homeomorph, case.has_k23_homeomorph,
-                "K23 homeomorph mismatched local reference case {} ({})",
+                "K23 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 has_k33_homeomorph, case.has_k33_homeomorph,
-                "K33 homeomorph mismatched local reference case {} ({})",
+                "K33 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert!(
                 !is_outerplanar || is_planar,
-                "outerplanar local reference case {} must also be planar",
+                "outerplanar reference case {} must also be planar",
                 case.name
             );
 
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
             if done % 10_000 == 0 {
-                eprintln!("[topology-local-1m] progress {done}");
+                eprintln!("[topology-reference-1m] progress {done}");
             }
 
             let overall_elapsed = overall_start.elapsed();
             if let Some(threshold_ms) = slow_threshold_ms {
                 if overall_elapsed.as_millis() >= threshold_ms {
                     eprintln!(
-                        "[topology-local-1m-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?}",
+                        "[topology-reference-1m-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?}",
                         global_index,
                         case.name,
                         case.family,
@@ -194,7 +194,7 @@ fn test_local_topological_validity_reference_corpus_1m_without_k4() {
         );
 
     eprintln!(
-        "[topology-local-1m] validated range [{start_index}, {end_index}) {} cases, planar={}, outerplanar={}, k23={}, k33={}",
+        "[topology-reference-1m] validated range [{start_index}, {end_index}) {} cases, planar={}, outerplanar={}, k23={}, k33={}",
         cases.len(),
         planar_count,
         outerplanar_count,
@@ -204,10 +204,10 @@ fn test_local_topological_validity_reference_corpus_1m_without_k4() {
 }
 
 #[test]
-#[ignore = "expensive combined local oracle corpus; run manually when needed"]
+#[ignore = "expensive checked-in combined reference corpus; run manually when needed"]
 #[allow(clippy::too_many_lines)]
-fn test_local_topological_validity_reference_corpus_1m_with_k4() {
-    let suite = assert_local_corpus_contract(LOCAL_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
+fn test_topological_validity_reference_corpus_1m_with_k4() {
+    let suite = assert_reference_corpus_contract(REFERENCE_CORPUS_1M_PATH, EXPECTED_1M_CASE_COUNT);
     let start_index = std::env::var("TOPOLOGY_START_INDEX")
         .ok()
         .and_then(|value| value.parse::<usize>().ok())
@@ -221,10 +221,10 @@ fn test_local_topological_validity_reference_corpus_1m_with_k4() {
     let cases = &suite.cases[start_index..end_index];
 
     eprintln!(
-        "[topology-local-1m+k4] validating range [{start_index}, {end_index}) count={}",
+        "[topology-reference-1m+k4] validating range [{start_index}, {end_index}) count={}",
         cases.len()
     );
-    eprintln!("[topology-local-1m+k4] progress 0");
+    eprintln!("[topology-reference-1m+k4] progress 0");
     let completed = AtomicUsize::new(0);
     let slow_threshold_ms =
         std::env::var("TOPOLOGY_TRACE_SLOW_MS").ok().and_then(|value| value.parse::<u128>().ok());
@@ -269,45 +269,45 @@ fn test_local_topological_validity_reference_corpus_1m_with_k4() {
 
             assert_eq!(
                 is_planar, case.is_planar,
-                "planarity mismatched local reference case {} ({})",
+                "planarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 is_outerplanar, case.is_outerplanar,
-                "outerplanarity mismatched local reference case {} ({})",
+                "outerplanarity mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 has_k23_homeomorph, case.has_k23_homeomorph,
-                "K23 homeomorph mismatched local reference case {} ({})",
+                "K23 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 has_k33_homeomorph, case.has_k33_homeomorph,
-                "K33 homeomorph mismatched local reference case {} ({})",
+                "K33 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert_eq!(
                 has_k4_homeomorph, case.has_k4_homeomorph,
-                "K4 homeomorph mismatched local reference case {} ({})",
+                "K4 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
             assert!(
                 !is_outerplanar || is_planar,
-                "outerplanar local reference case {} must also be planar",
+                "outerplanar reference case {} must also be planar",
                 case.name
             );
 
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
             if done % 10_000 == 0 {
-                eprintln!("[topology-local-1m+k4] progress {done}");
+                eprintln!("[topology-reference-1m+k4] progress {done}");
             }
 
             let overall_elapsed = overall_start.elapsed();
             if let Some(threshold_ms) = slow_threshold_ms {
                 if overall_elapsed.as_millis() >= threshold_ms {
                     eprintln!(
-                        "[topology-local-1m+k4-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?} k4={:?}",
+                        "[topology-reference-1m+k4-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?} k4={:?}",
                         global_index,
                         case.name,
                         case.family,
@@ -343,7 +343,7 @@ fn test_local_topological_validity_reference_corpus_1m_with_k4() {
         );
 
     eprintln!(
-        "[topology-local-1m+k4] validated range [{start_index}, {end_index}) {} cases, planar={}, outerplanar={}, k23={}, k33={}, k4={}",
+        "[topology-reference-1m+k4] validated range [{start_index}, {end_index}) {} cases, planar={}, outerplanar={}, k23={}, k33={}, k4={}",
         cases.len(),
         planar_count,
         outerplanar_count,

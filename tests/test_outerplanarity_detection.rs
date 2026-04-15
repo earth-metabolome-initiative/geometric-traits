@@ -60,7 +60,7 @@ fn test_outerplanarity_accepts_outerplanar_cycle_chords_regression() {
         is_outerplanar: true,
         planarity_obstruction_family: None,
         outerplanarity_obstruction_family: None,
-        notes: "Regression case extracted from the Boyer local corpus.".to_string(),
+        notes: "Regression case extracted from the Boyer reference corpus.".to_string(),
     };
     let graph = build_undigraph(&case);
 

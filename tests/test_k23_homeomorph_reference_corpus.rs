@@ -1,4 +1,4 @@
-//! Validation of the local `K_{2,3}` homeomorph reference corpus.
+//! Validation of the checked-in `K_{2,3}` homeomorph reference corpus.
 #![cfg(feature = "std")]
 
 mod common;
@@ -11,15 +11,15 @@ use std::collections::BTreeSet;
 use geometric_traits::traits::K23HomeomorphDetection;
 use k23_homeomorph_fixture::load_fixture_suite;
 
-const LOCAL_CORPUS_100K_PATH: &str = "k23_homeomorph_ground_truth_100k.json.gz";
+const REFERENCE_CORPUS_100K_PATH: &str = "k23_homeomorph_ground_truth_100k.json.gz";
 const EXPECTED_100K_CASE_COUNT: usize = 100_000;
 
-fn assert_local_corpus_contract(
+fn assert_reference_corpus_contract(
     relative_path: &str,
     expected_case_count: usize,
 ) -> k23_homeomorph_fixture::K23HomeomorphFixtureSuite {
     let path = common::fixture_path(relative_path);
-    assert!(path.exists(), "local corpus fixture missing at {}; generate it first", path.display());
+    assert!(path.exists(), "reference corpus fixture missing at {}", path.display());
 
     let suite = load_fixture_suite(relative_path);
     assert_eq!(suite.schema_version, 1);
@@ -42,7 +42,7 @@ fn assert_local_corpus_contract(
     ] {
         assert!(
             observed_families.contains(expected_family),
-            "local corpus must contain at least one {expected_family} case"
+            "reference corpus must contain at least one {expected_family} case"
         );
     }
 
@@ -65,8 +65,9 @@ fn assert_local_corpus_contract(
 }
 
 #[test]
-fn test_local_k23_homeomorph_reference_corpus_100k() {
-    let suite = assert_local_corpus_contract(LOCAL_CORPUS_100K_PATH, EXPECTED_100K_CASE_COUNT);
+fn test_k23_homeomorph_reference_corpus_100k() {
+    let suite =
+        assert_reference_corpus_contract(REFERENCE_CORPUS_100K_PATH, EXPECTED_100K_CASE_COUNT);
 
     let (positive_count, negative_count) =
         suite.cases.iter().fold((0usize, 0usize), |counts, case| {
@@ -77,7 +78,7 @@ fn test_local_k23_homeomorph_reference_corpus_100k() {
 
             assert_eq!(
                 has_k23_homeomorph, case.has_k23_homeomorph,
-                "K23 homeomorph mismatched local reference case {} ({})",
+                "K23 homeomorph mismatched reference case {} ({})",
                 case.name, case.family
             );
 
@@ -87,10 +88,10 @@ fn test_local_k23_homeomorph_reference_corpus_100k() {
             )
         });
 
-    assert!(positive_count > 0, "local corpus should contain positive cases");
-    assert!(negative_count > 0, "local corpus should contain negative cases");
+    assert!(positive_count > 0, "reference corpus should contain positive cases");
+    assert!(negative_count > 0, "reference corpus should contain negative cases");
     eprintln!(
-        "[k23-homeomorph-local-100k] validated {} cases, positive={}, negative={}",
+        "[k23-homeomorph-reference-100k] validated {} cases, positive={}, negative={}",
         suite.cases.len(),
         positive_count,
         negative_count
