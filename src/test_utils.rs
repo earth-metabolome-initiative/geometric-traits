@@ -7,7 +7,7 @@
 //! crash files produced by fuzzing can be directly replayed as unit tests.
 
 use alloc::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     string::{String, ToString},
     vec::Vec,
 };
@@ -18,6 +18,7 @@ use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
+    errors::{MonopartiteError, monopartite_graph_error::algorithms::MonopartiteAlgorithmError},
     impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     prelude::*,
     traits::{
@@ -3212,6 +3213,123 @@ pub fn check_pairwise_bfs_matches_unit_floyd_warshall(csr: &SquareCSR2D<CSR2D<u1
     assert_eq!(
         distances, floyd_warshall,
         "PairwiseBFS must match Floyd-Warshall with implicit unit weights"
+    );
+}
+
+#[inline]
+fn normalize_diameter_result<G>(
+    result: Result<usize, MonopartiteError<G>>,
+) -> Result<usize, DiameterError>
+where
+    G: MonopartiteGraph + Sized,
+{
+    result.map_err(|error| {
+        match error {
+            MonopartiteError::AlgorithmError(MonopartiteAlgorithmError::DiameterError(error)) => {
+                error
+            }
+            other => panic!("unexpected diameter error shape: {other}"),
+        }
+    })
+}
+
+#[inline]
+fn diameter_oracle<G>(graph: &G) -> Result<usize, DiameterError>
+where
+    G: UndirectedMonopartiteMonoplexGraph,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let order = graph.number_of_nodes().as_();
+    if order <= 1 {
+        return Ok(0);
+    }
+
+    let mut distances = vec![usize::MAX; order];
+    let mut queue = VecDeque::with_capacity(order);
+    let mut diameter = 0;
+
+    for source in graph.node_ids() {
+        distances.fill(usize::MAX);
+        queue.clear();
+        distances[source.as_()] = 0;
+        queue.push_back(source);
+
+        let mut visited = 1usize;
+        let mut eccentricity = 0usize;
+
+        while let Some(node) = queue.pop_front() {
+            let node_distance = distances[node.as_()];
+            eccentricity = eccentricity.max(node_distance);
+
+            for neighbor in graph.neighbors(node) {
+                let neighbor_index = neighbor.as_();
+                if distances[neighbor_index] != usize::MAX {
+                    continue;
+                }
+
+                distances[neighbor_index] = node_distance + 1;
+                visited += 1;
+                queue.push_back(neighbor);
+            }
+        }
+
+        if visited != order {
+            return Err(DiameterError::DisconnectedGraph);
+        }
+
+        diameter = diameter.max(eccentricity);
+    }
+
+    Ok(diameter)
+}
+
+/// Check diameter invariants on arbitrary undirected graphs.
+///
+/// This helper verifies that exact diameter computation is deterministic,
+/// returns `0` on empty or singleton graphs, reports disconnected inputs
+/// explicitly, and matches a brute-force BFS oracle on small inputs.
+///
+/// Large graphs are still exercised for result-shape invariants, but the
+/// exact oracle cross-check is capped to keep fuzzing throughput reasonable.
+///
+/// # Panics
+///
+/// Panics if any checked invariant is violated.
+#[inline]
+pub fn check_diameter_invariants<G>(graph: &G)
+where
+    G: Diameter + UndirectedMonopartiteMonoplexGraph + Sized,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let order = graph.number_of_nodes().as_();
+    let diameter = normalize_diameter_result(graph.diameter());
+    let diameter2 = normalize_diameter_result(graph.diameter());
+    assert_eq!(diameter, diameter2, "diameter must be deterministic");
+
+    match diameter {
+        Ok(value) => {
+            if order <= 1 {
+                assert_eq!(value, 0, "empty and singleton graphs must have diameter 0");
+            } else {
+                assert!(
+                    value < order,
+                    "diameter {value} must be smaller than the number of nodes {order}"
+                );
+            }
+        }
+        Err(DiameterError::DisconnectedGraph) => {
+            assert!(order > 1, "only nontrivial graphs can be disconnected");
+        }
+    }
+
+    if order > 96 {
+        return;
+    }
+
+    assert_eq!(
+        diameter,
+        diameter_oracle(graph),
+        "diameter must match the brute-force BFS oracle on small graphs"
     );
 }
 
