@@ -263,9 +263,9 @@ pub use node_ordering::{
     DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
     KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
     LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
-    NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
-    PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
-    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
+    MotifCountOrdering, NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer,
+    PageRankScorerBuilder, PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer, SquareCountScorer,
     TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
