@@ -315,6 +315,65 @@ fn naive_square_counts(graph: &UndiGraph<usize>) -> Vec<usize> {
     counts
 }
 
+fn naive_square_clustering_scores(graph: &UndiGraph<usize>) -> Vec<f64> {
+    let n = graph.number_of_nodes();
+    let mut adjacency = vec![vec![false; n]; n];
+    for (node, row) in adjacency.iter_mut().enumerate() {
+        for neighbor in graph.neighbors(node) {
+            if neighbor != node {
+                row[neighbor] = true;
+            }
+        }
+    }
+
+    let degrees: Vec<usize> = adjacency
+        .iter()
+        .map(|row| row.iter().filter(|&&is_neighbor| is_neighbor).count())
+        .collect();
+    let mut scores = vec![0.0; n];
+
+    for root in 0..n {
+        let root_neighbors: Vec<usize> =
+            (0..n).filter(|&candidate| adjacency[root][candidate]).collect();
+        if root_neighbors.len() < 2 {
+            continue;
+        }
+
+        let mut actual_squares = 0usize;
+        let mut actual_plus_possible = 0usize;
+        for left_offset in 0..root_neighbors.len() {
+            let left = root_neighbors[left_offset];
+            for &right in &root_neighbors[(left_offset + 1)..] {
+                let common_neighbors = (0..n)
+                    .filter(|&candidate| {
+                        candidate != root
+                            && candidate != left
+                            && candidate != right
+                            && adjacency[left][candidate]
+                            && adjacency[right][candidate]
+                    })
+                    .count();
+                let adjacent = usize::from(adjacency[left][right]);
+                let available_left = degrees[left].saturating_sub(1 + common_neighbors + adjacent);
+                let available_right =
+                    degrees[right].saturating_sub(1 + common_neighbors + adjacent);
+
+                actual_squares += common_neighbors;
+                actual_plus_possible += common_neighbors + available_left + available_right;
+            }
+        }
+
+        if actual_plus_possible > 0 {
+            scores[root] = (num_traits::cast::<usize, f64>(actual_squares).unwrap() * 1.0e12
+                / num_traits::cast::<usize, f64>(actual_plus_possible).unwrap())
+            .round()
+                / 1.0e12;
+        }
+    }
+
+    scores
+}
+
 fn assert_node_ordering_ground_truth_case_metadata(case: &NodeOrderingGroundTruthCase) {
     assert!(
         case.networkx_smallest_last.len() == case.n
@@ -751,6 +810,33 @@ const LOCAL_CLUSTERING_FIXTURES: &[FloatingScoringFixture] = &[
         graph: GraphFixture::TriangleWithTail,
         expected_scores: &[1.0, 1.0, 0.333333333333, 0.0, 0.0],
         expected_descending: &[0, 1, 2, 3, 4],
+    },
+];
+
+const SQUARE_CLUSTERING_FIXTURES: &[FloatingScoringFixture] = &[
+    FloatingScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0.0, 0.0, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "cycle_4",
+        graph: GraphFixture::Cycle(4),
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "square_with_tail",
+        graph: GraphFixture::SquareWithTail,
+        expected_scores: &[0.5, 1.0, 0.5, 0.333333333333, 0.0],
+        expected_descending: &[1, 0, 2, 3, 4],
     },
 ];
 
@@ -2059,6 +2145,87 @@ fn test_descending_local_clustering_coefficient_sorter_fixtures() {
             fixture.name
         );
     }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_fixtures() {
+    for fixture in SQUARE_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("square clustering fixture {}", fixture.name);
+        assert_scores_close(
+            &SquareClusteringCoefficientScorer.score_nodes(&graph),
+            fixture.expected_scores,
+            LOCAL_CLUSTERING_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_square_clustering_coefficient_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(SquareClusteringCoefficientScorer);
+
+    for fixture in SQUARE_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending square clustering ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_matches_naive_on_exhaustive_small_graphs() {
+    for n in 0usize..=6 {
+        let edge_count = n * n.saturating_sub(1) / 2;
+        let max_mask = 1u64 << edge_count;
+
+        for mask in 0..max_mask {
+            let mut bit = 0u32;
+            let mut edges = Vec::new();
+            for source in 0..n {
+                for destination in (source + 1)..n {
+                    if (mask & (1u64 << bit)) != 0 {
+                        edges.push((source, destination));
+                    }
+                    bit += 1;
+                }
+            }
+
+            let graph = build_sparse_undigraph(n, edges);
+            assert_scores_close(
+                &SquareClusteringCoefficientScorer.score_nodes(&graph),
+                &naive_square_clustering_scores(&graph),
+                LOCAL_CLUSTERING_TOLERANCE,
+                &format!("square clustering exhaustive n={n}, mask={mask}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_ignores_self_loops() {
+    let simple = GraphFixture::SquareWithTail.build();
+    let with_loops = build_sparse_undigraph(
+        5,
+        [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 1), (1, 2), (2, 3), (3, 0), (3, 4)],
+    );
+
+    assert!(with_loops.has_self_loops());
+    assert_scores_close(
+        &SquareClusteringCoefficientScorer.score_nodes(&with_loops),
+        &[0.5, 1.0, 0.5, 0.333333333333, 0.0],
+        LOCAL_CLUSTERING_TOLERANCE,
+        "square clustering with loops",
+    );
+    assert_scores_close(
+        &SquareClusteringCoefficientScorer.score_nodes(&with_loops),
+        &SquareClusteringCoefficientScorer.score_nodes(&simple),
+        LOCAL_CLUSTERING_TOLERANCE,
+        "square clustering ignores self loops",
+    );
 }
 
 #[test]

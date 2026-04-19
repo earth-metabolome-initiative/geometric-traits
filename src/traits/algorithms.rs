@@ -265,8 +265,9 @@ pub use node_ordering::{
     LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
     MotifCountOrdering, NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer,
     PageRankScorerBuilder, PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
-    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer, SquareCountScorer,
-    TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
+    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
+    SquareClusteringCoefficientScorer, SquareCountScorer, TraversalNeighborOrder,
+    TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
 pub use weisfeiler_lehman::WeisfeilerLehmanColoring;

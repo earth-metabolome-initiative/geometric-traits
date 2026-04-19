@@ -22,6 +22,7 @@ mod local_clustering;
 mod motifs;
 mod pagerank;
 mod power_iteration_eigenvector_centrality;
+mod square_clustering;
 mod squares;
 mod traversal;
 mod triangles;
@@ -46,6 +47,7 @@ pub use pagerank::{PageRankScorer, PageRankScorerBuilder};
 pub use power_iteration_eigenvector_centrality::{
     PowerIterationEigenvectorCentralityScorer, PowerIterationEigenvectorCentralityScorerBuilder,
 };
+pub use square_clustering::SquareClusteringCoefficientScorer;
 pub use squares::SquareCountScorer;
 pub use traversal::{
     BfsTraversalSorter, DfsTraversalSorter, TraversalNeighborOrder, TraversalSeedStrategy,
@@ -264,6 +266,7 @@ pub(super) const KATZ_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const BETWEENNESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const CLOSENESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const LOCAL_CLUSTERING_SCORE_SCALE: f64 = 1.0e12;
+pub(super) const SQUARE_CLUSTERING_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const POWER_ITERATION_EIGENVECTOR_SCORE_SCALE: f64 = 1.0e12;
 
 #[inline]
