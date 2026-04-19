@@ -210,8 +210,9 @@ fn assert_cases_match_closeness_scores(cases: &[PreparedNodeOrderingCase], group
 }
 
 fn assert_cases_match_triangle_counts(cases: &[PreparedNodeOrderingCase], group_name: &str) {
+    let scorer = TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree);
     for case in cases {
-        let triangle_counts = TriangleCountScorer.score_nodes(&case.graph);
+        let triangle_counts = scorer.score_nodes(&case.graph);
         let context = format!("{group_name}::{} ({})", case.name, case.family);
         assert_eq!(
             triangle_counts, case.triangle_counts,
@@ -1134,6 +1135,7 @@ fn bench_triangle_scorer(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
     assert_cases_match_triangle_counts(&cases, "node_ordering_triangle_scorer");
     let case_refs: Vec<&PreparedNodeOrderingCase> = cases.iter().collect();
+    let scorer = TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree);
 
     let mut total_group = c.benchmark_group("node_ordering_triangle_scorer");
     total_group.sample_size(10);
@@ -1152,7 +1154,7 @@ fn bench_triangle_scorer(c: &mut Criterion) {
                 let checksum = case_refs
                     .iter()
                     .map(|case| {
-                        TriangleCountScorer
+                        scorer
                             .score_nodes(&case.graph)
                             .into_iter()
                             .map(|value| {
@@ -1195,7 +1197,7 @@ fn bench_triangle_scorer(c: &mut Criterion) {
                     let checksum = family_cases
                         .iter()
                         .map(|case| {
-                            TriangleCountScorer
+                            scorer
                                 .score_nodes(&case.graph)
                                 .into_iter()
                                 .map(|value| {
@@ -1215,7 +1217,8 @@ fn bench_triangle_scorer(c: &mut Criterion) {
 
 fn bench_triangle_sorter(c: &mut Criterion) {
     let cases = prepare_cases(FIXTURE_NAME);
-    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
+    let sorter =
+        DescendingScoreSorter::new(TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree));
     assert_cases_match_exact_order(&cases, "node_ordering_triangle_sorter", &sorter, |case| {
         &case.triangle_descending
     });
@@ -2178,7 +2181,7 @@ fn bench_triangle_scaling(c: &mut Criterion) {
                 let checksum = case_refs
                     .iter()
                     .map(|case| {
-                        TriangleCountScorer
+                        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree)
                             .score_nodes(&case.graph)
                             .into_iter()
                             .map(|value| {
@@ -2204,7 +2207,7 @@ fn bench_triangle_scaling(c: &mut Criterion) {
         ));
         size_group.bench_function(BenchmarkId::new("case", &case.name), |b| {
             b.iter(|| {
-                let checksum = TriangleCountScorer
+                let checksum = TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree)
                     .score_nodes(&case.graph)
                     .into_iter()
                     .map(|value| u64::try_from(value).expect("triangle count should fit into u64"))

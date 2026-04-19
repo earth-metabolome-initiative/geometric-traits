@@ -127,6 +127,10 @@ name = "node_ordering"
 harness = false
 
 [[bench]]
+name = "motif_counting"
+harness = false
+
+[[bench]]
 name = "biconnected_components"
 harness = false
 

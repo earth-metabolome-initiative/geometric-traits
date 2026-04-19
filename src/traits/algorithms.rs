@@ -263,10 +263,11 @@ pub use node_ordering::{
     DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
     KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
     LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
-    NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
-    PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    MotifCountOrdering, NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer,
+    PageRankScorerBuilder, PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
     PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
-    TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
+    SquareClusteringCoefficientScorer, SquareCountScorer, TraversalNeighborOrder,
+    TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
 pub use weisfeiler_lehman::WeisfeilerLehmanColoring;
