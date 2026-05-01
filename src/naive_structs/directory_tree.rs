@@ -1,5 +1,7 @@
 //! Submodule providing a graph which represents a directory tree structure.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use std::{
     fmt::Display,
     path::{Path, PathBuf},
@@ -12,6 +14,9 @@ use crate::{
     traits::{EdgesBuilder, MonopartiteGraph, MonoplexGraph},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// A directory tree represented as a directed graph.
 pub struct DirectoryTree {

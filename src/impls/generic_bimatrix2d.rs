@@ -1,11 +1,16 @@
 //! [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 //! and its transposed version.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;
 
 use crate::prelude::*;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 /// and its transposed version.

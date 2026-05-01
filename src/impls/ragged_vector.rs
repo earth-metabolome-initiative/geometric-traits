@@ -1,5 +1,7 @@
 //! Submodule providing an implementation of the `RaggedVector` struct.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};
@@ -14,6 +16,9 @@ use crate::traits::{
     TryFromUsize,
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// Struct representing a ragged vector sparse matrix.
 pub struct RaggedVector<SparseIndex, RowIndex, ColumnIndex> {

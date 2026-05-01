@@ -1,11 +1,16 @@
 //! Submodule providing a general builder to build a generic graph.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use crate::traits::{
     BipartiteGraph, BipartiteGraphBuilder, MonoplexBipartiteGraph, MonoplexGraphBuilder,
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone)]
 /// Basic builder for a generic graph.
 pub struct GenericMonoplexBipartiteGraphBuilder<G: MonoplexBipartiteGraph> {

@@ -1,11 +1,17 @@
 //! A generic vocabulary builder that can be used to build a vocabulary for any
 //! type of graph.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
+
 use crate::{
     errors::builder::vocabulary::VocabularyBuilderError,
     traits::{GrowableVocabulary, Vocabulary, VocabularyBuilder},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, Debug)]
 /// A generic vocabulary builder that can be used to build a vocabulary for any
 /// type of graph.

@@ -1,5 +1,7 @@
 //! Module implementing traits for the Vec type.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{
@@ -9,6 +11,9 @@ use core::{
 
 use crate::{errors::SortedError, prelude::*, traits::Symbol};
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Struct defining a sorted vector and its primary methods.
 pub struct SortedVec<V> {

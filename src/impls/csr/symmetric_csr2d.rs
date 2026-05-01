@@ -1,4 +1,6 @@
 //! Submodule providing a definition of a CSR matrix.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 
@@ -14,6 +16,9 @@ use crate::{
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A symmetric compressed sparse row matrix.
 pub struct SymmetricCSR2D<M: Matrix2D> {

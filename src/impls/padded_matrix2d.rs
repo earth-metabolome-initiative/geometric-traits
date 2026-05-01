@@ -15,6 +15,9 @@ pub mod padded_coordinates;
 mod sparse_matrix;
 mod valued_matrix;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone)]
 /// A padded matrix that fills all of the values not defined in the
 /// underlying sparse matrix with the value provided by the Map function.

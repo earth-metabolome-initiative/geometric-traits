@@ -21,6 +21,7 @@ lender = { version = "0.4.2", default-features = false }
 hashbrown = { version = "0.16.1", optional = true }
 bitvec = { version = "1", default-features = false, features = ["alloc"] }
 rand = { version = "0.8.5", default-features = false, features = ["alloc", "small_rng"], optional = true }
+mem_dbg_crate = { package = "mem_dbg", version = "0.4.1", default-features = false, optional = true }
 
 [lints.rust]
 missing_docs = "forbid"
@@ -64,6 +65,8 @@ alloc = [
 ]
 arbitrary = ["dep:arbitrary", "std"]
 hashbrown = ["dep:hashbrown"]
+mem_size = ["alloc", "dep:mem_dbg_crate", "mem_dbg_crate/derive"]
+mem_dbg = ["std", "mem_size", "mem_dbg_crate/std"]
 
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }

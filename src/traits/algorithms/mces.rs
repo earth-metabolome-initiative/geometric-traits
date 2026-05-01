@@ -52,12 +52,15 @@ use crate::{
 // ============================================================================
 
 /// Default pair filter: accept all vertex pairs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct AcceptAllPairs;
 
 /// Default disambiguation: arbitrary orientation (always `true`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ArbitraryDisambiguate;
 
 /// Default edge-context constraint: accept all bond pairs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct AcceptAllEdgeContexts;
 
 // ============================================================================
@@ -166,6 +169,7 @@ pub trait McesEdgeComparator<V1, V2> {
 }
 
 /// Default edge comparator: strict `PartialEq` equality.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct StrictEqualityComparator;
 
 impl<V: PartialEq> McesEdgeComparator<V, V> for StrictEqualityComparator {
@@ -768,6 +772,7 @@ fn default_ranker_with_metric(metric: LargestFragmentMetric) -> DefaultRanker {
 /// Contains the best-ranked clique's matched edges, vertex matches, and
 /// all data needed for similarity computation. Implements [`GraphSimilarities`]
 /// for convenient access to Johnson, Tanimoto, Dice, etc.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct McesResult<N> {
     matched_edges: Vec<MatchedEdgePair<N>>,
     vertex_matches: Vec<(N, N)>,

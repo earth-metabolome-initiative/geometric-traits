@@ -1,5 +1,7 @@
 //! Submodule providing a definition of a CSR matrix.
 #![cfg(feature = "alloc")]
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};
 
@@ -12,6 +14,9 @@ use crate::{
     traits::{PositiveInteger, TryFromUsize},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A compressed sparse row matrix.
 pub struct RangedCSR2D<SparseIndex, RowIndex, R: MultiRanged> {

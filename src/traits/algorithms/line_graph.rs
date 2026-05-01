@@ -16,6 +16,7 @@ use crate::{
 ///
 /// Contains the line graph itself and a mapping from each vertex in L(G)
 /// back to the original edge (src, dst) in G.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct LineGraphResult<M, NodeId> {
     graph: M,
     edge_map: Vec<(NodeId, NodeId)>,

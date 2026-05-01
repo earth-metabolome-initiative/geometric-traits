@@ -85,6 +85,7 @@ pub trait CliqueInfo {
 ///
 /// Constructed from a maximum clique result, vertex pairs, edge maps, and
 /// a disambiguation closure. All fields are computed at construction time.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EagerCliqueInfo<N> {
     clique: Vec<usize>,
     matched_edges: Vec<MatchedEdgePair<N>>,
@@ -293,6 +294,7 @@ impl<T> CliqueRankerExt for T {}
 ///
 /// Created by [`CliqueRankerExt::then`]. Fully monomorphized — the compiler
 /// inlines both comparisons.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ChainedRanker<R1, R2> {
     first: R1,
     second: R2,
@@ -312,6 +314,7 @@ impl<I: CliqueInfo, R1: CliqueRanker<I>, R2: CliqueRanker<I>> CliqueRanker<I>
 /// This is the first tiebreaker in the RASCAL-style ranking (criterion 2).
 /// A single contiguous matched subgraph (1 fragment) is preferred over
 /// a scattered match with the same number of edges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FragmentCountRanker;
 
 impl<I: CliqueInfo> CliqueRanker<I> for FragmentCountRanker {
@@ -326,6 +329,7 @@ impl<I: CliqueInfo> CliqueRanker<I> for FragmentCountRanker {
 /// This is the second tiebreaker in the RASCAL-style ranking (criterion 3).
 /// Among cliques with the same fragment count, prefer the one whose largest
 /// connected component contains more edges.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct LargestFragmentRanker;
 
 impl<I: CliqueInfo> CliqueRanker<I> for LargestFragmentRanker {
@@ -345,6 +349,7 @@ pub enum LargestFragmentMetric {
 }
 
 /// Ranks cliques by largest fragment size using a selectable metric.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct LargestFragmentMetricRanker {
     metric: LargestFragmentMetric,
 }

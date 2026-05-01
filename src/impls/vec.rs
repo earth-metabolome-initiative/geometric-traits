@@ -1,5 +1,7 @@
 //! Module implementing traits for the Vec type.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{
@@ -109,6 +111,9 @@ use crate::traits::{
     ValuedMatrix, ValuedMatrix2D,
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Implementation of a matrix using a vector.
 pub struct VecMatrix2D<V> {
