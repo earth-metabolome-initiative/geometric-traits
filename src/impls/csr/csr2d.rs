@@ -2,7 +2,7 @@
 #[cfg(feature = "mem_dbg")]
 use alloc::string::String;
 use alloc::vec::Vec;
-use core::{fmt::Debug, iter::repeat_n};
+use core::{fmt::Debug, iter::repeat_n, ops::Range};
 
 use multi_ranged::Step;
 use num_traits::{AsPrimitive, Zero};
@@ -98,6 +98,56 @@ where
             column_indices: Vec::with_capacity(number_of_values.as_()),
             number_of_non_empty_rows: RowIndex::zero(),
         }
+    }
+}
+
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+> CSR2D<SparseIndex, RowIndex, ColumnIndex>
+where
+    Self: Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
+{
+    /// Returns the global sparse-index range covered by a row.
+    ///
+    /// The returned range uses the same sparse-index coordinate system as
+    /// [`SizedSparseMatrix2D::select_column`].
+    #[inline]
+    pub fn sparse_row_sparse_index_range(&self, row: RowIndex) -> Range<SparseIndex> {
+        self.rank_row(row)..self.rank_row(row + RowIndex::one())
+    }
+
+    /// Returns the column slice stored for a sparse row.
+    ///
+    /// The slice is sorted by column index because CSR insertion enforces
+    /// sorted, duplicate-free row storage.
+    #[inline]
+    pub fn sparse_row_slice(&self, row: RowIndex) -> &[ColumnIndex] {
+        let range = self.sparse_row_sparse_index_range(row);
+        &self.column_indices[range.start.as_()..range.end.as_()]
+    }
+
+    /// Returns the first global sparse index in a row where `predicate` is
+    /// false.
+    ///
+    /// This follows [`slice::partition_point`]: callers must provide a monotone
+    /// predicate over the row's sorted column slice.
+    #[inline]
+    pub fn sparse_row_partition_point<F>(&self, row: RowIndex, mut predicate: F) -> SparseIndex
+    where
+        F: FnMut(ColumnIndex) -> bool,
+    {
+        let range = self.sparse_row_sparse_index_range(row);
+        let local_offset = self.column_indices[range.start.as_()..range.end.as_()]
+            .partition_point(|&column| predicate(column));
+
+        range.start
+            + SparseIndex::try_from_usize(local_offset).unwrap_or_else(|_| {
+                unreachable!(
+                    "The Matrix is in an illegal state where a sparse index is greater than the number of defined values."
+                )
+            })
     }
 }
 
@@ -277,16 +327,12 @@ impl<
 
     #[inline]
     fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
-        let start = self.rank_row(row).as_();
-        let end = self.rank_row(row + RowIndex::one()).as_();
-        self.column_indices[start..end].iter().copied()
+        self.sparse_row_slice(row).iter().copied()
     }
 
     #[inline]
     fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
-        let start = self.rank_row(row).as_();
-        let end = self.rank_row(row + RowIndex::one()).as_();
-        self.column_indices[start..end].binary_search(&column).is_ok()
+        self.sparse_row_slice(row).binary_search(&column).is_ok()
     }
 
     #[inline]
@@ -665,6 +711,47 @@ mod tests {
 
         let row1: Vec<usize> = csr.sparse_row(1).collect();
         assert_eq!(row1, vec![2]);
+    }
+
+    #[test]
+    fn test_csr2d_sparse_row_slice() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((4, 8));
+        MatrixMut::add(&mut csr, (1, 2)).unwrap();
+        MatrixMut::add(&mut csr, (1, 4)).unwrap();
+        MatrixMut::add(&mut csr, (1, 7)).unwrap();
+
+        assert_eq!(csr.sparse_row_slice(0), &[]);
+        assert_eq!(csr.sparse_row_slice(1), &[2, 4, 7]);
+        assert_eq!(csr.sparse_row_slice(2), &[]);
+        assert_eq!(csr.sparse_row_slice(3), &[]);
+    }
+
+    #[test]
+    fn test_csr2d_sparse_row_sparse_index_range() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((4, 8));
+        MatrixMut::add(&mut csr, (1, 2)).unwrap();
+        MatrixMut::add(&mut csr, (1, 4)).unwrap();
+        MatrixMut::add(&mut csr, (1, 7)).unwrap();
+        MatrixMut::add(&mut csr, (3, 5)).unwrap();
+
+        assert_eq!(csr.sparse_row_sparse_index_range(0), 0..0);
+        assert_eq!(csr.sparse_row_sparse_index_range(1), 0..3);
+        assert_eq!(csr.sparse_row_sparse_index_range(2), 3..3);
+        assert_eq!(csr.sparse_row_sparse_index_range(3), 3..4);
+    }
+
+    #[test]
+    fn test_csr2d_sparse_row_partition_point_returns_global_sparse_index() {
+        let mut csr: TestCSR2D = SparseMatrixMut::with_sparse_shape((4, 8));
+        MatrixMut::add(&mut csr, (0, 1)).unwrap();
+        MatrixMut::add(&mut csr, (1, 2)).unwrap();
+        MatrixMut::add(&mut csr, (1, 4)).unwrap();
+        MatrixMut::add(&mut csr, (1, 7)).unwrap();
+        MatrixMut::add(&mut csr, (3, 5)).unwrap();
+
+        assert_eq!(csr.sparse_row_partition_point(1, |column| column < 4), 2);
+        assert_eq!(csr.sparse_row_partition_point(1, |column| column < 6), 3);
+        assert_eq!(csr.sparse_row_partition_point(2, |column| column < 6), 4);
     }
 
     #[test]
