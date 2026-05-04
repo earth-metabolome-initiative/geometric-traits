@@ -113,6 +113,21 @@ where
     ///
     /// The returned range uses the same sparse-index coordinate system as
     /// [`SizedSparseMatrix2D::select_column`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4)).unwrap();
+    /// MatrixMut::add(&mut matrix, (2, 7)).unwrap();
+    ///
+    /// assert_eq!(matrix.sparse_row_sparse_index_range(0), 0..0);
+    /// assert_eq!(matrix.sparse_row_sparse_index_range(1), 0..2);
+    /// assert_eq!(matrix.sparse_row_sparse_index_range(2), 2..3);
+    /// ```
     #[inline]
     pub fn sparse_row_sparse_index_range(&self, row: RowIndex) -> Range<SparseIndex> {
         self.rank_row(row)..self.rank_row(row + RowIndex::one())
@@ -122,6 +137,24 @@ where
     ///
     /// The slice is sorted by column index because CSR insertion enforces
     /// sorted, duplicate-free row storage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 7)).unwrap();
+    ///
+    /// let row = matrix.sparse_row_slice(1);
+    /// let first = row.partition_point(|&column| column < 4);
+    ///
+    /// assert_eq!(row, &[2, 4, 7]);
+    /// assert_eq!(&row[first..], &[4, 7]);
+    /// assert_eq!(matrix.sparse_row_slice(0), &[]);
+    /// ```
     #[inline]
     pub fn sparse_row_slice(&self, row: RowIndex) -> &[ColumnIndex] {
         let range = self.sparse_row_sparse_index_range(row);
@@ -133,6 +166,22 @@ where
     ///
     /// This follows [`slice::partition_point`]: callers must provide a monotone
     /// predicate over the row's sorted column slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: CSR2D<usize, usize, usize> = SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (0, 1)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 2)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 7)).unwrap();
+    ///
+    /// assert_eq!(matrix.sparse_row_partition_point(1, |column| column < 4), 2);
+    /// assert_eq!(matrix.sparse_row_partition_point(1, |column| column < 6), 3);
+    /// assert_eq!(matrix.sparse_row_partition_point(2, |column| column < 6), 4);
+    /// ```
     #[inline]
     pub fn sparse_row_partition_point<F>(&self, row: RowIndex, mut predicate: F) -> SparseIndex
     where

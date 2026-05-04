@@ -107,6 +107,22 @@ where
         Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
 {
     /// Returns the values slice stored for a sparse row.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
+    ///     SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2, 20)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4, 40)).unwrap();
+    /// MatrixMut::add(&mut matrix, (2, 7, 70)).unwrap();
+    ///
+    /// assert_eq!(matrix.sparse_row_values_slice(0), &[]);
+    /// assert_eq!(matrix.sparse_row_values_slice(1), &[20, 40]);
+    /// assert_eq!(matrix.sparse_row_values_slice(2), &[70]);
+    /// ```
     #[inline]
     pub fn sparse_row_values_slice(&self, row: RowIndex) -> &[Value] {
         let range = self.csr.sparse_row_sparse_index_range(row);
@@ -114,6 +130,24 @@ where
     }
 
     /// Returns matching column and value slices stored for a sparse row.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
+    ///     SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2, 20)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4, 40)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 7, 70)).unwrap();
+    ///
+    /// let (columns, values) = matrix.sparse_row_entries_slice(1);
+    ///
+    /// assert_eq!(columns, &[2, 4, 7]);
+    /// assert_eq!(values, &[20, 40, 70]);
+    /// assert_eq!(matrix.sparse_row_entries_slice(0), (&[][..], &[][..]));
+    /// ```
     #[inline]
     pub fn sparse_row_entries_slice(&self, row: RowIndex) -> (&[ColumnIndex], &[Value]) {
         (self.csr.sparse_row_slice(row), self.sparse_row_values_slice(row))
