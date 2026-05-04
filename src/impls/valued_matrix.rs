@@ -96,6 +96,64 @@ impl<SparseIndex, RowIndex, ColumnIndex, Value>
     }
 }
 
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    Value,
+> ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>:
+        Matrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
+{
+    /// Returns the values slice stored for a sparse row.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
+    ///     SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2, 20)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4, 40)).unwrap();
+    /// MatrixMut::add(&mut matrix, (2, 7, 70)).unwrap();
+    ///
+    /// assert_eq!(matrix.sparse_row_values_slice(0), &[]);
+    /// assert_eq!(matrix.sparse_row_values_slice(1), &[20, 40]);
+    /// assert_eq!(matrix.sparse_row_values_slice(2), &[70]);
+    /// ```
+    #[inline]
+    pub fn sparse_row_values_slice(&self, row: RowIndex) -> &[Value] {
+        let range = self.csr.sparse_row_sparse_index_range(row);
+        &self.values[range.start.as_()..range.end.as_()]
+    }
+
+    /// Returns matching column and value slices stored for a sparse row.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::prelude::*;
+    ///
+    /// let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
+    ///     SparseMatrixMut::with_sparse_shape((3, 8));
+    /// MatrixMut::add(&mut matrix, (1, 2, 20)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 4, 40)).unwrap();
+    /// MatrixMut::add(&mut matrix, (1, 7, 70)).unwrap();
+    ///
+    /// let (columns, values) = matrix.sparse_row_entries_slice(1);
+    ///
+    /// assert_eq!(columns, &[2, 4, 7]);
+    /// assert_eq!(values, &[20, 40, 70]);
+    /// assert_eq!(matrix.sparse_row_entries_slice(0), (&[][..], &[][..]));
+    /// ```
+    #[inline]
+    pub fn sparse_row_entries_slice(&self, row: RowIndex) -> (&[ColumnIndex], &[Value]) {
+        (self.csr.sparse_row_slice(row), self.sparse_row_values_slice(row))
+    }
+}
+
 impl<SparseIndex: AsPrimitive<usize>, RowIndex, ColumnIndex>
     CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
@@ -742,6 +800,37 @@ mod tests {
 
         let row1_values: Vec<i32> = matrix.sparse_row_values(1).collect();
         assert_eq!(row1_values, vec![30]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_sparse_row_values_slice() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((4, 8));
+        matrix.add((1, 2, 20)).unwrap();
+        matrix.add((1, 4, 40)).unwrap();
+        matrix.add((1, 7, 70)).unwrap();
+        matrix.add((3, 5, 50)).unwrap();
+
+        assert_eq!(matrix.sparse_row_values_slice(0), &[]);
+        assert_eq!(matrix.sparse_row_values_slice(1), &[20, 40, 70]);
+        assert_eq!(matrix.sparse_row_values_slice(2), &[]);
+        assert_eq!(matrix.sparse_row_values_slice(3), &[50]);
+    }
+
+    #[test]
+    fn test_valued_csr2d_sparse_row_entries_slice() {
+        let mut matrix: TestValuedCSR2D = SparseMatrixMut::with_sparse_shape((4, 8));
+        matrix.add((1, 2, 20)).unwrap();
+        matrix.add((1, 4, 40)).unwrap();
+        matrix.add((1, 7, 70)).unwrap();
+        matrix.add((3, 5, 50)).unwrap();
+
+        let (columns, values) = matrix.sparse_row_entries_slice(1);
+        assert_eq!(columns, &[2, 4, 7]);
+        assert_eq!(values, &[20, 40, 70]);
+
+        let (columns, values) = matrix.sparse_row_entries_slice(2);
+        assert_eq!(columns, &[]);
+        assert_eq!(values, &[]);
     }
 
     #[test]
