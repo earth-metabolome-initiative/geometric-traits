@@ -24,6 +24,8 @@
 
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 use num_traits::{AsPrimitive, ToPrimitive};
 
 use super::jacobi::{JacobiConfig, JacobiError, jacobi_decompose, sort_eigen, validate_config};

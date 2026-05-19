@@ -1,6 +1,8 @@
 use alloc::{vec, vec::Vec};
 
 use num_traits::AsPrimitive;
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use super::{NodeScorer, SQUARE_CLUSTERING_SCORE_SCALE, usize_to_f64};
 use crate::{impls::SortedIterator, traits::UndirectedMonopartiteMonoplexGraph};

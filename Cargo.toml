@@ -62,6 +62,7 @@ std = [
 alloc = [
     "hashbrown?/alloc",
     "dep:rand",
+    "num-traits/libm",
 ]
 arbitrary = ["dep:arbitrary", "std"]
 hashbrown = ["dep:hashbrown"]

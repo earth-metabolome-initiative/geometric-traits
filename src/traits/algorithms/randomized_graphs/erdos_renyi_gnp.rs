@@ -3,6 +3,9 @@
 
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 use super::{XorShift64, builder_utils::build_symmetric};
 use crate::impls::{CSR2D, SymmetricCSR2D};
 

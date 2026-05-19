@@ -3,6 +3,8 @@
 
 use alloc::vec::Vec;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 use num_traits::{AsPrimitive, ToPrimitive};
 use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
