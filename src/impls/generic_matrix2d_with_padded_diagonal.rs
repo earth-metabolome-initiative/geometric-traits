@@ -236,11 +236,18 @@ where
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
-        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap_or_else(|_| {
-            unreachable!(
-                "Row range must be valid because GenericMatrix2DWithPaddedDiagonal::new validates square padded capacity."
+        let number_of_rows = self.number_of_rows();
+        if number_of_rows.is_zero() {
+            SimpleRange::default()
+        } else {
+            SimpleRange::try_from((Self::RowIndex::zero(), number_of_rows.prev())).unwrap_or_else(
+                |_| {
+                    unreachable!(
+                        "Row range must be valid because GenericMatrix2DWithPaddedDiagonal::new validates square padded capacity."
+                    )
+                },
             )
-        })
+        }
     }
 
     #[inline]
