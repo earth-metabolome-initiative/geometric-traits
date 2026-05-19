@@ -6,7 +6,7 @@ use std::{hint::black_box, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
-use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 type CapacityGraph = ValuedCSR2D<usize, usize, usize, usize>;
 
@@ -58,7 +58,7 @@ fn make_kocay_case(
     let mut incident_capacity = vec![0usize; n];
     let mut edges = Vec::with_capacity(edge_count);
     for &(u, v) in pairs.iter().take(edge_count) {
-        let capacity = rng.gen_range(1..=max_capacity);
+        let capacity = rng.random_range(1..=max_capacity);
         incident_capacity[u] += capacity;
         incident_capacity[v] += capacity;
         edges.push((u, v, capacity));
@@ -72,7 +72,7 @@ fn make_kocay_case(
         }
         let lower = (total_incident_capacity / 3).max(1);
         let upper = ((2 * total_incident_capacity) / 3).max(lower);
-        budgets.push(rng.gen_range(lower..=upper));
+        budgets.push(rng.random_range(lower..=upper));
     }
 
     KocayCase { name: name.to_owned(), capacities: build_capacity_graph(n, &edges), budgets }

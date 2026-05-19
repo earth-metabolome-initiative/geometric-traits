@@ -21,7 +21,7 @@ use geometric_traits::{
         SparseValuedMatrix2D, VocabularyBuilder,
     },
 };
-use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 use rayon::prelude::*;
 
 type LabeledUndirectedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, u8>>;
@@ -111,24 +111,24 @@ fn random_labeled_simple_case(
     seed: u64,
 ) -> (LabeledUndirectedGraph, Vec<u8>, Vec<(usize, usize, u8)>) {
     let mut rng = SmallRng::seed_from_u64(seed);
-    let number_of_nodes = rng.gen_range(2..=14);
-    let vertex_palette = rng.gen_range(1_u8..=5);
-    let edge_palette = rng.gen_range(1_u8..=5);
+    let number_of_nodes = rng.random_range(2..=14);
+    let vertex_palette = rng.random_range(1_u8..=5);
+    let edge_palette = rng.random_range(1_u8..=5);
     let vertex_labels =
-        (0..number_of_nodes).map(|_| rng.gen_range(0_u8..vertex_palette)).collect::<Vec<_>>();
-    let connected = rng.gen_bool(0.6);
+        (0..number_of_nodes).map(|_| rng.random_range(0_u8..vertex_palette)).collect::<Vec<_>>();
+    let connected = rng.random_bool(0.6);
     let max_edges = number_of_nodes * (number_of_nodes - 1) / 2;
     let min_edges = if connected { number_of_nodes - 1 } else { 0 };
-    let target_edges = rng.gen_range(min_edges..=max_edges);
+    let target_edges = rng.random_range(min_edges..=max_edges);
 
     let mut seen = std::collections::BTreeSet::new();
     let mut edges = Vec::with_capacity(target_edges);
     if connected {
         for node in 1..number_of_nodes {
-            let parent = rng.gen_range(0..node);
+            let parent = rng.random_range(0..node);
             let (left, right) = if parent < node { (parent, node) } else { (node, parent) };
             seen.insert((left, right));
-            edges.push((left, right, rng.gen_range(0_u8..edge_palette)));
+            edges.push((left, right, rng.random_range(0_u8..edge_palette)));
         }
     }
 
@@ -145,7 +145,7 @@ fn random_labeled_simple_case(
 
     for (left, right) in remaining_pairs.into_iter().take(target_edges.saturating_sub(edges.len()))
     {
-        edges.push((left, right, rng.gen_range(0_u8..edge_palette)));
+        edges.push((left, right, rng.random_range(0_u8..edge_palette)));
     }
 
     edges.sort_unstable_by(|left, right| {

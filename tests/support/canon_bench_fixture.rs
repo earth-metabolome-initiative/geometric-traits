@@ -9,7 +9,7 @@ use geometric_traits::{
     prelude::GenericVocabularyBuilder,
     traits::VocabularyBuilder,
 };
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 type LabeledUndirectedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, u8>>;
 pub(crate) type LabeledUndirectedGraph = GenericGraph<SortedVec<usize>, LabeledUndirectedEdges>;
@@ -173,7 +173,8 @@ fn random_connected_case(
     assert!(number_of_edges <= number_of_nodes * (number_of_nodes - 1) / 2);
 
     let mut rng = SmallRng::seed_from_u64(seed);
-    let vertex_labels = (0..number_of_nodes).map(|_| rng.gen_range(0_u8..=3)).collect::<Vec<_>>();
+    let vertex_labels =
+        (0..number_of_nodes).map(|_| rng.random_range(0_u8..=3)).collect::<Vec<_>>();
     let mut seen = BTreeSet::new();
     let mut edges = Vec::with_capacity(number_of_edges);
 
@@ -184,8 +185,8 @@ fn random_connected_case(
     }
 
     while edges.len() < number_of_edges {
-        let mut source = rng.gen_range(0..number_of_nodes);
-        let mut destination = rng.gen_range(0..number_of_nodes);
+        let mut source = rng.random_range(0..number_of_nodes);
+        let mut destination = rng.random_range(0..number_of_nodes);
         if source == destination {
             continue;
         }
@@ -195,7 +196,7 @@ fn random_connected_case(
         if !seen.insert((source, destination)) {
             continue;
         }
-        edges.push((source, destination, rng.gen_range(1_u8..=3)));
+        edges.push((source, destination, rng.random_range(1_u8..=3)));
     }
 
     with_name(build_labeled_graph(number_of_nodes, vertex_labels, edges), name)

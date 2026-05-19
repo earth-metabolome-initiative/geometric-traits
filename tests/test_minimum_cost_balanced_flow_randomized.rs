@@ -7,14 +7,14 @@ mod minimum_cost_balanced_flow_oracle;
 use minimum_cost_balanced_flow_oracle::{
     WeightedEdge, assert_solver_matches_oracle, solve_weighted_flow, validate_flow,
 };
-use rand::{Rng, SeedableRng, rngs::SmallRng};
+use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 fn shuffle<T>(values: &mut [T], rng: &mut SmallRng) {
     if values.len() < 2 {
         return;
     }
     for i in (1..values.len()).rev() {
-        let j = rng.gen_range(0..=i);
+        let j = rng.random_range(0..=i);
         values.swap(i, j);
     }
 }
@@ -27,7 +27,7 @@ fn sample_instance(
     max_budget: usize,
     max_cost: i64,
 ) -> (usize, Vec<WeightedEdge>, Vec<usize>) {
-    let n = rng.gen_range(2..=max_vertices);
+    let n = rng.random_range(2..=max_vertices);
     let mut pairs = Vec::new();
     for u in 0..n {
         for v in (u + 1)..n {
@@ -36,15 +36,15 @@ fn sample_instance(
     }
     shuffle(&mut pairs, rng);
 
-    let edge_count = rng.gen_range(0..=pairs.len().min(max_edges));
+    let edge_count = rng.random_range(0..=pairs.len().min(max_edges));
     let mut edges = Vec::with_capacity(edge_count);
     for &(u, v) in pairs.iter().take(edge_count) {
-        let capacity = rng.gen_range(1..=max_capacity);
-        let cost = rng.gen_range(0..=max_cost);
+        let capacity = rng.random_range(1..=max_capacity);
+        let cost = rng.random_range(0..=max_cost);
         edges.push((u, v, capacity, cost));
     }
 
-    let budgets = (0..n).map(|_| rng.gen_range(0..=max_budget)).collect();
+    let budgets = (0..n).map(|_| rng.random_range(0..=max_budget)).collect();
     (n, edges, budgets)
 }
 

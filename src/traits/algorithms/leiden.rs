@@ -4,7 +4,7 @@
 use alloc::vec::Vec;
 
 use num_traits::{AsPrimitive, ToPrimitive};
-use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 use super::modularity::{
     LocalMovingConfig, ModularityError, WeightedUndirectedGraph, approx_eq, local_moving,
@@ -364,7 +364,7 @@ fn sample_softmax_destination(
         return best_candidate(candidate_moves);
     }
 
-    let draw = rng.gen_range(0.0..total_weight);
+    let draw = rng.random_range(0.0..total_weight);
     for idx in 0..candidate_moves.len().saturating_sub(1) {
         if draw <= cumulative_weights[idx] {
             return candidate_moves[idx].0;
