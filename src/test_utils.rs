@@ -2756,6 +2756,60 @@ pub fn check_jacobi_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
 }
 
 // ============================================================================
+// ForceAtlas2 invariants (from fuzz/fuzz_targets/forceatlas2.rs)
+// ============================================================================
+
+/// Check ForceAtlas2 layout invariants on arbitrary input.
+///
+/// Runs the layout in the mode combination selected by `mode_bits` (LinLog,
+/// dissuade hubs, strong gravity, Barnes-Hut, edge weight influence in
+/// {0, 1, 2} and optional uniform node sizes) and verifies:
+/// - the layout never panics, invalid inputs are rejected with an error
+/// - on success, the result has one 2D point per node and every coordinate is
+///   finite (the crate-level guarantee added on top of the Gephi semantics)
+/// - the run statistics are finite and non-negative
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+#[inline]
+pub fn check_forceatlas2_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>, mode_bits: u8) {
+    let n: usize = csr.number_of_rows().as_();
+
+    let config = ForceAtlas2Config {
+        iterations: 10,
+        lin_log: mode_bits & 1 != 0,
+        dissuade_hubs: mode_bits & 2 != 0,
+        strong_gravity: mode_bits & 4 != 0,
+        barnes_hut: mode_bits & 8 != 0,
+        edge_weight_influence: f64::from((mode_bits >> 4) & 3).min(2.0),
+        node_sizes: if mode_bits & 64 != 0 {
+            Some(alloc::vec![f64::from(mode_bits >> 6) * 0.5; n])
+        } else {
+            None
+        },
+        seed: u64::from(mode_bits),
+        ..Default::default()
+    };
+
+    let Ok(result) = csr.force_atlas2(&config) else {
+        // Invalid inputs (non-square, asymmetric, non-finite or negative
+        // weights) must be rejected with an error, never a panic.
+        return;
+    };
+
+    assert_eq!(result.num_points(), n);
+    assert_eq!(result.dimensions(), 2);
+    assert_eq!(result.coordinates_flat().len(), n * 2);
+    assert!(
+        result.coordinates_flat().iter().all(|coordinate| coordinate.is_finite()),
+        "ForceAtlas2 produced a non-finite coordinate"
+    );
+    assert!(result.final_swinging().is_finite() && result.final_swinging() >= 0.0);
+    assert!(result.final_traction().is_finite() && result.final_traction() >= 0.0);
+}
+
+// ============================================================================
 // Classical MDS invariants (from fuzz/fuzz_targets/mds.rs)
 // ============================================================================
 
@@ -4033,6 +4087,27 @@ mod tests {
     fn test_check_jacobi_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_jacobi_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_forceatlas2_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        for mode_bits in [0_u8, 0b0100_1111, 0b1111_1111] {
+            check_forceatlas2_invariants(&csr, mode_bits);
+        }
+    }
+
+    #[test]
+    fn test_check_forceatlas2_invariants_on_valid_graph() {
+        // A symmetric weighted triangle exercises the success path of the
+        // checker in every mode combination.
+        let csr = build_valued_csr_f64(
+            (3, 3),
+            &[(0, 1, 1.0), (0, 2, 2.0), (1, 0, 1.0), (1, 2, 1.0), (2, 0, 2.0), (2, 1, 1.0)],
+        );
+        for mode_bits in 0..=255_u8 {
+            check_forceatlas2_invariants(&csr, mode_bits);
+        }
     }
 
     #[test]

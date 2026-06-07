@@ -168,6 +168,10 @@ mod mds;
 #[cfg(feature = "alloc")]
 pub use mds::*;
 #[cfg(feature = "alloc")]
+mod forceatlas2;
+#[cfg(feature = "alloc")]
+pub use forceatlas2::*;
+#[cfg(feature = "alloc")]
 mod blossom;
 #[cfg(feature = "alloc")]
 mod matching_utils;

@@ -492,8 +492,15 @@ pub(crate) fn mix_seed(seed: u64, level_index: usize, pass_index: usize) -> u64 
         ^ pass.wrapping_add(1).wrapping_mul(0xD1B5_4A32_D192_ED03)
 }
 
+/// Returns whether two values are equal within a tolerance scaled by the
+/// larger magnitude and floored at 1.0.
+///
+/// The scale is multiplied by the combined epsilon BEFORE being applied,
+/// so the tolerance cannot overflow to infinity for values near
+/// `f64::MAX` (a fuzzer-found pitfall: `huge * 16.0` overflows and the
+/// resulting infinite tolerance would accept any pair as equal).
 pub(crate) fn approx_eq(left: f64, right: f64) -> bool {
-    let tolerance = (left.abs().max(right.abs()).max(1.0)) * 16.0 * f64::EPSILON;
+    let tolerance = left.abs().max(right.abs()).max(1.0) * (16.0 * f64::EPSILON);
     (left - right).abs() <= tolerance
 }
 
@@ -579,6 +586,35 @@ mod tests {
         let error = WeightedUndirectedGraph::from_matrix(&matrix).unwrap_err();
 
         assert!(matches!(error, ModularityError::NonFiniteWeight { .. }));
+    }
+
+    /// Fuzzer-found regression (via the ForceAtlas2 copy of this helper):
+    /// with one value near `f64::MAX`, a tolerance computed as
+    /// `scale * 16.0 * EPSILON` overflows to infinity and accepts ANY pair
+    /// as equal.
+    #[test]
+    fn test_approx_eq_does_not_overflow_on_huge_values() {
+        assert!(!super::approx_eq(2.527457358493282e307, 1.656712100688973e-24));
+        assert!(super::approx_eq(2.527457358493282e307, 2.527457358493282e307));
+        assert!(!super::approx_eq(2.5e307, 2.6e307));
+        assert!(super::approx_eq(1e-300, 2e-300));
+    }
+
+    /// The overflow above let wildly asymmetric weights pass the symmetry
+    /// validation of `from_matrix`.
+    #[test]
+    fn test_from_matrix_rejects_huge_weight_asymmetry() {
+        let matrix: crate::impls::ValuedCSR2D<usize, usize, usize, f64> =
+            GenericEdgesBuilder::<_, crate::impls::ValuedCSR2D<usize, usize, usize, f64>>::default(
+            )
+            .expected_number_of_edges(2)
+            .expected_shape((2, 2))
+            .edges(vec![(0, 1, 2.527457358493282e307), (1, 0, 1.656712100688973e-24)].into_iter())
+            .build()
+            .unwrap();
+
+        let error = WeightedUndirectedGraph::from_matrix(&matrix).unwrap_err();
+        assert!(matches!(error, ModularityError::NonSymmetricEdge { .. }));
     }
 
     #[test]
