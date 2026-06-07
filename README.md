@@ -67,6 +67,7 @@ All listed algorithms require the `alloc` feature.
 | **Stationary Distribution (Dense GTH)** | `Gth` | O(n³) | - | Grassmann, W. K., Taksar, M. I., & Heyman, D. P. (1985). [Regenerative Analysis and Steady State Distributions for Markov Chains](https://doi.org/10.1287/opre.33.5.1107). *Operations Research*, 33(5), 1107-1116. |
 | **Eigenvalue Decomposition** | `Jacobi` | O(n³) | [`jacobi.rs`](fuzz/fuzz_targets/jacobi.rs) | Jacobi, C. G. J. (1846). Über ein leichtes Verfahren die in der Theorie der Säcularstörungen vorkommenden Gleichungen numerisch aufzulösen. *Journal für die reine und angewandte Mathematik*, 30, 51–94. See Golub & Van Loan (2013), §8.5. |
 | **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401–419. |
+| **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [`forceatlas2.rs`](fuzz/fuzz_targets/forceatlas2.rs) | Jacomy, M., Venturini, T., Heymann, S., & Bastian, M. (2014). [ForceAtlas2, a Continuous Graph Layout Algorithm for Handy Network Visualization Designed for the Gephi Software](https://doi.org/10.1371/journal.pone.0098679). *PLoS ONE*, 9(6), e98679. Cross-validated against the Gephi toolkit and the Python fa2 package. |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
 ### Node Ordering Primitives

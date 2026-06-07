@@ -249,3 +249,9 @@ name = "node_ordering_application"
 path = "fuzz_targets/node_ordering_application.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "forceatlas2"
+path = "fuzz_targets/forceatlas2.rs"
+test = false
+doc = false
