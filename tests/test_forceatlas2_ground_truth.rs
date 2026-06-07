@@ -33,6 +33,7 @@
 //! with the iteration count. Errors are measured per node as the Euclidean
 //! distance to the oracle position, normalized by the oracle layout scale
 //! (the root mean square node distance from the layout barycenter).
+#![cfg(feature = "std")]
 
 #[path = "support/fixture_io.rs"]
 mod fixture_io;

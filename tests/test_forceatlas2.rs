@@ -1,5 +1,6 @@
 //! Integration tests for the ForceAtlas2 layout: input validation, error
 //! variants, initialization determinism and degenerate inputs.
+#![cfg(feature = "std")]
 
 use geometric_traits::{
     impls::ValuedCSR2D,
