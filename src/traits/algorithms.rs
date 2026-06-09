@@ -152,6 +152,10 @@ mod directed_modularity;
 #[cfg(feature = "alloc")]
 pub use directed_modularity::*;
 #[cfg(feature = "alloc")]
+mod undirected_modularity;
+#[cfg(feature = "alloc")]
+pub use undirected_modularity::*;
+#[cfg(feature = "alloc")]
 mod louvain;
 #[cfg(feature = "alloc")]
 pub use louvain::*;
