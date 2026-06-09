@@ -184,3 +184,7 @@ harness = false
 [[bench]]
 name = "forceatlas2"
 harness = false
+
+[[bench]]
+name = "leicht_newman"
+harness = false

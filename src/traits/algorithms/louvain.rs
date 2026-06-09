@@ -6,8 +6,8 @@ use alloc::vec::Vec;
 use num_traits::{AsPrimitive, ToPrimitive};
 
 use super::modularity::{
-    LocalMovingConfig, ModularityError, WeightedUndirectedGraph, local_moving, marker_partition,
-    modularity, project_partition, regroup_members, renumber_partition, validate_common_config,
+    LocalMovingConfig, ModularityError, UndirectedView, build_working_graph, marker_partition,
+    project_partition, regroup_members, renumber_partition, validate_common_config,
 };
 use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -186,7 +186,7 @@ where
             config.max_local_passes,
         )?;
 
-        let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
+        let mut graph = build_working_graph(self)?;
 
         let original_number_of_nodes = self.number_of_rows().as_();
         let mut current_members: Vec<Vec<usize>> =
@@ -196,8 +196,9 @@ where
         let mut previous_modularity: Option<f64> = None;
 
         for level_index in 0..config.max_levels {
-            let (mut partition, moved_nodes) = local_moving(
-                &graph,
+            let view = UndirectedView::from_working_graph(&graph);
+
+            let (mut partition, moved_nodes) = view.local_moving(
                 LocalMovingConfig {
                     resolution: config.resolution,
                     max_local_passes: config.max_local_passes,
@@ -206,7 +207,7 @@ where
                 level_index,
             );
             let number_of_communities = renumber_partition(&mut partition);
-            let modularity = modularity(&graph, &partition, config.resolution);
+            let modularity = view.modularity(&partition, config.resolution);
 
             let original_partition =
                 project_partition(&current_members, &partition, original_number_of_nodes);
@@ -223,12 +224,13 @@ where
             }
             previous_modularity = Some(modularity);
 
-            if number_of_communities == graph.number_of_nodes() {
+            if number_of_communities == view.number_of_nodes() {
                 break;
             }
 
-            graph = graph.induced(&partition, number_of_communities);
+            let induced = view.induce(&partition, number_of_communities)?;
             current_members = regroup_members(current_members, &partition, number_of_communities);
+            graph = induced;
         }
 
         Ok(LouvainResult { levels })

@@ -9,9 +9,9 @@ use num_traits::{AsPrimitive, ToPrimitive};
 use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 use super::modularity::{
-    LocalMovingConfig, ModularityError, WeightedUndirectedGraph, approx_eq, local_moving,
-    marker_partition, mix_seed, modularity, project_partition, regroup_members, renumber_partition,
-    split_disconnected_communities, validate_common_config, validate_leiden_config,
+    LocalMovingConfig, ModularityError, UndirectedView, approx_eq, build_working_graph,
+    marker_partition, mix_seed, project_partition, regroup_members, renumber_partition,
+    validate_common_config, validate_leiden_config,
 };
 use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -172,7 +172,7 @@ where
         )?;
         validate_leiden_config(config.max_refinement_passes, config.theta)?;
 
-        let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
+        let mut graph = build_working_graph(self)?;
 
         let original_number_of_nodes = self.number_of_rows().as_();
         let mut current_members: Vec<Vec<usize>> =
@@ -182,8 +182,9 @@ where
         let mut previous_modularity: Option<f64> = None;
 
         for level_index in 0..config.max_levels {
-            let (mut local_partition, moved_nodes) = local_moving(
-                &graph,
+            let view = UndirectedView::from_working_graph(&graph);
+
+            let (mut local_partition, moved_nodes) = view.local_moving(
                 LocalMovingConfig {
                     resolution: config.resolution,
                     max_local_passes: config.max_local_passes,
@@ -194,11 +195,11 @@ where
             renumber_partition(&mut local_partition);
 
             let (mut refined_partition, refinement_moves) =
-                refine_partition(&graph, &local_partition, config, level_index);
-            split_disconnected_communities(&graph, &mut refined_partition);
+                refine_partition(&view, &local_partition, config, level_index);
+            view.split_disconnected_communities(&mut refined_partition);
             let number_of_communities = renumber_partition(&mut refined_partition);
 
-            let level_modularity = modularity(&graph, &refined_partition, config.resolution);
+            let level_modularity = view.modularity(&refined_partition, config.resolution);
             let original_partition =
                 project_partition(&current_members, &refined_partition, original_number_of_nodes);
             let marker_level_partition = marker_partition::<Marker>(&original_partition)?;
@@ -219,13 +220,14 @@ where
             }
             previous_modularity = Some(level_modularity);
 
-            if number_of_communities == graph.number_of_nodes() {
+            if number_of_communities == view.number_of_nodes() {
                 break;
             }
 
-            graph = graph.induced(&refined_partition, number_of_communities);
+            let induced = view.induce(&refined_partition, number_of_communities)?;
             current_members =
                 regroup_members(current_members, &refined_partition, number_of_communities);
+            graph = induced;
         }
 
         Ok(LeidenResult { levels })
@@ -243,15 +245,16 @@ where
 }
 
 fn refine_partition(
-    graph: &WeightedUndirectedGraph,
+    view: &UndirectedView,
     parent_partition: &[usize],
     config: &LeidenConfig,
     level_index: usize,
 ) -> (Vec<usize>, usize) {
-    let number_of_nodes = graph.number_of_nodes();
+    let number_of_nodes = view.number_of_nodes();
     let mut refined_partition: Vec<usize> = (0..number_of_nodes).collect();
 
-    if number_of_nodes == 0 || graph.total_weight <= 0.0 || !graph.total_weight.is_normal() {
+    let total_weight = view.total_weight();
+    if number_of_nodes == 0 || total_weight <= 0.0 || !total_weight.is_normal() {
         return (refined_partition, 0);
     }
 
@@ -266,7 +269,8 @@ fn refine_partition(
         nodes_per_parent[parent_community].push(node);
     }
 
-    let mut community_totals = graph.degree.clone();
+    let degree = view.degree();
+    let mut community_totals = degree.to_vec();
     let mut weights_to_communities = vec![0.0; number_of_nodes];
     let mut touched_communities: Vec<usize> = Vec::new();
     let mut candidate_moves: Vec<(usize, f64)> = Vec::new();
@@ -290,7 +294,7 @@ fn refine_partition(
 
             for node in &order {
                 let node = *node;
-                let node_degree = graph.degree[node];
+                let node_degree = degree[node];
                 if node_degree <= 0.0 {
                     continue;
                 }
@@ -298,22 +302,22 @@ fn refine_partition(
                 let source_community = refined_partition[node];
                 touched_communities.clear();
 
-                for (neighbor, weight) in &graph.adjacency[node] {
-                    if parent_partition[*neighbor] != parent_community {
-                        continue;
+                view.for_each_neighbor(node, |neighbor, weight| {
+                    if parent_partition[neighbor] != parent_community {
+                        return;
                     }
-                    let neighbor_community = refined_partition[*neighbor];
+                    let neighbor_community = refined_partition[neighbor];
                     if weights_to_communities[neighbor_community] == 0.0 {
                         touched_communities.push(neighbor_community);
                     }
-                    weights_to_communities[neighbor_community] += *weight;
-                }
+                    weights_to_communities[neighbor_community] += weight;
+                });
 
                 community_totals[source_community] -= node_degree;
 
                 let current_gain = weights_to_communities[source_community]
                     - config.resolution * node_degree * community_totals[source_community]
-                        / graph.total_weight;
+                        / total_weight;
 
                 candidate_moves.clear();
                 for community in &touched_communities {
@@ -323,7 +327,7 @@ fn refine_partition(
                     }
                     let gain = weights_to_communities[community]
                         - config.resolution * node_degree * community_totals[community]
-                            / graph.total_weight;
+                            / total_weight;
                     let delta = gain - current_gain;
                     if delta > f64::EPSILON {
                         candidate_moves.push((community, delta));
@@ -409,12 +413,28 @@ fn best_candidate(candidate_moves: &[(usize, f64)]) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
+
     use rand::{SeedableRng, rngs::SmallRng};
 
     use super::{
-        LeidenConfig, LeidenLevel, WeightedUndirectedGraph, best_candidate, refine_partition,
+        LeidenConfig, LeidenLevel, UndirectedView, best_candidate, refine_partition,
         sample_softmax_destination,
     };
+    use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
+
+    type WorkingGraph = ValuedCSR2D<usize, usize, usize, f64>;
+
+    fn working(node_count: usize, edges: Vec<(usize, usize, f64)>) -> WorkingGraph {
+        let mut edges = edges;
+        edges.sort_unstable_by(|(ls, ld, _), (rs, rd, _)| (ls, ld).cmp(&(rs, rd)));
+        GenericEdgesBuilder::<_, WorkingGraph>::default()
+            .expected_number_of_edges(edges.len())
+            .expected_shape((node_count, node_count))
+            .edges(edges.into_iter())
+            .build()
+            .unwrap()
+    }
 
     #[test]
     fn test_leiden_level_move_getters() {
@@ -430,14 +450,11 @@ mod tests {
 
     #[test]
     fn test_refine_partition_returns_when_parent_partition_is_empty() {
-        let graph = WeightedUndirectedGraph {
-            adjacency: vec![vec![(0, 1.0)]],
-            degree: vec![1.0],
-            total_weight: 1.0,
-        };
+        let graph = working(1, vec![(0, 0, 1.0)]);
+        let view = UndirectedView::from_working_graph(&graph);
         let config = LeidenConfig::default();
 
-        let (partition, moved_nodes) = refine_partition(&graph, &[], &config, 0);
+        let (partition, moved_nodes) = refine_partition(&view, &[], &config, 0);
 
         assert_eq!(partition, vec![0]);
         assert_eq!(moved_nodes, 0);
@@ -445,11 +462,8 @@ mod tests {
 
     #[test]
     fn test_refine_partition_skips_zero_degree_nodes() {
-        let graph = WeightedUndirectedGraph {
-            adjacency: vec![vec![], vec![(1, 1.0)]],
-            degree: vec![0.0, 1.0],
-            total_weight: 1.0,
-        };
+        let graph = working(2, vec![(1, 1, 1.0)]);
+        let view = UndirectedView::from_working_graph(&graph);
         let config = LeidenConfig {
             max_refinement_passes: 1,
             max_local_passes: 1,
@@ -458,7 +472,7 @@ mod tests {
             ..LeidenConfig::default()
         };
 
-        let (partition, moved_nodes) = refine_partition(&graph, &[0, 0], &config, 0);
+        let (partition, moved_nodes) = refine_partition(&view, &[0, 0], &config, 0);
 
         assert_eq!(partition.len(), 2);
         assert_eq!(moved_nodes, 0);
