@@ -162,6 +162,23 @@ where
     /// ```
     #[inline]
     fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, ModularityError> {
+        self.louvain_with_progress(config, &mut |_| {})
+    }
+
+    /// Like [`louvain`](Self::louvain), but calls `on_progress(level)` after
+    /// each coarsening level, with `level` counting up from `1`. The loop runs
+    /// to convergence (`config.max_levels` is a rarely-reached ceiling), so
+    /// this is a heartbeat, not a fraction of a known total.
+    ///
+    /// # Errors
+    ///
+    /// As [`louvain`](Self::louvain).
+    #[inline]
+    fn louvain_with_progress(
+        &self,
+        config: &LouvainConfig,
+        on_progress: &mut dyn FnMut(usize),
+    ) -> Result<LouvainResult<Marker>, ModularityError> {
         validate_common_config(
             config.resolution,
             config.modularity_threshold,
@@ -196,6 +213,8 @@ where
             let marker_partition = marker_partition::<Marker>(&original_partition)?;
 
             levels.push(LouvainLevel { partition: marker_partition, modularity, moved_nodes });
+
+            on_progress(level_index + 1);
 
             if let Some(previous) = previous_modularity {
                 if modularity - previous < config.modularity_threshold {

@@ -147,6 +147,23 @@ where
     /// - the resulting number of communities cannot fit into `Marker`.
     #[inline]
     fn leiden(&self, config: &LeidenConfig) -> Result<LeidenResult<Marker>, ModularityError> {
+        self.leiden_with_progress(config, &mut |_| {})
+    }
+
+    /// Like [`leiden`](Self::leiden), but calls `on_progress(level)` after
+    /// each coarsening level, with `level` counting up from `1`. The loop runs
+    /// to convergence (`config.max_levels` is a rarely-reached ceiling), so
+    /// this is a heartbeat, not a fraction of a known total.
+    ///
+    /// # Errors
+    ///
+    /// As [`leiden`](Self::leiden).
+    #[inline]
+    fn leiden_with_progress(
+        &self,
+        config: &LeidenConfig,
+        on_progress: &mut dyn FnMut(usize),
+    ) -> Result<LeidenResult<Marker>, ModularityError> {
         validate_common_config(
             config.resolution,
             config.modularity_threshold,
@@ -192,6 +209,8 @@ where
                 moved_nodes: moved_nodes + refinement_moves,
                 refinement_moves,
             });
+
+            on_progress(level_index + 1);
 
             if let Some(previous) = previous_modularity {
                 if level_modularity - previous < config.modularity_threshold {

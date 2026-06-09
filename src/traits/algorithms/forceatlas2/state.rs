@@ -149,7 +149,11 @@ impl LayoutState {
     /// position update. Node masses are
     /// degree-based and therefore constant, so the per-iteration mass
     /// recomputation of the Java source is hoisted out.
-    pub(super) fn run(&mut self, config: &ForceAtlas2Config) -> (f64, f64) {
+    pub(super) fn run_with_progress(
+        &mut self,
+        config: &ForceAtlas2Config,
+        on_progress: &mut dyn FnMut(usize, usize),
+    ) -> (f64, f64) {
         let n = self.masses.len();
         let mut forces = vec![[0.0_f64; 2]; n];
         let mut old_forces = vec![[0.0_f64; 2]; n];
@@ -165,7 +169,7 @@ impl LayoutState {
         let attraction_coefficient =
             if config.dissuade_hubs { self.masses.iter().sum::<f64>() / n as f64 } else { 1.0 };
 
-        for _ in 0..config.iterations {
+        for iteration in 0..config.iterations {
             // The previous iteration's forces become the old forces and the
             // accumulators are cleared.
             core::mem::swap(&mut old_forces, &mut forces);
@@ -190,6 +194,8 @@ impl LayoutState {
             update_global_speed(&mut speed_state, totals.0, totals.1, n, config.jitter_tolerance);
 
             self.update_positions(speed_state.speed, &old_forces, &forces);
+
+            on_progress(iteration + 1, config.iterations);
         }
 
         totals
