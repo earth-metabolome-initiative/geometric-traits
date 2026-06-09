@@ -730,7 +730,10 @@ fn accumulate_refine_arcs(
 mod tests {
     use alloc::vec::Vec;
 
-    use super::{DirectedWorkingGraph, directed_gain};
+    use super::{
+        DirectedWorkingGraph, LocalMovingConfig, ModularityError, RefineConfig, directed_gain,
+        directed_refine_partition,
+    };
     use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
 
     type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
@@ -949,5 +952,82 @@ mod tests {
         let (partition, _) = loops.local_moving(config, 0);
         assert_eq!(partition.len(), 3);
         assert!(loops.modularity(&partition, 1.0).is_finite());
+    }
+
+    #[test]
+    fn test_from_matrix_rejects_non_square() {
+        let matrix: WeightedMatrix = GenericEdgesBuilder::<_, WeightedMatrix>::default()
+            .expected_number_of_edges(1)
+            .expected_shape((2, 3))
+            .edges(vec![(0, 1, 1.0)].into_iter())
+            .build()
+            .unwrap();
+        assert!(matches!(
+            DirectedWorkingGraph::from_matrix(&matrix),
+            Err(ModularityError::NonSquareMatrix { rows: 2, columns: 3 })
+        ));
+    }
+
+    #[test]
+    fn test_from_matrix_rejects_non_finite_and_non_positive_weights() {
+        assert!(matches!(
+            DirectedWorkingGraph::from_matrix(&build(2, vec![(0, 1, f64::NAN)])),
+            Err(ModularityError::NonFiniteWeight { source_id: 0, destination_id: 1 })
+        ));
+        assert!(matches!(
+            DirectedWorkingGraph::from_matrix(&build(2, vec![(0, 1, -1.0)])),
+            Err(ModularityError::NonPositiveWeight { source_id: 0, destination_id: 1 })
+        ));
+    }
+
+    #[test]
+    fn test_local_moving_skips_isolated_nodes() {
+        // Node 2 has no arcs at all: local moving must skip it without panicking.
+        let graph = graph(3, vec![(0, 1, 1.0), (1, 0, 1.0)]);
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 10, seed: 3 };
+        let (partition, _) = graph.local_moving(config, 0);
+        assert_eq!(partition.len(), 3);
+        assert_eq!(partition[0], partition[1]);
+    }
+
+    #[test]
+    fn test_split_returns_early_on_trivial_partitions() {
+        // One node: nothing to split.
+        let single = graph(1, vec![]);
+        let mut one = vec![0usize];
+        single.split_disconnected_communities(&mut one);
+        assert_eq!(one, vec![0]);
+
+        // Several nodes but a single community: nothing to split.
+        let two = graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
+        let mut single_community = vec![0usize, 0];
+        two.split_disconnected_communities(&mut single_community);
+        assert_eq!(single_community, vec![0, 0]);
+    }
+
+    #[test]
+    fn test_refine_returns_early_on_degenerate_input() {
+        let config =
+            RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 5, seed: 1 };
+        // Empty graph: no nodes to refine.
+        let empty = graph(0, vec![]);
+        assert_eq!(directed_refine_partition(&empty, &[], config, 0).0, Vec::<usize>::new());
+        // Non-empty graph but empty parent partition: nothing to do.
+        let two = graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
+        assert_eq!(directed_refine_partition(&two, &[], config, 0), (vec![0, 1], 0));
+    }
+
+    #[test]
+    fn test_refine_skips_self_loops_cross_parent_and_zero_degree_nodes() {
+        // Parent community 0 = {0, 1, 3}: node 0 carries a self-loop, node 1 has
+        // an arc into the other parent community, and node 3 is isolated. The
+        // refinement must skip the self-loop, the cross-parent arc, and the
+        // zero-degree node without panicking.
+        let graph = graph(4, vec![(0, 0, 1.0), (0, 1, 1.0), (1, 0, 1.0), (1, 2, 1.0)]);
+        let config =
+            RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 5, seed: 2 };
+        let parent_partition = vec![0usize, 0, 1, 0];
+        let (refined, _) = directed_refine_partition(&graph, &parent_partition, config, 0);
+        assert_eq!(refined.len(), 4);
     }
 }
