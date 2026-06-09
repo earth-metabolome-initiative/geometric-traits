@@ -137,6 +137,50 @@ pub(crate) struct LocalMovingConfig {
     pub(crate) seed: u64,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RefineConfig {
+    pub(crate) resolution: f64,
+    pub(crate) theta: f64,
+    pub(crate) max_refinement_passes: usize,
+    pub(crate) seed: u64,
+}
+
+/// The operations a graph must provide for the shared Louvain and Leiden
+/// multi-level drivers ([`louvain_levels`](super::louvain::louvain_levels) and
+/// [`leiden_levels`](super::leiden::leiden_levels)).
+///
+/// Implemented by both [`WorkingGraph`] (undirected, through a transient
+/// [`UndirectedView`]) and the directed working graph, so the two detector
+/// families share one driver per algorithm and differ only in the null model
+/// baked into these methods.
+pub(crate) trait CoarsenableGraph: Sized {
+    /// Number of nodes in the graph.
+    fn number_of_nodes(&self) -> usize;
+    /// Modularity of `partition` under this graph's null model.
+    fn modularity(&self, partition: &[usize], resolution: f64) -> f64;
+    /// Greedy local-moving phase, returning the partition and the move count.
+    fn local_moving(&self, config: LocalMovingConfig, level_index: usize) -> (Vec<usize>, usize);
+    /// Coarsened graph obtained by contracting each community to a node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the contracted graph cannot be assembled.
+    fn induce(
+        &self,
+        partition: &[usize],
+        number_of_communities: usize,
+    ) -> Result<Self, ModularityError>;
+    /// Leiden refinement phase restricted to within each parent community.
+    fn refine(
+        &self,
+        parent_partition: &[usize],
+        config: RefineConfig,
+        level_index: usize,
+    ) -> (Vec<usize>, usize);
+    /// Splits any (weakly) disconnected community into its components.
+    fn split_disconnected_communities(&self, partition: &mut [usize]);
+}
+
 /// Validates an input matrix and materializes it as a [`WorkingGraph`].
 ///
 /// The matrix must be square, every weight finite, representable as `f64`, and

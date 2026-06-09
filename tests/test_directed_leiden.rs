@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::*,
-    traits::{DirectedLeidenConfig, ModularityError},
+    traits::{LeidenConfig, ModularityError},
 };
 
 type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
@@ -92,7 +92,7 @@ fn communities_are_weakly_connected(
 fn test_two_disjoint_directed_cycles_recover_optimum() {
     let graph = build_directed_graph(4, vec![(0, 1, 1.0), (1, 0, 1.0), (2, 3, 1.0), (3, 2, 1.0)]);
     let result =
-        DirectedLeiden::<usize>::directed_leiden(&graph, &DirectedLeidenConfig::default()).unwrap();
+        DirectedLeiden::<usize>::directed_leiden(&graph, &LeidenConfig::default()).unwrap();
     let partition = result.final_partition();
 
     assert_eq!(partition[0], partition[1]);
@@ -115,7 +115,7 @@ fn test_final_modularity_matches_directed_modularity_of_partition() {
             (2, 3, 1.0),
         ],
     );
-    let config = DirectedLeidenConfig::default();
+    let config = LeidenConfig::default();
     let result = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap();
 
     let recomputed = DirectedModularity::<usize>::directed_modularity(
@@ -145,7 +145,7 @@ fn test_modularity_is_non_decreasing_across_levels() {
         ],
     );
     let result =
-        DirectedLeiden::<usize>::directed_leiden(&graph, &DirectedLeidenConfig::default()).unwrap();
+        DirectedLeiden::<usize>::directed_leiden(&graph, &LeidenConfig::default()).unwrap();
 
     let levels = result.levels();
     assert!(!levels.is_empty());
@@ -174,7 +174,7 @@ fn test_directed_leiden_communities_are_weakly_connected() {
         ],
     );
     let result =
-        DirectedLeiden::<usize>::directed_leiden(&graph, &DirectedLeidenConfig::default()).unwrap();
+        DirectedLeiden::<usize>::directed_leiden(&graph, &LeidenConfig::default()).unwrap();
     assert!(communities_are_weakly_connected(&graph, 9, result.final_partition()));
 }
 
@@ -193,7 +193,7 @@ fn test_directed_leiden_is_deterministic_for_a_fixed_seed() {
             (2, 3, 0.3),
         ],
     );
-    let config = DirectedLeidenConfig { seed: 7, ..DirectedLeidenConfig::default() };
+    let config = LeidenConfig { seed: 7, ..LeidenConfig::default() };
     let first = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap();
     let second = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap();
 
@@ -208,7 +208,7 @@ fn test_sources_sinks_and_self_loops_are_handled() {
         vec![(0, 1, 1.0), (1, 2, 1.0), (2, 2, 2.0), (2, 3, 1.0), (3, 4, 1.0)],
     );
     let result =
-        DirectedLeiden::<usize>::directed_leiden(&graph, &DirectedLeidenConfig::default()).unwrap();
+        DirectedLeiden::<usize>::directed_leiden(&graph, &LeidenConfig::default()).unwrap();
     assert_eq!(result.final_partition().len(), 5);
     assert!(result.final_modularity().is_finite());
     assert!(communities_are_weakly_connected(&graph, 5, result.final_partition()));
@@ -217,7 +217,7 @@ fn test_sources_sinks_and_self_loops_are_handled() {
 #[test]
 fn test_directed_leiden_rejects_invalid_theta() {
     let graph = build_directed_graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
-    let config = DirectedLeidenConfig { theta: 0.0, ..DirectedLeidenConfig::default() };
+    let config = LeidenConfig { theta: 0.0, ..LeidenConfig::default() };
     let error = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap_err();
     assert!(matches!(error, ModularityError::InvalidTheta));
 }
@@ -225,7 +225,7 @@ fn test_directed_leiden_rejects_invalid_theta() {
 #[test]
 fn test_directed_leiden_rejects_invalid_resolution() {
     let graph = build_directed_graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
-    let config = DirectedLeidenConfig { resolution: -1.0, ..DirectedLeidenConfig::default() };
+    let config = LeidenConfig { resolution: -1.0, ..LeidenConfig::default() };
     let error = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap_err();
     assert!(matches!(error, ModularityError::InvalidResolution));
 }
@@ -233,7 +233,7 @@ fn test_directed_leiden_rejects_invalid_resolution() {
 #[test]
 fn test_directed_leiden_marker_overflow_returns_error() {
     let graph = build_directed_graph(300, Vec::new());
-    let error = DirectedLeiden::<u8>::directed_leiden(&graph, &DirectedLeidenConfig::default())
-        .unwrap_err();
+    let error =
+        DirectedLeiden::<u8>::directed_leiden(&graph, &LeidenConfig::default()).unwrap_err();
     assert!(matches!(error, ModularityError::TooManyCommunities));
 }

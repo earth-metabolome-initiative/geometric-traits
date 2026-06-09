@@ -4,7 +4,7 @@
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::*,
-    traits::{DirectedLouvainConfig, ModularityError},
+    traits::{LouvainConfig, ModularityError},
 };
 
 type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
@@ -25,8 +25,7 @@ fn build_directed_graph(node_count: usize, edges: Vec<(usize, usize, f64)>) -> W
 fn test_two_disjoint_directed_cycles_recover_optimum() {
     let graph = build_directed_graph(4, vec![(0, 1, 1.0), (1, 0, 1.0), (2, 3, 1.0), (3, 2, 1.0)]);
     let result =
-        DirectedLouvain::<usize>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-            .unwrap();
+        DirectedLouvain::<usize>::directed_louvain(&graph, &LouvainConfig::default()).unwrap();
     let partition = result.final_partition();
 
     assert_eq!(partition[0], partition[1]);
@@ -49,7 +48,7 @@ fn test_final_modularity_matches_directed_modularity_of_partition() {
             (2, 3, 1.0),
         ],
     );
-    let config = DirectedLouvainConfig::default();
+    let config = LouvainConfig::default();
     let result = DirectedLouvain::<usize>::directed_louvain(&graph, &config).unwrap();
 
     let recomputed = DirectedModularity::<usize>::directed_modularity(
@@ -79,8 +78,7 @@ fn test_modularity_is_non_decreasing_across_levels() {
         ],
     );
     let result =
-        DirectedLouvain::<usize>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-            .unwrap();
+        DirectedLouvain::<usize>::directed_louvain(&graph, &LouvainConfig::default()).unwrap();
 
     let levels = result.levels();
     assert!(!levels.is_empty());
@@ -109,7 +107,7 @@ fn test_directed_louvain_is_deterministic_for_a_fixed_seed() {
             (2, 3, 0.3),
         ],
     );
-    let config = DirectedLouvainConfig { seed: 7, ..DirectedLouvainConfig::default() };
+    let config = LouvainConfig { seed: 7, ..LouvainConfig::default() };
     let first = DirectedLouvain::<usize>::directed_louvain(&graph, &config).unwrap();
     let second = DirectedLouvain::<usize>::directed_louvain(&graph, &config).unwrap();
 
@@ -131,8 +129,7 @@ fn test_strongly_asymmetric_coupling_separates() {
     }
     let graph = build_directed_graph(6, edges);
     let result =
-        DirectedLouvain::<usize>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-            .unwrap();
+        DirectedLouvain::<usize>::directed_louvain(&graph, &LouvainConfig::default()).unwrap();
     let partition = result.final_partition();
 
     assert_eq!(partition[0], partition[1]);
@@ -150,8 +147,7 @@ fn test_sources_sinks_and_self_loops_are_handled() {
         vec![(0, 1, 1.0), (1, 2, 1.0), (2, 2, 2.0), (2, 3, 1.0), (3, 4, 1.0)],
     );
     let result =
-        DirectedLouvain::<usize>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-            .unwrap();
+        DirectedLouvain::<usize>::directed_louvain(&graph, &LouvainConfig::default()).unwrap();
     assert_eq!(result.final_partition().len(), 5);
     assert!(result.final_modularity().is_finite());
 }
@@ -159,7 +155,7 @@ fn test_sources_sinks_and_self_loops_are_handled() {
 #[test]
 fn test_directed_louvain_rejects_invalid_resolution() {
     let graph = build_directed_graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
-    let config = DirectedLouvainConfig { resolution: 0.0, ..DirectedLouvainConfig::default() };
+    let config = LouvainConfig { resolution: 0.0, ..LouvainConfig::default() };
     let error = DirectedLouvain::<usize>::directed_louvain(&graph, &config).unwrap_err();
     assert!(matches!(error, ModularityError::InvalidResolution));
 }
@@ -168,15 +164,14 @@ fn test_directed_louvain_rejects_invalid_resolution() {
 fn test_directed_louvain_rejects_non_positive_weight() {
     let graph = build_directed_graph(2, vec![(0, 1, 0.0)]);
     let error =
-        DirectedLouvain::<usize>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-            .unwrap_err();
+        DirectedLouvain::<usize>::directed_louvain(&graph, &LouvainConfig::default()).unwrap_err();
     assert!(matches!(error, ModularityError::NonPositiveWeight { .. }));
 }
 
 #[test]
 fn test_directed_louvain_marker_overflow_returns_error() {
     let graph = build_directed_graph(300, Vec::new());
-    let error = DirectedLouvain::<u8>::directed_louvain(&graph, &DirectedLouvainConfig::default())
-        .unwrap_err();
+    let error =
+        DirectedLouvain::<u8>::directed_louvain(&graph, &LouvainConfig::default()).unwrap_err();
     assert!(matches!(error, ModularityError::TooManyCommunities));
 }

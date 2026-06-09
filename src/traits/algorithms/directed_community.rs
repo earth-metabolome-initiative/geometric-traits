@@ -23,7 +23,9 @@ use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 use super::{
     leiden::sample_softmax_destination,
-    modularity::{LocalMovingConfig, ModularityError, approx_eq, mix_seed},
+    modularity::{
+        CoarsenableGraph, LocalMovingConfig, ModularityError, RefineConfig, approx_eq, mix_seed,
+    },
 };
 use crate::traits::{Finite, SparseValuedMatrix2D};
 
@@ -500,12 +502,48 @@ impl DirectedWorkingGraph {
     }
 }
 
-/// Configuration for the directed Leiden refinement phase.
-pub(crate) struct DirectedRefineConfig {
-    pub(crate) resolution: f64,
-    pub(crate) theta: f64,
-    pub(crate) max_refinement_passes: usize,
-    pub(crate) seed: u64,
+/// The directed working graph satisfies [`CoarsenableGraph`] directly: it is
+/// self-contained (it owns both adjacencies), so the shared Leiden and Louvain
+/// drivers run over it with the directed null model baked into these methods.
+impl CoarsenableGraph for DirectedWorkingGraph {
+    #[inline]
+    fn number_of_nodes(&self) -> usize {
+        self.number_of_nodes()
+    }
+
+    #[inline]
+    fn modularity(&self, partition: &[usize], resolution: f64) -> f64 {
+        self.modularity(partition, resolution)
+    }
+
+    #[inline]
+    fn local_moving(&self, config: LocalMovingConfig, level_index: usize) -> (Vec<usize>, usize) {
+        self.local_moving(config, level_index)
+    }
+
+    #[inline]
+    fn induce(
+        &self,
+        partition: &[usize],
+        number_of_communities: usize,
+    ) -> Result<Self, ModularityError> {
+        Ok(self.induce(partition, number_of_communities))
+    }
+
+    #[inline]
+    fn refine(
+        &self,
+        parent_partition: &[usize],
+        config: RefineConfig,
+        level_index: usize,
+    ) -> (Vec<usize>, usize) {
+        directed_refine_partition(self, parent_partition, config, level_index)
+    }
+
+    #[inline]
+    fn split_disconnected_communities(&self, partition: &mut [usize]) {
+        self.split_disconnected_communities(partition);
+    }
 }
 
 /// Leiden refinement on a directed graph: within each parent community, moves
@@ -515,7 +553,7 @@ pub(crate) struct DirectedRefineConfig {
 pub(crate) fn directed_refine_partition(
     graph: &DirectedWorkingGraph,
     parent_partition: &[usize],
-    config: &DirectedRefineConfig,
+    config: RefineConfig,
     level_index: usize,
 ) -> (Vec<usize>, usize) {
     let number_of_nodes = graph.number_of_nodes();

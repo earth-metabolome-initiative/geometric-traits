@@ -22,7 +22,7 @@ use fixture_io::load_fixture_json;
 use geometric_traits::{
     impls::ValuedCSR2D,
     prelude::*,
-    traits::{DirectedLeidenConfig, DirectedLouvainConfig},
+    traits::{LeidenConfig, LouvainConfig},
 };
 use serde::Deserialize;
 
@@ -118,8 +118,7 @@ fn test_our_metric_matches_reference_on_reference_partition() {
 #[test]
 fn test_directed_louvain_reaches_reference_quality() {
     let fixture = fixture();
-    let config =
-        DirectedLouvainConfig { resolution: fixture.parameters.resolution, ..Default::default() };
+    let config = LouvainConfig { resolution: fixture.parameters.resolution, ..Default::default() };
 
     for case in &fixture.cases {
         let graph = build_directed_graph(case);
@@ -153,8 +152,7 @@ fn test_directed_louvain_reaches_reference_quality() {
 #[test]
 fn test_directed_leiden_reaches_reference_quality() {
     let fixture = fixture();
-    let config =
-        DirectedLeidenConfig { resolution: fixture.parameters.resolution, ..Default::default() };
+    let config = LeidenConfig { resolution: fixture.parameters.resolution, ..Default::default() };
 
     for case in &fixture.cases {
         let graph = build_directed_graph(case);
