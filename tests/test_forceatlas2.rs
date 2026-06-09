@@ -962,3 +962,33 @@ fn test_delta_fractional_equilibrium() {
     let d = distance(result.point(0), result.point(1));
     assert!((d - 2.0).abs() / 2.0 < 0.05, "expected equilibrium distance 2, found {d}");
 }
+
+/// The callback fires once per iteration, in order, with `done` from 1 to the
+/// total and a constant total.
+#[test]
+fn test_progress_callback_reports_every_iteration() {
+    let graph = build_undirected_weighted_graph(4, vec![(0, 1, 1.0), (1, 2, 1.0), (2, 3, 1.0)]);
+    let config = ForceAtlas2Config { iterations: 17, ..Default::default() };
+
+    let mut observed: Vec<(usize, usize)> = Vec::new();
+    graph
+        .force_atlas2_with_progress(&config, &mut |done, total| observed.push((done, total)))
+        .unwrap();
+
+    assert_eq!(observed, (1..=17).map(|done| (done, 17)).collect::<Vec<_>>());
+}
+
+/// Observing the loop does not perturb the result.
+#[test]
+fn test_progress_variant_matches_plain_result() {
+    let graph = build_undirected_weighted_graph(
+        6,
+        vec![(0, 1, 1.0), (1, 2, 2.0), (2, 3, 1.0), (3, 4, 1.0), (4, 5, 3.0), (5, 0, 1.0)],
+    );
+    let config = ForceAtlas2Config { iterations: 60, ..Default::default() };
+
+    let plain = graph.force_atlas2(&config).unwrap();
+    let with_progress = graph.force_atlas2_with_progress(&config, &mut |_, _| {}).unwrap();
+
+    assert_eq!(plain, with_progress);
+}

@@ -444,11 +444,27 @@ where
         &self,
         config: &ForceAtlas2Config,
     ) -> Result<ForceAtlas2Result, ForceAtlas2Error> {
+        self.force_atlas2_with_progress(config, &mut |_, _| {})
+    }
+
+    /// Like [`force_atlas2`](Self::force_atlas2), but calls
+    /// `on_progress(done, config.iterations)` after each iteration, with
+    /// `done` running from `1` to `config.iterations`. The callback is
+    /// unthrottled, so coalesce updates caller-side if needed.
+    ///
+    /// # Errors
+    ///
+    /// As [`force_atlas2`](Self::force_atlas2).
+    fn force_atlas2_with_progress(
+        &self,
+        config: &ForceAtlas2Config,
+        on_progress: &mut dyn FnMut(usize, usize),
+    ) -> Result<ForceAtlas2Result, ForceAtlas2Error> {
         validate_config(config)?;
         let mut state = LayoutState::from_matrix(self, config)?;
         let n = state.masses.len();
 
-        let (final_swinging, final_traction) = state.run(config);
+        let (final_swinging, final_traction) = state.run_with_progress(config, on_progress);
 
         let mut coordinates = Vec::with_capacity(n * 2);
         for position in &state.positions {

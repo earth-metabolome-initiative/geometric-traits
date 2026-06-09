@@ -300,3 +300,58 @@ fn test_louvain_handles_isolated_nodes_in_mixed_graph() {
     assert_eq!(partition[0], partition[1]);
     assert!(result.final_modularity().is_finite());
 }
+
+/// The callback fires once per recorded level, counting up from 1.
+#[test]
+fn test_louvain_progress_reports_every_level() {
+    let graph = build_undirected_weighted_graph(
+        8,
+        vec![
+            (0, 1, 4.0),
+            (0, 2, 4.0),
+            (1, 2, 4.0),
+            (2, 3, 0.4),
+            (3, 4, 4.0),
+            (3, 5, 4.0),
+            (4, 5, 4.0),
+            (5, 6, 0.4),
+            (6, 7, 4.0),
+            (4, 7, 0.3),
+        ],
+    );
+    let config = LouvainConfig::default();
+
+    let mut observed: Vec<usize> = Vec::new();
+    let result =
+        Louvain::<usize>::louvain_with_progress(&graph, &config, &mut |level| observed.push(level))
+            .unwrap();
+
+    let expected: Vec<usize> = (1..=result.levels().len()).collect();
+    assert_eq!(observed, expected);
+    assert!(!observed.is_empty());
+}
+
+/// `louvain_with_progress` returns exactly what `louvain` returns.
+#[test]
+fn test_louvain_progress_variant_matches_plain_result() {
+    let graph = build_undirected_weighted_graph(
+        6,
+        vec![
+            (0, 1, 10.0),
+            (0, 2, 10.0),
+            (1, 2, 10.0),
+            (3, 4, 10.0),
+            (3, 5, 10.0),
+            (4, 5, 10.0),
+            (2, 3, 0.1),
+        ],
+    );
+    let config = LouvainConfig::default();
+
+    let plain = Louvain::<usize>::louvain(&graph, &config).unwrap();
+    let with_progress =
+        Louvain::<usize>::louvain_with_progress(&graph, &config, &mut |_| {}).unwrap();
+
+    assert_eq!(plain.final_partition(), with_progress.final_partition());
+    assert_eq!(plain.levels().len(), with_progress.levels().len());
+}
