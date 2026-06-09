@@ -13,9 +13,7 @@ This crate provides a collection of graph and algebraic algorithms designed with
 
 ### Available Algorithms
 
-The table below lists the main algorithm entrypoints currently exported from `geometric_traits::traits::algorithms`.
-All listed algorithms require the `alloc` feature.
-`RandomizedDAG` additionally requires either `std` or `hashbrown`.
+The table below lists the main algorithm entrypoints currently exported from `geometric_traits::traits::algorithms`. All listed algorithms require the `alloc` feature. `RandomizedDAG` additionally requires either `std` or `hashbrown`.
 
 | Algorithm | Trait | Complexity | Fuzzing Harness | Reference |
 |-----------|-------|------------|-----------------|-----------|
@@ -57,23 +55,22 @@ All listed algorithms require the `alloc` feature.
 | **Resnik Semantic Similarity** | `Resnik` | O(R·(V+E)) per query | - | Resnik, P. (1995). [Using information content to evaluate semantic similarity in a taxonomy](https://arxiv.org/abs/cmp-lg/9511007). In *Proceedings of IJCAI-95*, 448-453. |
 | **Lin Semantic Similarity** | `Lin` | O(R·(V+E)) per query | [`lin.rs`](fuzz/fuzz_targets/lin.rs) | Lin, D. (1998). *An Information-Theoretic Definition of Similarity*. In *Proceedings of ICML 1998*, 296-304. |
 | **Wu-Palmer Semantic Similarity** | `WuPalmer` | O(R·(V+E)) per query | [`wu_palmer.rs`](fuzz/fuzz_targets/wu_palmer.rs) | Wu, Z., & Palmer, M. (1994). [Verb Semantics and Lexical Selection](https://doi.org/10.3115/981732.981751). In *Proceedings of ACL 1994*, 133-138. DOI: `10.3115/981732.981751`. |
-| **Line Graph** | `LineGraph` | O(∑deg²) | [`line_graph.rs`](fuzz/fuzz_targets/line_graph.rs) | Whitney, H. (1932). Congruent graphs and the connectivity of graphs. *American Journal of Mathematics*, 54(1), 150–168. |
+| **Line Graph** | `LineGraph` | O(∑deg²) | [`line_graph.rs`](fuzz/fuzz_targets/line_graph.rs) | Whitney, H. (1932). Congruent graphs and the connectivity of graphs. *American Journal of Mathematics*, 54(1), 150-168. |
 | **Labeled Line Graph** | `LabeledLineGraph` | O(∑deg²) | - | Labeled variant: edges carry the node type of the shared endpoint. Building block for labeled MCES / RASCAL. |
-| **Modular Product** | `ModularProduct` | O(\|P\|²) | [`modular_product.rs`](fuzz/fuzz_targets/modular_product.rs), [`labeled_modular_product.rs`](fuzz/fuzz_targets/labeled_modular_product.rs) | Barrow, H. G., & Burstall, R. M. (1976). [Subgraph isomorphism, matching relational structures and maximal cliques](https://doi.org/10.1016/0020-0190(76)90049-1). *Information Processing Letters*, 4(4), 83–84. Unlabeled and labeled variants with custom edge comparator. |
+| **Modular Product** | `ModularProduct` | O(\|P\|²) | [`modular_product.rs`](fuzz/fuzz_targets/modular_product.rs), [`labeled_modular_product.rs`](fuzz/fuzz_targets/labeled_modular_product.rs) | Barrow, H. G., & Burstall, R. M. (1976). [Subgraph isomorphism, matching relational structures and maximal cliques](https://doi.org/10.1016/0020-0190(76)90049-1). *Information Processing Letters*, 4(4), 83-84. Unlabeled and labeled variants with custom edge comparator. |
 | **Maximum Clique Enumeration** | `MaximumClique` | O(3^(n/3)) worst case | [`maximum_clique.rs`](fuzz/fuzz_targets/maximum_clique.rs) | Tomita, E., & Seki, T. (2003). An efficient branch-and-bound algorithm for finding a maximum clique. *LNCS* 2731:278-289. San Segundo, P., et al. (2011). An exact bit-parallel algorithm for the maximum clique problem. *Computers & OR* 38(2). Prosser, P. (2012). Exact Algorithms for Maximum Clique. *Algorithms* 5(4):545-587. |
 | **Delta-Y Exchange Detection** | `DeltaYExchange` | O(V+E) | [`delta_y_exchange.rs`](fuzz/fuzz_targets/delta_y_exchange.rs) | Detects whether two graphs are related by a Delta-Y or Y-Delta exchange. Used for MCES filtering. |
-| **Balanced Network Flow** | `Kocay` | O(K·(V+E)) | [`kocay.rs`](fuzz/fuzz_targets/kocay.rs) | Kocay, W., & Stone, D. (1995). [An Algorithm for Balanced Flows](https://combinatorialpress.com/jcmcc-articles/volume-019/an-algorithm-for-balanced-flows/). *Journal of Combinatorial Mathematics and Combinatorial Computing*, 19, 3–31. Earlier exposition: Kocay, W., & Stone, D. (1993). *Balanced network flows*. *Bulletin of the Institute of Combinatorics and its Applications*, 7, 17–32. |
+| **Balanced Network Flow** | `Kocay` | O(K·(V+E)) | [`kocay.rs`](fuzz/fuzz_targets/kocay.rs) | Kocay, W., & Stone, D. (1995). [An Algorithm for Balanced Flows](https://combinatorialpress.com/jcmcc-articles/volume-019/an-algorithm-for-balanced-flows/). *Journal of Combinatorial Mathematics and Combinatorial Computing*, 19, 3-31. Earlier exposition: Kocay, W., & Stone, D. (1993). *Balanced network flows*. *Bulletin of the Institute of Combinatorics and its Applications*, 7, 17-32. |
 | **Minimum-Cost Maximum Balanced Flow** | `MinimumCostBalancedFlow` | hybrid exact; tree DP, bipartite min-cost flow, Blossom-V fallback | - | Exact lexicographic solver for capacitated balanced flow with per-vertex budgets. It uses Kocay to determine the maximum feasible flow value, solves tree components by dynamic programming, solves bipartite components by ordinary minimum-cost flow, and falls back to a weighted perfect-matching reduction with Blossom V on general non-bipartite components. See Kocay & Stone (1995), Ahuja, Magnanti, & Orlin (1993), and Kolmogorov (2009). |
 | **Stationary Distribution (Dense GTH)** | `Gth` | O(n³) | - | Grassmann, W. K., Taksar, M. I., & Heyman, D. P. (1985). [Regenerative Analysis and Steady State Distributions for Markov Chains](https://doi.org/10.1287/opre.33.5.1107). *Operations Research*, 33(5), 1107-1116. |
-| **Eigenvalue Decomposition** | `Jacobi` | O(n³) | [`jacobi.rs`](fuzz/fuzz_targets/jacobi.rs) | Jacobi, C. G. J. (1846). Über ein leichtes Verfahren die in der Theorie der Säcularstörungen vorkommenden Gleichungen numerisch aufzulösen. *Journal für die reine und angewandte Mathematik*, 30, 51–94. See Golub & Van Loan (2013), §8.5. |
-| **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401–419. |
+| **Eigenvalue Decomposition** | `Jacobi` | O(n³) | [`jacobi.rs`](fuzz/fuzz_targets/jacobi.rs) | Jacobi, C. G. J. (1846). Über ein leichtes Verfahren die in der Theorie der Säcularstörungen vorkommenden Gleichungen numerisch aufzulösen. *Journal für die reine und angewandte Mathematik*, 30, 51-94. See Golub & Van Loan (2013), §8.5. |
+| **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401-419. |
 | **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [`forceatlas2.rs`](fuzz/fuzz_targets/forceatlas2.rs) | Jacomy, M., Venturini, T., Heymann, S., & Bastian, M. (2014). [ForceAtlas2, a Continuous Graph Layout Algorithm for Handy Network Visualization Designed for the Gephi Software](https://doi.org/10.1371/journal.pone.0098679). *PLoS ONE*, 9(6), e98679. Cross-validated against the Gephi toolkit and the Python fa2 package. |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
 
 ### Node Ordering Primitives
 
-The crate also exports reusable graph-level node ordering and node scoring
-building blocks from `geometric_traits::traits::algorithms`.
+The crate also exports reusable graph-level node ordering and node scoring building blocks from `geometric_traits::traits::algorithms`.
 
 | Primitive | Kind | Complexity | Reference |
 |-----------|------|------------|-----------|
@@ -114,7 +111,7 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Crown** Cr_n | `crown_graph(n)` | n = vertices per side |
 | **Wheel** W_n | `wheel_graph(n)` | n = rim vertices |
 | **Complete Bipartite** K_{m,n} | `complete_bipartite_graph(m, n)` | m, n = partition sizes |
-| **Petersen** | `petersen_graph()` | — |
+| **Petersen** | `petersen_graph()` | - |
 | **Turán** T(n, r) | `turan_graph(n, r)` | n = vertices, r = partitions |
 | **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
 | **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
@@ -125,19 +122,19 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 
 | Generator | Function | Parameters | Reference |
 |-----------|----------|------------|-----------|
-| **Erdős–Rényi** G(n, m) | `erdos_renyi_gnm(seed, n, m)` | n = vertices, m = edges | Erdős & Rényi (1959) |
-| **Erdős–Rényi** G(n, p) | `erdos_renyi_gnp(seed, n, p)` | n = vertices, p = edge probability | Gilbert (1959); geometric skip: Batagelj & Brandes (2005) |
-| **Barabási–Albert** | `barabasi_albert(seed, n, m)` | n = vertices, m = edges/step; initial clique size = m + 1 | Barabási & Albert (1999) |
-| **Watts–Strogatz** | `watts_strogatz(seed, n, k, beta)` | n = vertices, k = neighbours, β = rewiring prob. | Watts & Strogatz (1998) |
+| **Erdős-Rényi** G(n, m) | `erdos_renyi_gnm(seed, n, m)` | n = vertices, m = edges | Erdős & Rényi (1959) |
+| **Erdős-Rényi** G(n, p) | `erdos_renyi_gnp(seed, n, p)` | n = vertices, p = edge probability | Gilbert (1959); geometric skip: Batagelj & Brandes (2005) |
+| **Barabási-Albert** | `barabasi_albert(seed, n, m)` | n = vertices, m = edges/step; initial clique size = m + 1 | Barabási & Albert (1999) |
+| **Watts-Strogatz** | `watts_strogatz(seed, n, k, beta)` | n = vertices, k = neighbours, β = rewiring prob. | Watts & Strogatz (1998) |
 | **Random Regular** | `random_regular_graph(seed, n, k) -> Result<_, _>` | n = vertices, k = degree | Configuration model; Wormald (1999) |
 | **Stochastic Block Model** | `stochastic_block_model(seed, sizes, p_intra, p_inter)` | community sizes, within-community p, between-community p | Holland, Laskey & Leinhardt (1983) |
 | **Configuration Model** | `configuration_model(seed, degrees)` | degree sequence | Molloy & Reed (1995) |
-| **Chung–Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
+| **Chung-Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
 | **Random Geometric** | `random_geometric_graph(seed, n, radius)` | n = vertices, r = connection radius | Gilbert (1961); Penrose (2003) |
 
 ### Graph & Set Similarity Metrics
 
-Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations — any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
+Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations. Any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
 
 | Metric | Function | Formula | Range | Common Uses | Reference |
 |--------|----------|---------|-------|-------------|-----------|

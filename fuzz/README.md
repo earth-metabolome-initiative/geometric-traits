@@ -124,8 +124,7 @@ cargo hfuzz run-debug generic_matrix2d_with_padded_diagonal hfuzz_workspace/*/*.
 
 ### Hopcroft-Karp
 
-The Hopcroft-Karp algorithm is a combinatorial algorithm for finding maximum cardinality matchings in bipartite graphs.
-It is implemented for all structs implementing `SparseMatrix2D`.
+The Hopcroft-Karp algorithm is a combinatorial algorithm for finding maximum cardinality matchings in bipartite graphs. It is implemented for all structs implementing `SparseMatrix2D`.
 
 ```bash
 cargo hfuzz run hopcroft_karp
@@ -133,8 +132,7 @@ cargo hfuzz run hopcroft_karp
 
 ### Gabow 1976
 
-The Gabow 1976 harness validates the new paper-structured exact matcher
-against `blossom()` and checks the returned matching for structural validity.
+The Gabow 1976 harness validates the new paper-structured exact matcher against `blossom()` and checks the returned matching for structural validity.
 
 ```bash
 cargo hfuzz run gabow_1976
@@ -204,10 +202,7 @@ cargo hfuzz run-debug johnson_cycle hfuzz_workspace/*/*.fuzz
 
 ### Blossom V
 
-The Blossom V harness fuzzes minimum-cost perfect matching on valid even-order
-undirected weighted graphs and checks that the solver never panics and any
-successful result is a valid perfect matching. For small graphs it also
-cross-checks the optimum against a brute-force oracle.
+The Blossom V harness fuzzes minimum-cost perfect matching on valid even-order undirected weighted graphs and checks that the solver never panics and any successful result is a valid perfect matching. For small graphs it also cross-checks the optimum against a brute-force oracle.
 
 There are now two Blossom V targets:
 - `blossom_v`: raw edge-bag mutations, which preserves compatibility with the
@@ -222,8 +217,7 @@ cargo hfuzz run blossom_v_structured
 
 ### VF2
 
-The VF2 harness fuzzes the generic matcher against the shared brute-force
-oracle in `src/test_utils.rs`. It covers:
+The VF2 harness fuzzes the generic matcher against the shared brute-force oracle in `src/test_utils.rs`. It covers:
 
 - directed and undirected graphs
 - labeled and unlabeled cases
@@ -236,10 +230,7 @@ oracle in `src/test_utils.rs`. It covers:
 cargo hfuzz run vf2
 ```
 
-Before starting a new VF2 honggfuzz run, make sure there is not already
-another `vf2` campaign writing into `hfuzz_workspace/vf2`. Concurrent runs in
-the same workspace can collide on coverage files and produce spurious
-`File exists` write errors.
+Before starting a new VF2 honggfuzz run, make sure there is not already another `vf2` campaign writing into `hfuzz_workspace/vf2`. Concurrent runs in the same workspace can collide on coverage files and produce spurious `File exists` write errors.
 
 For deterministic replay in the test suite, use:
 
@@ -255,8 +246,7 @@ cargo hfuzz run-debug blossom_v hfuzz_workspace/*/*.fuzz
 
 ### Floyd-Warshall
 
-The Floyd-Warshall algorithm computes all-pairs shortest-path distances for a
-weighted adjacency matrix.
+The Floyd-Warshall algorithm computes all-pairs shortest-path distances for a weighted adjacency matrix.
 
 ```bash
 cargo hfuzz run floyd_warshall
@@ -270,9 +260,7 @@ cargo hfuzz run-debug floyd_warshall hfuzz_workspace/*/*.fuzz
 
 ### Pairwise BFS
 
-The PairwiseBFS harness computes all-pairs unweighted shortest-path
-distances via repeated BFS and cross-checks them against Floyd-Warshall on the
-same graph with implicit unit weights.
+The PairwiseBFS harness computes all-pairs unweighted shortest-path distances via repeated BFS and cross-checks them against Floyd-Warshall on the same graph with implicit unit weights.
 
 ```bash
 cargo hfuzz run pairwise_bfs
@@ -286,8 +274,7 @@ cargo hfuzz run-debug pairwise_bfs hfuzz_workspace/*/*.fuzz
 
 ### Diameter
 
-The Diameter harness fuzzes exact undirected diameter computation on arbitrary
-undirected graphs. It checks:
+The Diameter harness fuzzes exact undirected diameter computation on arbitrary undirected graphs. It checks:
 
 - deterministic results on repeated runs
 - `0` on empty and singleton graphs
@@ -306,10 +293,7 @@ cargo hfuzz run-debug diameter hfuzz_workspace/*/*.fuzz
 
 ### Pairwise Dijkstra
 
-The PairwiseDijkstra harness computes all-pairs non-negative weighted
-shortest-path distances via repeated Dijkstra and cross-checks them against
-Floyd-Warshall on the subset of finite square inputs where the two algorithms
-must agree.
+The PairwiseDijkstra harness computes all-pairs non-negative weighted shortest-path distances via repeated Dijkstra and cross-checks them against Floyd-Warshall on the subset of finite square inputs where the two algorithms must agree.
 
 ```bash
 cargo hfuzz run pairwise_dijkstra
@@ -323,8 +307,7 @@ cargo hfuzz run-debug pairwise_dijkstra hfuzz_workspace/*/*.fuzz
 
 ### VF2
 
-The VF2 harness fuzzes small directed and undirected graph pairs against an
-exact brute-force oracle. It checks:
+The VF2 harness fuzzes small directed and undirected graph pairs against an exact brute-force oracle. It checks:
 
 - `has_match()`
 - `first_match()`
@@ -346,10 +329,7 @@ cargo hfuzz run-debug vf2 hfuzz_workspace/*/*.fuzz
 
 ### GTH
 
-The GTH harness fuzzes the dense stationary-distribution solver. It checks
-that `gth()` never panics on arbitrary dense matrices, then projects square
-inputs to finite nonnegative row-stochastic matrices and validates the
-resulting stationary distribution:
+The GTH harness fuzzes the dense stationary-distribution solver. It checks that `gth()` never panics on arbitrary dense matrices, then projects square inputs to finite nonnegative row-stochastic matrices and validates the resulting stationary distribution:
 
 - entries are finite and nonnegative
 - entries sum to one
