@@ -17,9 +17,10 @@ use geometric_traits::{
         self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, FuzzVf2Case,
         check_blossom_v_invariants, check_diameter_invariants, check_floyd_warshall_invariants,
         check_gabow_1976_invariants, check_gth_invariants, check_kahn_ordering,
-        check_lap_sparse_wrapper_invariants, check_lap_square_invariants, check_leiden_invariants,
-        check_louvain_invariants, check_padded_diagonal_invariants,
-        check_padded_matrix2d_invariants, check_pairwise_bfs_matches_unit_floyd_warshall,
+        check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
+        check_leicht_newman_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
+        check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
         check_structured_blossom_v_invariants, check_valued_matrix_invariants,
         check_vf2_invariants, from_bytes, replay_dir,
@@ -475,6 +476,22 @@ fn test_arbitrary_louvain() {
 fn test_replay_louvain_corpus() {
     for instance in replay_shared_fixture::<TestValuedCSR>() {
         check_louvain_invariants(&instance);
+    }
+}
+
+// ============================================================================
+// Leicht-Newman (mirrors fuzz/fuzz_targets/leicht_newman.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_leicht_newman() {
+    for_each_instance::<TestValuedCSR, _>(check_leicht_newman_invariants);
+}
+
+#[test]
+fn test_replay_leicht_newman_corpus() {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
+        check_leicht_newman_invariants(&instance);
     }
 }
 

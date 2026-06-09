@@ -149,6 +149,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "leicht_newman"
+path = "fuzz_targets/leicht_newman.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "jacobi"
 path = "fuzz_targets/jacobi.rs"
 test = false

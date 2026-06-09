@@ -2638,6 +2638,128 @@ pub fn check_leiden_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+/// Build a directed graph keeping only finite, positive, numerically-normal
+/// edge weights (no symmetrization), suitable for the directed-modularity
+/// algorithms. Returns `None` when no usable edge survives.
+fn positive_directed_graph(
+    csr: &ValuedCSR2D<u16, u8, u8, f64>,
+) -> Option<ValuedCSR2D<u8, u8, u8, f64>> {
+    let rows: usize = csr.number_of_rows().as_();
+    let cols: usize = csr.number_of_columns().as_();
+    if rows != cols || rows == 0 || rows > u8::MAX as usize {
+        return None;
+    }
+
+    let Ok(n) = u8::try_from(rows) else {
+        return None;
+    };
+
+    let mut edges: Vec<(u8, u8, f64)> = Vec::new();
+    for row in csr.row_indices() {
+        let r: usize = row.as_();
+        if r >= rows {
+            continue;
+        }
+        for (col, val) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
+            let c: usize = col.as_();
+            if c < cols && val.is_finite() && val.is_normal() && val > 0.0 {
+                let (Ok(r8), Ok(c8)) = (u8::try_from(r), u8::try_from(c)) else {
+                    continue;
+                };
+                edges.push((r8, c8, val));
+            }
+        }
+    }
+
+    if edges.is_empty() {
+        return None;
+    }
+
+    edges.sort_unstable_by(|(r1, c1, _), (r2, c2, _)| (r1, c1).cmp(&(r2, c2)));
+    edges.dedup_by(|(r1, c1, _), (r2, c2, _)| (*r1, *c1) == (*r2, *c2));
+
+    let Ok(edge_count) = u8::try_from(edges.len()) else {
+        return None;
+    };
+
+    GenericEdgesBuilder::default()
+        .expected_number_of_edges(edge_count)
+        .expected_shape((n, n))
+        .edges(edges.into_iter())
+        .build()
+        .ok()
+}
+
+/// Check Leicht-Newman directed community detection invariants on arbitrary
+/// input (should never panic) and, when possible, on a positive directed
+/// graph (partition length, modularity bounds, self-consistency, determinism).
+///
+/// # Panics
+///
+/// Panics if the detector fails on a valid positive directed graph or produces
+/// invalid results.
+#[inline]
+pub fn check_leicht_newman_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    // The detector must never panic on arbitrary input.
+    let _: Result<LeichtNewmanResult<usize>, _> = csr.leicht_newman(&LeichtNewmanConfig::default());
+    // The directed-modularity metric must also never panic.
+    let _: Result<f64, _> = DirectedModularity::<usize>::directed_modularity(csr, &[0; 0], 1.0);
+
+    // Skip checked invariants for extreme weight ranges.
+    if !louvain_weights_are_numerically_stable(csr) {
+        return;
+    }
+
+    let Some(graph) = positive_directed_graph(csr) else {
+        return;
+    };
+
+    let config = LeichtNewmanConfig::default();
+    let result = LeichtNewman::<usize>::leicht_newman(&graph, &config)
+        .expect("Leicht-Newman must not fail on a valid positive directed graph");
+
+    let n: usize = graph.number_of_rows().as_();
+    let partition = result.partition();
+    assert_eq!(partition.len(), n, "partition length must equal node count");
+
+    let mut distinct_labels: Vec<usize> = partition.to_vec();
+    distinct_labels.sort_unstable();
+    distinct_labels.dedup();
+    assert_eq!(
+        result.number_of_communities(),
+        distinct_labels.len(),
+        "reported community count must match the distinct labels"
+    );
+
+    let modularity = result.modularity();
+    assert!(
+        (-1.0 - 1e-9..=1.0 + 1e-9).contains(&modularity),
+        "directed modularity {modularity} out of [-1.0, 1.0] (with FP tolerance)"
+    );
+
+    // Self-consistency: the reported modularity equals the directed modularity
+    // of the detected partition.
+    let recomputed =
+        DirectedModularity::<usize>::directed_modularity(&graph, partition, config.resolution)
+            .expect("directed modularity must succeed on a valid positive directed graph");
+    assert!(
+        (modularity - recomputed).abs() <= 1e-9 * modularity.abs().max(recomputed.abs()).max(1.0),
+        "reported modularity {modularity} disagrees with recomputed {recomputed}"
+    );
+
+    // Determinism check.
+    let result2 = LeichtNewman::<usize>::leicht_newman(&graph, &config).unwrap();
+    assert_eq!(
+        result.partition(),
+        result2.partition(),
+        "Leicht-Newman must be deterministic for the same seed"
+    );
+    assert!(
+        (result.modularity() - result2.modularity()).abs() <= 1.0e-12,
+        "modularity must be deterministic"
+    );
+}
+
 // ============================================================================
 // Jacobi eigenvalue decomposition invariants (from fuzz/fuzz_targets/jacobi.rs)
 // ============================================================================
@@ -2802,7 +2924,7 @@ pub fn check_forceatlas2_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>, mode_bi
     assert_eq!(result.dimensions(), 2);
     assert_eq!(result.coordinates_flat().len(), n * 2);
     assert!(
-        result.coordinates_flat().iter().all(|coordinate| coordinate.is_finite()),
+        result.coordinates_flat().iter().copied().all(f64::is_finite),
         "ForceAtlas2 produced a non-finite coordinate"
     );
     assert!(result.final_swinging().is_finite() && result.final_swinging() >= 0.0);

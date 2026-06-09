@@ -148,6 +148,10 @@ mod modularity;
 #[cfg(feature = "alloc")]
 pub use modularity::ModularityError;
 #[cfg(feature = "alloc")]
+mod directed_modularity;
+#[cfg(feature = "alloc")]
+pub use directed_modularity::*;
+#[cfg(feature = "alloc")]
 mod louvain;
 #[cfg(feature = "alloc")]
 pub use louvain::*;
@@ -155,6 +159,10 @@ pub use louvain::*;
 mod leiden;
 #[cfg(feature = "alloc")]
 pub use leiden::*;
+#[cfg(feature = "alloc")]
+mod leicht_newman;
+#[cfg(feature = "alloc")]
+pub use leicht_newman::*;
 #[cfg(feature = "alloc")]
 mod jacobi;
 #[cfg(feature = "alloc")]
