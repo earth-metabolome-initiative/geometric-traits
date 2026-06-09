@@ -365,7 +365,7 @@ fn refine_partition(
     (refined_partition, moved_nodes)
 }
 
-fn sample_softmax_destination(
+pub(super) fn sample_softmax_destination(
     candidate_moves: &[(usize, f64)],
     theta: f64,
     rng: &mut SmallRng,

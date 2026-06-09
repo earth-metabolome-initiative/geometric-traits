@@ -164,6 +164,16 @@ mod leiden;
 #[cfg(feature = "alloc")]
 pub use leiden::*;
 #[cfg(feature = "alloc")]
+mod directed_community;
+#[cfg(feature = "alloc")]
+mod directed_louvain;
+#[cfg(feature = "alloc")]
+pub use directed_louvain::*;
+#[cfg(feature = "alloc")]
+mod directed_leiden;
+#[cfg(feature = "alloc")]
+pub use directed_leiden::*;
+#[cfg(feature = "alloc")]
 mod leicht_newman;
 #[cfg(feature = "alloc")]
 pub use leicht_newman::*;
