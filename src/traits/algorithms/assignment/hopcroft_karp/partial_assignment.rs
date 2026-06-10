@@ -232,6 +232,27 @@ mod tests {
     }
 
     #[test]
+    fn test_dfs_drops_dead_end_edge_before_committing_other_branch() {
+        // Row 0's first column (0) leads through row 1 to a dead end, forcing a
+        // backtrack; its second column (1) is free and commits. The backtrack
+        // must remove the dead-end edge (0, 0) from the path, otherwise it would
+        // be committed alongside the real edge (0, 1) and corrupt the matching.
+        let csr = build_csr((2, 2), &[(0, 0), (0, 1), (1, 0)]);
+        let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);
+
+        assignment.predecessors[0] = Some(1);
+        assignment.successors[1] = Some(0);
+        assignment.left_distances[0] = 0;
+        assignment.left_distances[1] = 1;
+        assignment.null_distance = 1;
+
+        assert!(assignment.dfs(Some(0)));
+        // Only (0, 1) is committed; column 0 keeps its original predecessor (1).
+        assert_eq!(assignment.successors, vec![Some(1), Some(0)]);
+        assert_eq!(assignment.predecessors, vec![Some(1), Some(0)]);
+    }
+
+    #[test]
     fn test_dfs_commits_multi_hop_augmenting_path() {
         let csr = build_csr((2, 2), &[(0, 0), (0, 1), (1, 0)]);
         let mut assignment: PartialAssignment<'_, _, u8> = PartialAssignment::from(&csr);

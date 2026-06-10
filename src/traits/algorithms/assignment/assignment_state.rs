@@ -46,3 +46,23 @@ impl<T> AssignmentState<T> {
         matches!(self, AssignmentState::Assigned(_))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::AssignmentState;
+
+    #[test]
+    fn test_state_predicates() {
+        let assigned: AssignmentState<usize> = AssignmentState::Assigned(7);
+        assert!(assigned.is_assigned());
+        assert!(!assigned.is_unassigned());
+
+        let unassigned: AssignmentState<usize> = AssignmentState::Unassigned;
+        assert!(!unassigned.is_assigned());
+        assert!(unassigned.is_unassigned());
+
+        let conflict: AssignmentState<usize> = AssignmentState::Conflict(3);
+        assert!(!conflict.is_assigned());
+        assert!(!conflict.is_unassigned());
+    }
+}
