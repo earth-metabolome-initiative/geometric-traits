@@ -1022,10 +1022,40 @@ mod tests {
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[2], partition[3]);
         assert_eq!(partition[4], partition[5]);
-        // The three components must land in three different communities.
+        // The three components must land in three different communities, and the
+        // fresh ids must not collide with the untouched community 1 (node 6).
         assert_ne!(partition[0], partition[2]);
         assert_ne!(partition[0], partition[4]);
         assert_ne!(partition[2], partition[4]);
+        assert_ne!(partition[2], partition[6]);
+        assert_ne!(partition[4], partition[6]);
+    }
+
+    #[test]
+    fn test_local_moving_attaches_pure_sink_and_pure_source() {
+        // Node 2 is a pure sink (only incoming) that must still be drawn into the
+        // pair's community; node 2 as a pure source likewise. This pins the
+        // isolated-node degree guard against skipping one-directional nodes.
+        let with_sink = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (0, 2, 1.0)]);
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 5 };
+        let (partition, _) = with_sink.local_moving(config, 0);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[0], partition[2]);
+
+        let with_source = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 0, 1.0)]);
+        let (partition, _) = with_source.local_moving(config, 0);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[0], partition[2]);
+    }
+
+    #[test]
+    fn test_local_moving_guards_against_non_normal_total_weight() {
+        // A non-normal total weight (here +inf) must short-circuit to the trivial
+        // singleton partition rather than letting zero-scaled gains shuffle nodes.
+        let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
+        assert!(!graph.total_weight().is_normal());
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 1 };
+        assert_eq!(graph.local_moving(config, 0), (vec![0, 1], 0));
     }
 
     #[test]
