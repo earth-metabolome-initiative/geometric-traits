@@ -58,7 +58,7 @@ changes. The score is caught over viable mutants.
 | biconnected_components | 173 | done | 100% | Most mutants are unviable (heavy generic bounds); the one survivor was the indexed `vertex_biconnected_component` accessor, now cross-checked against the iterator form. |
 | bipartite_detection | 20 | done | 100% | Added a direct test for the `pub(crate)` `sparse_matrix_bipartite_coloring` helper; one mutant is detected via timeout (it makes the coloring BFS loop forever). |
 | blossom | 24 | done | ~95% | One equivalent survivor: the same-blossom-base skip (`base[v] == base[w] || w == v`) is a no-op optimization, since processing such an edge yields a no-op contraction and self-loops are handled identically. One mutant detected via timeout. |
-| blossom_v | 1960 | todo | | Largest module; shard the run. |
+| blossom_v | 1960 | todo | | Largest module; shard the run. Removed the env-gated `BLOSSOM_V_DEBUG_TRACE_FILE` dev tracing, which eliminated ~16 equivalent mutants and a `no_std` dead-code warning. Full sweep still pending. |
 | cactus_detection | 27 | todo | | |
 | canon | 1193 | todo | | Large; shard the run. |
 | chordal_detection | 54 | todo | | |

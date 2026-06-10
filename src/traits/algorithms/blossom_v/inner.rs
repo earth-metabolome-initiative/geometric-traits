@@ -390,114 +390,6 @@ where
     M::RowIndex: PositiveInteger,
     M::ColumnIndex: PositiveInteger,
 {
-    #[cfg(feature = "std")]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_trace_snapshot(&self, op: &str) {
-        use std::io::Write as _;
-
-        let Some(path) = std::env::var_os("BLOSSOM_V_DEBUG_TRACE_FILE") else {
-            return;
-        };
-        let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
-            return;
-        };
-
-        let y = (0..self.node_num).map(|v| self.nodes[v].y).collect::<Vec<_>>();
-        let slacks = (0..self.edge_num).map(|e| self.edges[e].slack).collect::<Vec<_>>();
-        let matching = (0..self.node_num)
-            .map(|v| {
-                let arc = self.nodes[v].match_arc;
-                if arc == NONE {
-                    -1
-                } else {
-                    self.edges[arc_edge(arc) as usize].head[arc_dir(arc)] as i32
-                }
-            })
-            .collect::<Vec<_>>();
-        let flags = (0..self.node_num).map(|v| self.nodes[v].flag).collect::<Vec<_>>();
-        let is_outer =
-            (0..self.node_num).map(|v| u8::from(self.nodes[v].is_outer)).collect::<Vec<_>>();
-
-        let _ = writeln!(
-            file,
-            "{{\"op\":\"{}\",\"y\":{:?},\"slacks\":{:?},\"match\":{:?},\"flags\":{:?},\"is_outer\":{:?},\"tree_num\":{}}}",
-            op, y, slacks, matching, flags, is_outer, self.tree_num
-        );
-    }
-
-    #[cfg(feature = "std")]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_queue_summary(&self, label: &str) {
-        use std::io::Write as _;
-
-        let Some(path) = std::env::var_os("BLOSSOM_V_DEBUG_TRACE_FILE") else {
-            return;
-        };
-        let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else {
-            return;
-        };
-
-        let roots = self.current_root_list();
-        let _ = writeln!(file, "# {label} roots={roots:?}");
-        for &root in &roots {
-            if (root as usize) >= self.scheduler_trees.len() {
-                continue;
-            }
-            let tree = &self.scheduler_trees[root as usize];
-            let collect_tree_edges = |dir| {
-                let mut pair_edges = Vec::new();
-                let mut cursor = tree.first[dir];
-                let mut safety = self.scheduler_tree_edges.len() + 1;
-                while let Some(pair_idx) = cursor {
-                    if pair_idx >= self.scheduler_tree_edges.len() || safety == 0 {
-                        break;
-                    }
-                    if self.scheduler_tree_edge_dir(pair_idx, root) == Some(dir) {
-                        pair_edges.push(pair_idx);
-                    }
-                    cursor = self.scheduler_tree_edges[pair_idx].next[dir];
-                    safety -= 1;
-                }
-                pair_edges
-            };
-            let _ = writeln!(
-                file,
-                "# root {} pq0={:?} pq00_local={:?} pq_blossoms={:?} tree_edges0={:?} tree_edges1={:?}",
-                root,
-                tree.pq0,
-                tree.pq00_local,
-                tree.pq_blossoms,
-                collect_tree_edges(0),
-                collect_tree_edges(1)
-            );
-        }
-        for (pair_idx, pair) in self.scheduler_tree_edges.iter().enumerate() {
-            if pair.head[0] == NONE && pair.head[1] == NONE {
-                continue;
-            }
-            if pair.pq00.is_empty() && pair.pq01[0].is_empty() && pair.pq01[1].is_empty() {
-                continue;
-            }
-            let _ = writeln!(
-                file,
-                "# pair {} head={:?} pq00={:?} pq01_0={:?} pq01_1={:?}",
-                pair_idx, pair.head, pair.pq00, pair.pq01[0], pair.pq01[1]
-            );
-        }
-    }
-
-    #[cfg(not(feature = "std"))]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_queue_summary(&self, _label: &str) {}
-
-    #[cfg(not(feature = "std"))]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_trace_snapshot(&self, _op: &str) {}
-
     pub(super) fn new(matrix: &M) -> Self {
         let n: usize = matrix.number_of_rows().as_();
 
@@ -2142,10 +2034,8 @@ where
             return Ok(Vec::new());
         }
         self.init_global();
-        self.maybe_write_debug_trace_snapshot("INIT_GLOBAL_AFTER");
 
         if self.tree_num == 0 {
-            self.maybe_write_debug_trace_snapshot("FINISH_BEFORE");
             return self.into_pairs_checked();
         }
 
@@ -2188,17 +2078,13 @@ where
             }
 
             if self.tree_num == 0 {
-                self.maybe_write_debug_trace_snapshot("FINISH_BEFORE");
                 return self.into_pairs_checked();
             }
 
             // No progress via tight edges — do a dual update
-            self.maybe_write_debug_trace_snapshot("DUAL_UPDATE_BEFORE");
             if !self.update_duals() {
                 return Err(BlossomVError::NoPerfectMatching);
             }
-            self.maybe_write_debug_trace_snapshot("DUAL_UPDATE_AFTER");
-            self.maybe_write_debug_queue_summary("after DUAL_UPDATE_AFTER");
         }
     }
 
@@ -2253,6 +2139,9 @@ where
         self.nodes[root as usize].is_processed = true;
     }
 
+    /// Collects the active tree roots. Used only by the test helpers; the
+    /// algorithm itself reads roots through `fill_current_root_list`.
+    #[cfg(test)]
     fn current_root_list(&self) -> Vec<u32> {
         let mut roots = Vec::new();
         let mut seen = Vec::new();

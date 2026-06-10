@@ -37,8 +37,6 @@ where
         self.grow(e_idx, plus, free);
         if let Some((augment_edge, left, right)) = self.grow_tree_after_absorb(plus, free) {
             self.augment(augment_edge, left, right);
-        } else {
-            self.maybe_write_debug_trace_snapshot("GROW_AFTER");
         }
     }
 
@@ -58,7 +56,6 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_shrink(&mut self, e_idx: u32, left: u32, right: u32) {
         self.shrink(e_idx, left, right);
-        self.maybe_write_debug_trace_snapshot("SHRINK_AFTER");
     }
 
     #[cfg(test)]
@@ -77,8 +74,6 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_augment(&mut self, e_idx: u32, left: u32, right: u32) {
         self.augment(e_idx, left, right);
-        self.maybe_write_debug_trace_snapshot("AUGMENT_AFTER");
-        self.maybe_write_debug_queue_summary("after AUGMENT_AFTER");
     }
 
     pub(super) fn perform_generic_expand(&mut self, b: u32) {
@@ -102,7 +97,6 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_expand(&mut self, b: u32) {
         self.perform_generic_expand(b);
-        self.maybe_write_debug_trace_snapshot("EXPAND_AFTER");
     }
 
     #[allow(clippy::manual_swap, clippy::too_many_lines)]
