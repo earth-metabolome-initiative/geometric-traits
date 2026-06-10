@@ -991,6 +991,136 @@ mod tests {
     }
 
     #[test]
+    fn test_from_matrix_orders_multiple_incoming_arcs() {
+        // Node 2 receives from both 0 and 1: the incoming adjacency must place
+        // them in distinct, source-ordered slots (guards the CSC scatter cursor).
+        let graph = graph(3, vec![(0, 2, 1.0), (1, 2, 2.0)]);
+        assert_eq!(collect_in(&graph, 2), vec![(0, 1.0), (1, 2.0)]);
+        assert_eq!(collect_out(&graph, 0), vec![(2, 1.0)]);
+        assert_eq!(collect_out(&graph, 1), vec![(2, 2.0)]);
+        assert!((graph.in_degree[2] - 3.0).abs() < TOLERANCE);
+    }
+
+    #[test]
+    fn test_split_assigns_distinct_ids_to_three_components() {
+        // Community 0 holds three disconnected 2-cycles, so the split must mint
+        // two fresh community ids (guards the fresh-id counter increment).
+        let graph = graph(
+            7,
+            vec![
+                (0, 1, 1.0),
+                (1, 0, 1.0),
+                (2, 3, 1.0),
+                (3, 2, 1.0),
+                (4, 5, 1.0),
+                (5, 4, 1.0),
+                (6, 6, 1.0),
+            ],
+        );
+        let mut partition = vec![0usize, 0, 0, 0, 0, 0, 1];
+        graph.split_disconnected_communities(&mut partition);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[2], partition[3]);
+        assert_eq!(partition[4], partition[5]);
+        // The three components must land in three different communities, and the
+        // fresh ids must not collide with the untouched community 1 (node 6).
+        assert_ne!(partition[0], partition[2]);
+        assert_ne!(partition[0], partition[4]);
+        assert_ne!(partition[2], partition[4]);
+        assert_ne!(partition[2], partition[6]);
+        assert_ne!(partition[4], partition[6]);
+    }
+
+    #[test]
+    fn test_local_moving_attaches_pure_sink_and_pure_source() {
+        // Node 2 is a pure sink (only incoming) that must still be drawn into the
+        // pair's community; node 2 as a pure source likewise. This pins the
+        // isolated-node degree guard against skipping one-directional nodes.
+        let with_sink = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (0, 2, 1.0)]);
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 5 };
+        let (partition, _) = with_sink.local_moving(config, 0);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[0], partition[2]);
+
+        let with_source = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 0, 1.0)]);
+        let (partition, _) = with_source.local_moving(config, 0);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[0], partition[2]);
+    }
+
+    #[test]
+    fn test_local_moving_guards_against_non_normal_total_weight() {
+        // A non-normal total weight (here +inf) must short-circuit to the trivial
+        // singleton partition rather than letting zero-scaled gains shuffle nodes.
+        let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
+        assert!(!graph.total_weight().is_normal());
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 1 };
+        assert_eq!(graph.local_moving(config, 0), (vec![0, 1], 0));
+    }
+
+    #[test]
+    fn test_local_moving_merges_clear_pairs() {
+        // Two strongly bidirectional pairs with no inter-pair arcs: local moving
+        // must merge each pair and reach the optimum, moving exactly one node per
+        // pair. This pins the gain bookkeeping (community-total updates, the move
+        // counter, and the degree guard).
+        let graph = graph(4, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 3, 10.0), (3, 2, 10.0)]);
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 9 };
+        let (partition, moved_nodes) = graph.local_moving(config, 0);
+
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[2], partition[3]);
+        assert_ne!(partition[0], partition[2]);
+        assert_eq!(moved_nodes, 2);
+        assert!((graph.modularity(&partition, 1.0) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_local_moving_merges_directed_cycles_without_bidirectional_arcs() {
+        // Each node here has only outgoing OR only balanced one-way arcs around a
+        // directed 3-cycle, so a node is never skipped for missing one direction.
+        // The two cycles must still separate (guards the isolated-node degree
+        // condition against `&&`/`||` swaps).
+        let graph = graph(
+            6,
+            vec![(0, 1, 5.0), (1, 2, 5.0), (2, 0, 5.0), (3, 4, 5.0), (4, 5, 5.0), (5, 3, 5.0)],
+        );
+        let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 4 };
+        let (partition, _) = graph.local_moving(config, 0);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[1], partition[2]);
+        assert_eq!(partition[3], partition[4]);
+        assert_eq!(partition[4], partition[5]);
+        assert_ne!(partition[0], partition[3]);
+    }
+
+    #[test]
+    fn test_refine_separates_subclusters_within_a_parent() {
+        // One parent community wrongly groups two tight bidirectional pairs;
+        // refinement must split them back apart (guards the refinement gain and
+        // its community-total updates).
+        let graph = graph(4, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 3, 10.0), (3, 2, 10.0)]);
+        let config =
+            RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 100, seed: 6 };
+        let (refined, moved) = directed_refine_partition(&graph, &[0, 0, 0, 0], config, 0);
+        assert_eq!(refined[0], refined[1]);
+        assert_eq!(refined[2], refined[3]);
+        assert_ne!(refined[0], refined[2]);
+        assert!(moved >= 1);
+    }
+
+    #[test]
+    fn test_modularity_guards_against_non_normal_total_weight() {
+        // Weights that sum to a non-normal total (here +inf) must short-circuit
+        // to zero rather than propagate NaN through the null term.
+        let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
+        assert!(!graph.total_weight().is_normal());
+        // The guard returns exactly zero; a missing guard would yield NaN, whose
+        // `abs()` is also not below the tolerance.
+        assert!(graph.modularity(&[0, 0], 1.0).abs() < TOLERANCE);
+    }
+
+    #[test]
     fn test_split_returns_early_on_trivial_partitions() {
         // One node: nothing to split.
         let single = graph(1, vec![]);

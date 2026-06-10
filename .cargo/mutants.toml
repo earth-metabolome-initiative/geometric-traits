@@ -1,0 +1,19 @@
+# Configuration for cargo-mutants (https://mutants.rs).
+#
+# The full test suite runs once per mutant, and several suites replay sizeable
+# gzip-backed ground-truth corpora (matching, modularity, ForceAtlas2), so the
+# per-mutant test time is non-trivial. Tests are built in the release profile
+# (matching how the corpora suites are meant to run) and given generous timeouts
+# so a slow-but-correct run is never mistaken for a hang.
+profile = "release"
+timeout_multiplier = 3.0
+minimum_test_timeout = 120
+
+# Run the unit and integration tests but skip doctests: doctests are slow to
+# compile per mutant and almost never distinguish a mutant that the unit and
+# integration suites miss.
+additional_cargo_test_args = ["--tests"]
+
+# Fuzz harnesses and benches are not part of the library's behavioural surface,
+# so there is nothing meaningful to mutate there.
+exclude_globs = ["fuzz/**", "benches/**"]
