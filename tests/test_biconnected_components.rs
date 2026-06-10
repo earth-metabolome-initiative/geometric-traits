@@ -33,6 +33,31 @@ fn assert_cases_match_algorithm(cases: &[BiconnectedFixtureCase]) {
         let cyclic_component_ids: Vec<usize> =
             decomposition.cyclic_biconnected_component_ids().collect();
 
+        // The indexed accessors must agree with the iterator forms above.
+        assert_eq!(
+            decomposition.number_of_biconnected_components(),
+            vertex_components.len(),
+            "component count mismatched fixture case {} ({})",
+            case.name,
+            case.family
+        );
+        for index in 0..vertex_components.len() {
+            assert_eq!(
+                decomposition.vertex_biconnected_component(index),
+                vertex_components[index].as_slice(),
+                "indexed vertex block {index} mismatched fixture case {} ({})",
+                case.name,
+                case.family
+            );
+            assert_eq!(
+                decomposition.edge_biconnected_component(index),
+                edge_components[index].as_slice(),
+                "indexed edge block {index} mismatched fixture case {} ({})",
+                case.name,
+                case.family
+            );
+        }
+
         assert_eq!(
             edge_components, case.edge_biconnected_components,
             "edge blocks mismatched fixture case {} ({})",

@@ -55,7 +55,7 @@ changes. The score is caught over viable mutants.
 | Module | Mutants | Status | Score | Notes |
 | --- | ---: | --- | --- | --- |
 | assignment | 38 | done | ~97% | One equivalent survivor: `bfs` `<` to `<=` only expands BFS layers at distance >= `null_distance`, which the DFS never follows. |
-| biconnected_components | 173 | todo | | |
+| biconnected_components | 173 | done | 100% | Most mutants are unviable (heavy generic bounds); the one survivor was the indexed `vertex_biconnected_component` accessor, now cross-checked against the iterator form. |
 | bipartite_detection | 20 | todo | | |
 | blossom | 24 | todo | | |
 | blossom_v | 1960 | todo | | Largest module; shard the run. |
