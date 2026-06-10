@@ -57,7 +57,7 @@ changes. The score is caught over viable mutants.
 | assignment | 38 | done | ~97% | One equivalent survivor: `bfs` `<` to `<=` only expands BFS layers at distance >= `null_distance`, which the DFS never follows. |
 | biconnected_components | 173 | done | 100% | Most mutants are unviable (heavy generic bounds); the one survivor was the indexed `vertex_biconnected_component` accessor, now cross-checked against the iterator form. |
 | bipartite_detection | 20 | done | 100% | Added a direct test for the `pub(crate)` `sparse_matrix_bipartite_coloring` helper; one mutant is detected via timeout (it makes the coloring BFS loop forever). |
-| blossom | 24 | todo | | |
+| blossom | 24 | done | ~95% | One equivalent survivor: the same-blossom-base skip (`base[v] == base[w] || w == v`) is a no-op optimization, since processing such an edge yields a no-op contraction and self-loops are handled identically. One mutant detected via timeout. |
 | blossom_v | 1960 | todo | | Largest module; shard the run. |
 | cactus_detection | 27 | todo | | |
 | canon | 1193 | todo | | Large; shard the run. |
