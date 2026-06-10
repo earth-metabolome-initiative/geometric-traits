@@ -109,3 +109,44 @@ where
     G::NodeId: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
 {
 }
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::sparse_matrix_bipartite_coloring;
+    use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
+
+    type Weighted = ValuedCSR2D<usize, usize, usize, i32>;
+
+    fn build(node_count: usize, undirected_edges: &[(usize, usize)]) -> Weighted {
+        let mut edges = Vec::new();
+        for &(left, right) in undirected_edges {
+            edges.push((left, right, 1));
+            edges.push((right, left, 1));
+        }
+        edges.sort_unstable_by(|(ls, ld, _), (rs, rd, _)| (ls, ld).cmp(&(rs, rd)));
+        GenericEdgesBuilder::<_, Weighted>::default()
+            .expected_number_of_edges(edges.len())
+            .expected_shape((node_count, node_count))
+            .edges(edges.into_iter())
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_sparse_matrix_bipartite_coloring() {
+        // An even cycle is bipartite: adjacent vertices must get opposite colors.
+        let even_cycle = build(4, &[(0, 1), (1, 2), (2, 3), (3, 0)]);
+        let coloring =
+            sparse_matrix_bipartite_coloring(&even_cycle).expect("an even cycle is bipartite");
+        assert_eq!(coloring.len(), 4);
+        for &(left, right) in &[(0, 1), (1, 2), (2, 3), (3, 0)] {
+            assert_ne!(coloring[left], coloring[right]);
+        }
+
+        // An odd cycle is not bipartite.
+        let odd_cycle = build(3, &[(0, 1), (1, 2), (2, 0)]);
+        assert!(sparse_matrix_bipartite_coloring(&odd_cycle).is_none());
+    }
+}
