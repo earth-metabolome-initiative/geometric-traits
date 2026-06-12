@@ -731,8 +731,8 @@ mod tests {
     use alloc::vec::Vec;
 
     use super::{
-        DirectedWorkingGraph, LocalMovingConfig, ModularityError, RefineConfig, directed_gain,
-        directed_refine_partition,
+        super::modularity::renumber_partition, DirectedWorkingGraph, LocalMovingConfig,
+        ModularityError, RefineConfig, directed_gain, directed_refine_partition,
     };
     use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
 
@@ -932,6 +932,26 @@ mod tests {
         assert_eq!(partition[2], partition[3]);
         assert_ne!(partition[0], partition[2]);
         assert_eq!(partition[4], 1);
+    }
+
+    #[test]
+    fn test_directed_split_then_renumber_does_not_panic_on_fresh_labels() {
+        // Directed counterpart of the Leiden crash: a weakly-disconnected
+        // community ({0,1} and {2,3} both labelled 0) alongside a singleton at
+        // the top label (node 4 labelled 4) drives the directed split to mint a
+        // fresh label equal to the node count (5). The shared renumber must
+        // accept it rather than index out of bounds.
+        let graph = graph(5, vec![(0, 1, 1.0), (1, 0, 1.0), (2, 3, 1.0), (3, 2, 1.0)]);
+        let mut partition = vec![0usize, 0, 0, 0, 4];
+        graph.split_disconnected_communities(&mut partition);
+        let number_of_communities = renumber_partition(&mut partition);
+
+        assert_eq!(number_of_communities, 3);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[2], partition[3]);
+        assert_ne!(partition[0], partition[2]);
+        assert_ne!(partition[4], partition[0]);
+        assert_ne!(partition[4], partition[2]);
     }
 
     #[test]

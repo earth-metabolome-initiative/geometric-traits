@@ -560,7 +560,13 @@ pub(crate) fn validate_leiden_config(
 }
 
 pub(crate) fn renumber_partition(partition: &mut [usize]) -> usize {
-    let mut mapping = vec![usize::MAX; partition.len()];
+    // Community labels are not guaranteed to be dense or smaller than the node
+    // count: `split_disconnected_communities` hands out fresh ids starting past
+    // the current community count, so a label can equal or exceed
+    // `partition.len()`. Size the lookup table by the largest label, the same
+    // rule the splitting function already uses for its own buffers.
+    let capacity = partition.iter().copied().max().map_or(0, |label| label + 1);
+    let mut mapping = vec![usize::MAX; capacity];
     let mut next_community_id = 0usize;
 
     for community in partition {
@@ -638,12 +644,61 @@ mod tests {
 
     use num_traits::ToPrimitive;
 
-    use super::{ModularityError, UndirectedView, WorkingGraph, build_working_graph};
+    use super::{
+        ModularityError, UndirectedView, WorkingGraph, build_working_graph, renumber_partition,
+    };
     use crate::{
         impls::{CSR2D, GenericImplicitValuedMatrix2D},
         naive_structs::{GenericEdgesBuilder, GenericGraph},
         traits::{EdgesBuilder, Finite},
     };
+
+    #[test]
+    fn test_renumber_partition_handles_labels_at_or_beyond_node_count() {
+        // `split_disconnected_communities` mints fresh labels starting past the
+        // current community count, so a label can equal or exceed the slice
+        // length. Renumbering must compact them, not index out of bounds.
+
+        // Label equal to the node count (the exact crash: len == index).
+        let mut at_count = vec![2usize, 2];
+        assert_eq!(renumber_partition(&mut at_count), 1);
+        assert_eq!(at_count, vec![0, 0]);
+
+        // A sparse label well beyond the node count.
+        let mut sparse = vec![0usize, 5];
+        assert_eq!(renumber_partition(&mut sparse), 2);
+        assert_eq!(sparse, vec![0, 1]);
+
+        // First-seen order is preserved and the empty case returns zero.
+        let mut reordered = vec![7usize, 3, 7, 9, 3];
+        assert_eq!(renumber_partition(&mut reordered), 3);
+        assert_eq!(reordered, vec![0, 1, 0, 2, 1]);
+
+        let mut empty: Vec<usize> = Vec::new();
+        assert_eq!(renumber_partition(&mut empty), 0);
+    }
+
+    #[test]
+    fn test_split_then_renumber_does_not_panic_on_fresh_labels() {
+        // End-to-end reproduction of the Leiden crash: a disconnected community
+        // ({0,1} and {2,3} both labelled 0) alongside a singleton at the top
+        // label (node 4 labelled 4). Splitting mints a fresh label equal to the
+        // node count (5), which the following renumber must accept rather than
+        // index out of bounds.
+        let graph = working(5, vec![(0, 1, 1.0), (1, 0, 1.0), (2, 3, 1.0), (3, 2, 1.0)]);
+        let view = UndirectedView::from_working_graph(&graph);
+
+        let mut partition = vec![0usize, 0, 0, 0, 4];
+        view.split_disconnected_communities(&mut partition);
+        let number_of_communities = renumber_partition(&mut partition);
+
+        assert_eq!(number_of_communities, 3);
+        assert_eq!(partition[0], partition[1]);
+        assert_eq!(partition[2], partition[3]);
+        assert_ne!(partition[0], partition[2]);
+        assert_ne!(partition[4], partition[0]);
+        assert_ne!(partition[4], partition[2]);
+    }
 
     fn working(node_count: usize, edges: Vec<(usize, usize, f64)>) -> WorkingGraph {
         let mut edges = edges;
