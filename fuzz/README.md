@@ -345,3 +345,24 @@ and to run the crash cases:
 ```bash
 cargo hfuzz run-debug gth hfuzz_workspace/*/*.fuzz
 ```
+
+### EadesLinSmyth
+
+The Eades-Lin-Smyth harness fuzzes the GR greedy feedback-arc-set heuristic. It first feeds the raw arbitrary matrix to `eades_lin_smyth()` to confirm the call never panics (the error paths for non-square or invalid weights are exercised here). It then sanitizes the input into a square directed graph with finite, positive, numerically-normal weights and asserts the invariants that must hold for any such graph:
+
+- `order` is a permutation of `0..n` and `positions` is its exact inverse
+- `feedback_edges` are exactly the non-self-loop edges `(u, v)` with `positions[u] > positions[v]`, and `feedback_weight` is their summed weight
+- `0 <= feedback_weight <= total_weight` and `tangle_fraction` lies in `[0, 1]`
+- the residual graph (input edges minus feedback edges) is acyclic, cross-checked with `Kahn`
+- `is_acyclic()` agrees with whether `Kahn` succeeds on the full non-self-loop graph
+- the result is deterministic across two consecutive calls
+
+```bash
+cargo hfuzz run eades_lin_smyth
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug eades_lin_smyth hfuzz_workspace/*/*.fuzz
+```
