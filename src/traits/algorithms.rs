@@ -144,6 +144,10 @@ mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;
 #[cfg(feature = "alloc")]
+pub mod eades_lin_smyth;
+#[cfg(feature = "alloc")]
+pub use eades_lin_smyth::{EadesLinSmyth, EadesLinSmythError, EadesLinSmythResult};
+#[cfg(feature = "alloc")]
 mod modularity;
 #[cfg(feature = "alloc")]
 pub use modularity::ModularityError;

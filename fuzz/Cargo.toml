@@ -261,3 +261,9 @@ name = "forceatlas2"
 path = "fuzz_targets/forceatlas2.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "eades_lin_smyth"
+path = "fuzz_targets/eades_lin_smyth.rs"
+test = false
+doc = false

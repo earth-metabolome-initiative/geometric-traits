@@ -134,6 +134,10 @@ name = "motif_counting"
 harness = false
 
 [[bench]]
+name = "eades_lin_smyth"
+harness = false
+
+[[bench]]
 name = "biconnected_components"
 harness = false
 

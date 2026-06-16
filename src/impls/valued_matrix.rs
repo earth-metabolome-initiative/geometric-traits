@@ -14,8 +14,8 @@ use crate::traits::{
     SizedRowsSparseMatrix2D, SizedSparseMatrix, SizedSparseMatrix2D, SizedSparseValuedMatrix,
     SizedSparseValuedMatrixMut, SizedSparseValuedMatrixRef, SparseMatrix, SparseMatrix2D,
     SparseMatrixMut, SparseValuedMatrix, SparseValuedMatrix2D, SparseValuedMatrix2DMut,
-    SparseValuedMatrix2DRef, SparseValuedMatrixMut, SparseValuedMatrixRef, TryFromUsize,
-    ValuedMatrix, ValuedMatrix2D,
+    SparseValuedMatrix2DRef, SparseValuedMatrixMut, SparseValuedMatrixRef, SquareMatrix,
+    TransposableMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
 #[cfg(feature = "arbitrary")]
@@ -154,6 +154,67 @@ where
     }
 }
 
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex>,
+    Value: Clone,
+> TransposableMatrix2D<ValuedCSR2D<SparseIndex, ColumnIndex, RowIndex, Value>>
+    for ValuedCSR2D<SparseIndex, RowIndex, ColumnIndex, Value>
+where
+    CSR2D<SparseIndex, RowIndex, ColumnIndex>: TransposableMatrix2D<
+            CSR2D<SparseIndex, ColumnIndex, RowIndex>,
+            RowIndex = RowIndex,
+            ColumnIndex = ColumnIndex,
+        > + SizedSparseMatrix2D<
+            RowIndex = RowIndex,
+            ColumnIndex = ColumnIndex,
+            SparseIndex = SparseIndex,
+        >,
+    CSR2D<SparseIndex, ColumnIndex, RowIndex>: SizedSparseMatrix2D<
+            RowIndex = ColumnIndex,
+            ColumnIndex = RowIndex,
+            SparseIndex = SparseIndex,
+        >,
+    Self: SparseValuedMatrix2D<
+            RowIndex = RowIndex,
+            ColumnIndex = ColumnIndex,
+            SparseIndex = SparseIndex,
+            Value = Value,
+        >,
+{
+    #[inline]
+    fn transpose(&self) -> ValuedCSR2D<SparseIndex, ColumnIndex, RowIndex, Value> {
+        // Transpose the unvalued topology with its established routine, then
+        // scatter the values into the transposed storage order in lockstep,
+        // using the same per-column cursor the topology transpose relies on.
+        let transposed_csr = self.csr.transpose();
+
+        let number_of_values = self.number_of_defined_values().as_();
+        // A placeholder is needed because the values are written out of order
+        // (by destination column), so they cannot simply be pushed.
+        let mut transposed_values: Vec<Option<Value>> =
+            core::iter::repeat_with(|| None).take(number_of_values).collect();
+        let mut degree = vec![SparseIndex::zero(); self.number_of_columns().as_()];
+
+        for ((_, column), value) in self.sparse_coordinates().zip(self.values_ref()) {
+            let column_usize = column.as_();
+            let base = transposed_csr.rank_row(column).as_();
+            let position = base + degree[column_usize].as_();
+            transposed_values[position] = Some(value.clone());
+            degree[column_usize] += SparseIndex::one();
+        }
+
+        let values: Vec<Value> = transposed_values
+            .into_iter()
+            .map(|value| value.expect("every transposed slot must be filled exactly once"))
+            .collect();
+
+        ValuedCSR2D::from_parts(transposed_csr, values)
+            .expect("the transposed values must align with the transposed CSR topology")
+    }
+}
+
 impl<SparseIndex: AsPrimitive<usize>, RowIndex, ColumnIndex>
     CSR2D<SparseIndex, RowIndex, ColumnIndex>
 where
@@ -255,6 +316,24 @@ where
     #[inline]
     fn number_of_rows(&self) -> Self::RowIndex {
         self.csr.number_of_rows()
+    }
+}
+
+impl<SparseIndex, Index, Value> SquareMatrix for ValuedCSR2D<SparseIndex, Index, Index, Value>
+where
+    Index: Step + PositiveInteger + AsPrimitive<usize>,
+    CSR2D<SparseIndex, Index, Index>: Matrix2D<RowIndex = Index, ColumnIndex = Index>,
+{
+    type Index = Index;
+
+    #[inline]
+    fn order(&self) -> Self::Index {
+        debug_assert_eq!(
+            self.number_of_columns(),
+            self.number_of_rows(),
+            "The matrix is not square."
+        );
+        self.number_of_rows()
     }
 }
 
@@ -895,6 +974,39 @@ mod tests {
         assert_eq!(matrix.number_of_columns(), 2);
         let values: Vec<i32> = matrix.sparse_values().collect();
         assert_eq!(values, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_transpose_carries_weights() {
+        // Build a small asymmetric valued matrix and confirm the transpose moves
+        // every entry to its mirrored coordinate while carrying its weight: edge
+        // (0, 1, w) becomes (1, 0, w).
+        let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
+            SparseMatrixMut::with_sparse_shape((3, 4));
+        matrix.add((0, 1, 11)).unwrap();
+        matrix.add((0, 3, 13)).unwrap();
+        matrix.add((1, 0, 20)).unwrap();
+        matrix.add((2, 1, 31)).unwrap();
+        matrix.add((2, 3, 33)).unwrap();
+
+        let transposed: ValuedCSR2D<usize, usize, usize, i32> = matrix.transpose();
+
+        assert_eq!(transposed.number_of_rows(), 4);
+        assert_eq!(transposed.number_of_columns(), 3);
+
+        // Transposed entries in CSR (row-major) order, with weights attached.
+        let entries: Vec<((usize, usize), i32)> =
+            transposed.sparse_coordinates().zip(transposed.values_ref().iter().copied()).collect();
+        assert_eq!(
+            entries,
+            vec![((0, 1), 20), ((1, 0), 11), ((1, 2), 31), ((3, 0), 13), ((3, 2), 33),]
+        );
+
+        // Spot-check the value-by-coordinate accessor on the transpose.
+        assert_eq!(transposed.sparse_value_at(1, 0), Some(11));
+        assert_eq!(transposed.sparse_value_at(0, 1), Some(20));
+        assert_eq!(transposed.sparse_value_at(3, 2), Some(33));
+        assert_eq!(transposed.sparse_value_at(0, 0), None);
     }
 
     #[test]
