@@ -216,6 +216,18 @@ mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;
 #[cfg(feature = "alloc")]
+mod max_flow;
+#[cfg(feature = "alloc")]
+pub use max_flow::{MaxFlowError, MaxFlowResult};
+#[cfg(feature = "alloc")]
+pub mod dinic;
+#[cfg(feature = "alloc")]
+pub use dinic::Dinic;
+#[cfg(feature = "alloc")]
+pub mod edmonds_karp;
+#[cfg(feature = "alloc")]
+pub use edmonds_karp::EdmondsKarp;
+#[cfg(feature = "alloc")]
 mod minimum_cost_balanced_flow;
 #[cfg(feature = "alloc")]
 pub use minimum_cost_balanced_flow::*;

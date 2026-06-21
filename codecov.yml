@@ -1,0 +1,19 @@
+# Coverage is measured on production code only. Test, benchmark, and fuzz
+# scaffolding are excluded: their branches are exercised by the fuzzing
+# campaigns and benchmark runs, not by the unit and regression suite that CI
+# measures, so counting them understates coverage of the library.
+ignore:
+  - "src/test_utils.rs"
+  - "benches"
+  - "fuzz"
+
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        target: 80%
+        threshold: 1%

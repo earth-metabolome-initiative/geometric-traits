@@ -7,7 +7,7 @@
 //! crash files produced by fuzzing can be directly replayed as unit tests.
 
 use alloc::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     string::{String, ToString},
     vec::Vec,
 };
@@ -3910,6 +3910,304 @@ pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]
         assert!(sym.has_entry(r, c));
         assert!(sym.has_entry(c, r));
     }
+}
+
+// ============================================================================
+// Maximum s-t flow invariants (from fuzz/fuzz_targets/max_flow.rs)
+// ============================================================================
+
+/// Concrete square capacity matrix the max-flow checkers run on.
+pub type MaxFlowMatrix = ValuedCSR2D<usize, usize, usize, u64>;
+
+/// Owned `(source, destination, capacity)` arc list used by the max-flow
+/// helpers.
+type MaxFlowCapacityEdges = Vec<(usize, usize, u64)>;
+
+/// Sanitizes an arbitrary valued matrix into a square directed capacity graph
+/// with at least two nodes, non-negative integer capacities, no self-loops, and
+/// deduplicated arcs. Returns `None` when the shape is unusable (non-square,
+/// fewer than two nodes, larger than `u8::MAX` nodes) or no arc survives.
+#[must_use]
+fn max_flow_square_capacity_graph(
+    csr: &ValuedCSR2D<u16, u8, u8, u32>,
+) -> Option<(usize, MaxFlowCapacityEdges)> {
+    let rows = usize::from(csr.number_of_rows());
+    let cols = usize::from(csr.number_of_columns());
+    if rows != cols || rows < 2 || rows > usize::from(u8::MAX) {
+        return None;
+    }
+    let n = rows;
+
+    let mut edges: Vec<(usize, usize, u64)> = Vec::new();
+    for row in csr.row_indices() {
+        let r = usize::from(row);
+        if r >= n {
+            continue;
+        }
+        for (col, value) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
+            let c = usize::from(col);
+            if c >= n || r == c {
+                continue;
+            }
+            let capacity = u64::from(value);
+            if capacity == 0 {
+                continue;
+            }
+            edges.push((r, c, capacity));
+        }
+    }
+    if edges.is_empty() {
+        return None;
+    }
+    edges.sort_unstable();
+    edges.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    Some((n, edges))
+}
+
+/// Builds the square capacity matrix the algorithms consume from
+/// `(source, dest, cap)` triples.
+#[must_use]
+fn build_max_flow_matrix(n: usize, edges: &[(usize, usize, u64)]) -> MaxFlowMatrix {
+    let mut sorted = edges.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    GenericEdgesBuilder::<_, MaxFlowMatrix>::default()
+        .expected_number_of_edges(sorted.len())
+        .expected_shape((n, n))
+        .edges(sorted.into_iter())
+        .build()
+        .expect("a sanitized square edge list must build a ValuedCSR2D")
+}
+
+/// Validates a single max-flow result against the original capacities: per-arc
+/// feasibility, flow conservation, terminal balance, and a minimum cut whose
+/// capacity equals the flow with every crossing arc saturated. `label` names
+/// the algorithm under test in any panic message.
+fn validate_max_flow_result(
+    label: &str,
+    n: usize,
+    capacity_of: &BTreeMap<(usize, usize), u64>,
+    source: usize,
+    sink: usize,
+    result: &MaxFlowResult<u64>,
+) {
+    let value = result.max_flow();
+
+    let mut flow_of: BTreeMap<(usize, usize), u64> = BTreeMap::new();
+    let mut net: Vec<i128> = alloc::vec![0; n];
+    for &(u, v, f) in result.flows() {
+        assert!(u < n && v < n, "{label}: flow endpoint ({u}, {v}) out of range");
+        assert!(f > 0, "{label}: reported flow on ({u}, {v}) must be strictly positive");
+        let capacity = capacity_of
+            .get(&(u, v))
+            .copied()
+            .unwrap_or_else(|| panic!("{label}: flow reported on non-existent arc ({u}, {v})"));
+        assert!(f <= capacity, "{label}: flow {f} exceeds capacity {capacity} on ({u}, {v})");
+        assert!(flow_of.insert((u, v), f).is_none(), "{label}: duplicate flow arc ({u}, {v})");
+        net[u] += i128::from(f);
+        net[v] -= i128::from(f);
+    }
+
+    for (node, balance) in net.iter().enumerate() {
+        if node == source || node == sink {
+            continue;
+        }
+        assert_eq!(*balance, 0, "{label}: flow is not conserved at node {node}");
+    }
+    assert_eq!(
+        net[source],
+        i128::from(value),
+        "{label}: net flow out of the source must equal max_flow"
+    );
+    assert_eq!(
+        net[sink],
+        -i128::from(value),
+        "{label}: net flow into the sink must equal max_flow"
+    );
+
+    let side = result.source_side();
+    assert_eq!(side.len(), n, "{label}: source_side must have one flag per node");
+    assert!(side[source], "{label}: the source must be on the source side of the cut");
+    assert!(!side[sink], "{label}: the sink must be off the source side after a max flow");
+    let cut: BTreeSet<(usize, usize)> = result.min_cut().iter().copied().collect();
+    assert_eq!(cut.len(), result.min_cut().len(), "{label}: min_cut must not repeat an arc");
+    let mut cut_capacity: u64 = 0;
+    for &(u, v) in result.min_cut() {
+        assert!(
+            side[u] && !side[v],
+            "{label}: min-cut arc ({u}, {v}) does not cross the partition"
+        );
+        cut_capacity += capacity_of
+            .get(&(u, v))
+            .copied()
+            .unwrap_or_else(|| panic!("{label}: min-cut arc ({u}, {v}) is not an original arc"));
+    }
+    assert_eq!(cut_capacity, value, "{label}: min-cut capacity must equal max_flow");
+    for (&(u, v), &capacity) in capacity_of {
+        if side[u] && !side[v] {
+            assert!(
+                cut.contains(&(u, v)),
+                "{label}: crossing arc ({u}, {v}) is missing from min_cut"
+            );
+            assert_eq!(
+                flow_of.get(&(u, v)).copied().unwrap_or(0),
+                capacity,
+                "{label}: crossing arc ({u}, {v}) must be saturated"
+            );
+        }
+    }
+}
+
+/// Checks maximum-flow invariants on an arbitrary valued matrix for both the
+/// `Dinic` and `EdmondsKarp` implementations.
+///
+/// When the matrix sanitizes to a square non-negative capacity graph, each
+/// algorithm must succeed, produce a feasible conserved flow with a saturated
+/// minimum cut equal to its value (a self-contained optimality certificate),
+/// and be deterministic. The two structurally different algorithms must also
+/// agree on the maximum-flow value.
+///
+/// # Panics
+///
+/// Panics if any invariant is violated or the two algorithms disagree.
+#[inline]
+pub fn check_max_flow_invariants(csr: &ValuedCSR2D<u16, u8, u8, u32>) {
+    let Some((n, edges)) = max_flow_square_capacity_graph(csr) else {
+        return;
+    };
+    let source = 0;
+    let sink = n - 1;
+    let matrix = build_max_flow_matrix(n, &edges);
+
+    let mut capacity_of: BTreeMap<(usize, usize), u64> = BTreeMap::new();
+    for &(u, v, c) in &edges {
+        capacity_of.insert((u, v), c);
+    }
+
+    let dinic = matrix
+        .dinic(source, sink)
+        .expect("dinic must succeed on a square graph with finite non-negative capacities");
+    validate_max_flow_result("dinic", n, &capacity_of, source, sink, &dinic);
+
+    let edmonds_karp = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must succeed on a square graph with finite non-negative capacities");
+    validate_max_flow_result("edmonds_karp", n, &capacity_of, source, sink, &edmonds_karp);
+
+    // The two structurally different algorithms must agree on the flow value.
+    assert_eq!(
+        dinic.max_flow(),
+        edmonds_karp.max_flow(),
+        "Dinic max-flow {} disagrees with Edmonds-Karp {}",
+        dinic.max_flow(),
+        edmonds_karp.max_flow(),
+    );
+
+    // Determinism: each algorithm reproduces its own result on a second call.
+    let dinic_again =
+        matrix.dinic(source, sink).expect("dinic must remain successful on a second call");
+    assert_eq!(dinic.max_flow(), dinic_again.max_flow(), "Dinic max_flow must be deterministic");
+    let mut first_flows = dinic.flows().to_vec();
+    let mut second_flows = dinic_again.flows().to_vec();
+    first_flows.sort_unstable();
+    second_flows.sort_unstable();
+    assert_eq!(first_flows, second_flows, "Dinic per-arc flows must be deterministic");
+
+    let edmonds_karp_again = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must remain successful on a second call");
+    assert_eq!(
+        edmonds_karp.max_flow(),
+        edmonds_karp_again.max_flow(),
+        "Edmonds-Karp max_flow must be deterministic"
+    );
+}
+
+/// Differential check of both max-flow algorithms against the
+/// already-implemented Hopcroft-Karp bipartite matcher.
+///
+/// The sparsity pattern of `csr` is read as a bipartite graph (rows are left
+/// vertices, columns are right vertices). The maximum bipartite matching equals
+/// the s-t maximum flow on the unit-capacity reduction (super-source to every
+/// left vertex, each bipartite edge, every right vertex to super-sink), so both
+/// `dinic` and `edmonds_karp` on that reduction must report the same value as
+/// `hopcroft_karp`.
+///
+/// # Panics
+///
+/// Panics if either max-flow algorithm disagrees with Hopcroft-Karp.
+#[inline]
+pub fn check_max_flow_matches_hopcroft_karp(csr: &ValuedCSR2D<u16, u8, u8, u32>) {
+    let rows = usize::from(csr.number_of_rows());
+    let cols = usize::from(csr.number_of_columns());
+    if rows == 0 || cols == 0 || rows > 100 || cols > 100 {
+        return;
+    }
+
+    let mut bipartite: Vec<(usize, usize)> = Vec::new();
+    for row in csr.row_indices() {
+        let r = usize::from(row);
+        if r >= rows {
+            continue;
+        }
+        for col in csr.sparse_row(row) {
+            let c = usize::from(col);
+            if c < cols {
+                bipartite.push((r, c));
+            }
+        }
+    }
+    if bipartite.is_empty() {
+        return;
+    }
+    bipartite.sort_unstable();
+    bipartite.dedup();
+
+    let hopcroft_karp_matrix: CSR2D<usize, usize, usize> = GenericEdgesBuilder::default()
+        .expected_number_of_edges(bipartite.len())
+        .expected_shape((rows, cols))
+        .edges(bipartite.iter().copied())
+        .build()
+        .expect("a deduplicated bipartite edge list must build a CSR2D");
+    let matching = hopcroft_karp_matrix
+        .hopcroft_karp()
+        .expect("hopcroft_karp must succeed on a valid bipartite graph");
+    let matching_size = u64::try_from(matching.len()).expect("matching size fits in u64");
+
+    // Unit-capacity flow reduction: 0 = super-source, 1..=rows left vertices,
+    // rows + 1..=rows + cols right vertices, rows + cols + 1 = super-sink.
+    let source = 0;
+    let sink = rows + cols + 1;
+    let n = rows + cols + 2;
+    let mut edges: Vec<(usize, usize, u64)> = Vec::with_capacity(rows + cols + bipartite.len());
+    for left in 0..rows {
+        edges.push((source, 1 + left, 1));
+    }
+    for right in 0..cols {
+        edges.push((1 + rows + right, sink, 1));
+    }
+    for &(left, right) in &bipartite {
+        edges.push((1 + left, 1 + rows + right, 1));
+    }
+    let matrix = build_max_flow_matrix(n, &edges);
+
+    let dinic_flow = matrix
+        .dinic(source, sink)
+        .expect("dinic must succeed on the bipartite reduction")
+        .max_flow();
+    assert_eq!(
+        dinic_flow, matching_size,
+        "Dinic flow {dinic_flow} disagrees with Hopcroft-Karp matching {matching_size}"
+    );
+
+    let edmonds_karp_flow = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must succeed on the bipartite reduction")
+        .max_flow();
+    assert_eq!(
+        edmonds_karp_flow, matching_size,
+        "Edmonds-Karp flow {edmonds_karp_flow} disagrees with Hopcroft-Karp matching {matching_size}"
+    );
 }
 
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]

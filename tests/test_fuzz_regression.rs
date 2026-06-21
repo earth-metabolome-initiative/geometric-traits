@@ -19,6 +19,7 @@ use geometric_traits::{
         check_gabow_1976_invariants, check_gth_invariants, check_kahn_ordering,
         check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
         check_leicht_newman_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_max_flow_invariants, check_max_flow_matches_hopcroft_karp,
         check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
         check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
@@ -651,4 +652,28 @@ fn test_arbitrary_csr2d_dedup_path() {
         pattern.push(0);
     }
     let _ = from_bytes::<TestCSR>(&pattern);
+}
+
+// ============================================================================
+// Maximum s-t flow (mirrors fuzz/fuzz_targets/max_flow.rs)
+// ============================================================================
+
+type TestMaxFlowCsr = ValuedCSR2D<u16, u8, u8, u32>;
+
+#[test]
+fn test_arbitrary_max_flow() {
+    for_each_instance::<TestMaxFlowCsr, _>(check_max_flow_invariants);
+}
+
+#[test]
+fn test_arbitrary_max_flow_matches_hopcroft_karp() {
+    for_each_instance::<TestMaxFlowCsr, _>(check_max_flow_matches_hopcroft_karp);
+}
+
+#[test]
+fn test_replay_max_flow_corpus() {
+    for instance in replay_shared_fixture::<TestMaxFlowCsr>() {
+        check_max_flow_invariants(&instance);
+        check_max_flow_matches_hopcroft_karp(&instance);
+    }
 }

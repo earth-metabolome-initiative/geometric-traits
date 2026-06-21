@@ -192,3 +192,7 @@ harness = false
 [[bench]]
 name = "leicht_newman"
 harness = false
+
+[[bench]]
+name = "max_flow"
+harness = false
