@@ -201,3 +201,14 @@ python3 tests/fixtures/generate_biconnected_ground_truth.py
 
 This script uses only the Python standard library.
 
+# Maximum-Flow Ground-Truth Fixtures
+
+`max_flow_ground_truth.json.gz` is the checked-in NetworkX oracle for s-t maximum flow, shared by every max-flow algorithm in the crate (`Dinic`, `EdmondsKarp`).
+
+Each case stores a directed capacity graph as integer `[source, destination, capacity]` triples, the `source` and `sink` node indices, the maximum-flow `max_flow` value, and the minimum `dinitz` and `edmonds_karp` wall-clock times in nanoseconds (used as the reference timings in the benchmark).
+
+The stored value is a consensus value. At generation time it is cross-checked across four independent NetworkX max-flow implementations (`dinitz`, `edmonds_karp`, `shortest_augmenting_path`, `preflow_push`) and, when the package is importable, against igraph `maxflow_value`. The generator aborts if any reference disagrees.
+
+The cases span tiny hand-checkable networks (single arc, path bottleneck, diamond, antiparallel arcs, the CLRS textbook network, self-loops, a disconnected source and sink, a wider layered network), bipartite matching reductions of growing size, and several seeded random directed capacity networks.
+
+It is consumed by `tests/test_max_flow.rs` and `benches/max_flow.rs`. It is a one-shot recording from NetworkX `3.3`, and the generator is not part of the repository.

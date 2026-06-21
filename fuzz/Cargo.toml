@@ -267,3 +267,9 @@ name = "eades_lin_smyth"
 path = "fuzz_targets/eades_lin_smyth.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "max_flow"
+path = "fuzz_targets/max_flow.rs"
+test = false
+doc = false

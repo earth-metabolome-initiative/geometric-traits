@@ -366,3 +366,26 @@ and to run the crash cases:
 ```bash
 cargo hfuzz run-debug eades_lin_smyth hfuzz_workspace/*/*.fuzz
 ```
+
+### Maximum flow (Dinic and Edmonds-Karp)
+
+The max-flow harness fuzzes both the `Dinic` and `EdmondsKarp` algorithms. It sanitizes the arbitrary matrix into a square directed capacity graph and, for each algorithm, checks:
+
+- the call never panics and returns `Ok` on a valid square non-negative graph
+- per-arc flows are feasible (`0 < flow <= capacity`) and lie on real arcs
+- flow is conserved at every node other than the source and the sink
+- the net flow out of the source and into the sink equals `max_flow`
+- the minimum cut has capacity equal to `max_flow`, with the source on the source side, the sink off it, and every crossing arc saturated (a self-contained optimality certificate)
+- the result is deterministic across two consecutive calls
+
+It then requires the two structurally different algorithms to agree on the flow value, and it also reads the same input as a bipartite graph and checks that each algorithm's unit-capacity flow value equals the `HopcroftKarp` maximum matching.
+
+```bash
+cargo hfuzz run max_flow
+```
+
+and to run the crash cases:
+
+```bash
+cargo hfuzz run-debug max_flow hfuzz_workspace/*/*.fuzz
+```
