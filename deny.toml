@@ -1,0 +1,36 @@
+# Supply-chain policy enforced in CI with `cargo deny check`.
+# Documentation: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Vet the whole dependency graph, including optional and feature-gated crates,
+# so a license or advisory hiding behind a feature is still caught. This also
+# keeps local `cargo deny check` consistent with the cargo-deny GitHub action.
+all-features = true
+
+[advisories]
+# RustSec advisory database. A security vulnerability fails the check, and
+# unmaintained or yanked crates are reported. Add an `ignore` entry only after
+# assessing that a specific advisory does not affect this crate, with a reason.
+ignore = []
+
+[licenses]
+# Permissive licenses only, kept to exactly those the dependency tree uses, so a
+# new dependency with any other license (including copyleft) fails the check and
+# gets reviewed before it is allowed.
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[bans]
+# Duplicate versions are reported but not fatal. Wildcard version requirements
+# are forbidden.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+# Only the public crates.io registry is allowed.
+unknown-registry = "deny"
+unknown-git = "deny"

@@ -114,3 +114,19 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
+
+  no-python:
+    name: No Python
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Reject committed Python files
+      run: |
+        set -euo pipefail
+        matches="$(git ls-files '*.py' '*.pyw' '*.pyi' '*.ipynb')"
+        if [ -n "$matches" ]; then
+          echo "::error::Python files are not allowed in this repository:"
+          echo "$matches"
+          exit 1
+        fi
+        echo "No Python files found."
