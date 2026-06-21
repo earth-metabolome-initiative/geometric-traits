@@ -17,3 +17,14 @@ additional_cargo_test_args = ["--tests"]
 # Fuzz harnesses and benches are not part of the library's behavioural surface,
 # so there is nothing meaningful to mutate there.
 exclude_globs = ["fuzz/**", "benches/**"]
+
+# The minimum-residual-capacity loops in the max-flow algorithms select the same
+# value whether the bottleneck comparison is `<` or `<=`, so the `replace < with
+# <=` mutant on that comparison is equivalent and cannot be killed by any test.
+# The patterns are matched by function rather than line so they survive edits.
+# In `blocking_flow` the pattern also covers the loop-bound `<`, whose `<=` form
+# is a trivially-caught out-of-bounds off-by-one.
+exclude_re = [
+    'dinic\.rs:\d+:\d+: replace < with <= in blocking_flow',
+    'edmonds_karp\.rs:\d+:\d+: replace < with <= in shortest_augmenting_paths',
+]
