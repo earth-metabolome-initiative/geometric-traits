@@ -2187,11 +2187,35 @@ mod tests {
     use alloc::collections::BTreeMap;
 
     use super::{
-        ScreeningEstimate, assignment_score_via_crouse, incident_label_overlap,
+        ScreeningEstimate, assignment_score_via_crouse, dense_rank, incident_label_overlap,
         intern_shared_labels, reorder_product_by_edge_signatures, tier1_screening, tier2_screening,
-        unlabeled_edge_signatures,
+        unlabeled_edge_signatures, wl_refine_with_edge_colors,
     };
     use crate::{impls::BitSquareMatrix, traits::SparseMatrix2D};
+
+    #[test]
+    fn test_dense_rank_assigns_compact_ranks_by_sorted_value() {
+        // Ranks are 0-based by sorted distinct value: 5 -> 0, 10 -> 1, 20 -> 2.
+        assert_eq!(dense_rank(&[10u32, 10, 5, 20, 5]), vec![1, 1, 0, 2, 0]);
+        assert!(dense_rank::<u32>(&[]).is_empty());
+        assert_eq!(dense_rank(&[7u32, 7, 7]), vec![0, 0, 0]);
+    }
+
+    #[test]
+    fn test_wl_refine_iterates_to_fixpoint_over_multiple_rounds() {
+        // A 5-vertex path 0-1-2-3-4 with a uniform seed needs several refinement
+        // rounds: a single round only separates the endpoints from the interior,
+        // so reaching the distance-to-end coloring exercises the iterate-again
+        // branch (`colors = next_colors;`).
+        let path = BitSquareMatrix::from_symmetric_edges(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
+        let refined = wl_refine_with_edge_colors(&path, &[0usize; 5], |_, _| ());
+        assert_eq!(refined, vec![0, 1, 2, 1, 0]);
+
+        // An already-stable seed converges in one round and is returned as is
+        // (after dense-ranking), with no further refinement.
+        let stable = wl_refine_with_edge_colors(&path, &[0, 1, 2, 1, 0], |_, _| ());
+        assert_eq!(stable, vec![0, 1, 2, 1, 0]);
+    }
 
     #[test]
     fn test_intern_shared_labels_reuses_equal_labels() {

@@ -139,6 +139,25 @@ fn test_mces_without_partition() {
     assert_eq!(with.matched_edges().len(), without.matched_edges().len());
 }
 
+#[test]
+fn test_mces_without_partition_all_best() {
+    // Exercises the non-partition AllBest clique path (generic all-maximum
+    // cliques), which the partitioned default never reaches.
+    let g1 = wrap_undi(complete_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    let partitioned =
+        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
+    let generic = McesBuilder::new(&g1, &g2)
+        .with_partition(false)
+        .with_search_mode(McesSearchMode::AllBest)
+        .compute_unlabeled();
+
+    // Disabling the partition does not change the maximum common edge count.
+    assert_eq!(partitioned.matched_edges().len(), generic.matched_edges().len());
+    assert!(generic.search_completed());
+}
+
 // ===========================================================================
 // Custom pair filter
 // ===========================================================================
