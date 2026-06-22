@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Codecov](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits/branch/main/graph/badge.svg)](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits)
 
-Rust crate providing algebraic and graph algorithms, and basic structs, designed with a trait-first approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation.
+Rust crate providing algebraic and graph algorithms, and basic structs, designed with a trait-first, correctness-focused approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to contribute.
 
 ## Available Algorithms
 
@@ -147,7 +147,3 @@ Standalone free functions and a `GraphSimilarities` trait for comparing graphs o
 | **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Sokal & Sneath (1963) |
 | **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | McConnaughey (1964) |
 | **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | Raymond et al. (2002) |
-
-## Design Philosophy
-
-The crate is trait-based, correctness-focused, and `no_std` compatible. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to contribute.
