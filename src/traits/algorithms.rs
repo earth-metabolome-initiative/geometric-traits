@@ -5,6 +5,10 @@ pub mod connected_components;
 #[cfg(feature = "alloc")]
 pub use connected_components::ConnectedComponents;
 #[cfg(feature = "alloc")]
+pub mod diameter;
+#[cfg(feature = "alloc")]
+pub use diameter::{Diameter, DiameterError};
+#[cfg(feature = "alloc")]
 pub mod biconnected_components;
 #[cfg(feature = "alloc")]
 pub use biconnected_components::{
@@ -140,9 +144,21 @@ mod tarjan;
 #[cfg(feature = "alloc")]
 pub use tarjan::*;
 #[cfg(feature = "alloc")]
+pub mod eades_lin_smyth;
+#[cfg(feature = "alloc")]
+pub use eades_lin_smyth::{EadesLinSmyth, EadesLinSmythError, EadesLinSmythResult};
+#[cfg(feature = "alloc")]
 mod modularity;
 #[cfg(feature = "alloc")]
 pub use modularity::ModularityError;
+#[cfg(feature = "alloc")]
+mod directed_modularity;
+#[cfg(feature = "alloc")]
+pub use directed_modularity::*;
+#[cfg(feature = "alloc")]
+mod undirected_modularity;
+#[cfg(feature = "alloc")]
+pub use undirected_modularity::*;
 #[cfg(feature = "alloc")]
 mod louvain;
 #[cfg(feature = "alloc")]
@@ -151,6 +167,20 @@ pub use louvain::*;
 mod leiden;
 #[cfg(feature = "alloc")]
 pub use leiden::*;
+#[cfg(feature = "alloc")]
+mod directed_community;
+#[cfg(feature = "alloc")]
+mod directed_louvain;
+#[cfg(feature = "alloc")]
+pub use directed_louvain::*;
+#[cfg(feature = "alloc")]
+mod directed_leiden;
+#[cfg(feature = "alloc")]
+pub use directed_leiden::*;
+#[cfg(feature = "alloc")]
+mod leicht_newman;
+#[cfg(feature = "alloc")]
+pub use leicht_newman::*;
 #[cfg(feature = "alloc")]
 mod jacobi;
 #[cfg(feature = "alloc")]
@@ -163,6 +193,10 @@ pub use gth::*;
 mod mds;
 #[cfg(feature = "alloc")]
 pub use mds::*;
+#[cfg(feature = "alloc")]
+mod forceatlas2;
+#[cfg(feature = "alloc")]
+pub use forceatlas2::*;
 #[cfg(feature = "alloc")]
 mod blossom;
 #[cfg(feature = "alloc")]
@@ -181,6 +215,18 @@ pub use micali_vazirani::*;
 mod kocay;
 #[cfg(feature = "alloc")]
 pub use kocay::*;
+#[cfg(feature = "alloc")]
+mod max_flow;
+#[cfg(feature = "alloc")]
+pub use max_flow::{MaxFlowError, MaxFlowResult};
+#[cfg(feature = "alloc")]
+pub mod dinic;
+#[cfg(feature = "alloc")]
+pub use dinic::Dinic;
+#[cfg(feature = "alloc")]
+pub mod edmonds_karp;
+#[cfg(feature = "alloc")]
+pub use edmonds_karp::EdmondsKarp;
 #[cfg(feature = "alloc")]
 mod minimum_cost_balanced_flow;
 #[cfg(feature = "alloc")]
@@ -259,10 +305,11 @@ pub use node_ordering::{
     DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
     KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
     LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
-    NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer, PageRankScorerBuilder,
-    PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    MotifCountOrdering, NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer,
+    PageRankScorerBuilder, PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
     PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
-    TraversalNeighborOrder, TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
+    SquareClusteringCoefficientScorer, SquareCountScorer, TraversalNeighborOrder,
+    TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
 };
 #[cfg(feature = "alloc")]
 pub use weisfeiler_lehman::WeisfeilerLehmanColoring;

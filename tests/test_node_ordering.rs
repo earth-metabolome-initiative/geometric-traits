@@ -44,6 +44,30 @@ fn wrap_undi_vec(g: UndirectedGraph) -> GenericGraph<Vec<usize>, UndirectedGraph
     GenericGraph::from(((0..n).collect::<Vec<_>>(), g))
 }
 
+fn build_sparse_undigraph<I>(n: usize, edges: I) -> UndiGraph<usize>
+where
+    I: IntoIterator<Item = (usize, usize)>,
+{
+    let mut edges = edges
+        .into_iter()
+        .map(|(left, right)| if left <= right { (left, right) } else { (right, left) })
+        .collect::<Vec<_>>();
+    edges.sort_unstable();
+    edges.dedup();
+    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(n)
+        .symbols((0..n).enumerate())
+        .build()
+        .unwrap();
+    let matrix: SymmetricCSR2D<CSR2D<usize, usize, usize>> = UndiEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .expected_shape(n)
+        .edges(edges.into_iter())
+        .build()
+        .unwrap();
+    UndiGraph::from((nodes, matrix))
+}
+
 #[derive(Clone, Copy, Debug)]
 enum GraphFixture {
     Path(usize),
@@ -52,6 +76,7 @@ enum GraphFixture {
     Star(usize),
     BranchingTree,
     DegreeBiasedBranching,
+    SquareWithTail,
     TriangleWithTail,
     PathWithIsolatedNode,
 }
@@ -92,6 +117,9 @@ impl GraphFixture {
                         .build()
                         .unwrap();
                 UndiGraph::from((nodes, matrix))
+            }
+            Self::SquareWithTail => {
+                build_sparse_undigraph(5, [(0, 1), (1, 2), (2, 3), (3, 0), (3, 4)])
             }
             Self::TriangleWithTail => {
                 let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
@@ -248,6 +276,102 @@ fn assert_scores_close(actual: &[f64], expected: &[f64], tolerance: f64, context
             "score vector `{context}` differs at node {index}: actual={actual_score}, expected={expected_score}, delta={delta}, tolerance={tolerance}"
         );
     }
+}
+
+fn naive_square_counts(graph: &UndiGraph<usize>) -> Vec<usize> {
+    let n = graph.number_of_nodes();
+    let mut adjacency = vec![vec![false; n]; n];
+    for (node, row) in adjacency.iter_mut().enumerate() {
+        for neighbor in graph.neighbors(node) {
+            row[neighbor] = true;
+        }
+    }
+
+    let mut counts = vec![0usize; n];
+    for a in 0..n {
+        for b in (a + 1)..n {
+            for c in (b + 1)..n {
+                for d in (c + 1)..n {
+                    let candidate_cycles = [
+                        [(a, b), (b, c), (c, d), (d, a)],
+                        [(a, b), (b, d), (d, c), (c, a)],
+                        [(a, c), (c, b), (b, d), (d, a)],
+                    ];
+
+                    for cycle in candidate_cycles {
+                        if cycle.iter().all(|&(source, destination)| adjacency[source][destination])
+                        {
+                            counts[a] += 1;
+                            counts[b] += 1;
+                            counts[c] += 1;
+                            counts[d] += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    counts
+}
+
+fn naive_square_clustering_scores(graph: &UndiGraph<usize>) -> Vec<f64> {
+    let n = graph.number_of_nodes();
+    let mut adjacency = vec![vec![false; n]; n];
+    for (node, row) in adjacency.iter_mut().enumerate() {
+        for neighbor in graph.neighbors(node) {
+            if neighbor != node {
+                row[neighbor] = true;
+            }
+        }
+    }
+
+    let degrees: Vec<usize> = adjacency
+        .iter()
+        .map(|row| row.iter().filter(|&&is_neighbor| is_neighbor).count())
+        .collect();
+    let mut scores = vec![0.0; n];
+
+    for root in 0..n {
+        let root_neighbors: Vec<usize> =
+            (0..n).filter(|&candidate| adjacency[root][candidate]).collect();
+        if root_neighbors.len() < 2 {
+            continue;
+        }
+
+        let mut actual_squares = 0usize;
+        let mut actual_plus_possible = 0usize;
+        for left_offset in 0..root_neighbors.len() {
+            let left = root_neighbors[left_offset];
+            for &right in &root_neighbors[(left_offset + 1)..] {
+                let common_neighbors = (0..n)
+                    .filter(|&candidate| {
+                        candidate != root
+                            && candidate != left
+                            && candidate != right
+                            && adjacency[left][candidate]
+                            && adjacency[right][candidate]
+                    })
+                    .count();
+                let adjacent = usize::from(adjacency[left][right]);
+                let available_left = degrees[left].saturating_sub(1 + common_neighbors + adjacent);
+                let available_right =
+                    degrees[right].saturating_sub(1 + common_neighbors + adjacent);
+
+                actual_squares += common_neighbors;
+                actual_plus_possible += common_neighbors + available_left + available_right;
+            }
+        }
+
+        if actual_plus_possible > 0 {
+            scores[root] = (num_traits::cast::<usize, f64>(actual_squares).unwrap() * 1.0e12
+                / num_traits::cast::<usize, f64>(actual_plus_possible).unwrap())
+            .round()
+                / 1.0e12;
+        }
+    }
+
+    scores
 }
 
 fn assert_node_ordering_ground_truth_case_metadata(case: &NodeOrderingGroundTruthCase) {
@@ -420,6 +544,37 @@ const TRIANGLE_COUNT_FIXTURES: &[ScoringFixture] = &[
         expected_scores: &[1, 1, 1, 0, 0],
         expected_descending: &[0, 1, 2, 3, 4],
         expected_ascending: &[3, 4, 0, 1, 2],
+    },
+];
+
+const SQUARE_COUNT_FIXTURES: &[ScoringFixture] = &[
+    ScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0, 0, 0, 0],
+        expected_descending: &[0, 1, 2, 3],
+        expected_ascending: &[0, 1, 2, 3],
+    },
+    ScoringFixture {
+        name: "cycle_4",
+        graph: GraphFixture::Cycle(4),
+        expected_scores: &[1, 1, 1, 1],
+        expected_descending: &[0, 1, 2, 3],
+        expected_ascending: &[0, 1, 2, 3],
+    },
+    ScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[3, 3, 3, 3],
+        expected_descending: &[0, 1, 2, 3],
+        expected_ascending: &[0, 1, 2, 3],
+    },
+    ScoringFixture {
+        name: "square_with_tail",
+        graph: GraphFixture::SquareWithTail,
+        expected_scores: &[1, 1, 1, 1, 0],
+        expected_descending: &[0, 1, 2, 3, 4],
+        expected_ascending: &[4, 0, 1, 2, 3],
     },
 ];
 
@@ -655,6 +810,33 @@ const LOCAL_CLUSTERING_FIXTURES: &[FloatingScoringFixture] = &[
         graph: GraphFixture::TriangleWithTail,
         expected_scores: &[1.0, 1.0, 0.333333333333, 0.0, 0.0],
         expected_descending: &[0, 1, 2, 3, 4],
+    },
+];
+
+const SQUARE_CLUSTERING_FIXTURES: &[FloatingScoringFixture] = &[
+    FloatingScoringFixture {
+        name: "path_4",
+        graph: GraphFixture::Path(4),
+        expected_scores: &[0.0, 0.0, 0.0, 0.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "cycle_4",
+        graph: GraphFixture::Cycle(4),
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "complete_4",
+        graph: GraphFixture::Complete(4),
+        expected_scores: &[1.0, 1.0, 1.0, 1.0],
+        expected_descending: &[0, 1, 2, 3],
+    },
+    FloatingScoringFixture {
+        name: "square_with_tail",
+        graph: GraphFixture::SquareWithTail,
+        expected_scores: &[0.5, 1.0, 0.5, 0.333333333333, 0.0],
+        expected_descending: &[1, 0, 2, 3, 4],
     },
 ];
 
@@ -1059,45 +1241,221 @@ fn test_ascending_degree_sorter_fixtures() {
 
 #[test]
 fn test_triangle_count_scorer_fixtures() {
-    for fixture in TRIANGLE_COUNT_FIXTURES {
-        let graph = fixture.graph.build();
-        assert_eq!(
-            TriangleCountScorer.score_nodes(&graph),
-            fixture.expected_scores,
-            "triangle count scorer fixture failed for {}",
-            fixture.name
-        );
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        for fixture in TRIANGLE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                scorer.score_nodes(&graph),
+                fixture.expected_scores,
+                "triangle count scorer fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
     }
 }
 
 #[test]
 fn test_descending_triangle_count_sorter_fixtures() {
-    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        let sorter = DescendingScoreSorter::new(scorer);
 
-    for fixture in TRIANGLE_COUNT_FIXTURES {
-        let graph = fixture.graph.build();
-        assert_eq!(
-            sorter.sort_nodes(&graph),
-            fixture.expected_descending,
-            "descending triangle-count ordering fixture failed for {}",
-            fixture.name
-        );
+        for fixture in TRIANGLE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                sorter.sort_nodes(&graph),
+                fixture.expected_descending,
+                "descending triangle-count ordering fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
     }
 }
 
 #[test]
 fn test_ascending_triangle_count_sorter_fixtures() {
-    let sorter = AscendingScoreSorter::new(TriangleCountScorer);
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        let sorter = AscendingScoreSorter::new(scorer);
 
-    for fixture in TRIANGLE_COUNT_FIXTURES {
-        let graph = fixture.graph.build();
-        assert_eq!(
-            sorter.sort_nodes(&graph),
-            fixture.expected_ascending,
-            "ascending triangle-count ordering fixture failed for {}",
-            fixture.name
-        );
+        for fixture in TRIANGLE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                sorter.sort_nodes(&graph),
+                fixture.expected_ascending,
+                "ascending triangle-count ordering fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
     }
+}
+
+#[test]
+fn test_square_count_scorer_fixtures() {
+    for scorer in [
+        SquareCountScorer::new(MotifCountOrdering::Natural),
+        SquareCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        SquareCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        for fixture in SQUARE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                scorer.score_nodes(&graph),
+                fixture.expected_scores,
+                "square count scorer fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
+    }
+}
+
+#[test]
+fn test_descending_square_count_sorter_fixtures() {
+    for scorer in [
+        SquareCountScorer::new(MotifCountOrdering::Natural),
+        SquareCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        SquareCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        let sorter = DescendingScoreSorter::new(scorer);
+
+        for fixture in SQUARE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                sorter.sort_nodes(&graph),
+                fixture.expected_descending,
+                "descending square-count ordering fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
+    }
+}
+
+#[test]
+fn test_ascending_square_count_sorter_fixtures() {
+    for scorer in [
+        SquareCountScorer::new(MotifCountOrdering::Natural),
+        SquareCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        SquareCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        let sorter = AscendingScoreSorter::new(scorer);
+
+        for fixture in SQUARE_COUNT_FIXTURES {
+            let graph = fixture.graph.build();
+            assert_eq!(
+                sorter.sort_nodes(&graph),
+                fixture.expected_ascending,
+                "ascending square-count ordering fixture failed for {:?} on {}",
+                scorer.ordering(),
+                fixture.name
+            );
+        }
+    }
+}
+
+#[test]
+fn test_square_count_scorer_matches_naive_on_exhaustive_small_graphs() {
+    for scorer in [
+        SquareCountScorer::new(MotifCountOrdering::Natural),
+        SquareCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        SquareCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        for n in 0usize..=6 {
+            let edge_count = n * n.saturating_sub(1) / 2;
+            let max_mask = 1u64 << edge_count;
+
+            for mask in 0..max_mask {
+                let mut bit = 0u32;
+                let mut edges = Vec::new();
+                for source in 0..n {
+                    for destination in (source + 1)..n {
+                        if (mask & (1u64 << bit)) != 0 {
+                            edges.push((source, destination));
+                        }
+                        bit += 1;
+                    }
+                }
+
+                let graph = build_sparse_undigraph(n, edges);
+                assert_eq!(
+                    scorer.score_nodes(&graph),
+                    naive_square_counts(&graph),
+                    "square count scorer exhaustive mismatch for {:?}, n={n}, mask={mask}",
+                    scorer.ordering()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_square_count_scorer_ignores_self_loops() {
+    let simple = GraphFixture::Complete(4).build();
+    let with_loops = build_sparse_undigraph(
+        4,
+        [(0, 0), (1, 1), (2, 2), (3, 3), (0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
+    );
+
+    assert!(with_loops.has_self_loops());
+    for scorer in [
+        SquareCountScorer::new(MotifCountOrdering::Natural),
+        SquareCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        SquareCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        assert_eq!(scorer.score_nodes(&with_loops), &[3, 3, 3, 3]);
+        assert_eq!(scorer.score_nodes(&with_loops), scorer.score_nodes(&simple));
+    }
+}
+
+#[test]
+fn test_triangle_count_scorer_ignores_self_loops() {
+    let simple = GraphFixture::Cycle(3).build();
+    let with_loops = build_sparse_undigraph(3, [(0, 0), (1, 1), (2, 2), (0, 1), (1, 2), (0, 2)]);
+
+    assert!(with_loops.has_self_loops());
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        assert_eq!(scorer.score_nodes(&with_loops), &[1, 1, 1]);
+        assert_eq!(scorer.score_nodes(&with_loops), scorer.score_nodes(&simple));
+    }
+}
+
+#[test]
+fn test_motif_count_scorer_defaults_match_preferred_orderings() {
+    let triangle_graph = GraphFixture::TriangleWithTail.build();
+    let triangle_default = TriangleCountScorer::default();
+    let triangle_explicit = TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree);
+    assert_eq!(triangle_default.ordering(), MotifCountOrdering::IncreasingDegree);
+    assert_eq!(
+        triangle_default.score_nodes(&triangle_graph),
+        triangle_explicit.score_nodes(&triangle_graph)
+    );
+
+    let square_graph = GraphFixture::SquareWithTail.build();
+    let square_default = SquareCountScorer::default();
+    let square_explicit = SquareCountScorer::new(MotifCountOrdering::Natural);
+    assert_eq!(square_default.ordering(), MotifCountOrdering::Natural);
+    assert_eq!(
+        square_default.score_nodes(&square_graph),
+        square_explicit.score_nodes(&square_graph)
+    );
 }
 
 #[test]
@@ -1200,30 +1558,49 @@ fn test_node_ordering_ground_truth_metadata() {
 fn test_triangle_count_scorer_ground_truth() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
 
-    for case in fixture.cases {
-        let graph = build_undigraph(&case);
-        let context = format!("triangle count ground truth {} ({})", case.name, case.family);
-        assert_eq!(
-            TriangleCountScorer.score_nodes(&graph),
-            case.triangle_counts,
-            "triangle count scorer ground truth failed for {context}"
-        );
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        for case in &fixture.cases {
+            let graph = build_undigraph(case);
+            let context = format!(
+                "triangle count ground truth {:?} {} ({})",
+                scorer.ordering(),
+                case.name,
+                case.family
+            );
+            assert_eq!(
+                scorer.score_nodes(&graph),
+                case.triangle_counts,
+                "triangle count scorer ground truth failed for {context}"
+            );
+        }
     }
 }
 
 #[test]
 fn test_descending_triangle_count_sorter_ground_truth() {
     let fixture = load_fixture_suite("node_ordering_ground_truth.json.gz");
-    let sorter = DescendingScoreSorter::new(TriangleCountScorer);
 
-    for case in fixture.cases {
-        let graph = build_undigraph(&case);
-        let context = format!("triangle order {} ({})", case.name, case.family);
-        assert_eq!(
-            sorter.sort_nodes(&graph),
-            case.triangle_descending,
-            "triangle descending order ground truth failed for {context}"
-        );
+    for scorer in [
+        TriangleCountScorer::new(MotifCountOrdering::Natural),
+        TriangleCountScorer::new(MotifCountOrdering::DecreasingDegree),
+        TriangleCountScorer::new(MotifCountOrdering::IncreasingDegree),
+    ] {
+        let sorter = DescendingScoreSorter::new(scorer);
+
+        for case in &fixture.cases {
+            let graph = build_undigraph(case);
+            let context =
+                format!("triangle order {:?} {} ({})", scorer.ordering(), case.name, case.family);
+            assert_eq!(
+                sorter.sort_nodes(&graph),
+                case.triangle_descending,
+                "triangle descending order ground truth failed for {context}"
+            );
+        }
     }
 }
 
@@ -1768,6 +2145,87 @@ fn test_descending_local_clustering_coefficient_sorter_fixtures() {
             fixture.name
         );
     }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_fixtures() {
+    for fixture in SQUARE_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        let context = format!("square clustering fixture {}", fixture.name);
+        assert_scores_close(
+            &SquareClusteringCoefficientScorer.score_nodes(&graph),
+            fixture.expected_scores,
+            LOCAL_CLUSTERING_TOLERANCE,
+            &context,
+        );
+    }
+}
+
+#[test]
+fn test_descending_square_clustering_coefficient_sorter_fixtures() {
+    let sorter = DescendingScoreSorter::new(SquareClusteringCoefficientScorer);
+
+    for fixture in SQUARE_CLUSTERING_FIXTURES {
+        let graph = fixture.graph.build();
+        assert_eq!(
+            sorter.sort_nodes(&graph),
+            fixture.expected_descending,
+            "descending square clustering ordering fixture failed for {}",
+            fixture.name
+        );
+    }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_matches_naive_on_exhaustive_small_graphs() {
+    for n in 0usize..=6 {
+        let edge_count = n * n.saturating_sub(1) / 2;
+        let max_mask = 1u64 << edge_count;
+
+        for mask in 0..max_mask {
+            let mut bit = 0u32;
+            let mut edges = Vec::new();
+            for source in 0..n {
+                for destination in (source + 1)..n {
+                    if (mask & (1u64 << bit)) != 0 {
+                        edges.push((source, destination));
+                    }
+                    bit += 1;
+                }
+            }
+
+            let graph = build_sparse_undigraph(n, edges);
+            assert_scores_close(
+                &SquareClusteringCoefficientScorer.score_nodes(&graph),
+                &naive_square_clustering_scores(&graph),
+                LOCAL_CLUSTERING_TOLERANCE,
+                &format!("square clustering exhaustive n={n}, mask={mask}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn test_square_clustering_coefficient_scorer_ignores_self_loops() {
+    let simple = GraphFixture::SquareWithTail.build();
+    let with_loops = build_sparse_undigraph(
+        5,
+        [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (0, 1), (1, 2), (2, 3), (3, 0), (3, 4)],
+    );
+
+    assert!(with_loops.has_self_loops());
+    assert_scores_close(
+        &SquareClusteringCoefficientScorer.score_nodes(&with_loops),
+        &[0.5, 1.0, 0.5, 0.333333333333, 0.0],
+        LOCAL_CLUSTERING_TOLERANCE,
+        "square clustering with loops",
+    );
+    assert_scores_close(
+        &SquareClusteringCoefficientScorer.score_nodes(&with_loops),
+        &SquareClusteringCoefficientScorer.score_nodes(&simple),
+        LOCAL_CLUSTERING_TOLERANCE,
+        "square clustering ignores self loops",
+    );
 }
 
 #[test]

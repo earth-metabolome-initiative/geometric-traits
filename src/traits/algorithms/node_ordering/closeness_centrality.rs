@@ -1,6 +1,8 @@
 use alloc::{collections::VecDeque, vec::Vec};
 
 use num_traits::AsPrimitive;
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use super::{CLOSENESS_SCORE_SCALE, NodeScorer, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;

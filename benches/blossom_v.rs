@@ -7,7 +7,7 @@ use std::{collections::BTreeSet, hint::black_box, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
-use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 type Vcsr = ValuedCSR2D<usize, usize, usize, i32>;
 
@@ -51,13 +51,13 @@ fn make_case(name: &str, seed: u64, n: usize, extra_edges: usize) -> WeightedCas
         let u = pair[0].min(pair[1]);
         let v = pair[0].max(pair[1]);
         edges_set.insert((u, v));
-        let w = rng.gen_range(-250..=-50);
+        let w = rng.random_range(-250..=-50);
         weighted_edges.push((u, v, w));
     }
 
     while weighted_edges.len() < n / 2 + extra_edges {
-        let mut u = rng.gen_range(0..n);
-        let mut v = rng.gen_range(0..n);
+        let mut u = rng.random_range(0..n);
+        let mut v = rng.random_range(0..n);
         if u == v {
             continue;
         }
@@ -67,7 +67,7 @@ fn make_case(name: &str, seed: u64, n: usize, extra_edges: usize) -> WeightedCas
         if !edges_set.insert((u, v)) {
             continue;
         }
-        let w = rng.gen_range(-100..=100);
+        let w = rng.random_range(-100..=100);
         weighted_edges.push((u, v, w));
     }
 

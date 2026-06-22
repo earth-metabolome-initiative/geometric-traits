@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use super::{NodeScorer, PAGERANK_SCORE_SCALE, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;

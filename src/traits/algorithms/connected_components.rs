@@ -6,6 +6,7 @@ use num_traits::{AsPrimitive, One, Zero};
 use crate::traits::{MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph};
 
 /// Connected components object.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConnectedComponentsResult<'a, G: MonopartiteGraph, Marker = usize> {
     /// Identifiers of the connected components.
     component_identifiers: Vec<Marker>,

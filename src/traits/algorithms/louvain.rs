@@ -6,8 +6,8 @@ use alloc::vec::Vec;
 use num_traits::{AsPrimitive, ToPrimitive};
 
 use super::modularity::{
-    LocalMovingConfig, ModularityError, WeightedUndirectedGraph, local_moving, marker_partition,
-    modularity, project_partition, regroup_members, renumber_partition, validate_common_config,
+    CoarsenableGraph, LocalMovingConfig, ModularityError, build_working_graph, marker_partition,
+    project_partition, regroup_members, renumber_partition, validate_common_config,
 };
 use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -162,6 +162,23 @@ where
     /// ```
     #[inline]
     fn louvain(&self, config: &LouvainConfig) -> Result<LouvainResult<Marker>, ModularityError> {
+        self.louvain_with_progress(config, &mut |_| {})
+    }
+
+    /// Like [`louvain`](Self::louvain), but calls `on_progress(level)` after
+    /// each coarsening level, with `level` counting up from `1`. The loop runs
+    /// to convergence (`config.max_levels` is a rarely-reached ceiling), so
+    /// this is a heartbeat, not a fraction of a known total.
+    ///
+    /// # Errors
+    ///
+    /// As [`louvain`](Self::louvain).
+    #[inline]
+    fn louvain_with_progress(
+        &self,
+        config: &LouvainConfig,
+        on_progress: &mut dyn FnMut(usize),
+    ) -> Result<LouvainResult<Marker>, ModularityError> {
         validate_common_config(
             config.resolution,
             config.modularity_threshold,
@@ -169,50 +186,9 @@ where
             config.max_local_passes,
         )?;
 
-        let mut graph = WeightedUndirectedGraph::from_matrix(self)?;
-
+        let graph = build_working_graph(self)?;
         let original_number_of_nodes = self.number_of_rows().as_();
-        let mut current_members: Vec<Vec<usize>> =
-            (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
-
-        let mut levels: Vec<LouvainLevel<Marker>> = Vec::new();
-        let mut previous_modularity: Option<f64> = None;
-
-        for level_index in 0..config.max_levels {
-            let (mut partition, moved_nodes) = local_moving(
-                &graph,
-                LocalMovingConfig {
-                    resolution: config.resolution,
-                    max_local_passes: config.max_local_passes,
-                    seed: config.seed,
-                },
-                level_index,
-            );
-            let number_of_communities = renumber_partition(&mut partition);
-            let modularity = modularity(&graph, &partition, config.resolution);
-
-            let original_partition =
-                project_partition(&current_members, &partition, original_number_of_nodes);
-            let marker_partition = marker_partition::<Marker>(&original_partition)?;
-
-            levels.push(LouvainLevel { partition: marker_partition, modularity, moved_nodes });
-
-            if let Some(previous) = previous_modularity {
-                if modularity - previous < config.modularity_threshold {
-                    break;
-                }
-            }
-            previous_modularity = Some(modularity);
-
-            if number_of_communities == graph.number_of_nodes() {
-                break;
-            }
-
-            graph = graph.induced(&partition, number_of_communities);
-            current_members = regroup_members(current_members, &partition, number_of_communities);
-        }
-
-        Ok(LouvainResult { levels })
+        louvain_levels(graph, config, original_number_of_nodes, on_progress)
     }
 }
 
@@ -224,6 +200,65 @@ where
     G::ColumnIndex: AsPrimitive<usize>,
     G::Value: Number + ToPrimitive + Finite,
 {
+}
+
+/// Shared multi-level driver for Louvain and directed Louvain: runs local
+/// moving per level until the modularity gain falls below the threshold or
+/// every node sits in its own community. The caller supplies a graph whose
+/// [`CoarsenableGraph`] methods carry the appropriate (undirected or directed)
+/// null model.
+pub(crate) fn louvain_levels<G, Marker>(
+    mut graph: G,
+    config: &LouvainConfig,
+    original_number_of_nodes: usize,
+    on_progress: &mut dyn FnMut(usize),
+) -> Result<LouvainResult<Marker>, ModularityError>
+where
+    G: CoarsenableGraph,
+    Marker: PositiveInteger,
+{
+    let mut current_members: Vec<Vec<usize>> =
+        (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
+
+    let mut levels: Vec<LouvainLevel<Marker>> = Vec::new();
+    let mut previous_modularity: Option<f64> = None;
+
+    for level_index in 0..config.max_levels {
+        let (mut partition, moved_nodes) = graph.local_moving(
+            LocalMovingConfig {
+                resolution: config.resolution,
+                max_local_passes: config.max_local_passes,
+                seed: config.seed,
+            },
+            level_index,
+        );
+        let number_of_communities = renumber_partition(&mut partition);
+        let modularity = graph.modularity(&partition, config.resolution);
+
+        let original_partition =
+            project_partition(&current_members, &partition, original_number_of_nodes);
+        let marker_partition = marker_partition::<Marker>(&original_partition)?;
+
+        levels.push(LouvainLevel { partition: marker_partition, modularity, moved_nodes });
+
+        on_progress(level_index + 1);
+
+        if let Some(previous) = previous_modularity {
+            if modularity - previous < config.modularity_threshold {
+                break;
+            }
+        }
+        previous_modularity = Some(modularity);
+
+        if number_of_communities == graph.number_of_nodes() {
+            break;
+        }
+
+        graph = graph.induce(&partition, number_of_communities)?;
+        current_members = regroup_members(current_members, &partition, number_of_communities);
+    }
+
+    Ok(LouvainResult { levels })
 }
 
 #[cfg(test)]

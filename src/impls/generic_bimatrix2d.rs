@@ -1,11 +1,16 @@
 //! [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 //! and its transposed version.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;
 
 use crate::prelude::*;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 /// and its transposed version.
@@ -158,6 +163,68 @@ where
     fn sparse_rows(&self) -> Self::SparseRows<'_> {
         self.matrix.sparse_rows()
     }
+}
+
+impl<M, T> ValuedMatrix for GenericBiMatrix2D<M, T>
+where
+    T: Matrix2D,
+    M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIndex = T::RowIndex>,
+    M: ValuedMatrix,
+{
+    type Value = M::Value;
+}
+
+impl<M, T> ValuedMatrix2D for GenericBiMatrix2D<M, T>
+where
+    T: Matrix2D,
+    M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIndex = T::RowIndex>,
+    M: ValuedMatrix2D,
+{
+}
+
+impl<M, T> SparseValuedMatrix for GenericBiMatrix2D<M, T>
+where
+    T: Matrix2D,
+    M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIndex = T::RowIndex>,
+    M: SparseValuedMatrix,
+{
+    type SparseValues<'a>
+        = M::SparseValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_values(&self) -> Self::SparseValues<'_> {
+        self.matrix.sparse_values()
+    }
+}
+
+impl<M, T> SparseValuedMatrix2D for GenericBiMatrix2D<M, T>
+where
+    T: SparseMatrix2D,
+    M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIndex = T::RowIndex>,
+    M: SparseValuedMatrix2D,
+{
+    type SparseRowValues<'a>
+        = M::SparseRowValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
+        self.matrix.sparse_row_values(row)
+    }
+}
+
+impl<M, T> crate::traits::ValuedBiMatrix2D for GenericBiMatrix2D<M, T>
+where
+    T: ValuedMatrix2D<Value = M::Value> + Clone,
+    M: TransposableMatrix2D<T, RowIndex = T::ColumnIndex, ColumnIndex = T::RowIndex>
+        + ValuedMatrix2D
+        + SparseMatrix2D,
+{
+    type ValuedMatrix = M;
+    type ValuedTransposedMatrix = T;
 }
 
 impl<M, T> EmptyRows for GenericBiMatrix2D<M, T>

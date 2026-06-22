@@ -7,6 +7,8 @@ use core::ops::Index;
 
 pub use error::InformationContentError;
 use num_traits::AsPrimitive;
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
 
 use crate::traits::{
     Kahn, MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges,

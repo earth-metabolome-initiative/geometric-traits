@@ -7,7 +7,7 @@
 //! crash files produced by fuzzing can be directly replayed as unit tests.
 
 use alloc::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet, VecDeque},
     string::{String, ToString},
     vec::Vec,
 };
@@ -18,6 +18,7 @@ use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
+    errors::{MonopartiteError, monopartite_graph_error::algorithms::MonopartiteAlgorithmError},
     impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     prelude::*,
     traits::{
@@ -2637,6 +2638,128 @@ pub fn check_leiden_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+/// Build a directed graph keeping only finite, positive, numerically-normal
+/// edge weights (no symmetrization), suitable for the directed-modularity
+/// algorithms. Returns `None` when no usable edge survives.
+fn positive_directed_graph(
+    csr: &ValuedCSR2D<u16, u8, u8, f64>,
+) -> Option<ValuedCSR2D<u8, u8, u8, f64>> {
+    let rows: usize = csr.number_of_rows().as_();
+    let cols: usize = csr.number_of_columns().as_();
+    if rows != cols || rows == 0 || rows > u8::MAX as usize {
+        return None;
+    }
+
+    let Ok(n) = u8::try_from(rows) else {
+        return None;
+    };
+
+    let mut edges: Vec<(u8, u8, f64)> = Vec::new();
+    for row in csr.row_indices() {
+        let r: usize = row.as_();
+        if r >= rows {
+            continue;
+        }
+        for (col, val) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
+            let c: usize = col.as_();
+            if c < cols && val.is_finite() && val.is_normal() && val > 0.0 {
+                let (Ok(r8), Ok(c8)) = (u8::try_from(r), u8::try_from(c)) else {
+                    continue;
+                };
+                edges.push((r8, c8, val));
+            }
+        }
+    }
+
+    if edges.is_empty() {
+        return None;
+    }
+
+    edges.sort_unstable_by(|(r1, c1, _), (r2, c2, _)| (r1, c1).cmp(&(r2, c2)));
+    edges.dedup_by(|(r1, c1, _), (r2, c2, _)| (*r1, *c1) == (*r2, *c2));
+
+    let Ok(edge_count) = u8::try_from(edges.len()) else {
+        return None;
+    };
+
+    GenericEdgesBuilder::default()
+        .expected_number_of_edges(edge_count)
+        .expected_shape((n, n))
+        .edges(edges.into_iter())
+        .build()
+        .ok()
+}
+
+/// Check Leicht-Newman directed community detection invariants on arbitrary
+/// input (should never panic) and, when possible, on a positive directed
+/// graph (partition length, modularity bounds, self-consistency, determinism).
+///
+/// # Panics
+///
+/// Panics if the detector fails on a valid positive directed graph or produces
+/// invalid results.
+#[inline]
+pub fn check_leicht_newman_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    // The detector must never panic on arbitrary input.
+    let _: Result<LeichtNewmanResult<usize>, _> = csr.leicht_newman(&LeichtNewmanConfig::default());
+    // The directed-modularity metric must also never panic.
+    let _: Result<f64, _> = DirectedModularity::<usize>::directed_modularity(csr, &[0; 0], 1.0);
+
+    // Skip checked invariants for extreme weight ranges.
+    if !louvain_weights_are_numerically_stable(csr) {
+        return;
+    }
+
+    let Some(graph) = positive_directed_graph(csr) else {
+        return;
+    };
+
+    let config = LeichtNewmanConfig::default();
+    let result = LeichtNewman::<usize>::leicht_newman(&graph, &config)
+        .expect("Leicht-Newman must not fail on a valid positive directed graph");
+
+    let n: usize = graph.number_of_rows().as_();
+    let partition = result.partition();
+    assert_eq!(partition.len(), n, "partition length must equal node count");
+
+    let mut distinct_labels: Vec<usize> = partition.to_vec();
+    distinct_labels.sort_unstable();
+    distinct_labels.dedup();
+    assert_eq!(
+        result.number_of_communities(),
+        distinct_labels.len(),
+        "reported community count must match the distinct labels"
+    );
+
+    let modularity = result.modularity();
+    assert!(
+        (-1.0 - 1e-9..=1.0 + 1e-9).contains(&modularity),
+        "directed modularity {modularity} out of [-1.0, 1.0] (with FP tolerance)"
+    );
+
+    // Self-consistency: the reported modularity equals the directed modularity
+    // of the detected partition.
+    let recomputed =
+        DirectedModularity::<usize>::directed_modularity(&graph, partition, config.resolution)
+            .expect("directed modularity must succeed on a valid positive directed graph");
+    assert!(
+        (modularity - recomputed).abs() <= 1e-9 * modularity.abs().max(recomputed.abs()).max(1.0),
+        "reported modularity {modularity} disagrees with recomputed {recomputed}"
+    );
+
+    // Determinism check.
+    let result2 = LeichtNewman::<usize>::leicht_newman(&graph, &config).unwrap();
+    assert_eq!(
+        result.partition(),
+        result2.partition(),
+        "Leicht-Newman must be deterministic for the same seed"
+    );
+    assert!(
+        (result.modularity() - result2.modularity()).abs() <= 1.0e-12,
+        "modularity must be deterministic"
+    );
+}
+
 // ============================================================================
 // Jacobi eigenvalue decomposition invariants (from fuzz/fuzz_targets/jacobi.rs)
 // ============================================================================
@@ -2752,6 +2875,60 @@ pub fn check_jacobi_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
         result2.eigenvalues(),
         "Jacobi must be deterministic for the same input"
     );
+}
+
+// ============================================================================
+// ForceAtlas2 invariants (from fuzz/fuzz_targets/forceatlas2.rs)
+// ============================================================================
+
+/// Check ForceAtlas2 layout invariants on arbitrary input.
+///
+/// Runs the layout in the mode combination selected by `mode_bits` (LinLog,
+/// dissuade hubs, strong gravity, Barnes-Hut, edge weight influence in
+/// {0, 1, 2} and optional uniform node sizes) and verifies:
+/// - the layout never panics, invalid inputs are rejected with an error
+/// - on success, the result has one 2D point per node and every coordinate is
+///   finite (the crate-level guarantee added on top of the Gephi semantics)
+/// - the run statistics are finite and non-negative
+///
+/// # Panics
+///
+/// Panics if any invariant is violated.
+#[inline]
+pub fn check_forceatlas2_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>, mode_bits: u8) {
+    let n: usize = csr.number_of_rows().as_();
+
+    let config = ForceAtlas2Config {
+        iterations: 10,
+        lin_log: mode_bits & 1 != 0,
+        dissuade_hubs: mode_bits & 2 != 0,
+        strong_gravity: mode_bits & 4 != 0,
+        barnes_hut: mode_bits & 8 != 0,
+        edge_weight_influence: f64::from((mode_bits >> 4) & 3).min(2.0),
+        node_sizes: if mode_bits & 64 != 0 {
+            Some(alloc::vec![f64::from(mode_bits >> 6) * 0.5; n])
+        } else {
+            None
+        },
+        seed: u64::from(mode_bits),
+        ..Default::default()
+    };
+
+    let Ok(result) = csr.force_atlas2(&config) else {
+        // Invalid inputs (non-square, asymmetric, non-finite or negative
+        // weights) must be rejected with an error, never a panic.
+        return;
+    };
+
+    assert_eq!(result.num_points(), n);
+    assert_eq!(result.dimensions(), 2);
+    assert_eq!(result.coordinates_flat().len(), n * 2);
+    assert!(
+        result.coordinates_flat().iter().copied().all(f64::is_finite),
+        "ForceAtlas2 produced a non-finite coordinate"
+    );
+    assert!(result.final_swinging().is_finite() && result.final_swinging() >= 0.0);
+    assert!(result.final_traction().is_finite() && result.final_traction() >= 0.0);
 }
 
 // ============================================================================
@@ -3215,6 +3392,123 @@ pub fn check_pairwise_bfs_matches_unit_floyd_warshall(csr: &SquareCSR2D<CSR2D<u1
     );
 }
 
+#[inline]
+fn normalize_diameter_result<G>(
+    result: Result<usize, MonopartiteError<G>>,
+) -> Result<usize, DiameterError>
+where
+    G: MonopartiteGraph + Sized,
+{
+    result.map_err(|error| {
+        match error {
+            MonopartiteError::AlgorithmError(MonopartiteAlgorithmError::DiameterError(error)) => {
+                error
+            }
+            other => panic!("unexpected diameter error shape: {other}"),
+        }
+    })
+}
+
+#[inline]
+fn diameter_oracle<G>(graph: &G) -> Result<usize, DiameterError>
+where
+    G: UndirectedMonopartiteMonoplexGraph,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let order = graph.number_of_nodes().as_();
+    if order <= 1 {
+        return Ok(0);
+    }
+
+    let mut distances = vec![usize::MAX; order];
+    let mut queue = VecDeque::with_capacity(order);
+    let mut diameter = 0;
+
+    for source in graph.node_ids() {
+        distances.fill(usize::MAX);
+        queue.clear();
+        distances[source.as_()] = 0;
+        queue.push_back(source);
+
+        let mut visited = 1usize;
+        let mut eccentricity = 0usize;
+
+        while let Some(node) = queue.pop_front() {
+            let node_distance = distances[node.as_()];
+            eccentricity = eccentricity.max(node_distance);
+
+            for neighbor in graph.neighbors(node) {
+                let neighbor_index = neighbor.as_();
+                if distances[neighbor_index] != usize::MAX {
+                    continue;
+                }
+
+                distances[neighbor_index] = node_distance + 1;
+                visited += 1;
+                queue.push_back(neighbor);
+            }
+        }
+
+        if visited != order {
+            return Err(DiameterError::DisconnectedGraph);
+        }
+
+        diameter = diameter.max(eccentricity);
+    }
+
+    Ok(diameter)
+}
+
+/// Check diameter invariants on arbitrary undirected graphs.
+///
+/// This helper verifies that exact diameter computation is deterministic,
+/// returns `0` on empty or singleton graphs, reports disconnected inputs
+/// explicitly, and matches a brute-force BFS oracle on small inputs.
+///
+/// Large graphs are still exercised for result-shape invariants, but the
+/// exact oracle cross-check is capped to keep fuzzing throughput reasonable.
+///
+/// # Panics
+///
+/// Panics if any checked invariant is violated.
+#[inline]
+pub fn check_diameter_invariants<G>(graph: &G)
+where
+    G: Diameter + UndirectedMonopartiteMonoplexGraph + Sized,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let order = graph.number_of_nodes().as_();
+    let diameter = normalize_diameter_result(graph.diameter());
+    let diameter2 = normalize_diameter_result(graph.diameter());
+    assert_eq!(diameter, diameter2, "diameter must be deterministic");
+
+    match diameter {
+        Ok(value) => {
+            if order <= 1 {
+                assert_eq!(value, 0, "empty and singleton graphs must have diameter 0");
+            } else {
+                assert!(
+                    value < order,
+                    "diameter {value} must be smaller than the number of nodes {order}"
+                );
+            }
+        }
+        Err(DiameterError::DisconnectedGraph) => {
+            assert!(order > 1, "only nontrivial graphs can be disconnected");
+        }
+    }
+
+    if order > 96 {
+        return;
+    }
+
+    assert_eq!(
+        diameter,
+        diameter_oracle(graph),
+        "diameter must match the brute-force BFS oracle on small graphs"
+    );
+}
+
 /// Check PairwiseDijkstra invariants on arbitrary weighted sparse input.
 ///
 /// This helper verifies that repeated Dijkstra returns a square distance matrix
@@ -3618,6 +3912,304 @@ pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]
     }
 }
 
+// ============================================================================
+// Maximum s-t flow invariants (from fuzz/fuzz_targets/max_flow.rs)
+// ============================================================================
+
+/// Concrete square capacity matrix the max-flow checkers run on.
+pub type MaxFlowMatrix = ValuedCSR2D<usize, usize, usize, u64>;
+
+/// Owned `(source, destination, capacity)` arc list used by the max-flow
+/// helpers.
+type MaxFlowCapacityEdges = Vec<(usize, usize, u64)>;
+
+/// Sanitizes an arbitrary valued matrix into a square directed capacity graph
+/// with at least two nodes, non-negative integer capacities, no self-loops, and
+/// deduplicated arcs. Returns `None` when the shape is unusable (non-square,
+/// fewer than two nodes, larger than `u8::MAX` nodes) or no arc survives.
+#[must_use]
+fn max_flow_square_capacity_graph(
+    csr: &ValuedCSR2D<u16, u8, u8, u32>,
+) -> Option<(usize, MaxFlowCapacityEdges)> {
+    let rows = usize::from(csr.number_of_rows());
+    let cols = usize::from(csr.number_of_columns());
+    if rows != cols || rows < 2 || rows > usize::from(u8::MAX) {
+        return None;
+    }
+    let n = rows;
+
+    let mut edges: Vec<(usize, usize, u64)> = Vec::new();
+    for row in csr.row_indices() {
+        let r = usize::from(row);
+        if r >= n {
+            continue;
+        }
+        for (col, value) in csr.sparse_row(row).zip(csr.sparse_row_values(row)) {
+            let c = usize::from(col);
+            if c >= n || r == c {
+                continue;
+            }
+            let capacity = u64::from(value);
+            if capacity == 0 {
+                continue;
+            }
+            edges.push((r, c, capacity));
+        }
+    }
+    if edges.is_empty() {
+        return None;
+    }
+    edges.sort_unstable();
+    edges.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    Some((n, edges))
+}
+
+/// Builds the square capacity matrix the algorithms consume from
+/// `(source, dest, cap)` triples.
+#[must_use]
+fn build_max_flow_matrix(n: usize, edges: &[(usize, usize, u64)]) -> MaxFlowMatrix {
+    let mut sorted = edges.to_vec();
+    sorted.sort_unstable();
+    sorted.dedup_by(|left, right| left.0 == right.0 && left.1 == right.1);
+    GenericEdgesBuilder::<_, MaxFlowMatrix>::default()
+        .expected_number_of_edges(sorted.len())
+        .expected_shape((n, n))
+        .edges(sorted.into_iter())
+        .build()
+        .expect("a sanitized square edge list must build a ValuedCSR2D")
+}
+
+/// Validates a single max-flow result against the original capacities: per-arc
+/// feasibility, flow conservation, terminal balance, and a minimum cut whose
+/// capacity equals the flow with every crossing arc saturated. `label` names
+/// the algorithm under test in any panic message.
+fn validate_max_flow_result(
+    label: &str,
+    n: usize,
+    capacity_of: &BTreeMap<(usize, usize), u64>,
+    source: usize,
+    sink: usize,
+    result: &MaxFlowResult<u64>,
+) {
+    let value = result.max_flow();
+
+    let mut flow_of: BTreeMap<(usize, usize), u64> = BTreeMap::new();
+    let mut net: Vec<i128> = alloc::vec![0; n];
+    for &(u, v, f) in result.flows() {
+        assert!(u < n && v < n, "{label}: flow endpoint ({u}, {v}) out of range");
+        assert!(f > 0, "{label}: reported flow on ({u}, {v}) must be strictly positive");
+        let capacity = capacity_of
+            .get(&(u, v))
+            .copied()
+            .unwrap_or_else(|| panic!("{label}: flow reported on non-existent arc ({u}, {v})"));
+        assert!(f <= capacity, "{label}: flow {f} exceeds capacity {capacity} on ({u}, {v})");
+        assert!(flow_of.insert((u, v), f).is_none(), "{label}: duplicate flow arc ({u}, {v})");
+        net[u] += i128::from(f);
+        net[v] -= i128::from(f);
+    }
+
+    for (node, balance) in net.iter().enumerate() {
+        if node == source || node == sink {
+            continue;
+        }
+        assert_eq!(*balance, 0, "{label}: flow is not conserved at node {node}");
+    }
+    assert_eq!(
+        net[source],
+        i128::from(value),
+        "{label}: net flow out of the source must equal max_flow"
+    );
+    assert_eq!(
+        net[sink],
+        -i128::from(value),
+        "{label}: net flow into the sink must equal max_flow"
+    );
+
+    let side = result.source_side();
+    assert_eq!(side.len(), n, "{label}: source_side must have one flag per node");
+    assert!(side[source], "{label}: the source must be on the source side of the cut");
+    assert!(!side[sink], "{label}: the sink must be off the source side after a max flow");
+    let cut: BTreeSet<(usize, usize)> = result.min_cut().iter().copied().collect();
+    assert_eq!(cut.len(), result.min_cut().len(), "{label}: min_cut must not repeat an arc");
+    let mut cut_capacity: u64 = 0;
+    for &(u, v) in result.min_cut() {
+        assert!(
+            side[u] && !side[v],
+            "{label}: min-cut arc ({u}, {v}) does not cross the partition"
+        );
+        cut_capacity += capacity_of
+            .get(&(u, v))
+            .copied()
+            .unwrap_or_else(|| panic!("{label}: min-cut arc ({u}, {v}) is not an original arc"));
+    }
+    assert_eq!(cut_capacity, value, "{label}: min-cut capacity must equal max_flow");
+    for (&(u, v), &capacity) in capacity_of {
+        if side[u] && !side[v] {
+            assert!(
+                cut.contains(&(u, v)),
+                "{label}: crossing arc ({u}, {v}) is missing from min_cut"
+            );
+            assert_eq!(
+                flow_of.get(&(u, v)).copied().unwrap_or(0),
+                capacity,
+                "{label}: crossing arc ({u}, {v}) must be saturated"
+            );
+        }
+    }
+}
+
+/// Checks maximum-flow invariants on an arbitrary valued matrix for both the
+/// `Dinic` and `EdmondsKarp` implementations.
+///
+/// When the matrix sanitizes to a square non-negative capacity graph, each
+/// algorithm must succeed, produce a feasible conserved flow with a saturated
+/// minimum cut equal to its value (a self-contained optimality certificate),
+/// and be deterministic. The two structurally different algorithms must also
+/// agree on the maximum-flow value.
+///
+/// # Panics
+///
+/// Panics if any invariant is violated or the two algorithms disagree.
+#[inline]
+pub fn check_max_flow_invariants(csr: &ValuedCSR2D<u16, u8, u8, u32>) {
+    let Some((n, edges)) = max_flow_square_capacity_graph(csr) else {
+        return;
+    };
+    let source = 0;
+    let sink = n - 1;
+    let matrix = build_max_flow_matrix(n, &edges);
+
+    let mut capacity_of: BTreeMap<(usize, usize), u64> = BTreeMap::new();
+    for &(u, v, c) in &edges {
+        capacity_of.insert((u, v), c);
+    }
+
+    let dinic = matrix
+        .dinic(source, sink)
+        .expect("dinic must succeed on a square graph with finite non-negative capacities");
+    validate_max_flow_result("dinic", n, &capacity_of, source, sink, &dinic);
+
+    let edmonds_karp = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must succeed on a square graph with finite non-negative capacities");
+    validate_max_flow_result("edmonds_karp", n, &capacity_of, source, sink, &edmonds_karp);
+
+    // The two structurally different algorithms must agree on the flow value.
+    assert_eq!(
+        dinic.max_flow(),
+        edmonds_karp.max_flow(),
+        "Dinic max-flow {} disagrees with Edmonds-Karp {}",
+        dinic.max_flow(),
+        edmonds_karp.max_flow(),
+    );
+
+    // Determinism: each algorithm reproduces its own result on a second call.
+    let dinic_again =
+        matrix.dinic(source, sink).expect("dinic must remain successful on a second call");
+    assert_eq!(dinic.max_flow(), dinic_again.max_flow(), "Dinic max_flow must be deterministic");
+    let mut first_flows = dinic.flows().to_vec();
+    let mut second_flows = dinic_again.flows().to_vec();
+    first_flows.sort_unstable();
+    second_flows.sort_unstable();
+    assert_eq!(first_flows, second_flows, "Dinic per-arc flows must be deterministic");
+
+    let edmonds_karp_again = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must remain successful on a second call");
+    assert_eq!(
+        edmonds_karp.max_flow(),
+        edmonds_karp_again.max_flow(),
+        "Edmonds-Karp max_flow must be deterministic"
+    );
+}
+
+/// Differential check of both max-flow algorithms against the
+/// already-implemented Hopcroft-Karp bipartite matcher.
+///
+/// The sparsity pattern of `csr` is read as a bipartite graph (rows are left
+/// vertices, columns are right vertices). The maximum bipartite matching equals
+/// the s-t maximum flow on the unit-capacity reduction (super-source to every
+/// left vertex, each bipartite edge, every right vertex to super-sink), so both
+/// `dinic` and `edmonds_karp` on that reduction must report the same value as
+/// `hopcroft_karp`.
+///
+/// # Panics
+///
+/// Panics if either max-flow algorithm disagrees with Hopcroft-Karp.
+#[inline]
+pub fn check_max_flow_matches_hopcroft_karp(csr: &ValuedCSR2D<u16, u8, u8, u32>) {
+    let rows = usize::from(csr.number_of_rows());
+    let cols = usize::from(csr.number_of_columns());
+    if rows == 0 || cols == 0 || rows > 100 || cols > 100 {
+        return;
+    }
+
+    let mut bipartite: Vec<(usize, usize)> = Vec::new();
+    for row in csr.row_indices() {
+        let r = usize::from(row);
+        if r >= rows {
+            continue;
+        }
+        for col in csr.sparse_row(row) {
+            let c = usize::from(col);
+            if c < cols {
+                bipartite.push((r, c));
+            }
+        }
+    }
+    if bipartite.is_empty() {
+        return;
+    }
+    bipartite.sort_unstable();
+    bipartite.dedup();
+
+    let hopcroft_karp_matrix: CSR2D<usize, usize, usize> = GenericEdgesBuilder::default()
+        .expected_number_of_edges(bipartite.len())
+        .expected_shape((rows, cols))
+        .edges(bipartite.iter().copied())
+        .build()
+        .expect("a deduplicated bipartite edge list must build a CSR2D");
+    let matching = hopcroft_karp_matrix
+        .hopcroft_karp()
+        .expect("hopcroft_karp must succeed on a valid bipartite graph");
+    let matching_size = u64::try_from(matching.len()).expect("matching size fits in u64");
+
+    // Unit-capacity flow reduction: 0 = super-source, 1..=rows left vertices,
+    // rows + 1..=rows + cols right vertices, rows + cols + 1 = super-sink.
+    let source = 0;
+    let sink = rows + cols + 1;
+    let n = rows + cols + 2;
+    let mut edges: Vec<(usize, usize, u64)> = Vec::with_capacity(rows + cols + bipartite.len());
+    for left in 0..rows {
+        edges.push((source, 1 + left, 1));
+    }
+    for right in 0..cols {
+        edges.push((1 + rows + right, sink, 1));
+    }
+    for &(left, right) in &bipartite {
+        edges.push((1 + left, 1 + rows + right, 1));
+    }
+    let matrix = build_max_flow_matrix(n, &edges);
+
+    let dinic_flow = matrix
+        .dinic(source, sink)
+        .expect("dinic must succeed on the bipartite reduction")
+        .max_flow();
+    assert_eq!(
+        dinic_flow, matching_size,
+        "Dinic flow {dinic_flow} disagrees with Hopcroft-Karp matching {matching_size}"
+    );
+
+    let edmonds_karp_flow = matrix
+        .edmonds_karp(source, sink)
+        .expect("edmonds_karp must succeed on the bipartite reduction")
+        .max_flow();
+    assert_eq!(
+        edmonds_karp_flow, matching_size,
+        "Edmonds-Karp flow {edmonds_karp_flow} disagrees with Hopcroft-Karp matching {matching_size}"
+    );
+}
+
 #[cfg(all(test, feature = "arbitrary", feature = "std"))]
 mod tests {
     use std::{
@@ -3915,6 +4507,27 @@ mod tests {
     fn test_check_jacobi_invariants_smoke() {
         let csr = sample_valued_csr_f64();
         check_jacobi_invariants(&csr);
+    }
+
+    #[test]
+    fn test_check_forceatlas2_invariants_smoke() {
+        let csr = sample_valued_csr_f64();
+        for mode_bits in [0_u8, 0b0100_1111, 0b1111_1111] {
+            check_forceatlas2_invariants(&csr, mode_bits);
+        }
+    }
+
+    #[test]
+    fn test_check_forceatlas2_invariants_on_valid_graph() {
+        // A symmetric weighted triangle exercises the success path of the
+        // checker in every mode combination.
+        let csr = build_valued_csr_f64(
+            (3, 3),
+            &[(0, 1, 1.0), (0, 2, 2.0), (1, 0, 1.0), (1, 2, 1.0), (2, 0, 2.0), (2, 1, 1.0)],
+        );
+        for mode_bits in 0..=255_u8 {
+            check_forceatlas2_invariants(&csr, mode_bits);
+        }
     }
 
     #[test]

@@ -228,6 +228,33 @@ fn test_louvain_matches_ground_truth_fixture() {
 }
 
 #[test]
+fn test_undirected_modularity_scores_fixture_partitions() {
+    let fixture = fixture();
+    let resolution = fixture.parameters.resolution;
+
+    for case in &fixture.cases {
+        let graph = build_undirected_weighted_graph(case);
+        // Scoring the reference partition with the public trait must reproduce
+        // the modularity the reference implementation reports for it.
+        for reference in [&case.louvain, &case.leiden] {
+            let scored = UndirectedModularity::<usize>::undirected_modularity(
+                &graph,
+                &reference.partition,
+                resolution,
+            )
+            .unwrap();
+            assert!(
+                approx_equal(reference.modularity, scored, 1.0e-8),
+                "case `{}` modularity mismatch: expected {:.12}, scored {:.12}",
+                case.id,
+                reference.modularity,
+                scored,
+            );
+        }
+    }
+}
+
+#[test]
 fn test_leiden_matches_ground_truth_fixture() {
     let fixture = fixture();
     let config = LeidenConfig {

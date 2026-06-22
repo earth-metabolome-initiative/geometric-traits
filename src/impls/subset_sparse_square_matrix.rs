@@ -1,6 +1,8 @@
 //! A subset sparse square matrix view, where sparse entries are filtered by
 //! column id membership in a provided subset while preserving the underlying
 //! matrix row domain.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::Zero;
@@ -11,6 +13,9 @@ use crate::traits::SquareMatrix;
 mod matrix;
 mod sparse_matrix;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// A sliced sparse square matrix where sparse entries are filtered by column id
 /// membership in a provided subset.

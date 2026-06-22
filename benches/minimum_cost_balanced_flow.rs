@@ -6,7 +6,7 @@ use std::{collections::HashSet, hint::black_box, time::Duration};
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use geometric_traits::{impls::ValuedCSR2D, prelude::*};
-use rand::{Rng, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 type CapacityGraph = ValuedCSR2D<usize, usize, usize, usize>;
 type CostGraph = ValuedCSR2D<usize, usize, usize, i64>;
@@ -80,8 +80,8 @@ fn make_weighted_case(
     let mut incident_capacity = vec![0usize; n];
     let mut edges = Vec::with_capacity(edge_count);
     for &(u, v) in pairs.iter().take(edge_count) {
-        let capacity = rng.gen_range(1..=max_capacity);
-        let cost = rng.gen_range(0..=max_cost);
+        let capacity = rng.random_range(1..=max_capacity);
+        let cost = rng.random_range(0..=max_cost);
         incident_capacity[u] += capacity;
         incident_capacity[v] += capacity;
         edges.push((u, v, capacity, cost));
@@ -95,7 +95,7 @@ fn make_weighted_case(
         }
         let lower = (total_incident_capacity / 3).max(1);
         let upper = ((2 * total_incident_capacity) / 3).max(lower);
-        budgets.push(rng.gen_range(lower..=upper));
+        budgets.push(rng.random_range(lower..=upper));
     }
 
     WeightedCase {
@@ -126,10 +126,10 @@ fn make_bipartite_case(
     let mut edges = Vec::with_capacity(edge_count);
 
     for right in 0..right_size {
-        let left = if right == 0 { 0 } else { rng.gen_range(0..left_size) };
+        let left = if right == 0 { 0 } else { rng.random_range(0..left_size) };
         if chosen_pairs.insert((left, right)) {
-            let capacity = rng.gen_range(1..=max_capacity);
-            let cost = rng.gen_range(0..=max_cost);
+            let capacity = rng.random_range(1..=max_capacity);
+            let cost = rng.random_range(0..=max_cost);
             let right_vertex = left_size + right;
             incident_capacity[left] += capacity;
             incident_capacity[right_vertex] += capacity;
@@ -137,10 +137,10 @@ fn make_bipartite_case(
         }
     }
     for left in 1..left_size {
-        let right = rng.gen_range(0..right_size);
+        let right = rng.random_range(0..right_size);
         if chosen_pairs.insert((left, right)) {
-            let capacity = rng.gen_range(1..=max_capacity);
-            let cost = rng.gen_range(0..=max_cost);
+            let capacity = rng.random_range(1..=max_capacity);
+            let cost = rng.random_range(0..=max_cost);
             let right_vertex = left_size + right;
             incident_capacity[left] += capacity;
             incident_capacity[right_vertex] += capacity;
@@ -159,8 +159,8 @@ fn make_bipartite_case(
     remaining_pairs.shuffle(&mut rng);
 
     for (left, right) in remaining_pairs.into_iter().take(edge_count.saturating_sub(edges.len())) {
-        let capacity = rng.gen_range(1..=max_capacity);
-        let cost = rng.gen_range(0..=max_cost);
+        let capacity = rng.random_range(1..=max_capacity);
+        let cost = rng.random_range(0..=max_cost);
         let right_vertex = left_size + right;
         incident_capacity[left] += capacity;
         incident_capacity[right_vertex] += capacity;
@@ -175,7 +175,7 @@ fn make_bipartite_case(
         }
         let lower = (total_incident_capacity / 3).max(1);
         let upper = ((2 * total_incident_capacity) / 3).max(lower);
-        budgets.push(rng.gen_range(lower..=upper));
+        budgets.push(rng.random_range(lower..=upper));
     }
 
     WeightedCase {
@@ -200,9 +200,9 @@ fn make_tree_case(
     let mut edges = Vec::with_capacity(n - 1);
 
     for vertex in 1..n {
-        let parent = rng.gen_range(0..vertex);
-        let capacity = rng.gen_range(1..=max_capacity);
-        let cost = rng.gen_range(0..=max_cost);
+        let parent = rng.random_range(0..vertex);
+        let capacity = rng.random_range(1..=max_capacity);
+        let cost = rng.random_range(0..=max_cost);
         incident_capacity[parent] += capacity;
         incident_capacity[vertex] += capacity;
         edges.push((parent, vertex, capacity, cost));
@@ -216,7 +216,7 @@ fn make_tree_case(
         }
         let lower = (total_incident_capacity / 3).max(1);
         let upper = ((2 * total_incident_capacity) / 3).max(lower);
-        budgets.push(rng.gen_range(lower..=upper));
+        budgets.push(rng.random_range(lower..=upper));
     }
 
     WeightedCase {

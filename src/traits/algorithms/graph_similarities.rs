@@ -9,6 +9,9 @@
 //! matched edge/vertex counts and original graph sizes gets all similarity
 //! methods via default implementations.
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 /// Tanimoto (Jaccard) similarity coefficient.
 ///
 /// `T = intersection / (size_a + size_b - intersection)`

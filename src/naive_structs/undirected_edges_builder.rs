@@ -1,6 +1,8 @@
 //! A generic edges builder that can be used to build a edges for any type of
 //! graph.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use super::GenericEdgesBuilder;
@@ -12,6 +14,9 @@ use crate::{
     },
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 /// A generic edges builder that can be used to build a edges for any type of
 /// graph.
 pub struct GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE: GrowableEdges, UE> {
@@ -19,6 +24,31 @@ pub struct GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE: GrowableEd
     builder: GenericEdgesBuilder<EdgeIterator, GE>,
     /// The actual undirected graph that will be built.
     _undirected_edges: core::marker::PhantomData<UE>,
+}
+
+impl<EdgeIterator, GE, UE> Clone for GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE, UE>
+where
+    GE: GrowableEdges,
+    GenericEdgesBuilder<EdgeIterator, GE>: Clone,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { builder: self.builder.clone(), _undirected_edges: self._undirected_edges }
+    }
+}
+
+impl<EdgeIterator, GE, UE> core::fmt::Debug
+    for GenericUndirectedMonopartiteEdgesBuilder<EdgeIterator, GE, UE>
+where
+    GE: GrowableEdges,
+    GenericEdgesBuilder<EdgeIterator, GE>: core::fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("GenericUndirectedMonopartiteEdgesBuilder")
+            .field("builder", &self.builder)
+            .finish()
+    }
 }
 
 impl<EdgeIterator, GE: GrowableEdges, UE> Default

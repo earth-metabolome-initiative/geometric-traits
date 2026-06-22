@@ -1,5 +1,8 @@
 //! Submodule providing a naively implemented `GenericBiGraph`.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
+
 use num_traits::AsPrimitive;
 
 use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
@@ -8,6 +11,9 @@ use crate::traits::{
     TryFromUsize, Vocabulary,
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// Struct representing a generic bigraph.
 pub struct GenericBiGraph<LeftNodes, RightNodes, Edges> {

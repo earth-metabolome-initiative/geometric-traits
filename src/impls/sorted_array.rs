@@ -1,5 +1,7 @@
 //! Module implementing traits for the Vec type.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
 use core::{
     iter::Cloned,
     ops::{Index, Range},
@@ -10,6 +12,9 @@ use crate::{
     traits::{Symbol, TransmuteFrom},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Struct defining a sorted vector and its primary methods.
 pub struct SortedArray<V, const N: usize> {

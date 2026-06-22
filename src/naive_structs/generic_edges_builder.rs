@@ -1,12 +1,18 @@
 //! A generic edges builder that can be used to build a edges for any type of
 //! graph.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
+
 use crate::{
     errors::builder::edges::EdgesBuilderError,
     impls::MutabilityError,
     traits::{Edges, EdgesBuilder, GrowableEdges, SparseMatrixMut},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 /// A generic edges builder that can be used to build a edges for any type of
 /// graph.
 pub struct GenericEdgesBuilder<EdgeIterator, GE: GrowableEdges> {
@@ -20,6 +26,43 @@ pub struct GenericEdgesBuilder<EdgeIterator, GE: GrowableEdges> {
     ignore_duplicates: bool,
     /// The edges type.
     _edges: core::marker::PhantomData<GE>,
+}
+
+impl<EdgeIterator, GE> Clone for GenericEdgesBuilder<EdgeIterator, GE>
+where
+    EdgeIterator: Clone,
+    GE: GrowableEdges,
+    GE::EdgeId: Copy,
+    <GE::GrowableMatrix as SparseMatrixMut>::MinimalShape: Copy,
+{
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            edges: self.edges.clone(),
+            expected_number_of_edges: self.expected_number_of_edges,
+            expected_shape: self.expected_shape,
+            ignore_duplicates: self.ignore_duplicates,
+            _edges: self._edges,
+        }
+    }
+}
+
+impl<EdgeIterator, GE> core::fmt::Debug for GenericEdgesBuilder<EdgeIterator, GE>
+where
+    EdgeIterator: core::fmt::Debug,
+    GE: GrowableEdges,
+    GE::EdgeId: core::fmt::Debug,
+    <GE::GrowableMatrix as SparseMatrixMut>::MinimalShape: core::fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("GenericEdgesBuilder")
+            .field("edges", &self.edges)
+            .field("expected_number_of_edges", &self.expected_number_of_edges)
+            .field("expected_shape", &self.expected_shape)
+            .field("ignore_duplicates", &self.ignore_duplicates)
+            .finish()
+    }
 }
 
 impl<EdgeIterator, GE: GrowableEdges> Default for GenericEdgesBuilder<EdgeIterator, GE> {

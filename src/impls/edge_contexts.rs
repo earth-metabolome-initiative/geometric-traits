@@ -4,6 +4,8 @@
 //! CSR-style layout. It is intended for precomputed constraints such as
 //! cycle/ring memberships, but it is not specific to chemistry.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::{vec, vec::Vec};
 use core::fmt::Debug;
 
@@ -15,6 +17,9 @@ use crate::traits::PositiveInteger;
 ///
 /// Each row corresponds to one original graph edge and contains zero or more
 /// context signatures attached to that edge.
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EdgeContexts<Signature, SparseIndex = usize> {
     offsets: Vec<SparseIndex>,

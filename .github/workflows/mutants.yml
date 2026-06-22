@@ -1,0 +1,33 @@
+name: Mutation Testing
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  mutants:
+    name: cargo-mutants (changed lines)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Cache build artifacts
+      uses: Swatinem/rust-cache@v2
+    - name: Install cargo-mutants
+      run: cargo install cargo-mutants --locked
+    - name: Compute pull request diff
+      run: git diff "origin/${{ github.base_ref }}...HEAD" > pr.diff
+    - name: Run mutation testing on changed lines
+      # Advisory only: surviving mutants are reported as an artifact but do not
+      # fail the check, because equivalent mutants can legitimately survive.
+      continue-on-error: true
+      run: cargo mutants --no-shuffle -j 2 --in-diff pr.diff
+    - name: Upload mutants report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: mutants-report
+        path: mutants.out

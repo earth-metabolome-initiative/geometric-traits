@@ -1,5 +1,7 @@
 //! Implementation of the [`Edges`] trait for
 //! [`GenericImplicitValuedMatrix2D`].
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::{AsPrimitive, Zero};
@@ -12,6 +14,9 @@ use crate::traits::{
     SparseValuedMatrix2D, TryFromUsize, ValuedMatrix, ValuedMatrix2D,
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, Debug)]
 /// A 2D matrix with implicit values.
 pub struct GenericImplicitValuedMatrix2D<M, Map, Value>

@@ -1,5 +1,8 @@
 //! Submodule providing a naively implemented generic Monoparted Graph.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
+
 use num_traits::AsPrimitive;
 
 use crate::traits::{
@@ -10,6 +13,9 @@ use crate::traits::{
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// Struct representing a generic graph.
 pub struct GenericGraph<Nodes, Edges> {

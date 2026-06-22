@@ -1,4 +1,6 @@
 //! Submodule providing a definition of a CSR matrix.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use multi_ranged::Step;
@@ -10,6 +12,9 @@ use crate::{
     traits::{PositiveInteger, TryFromUsize},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 /// A compressed sparse row matrix.
 pub struct UpperTriangularCSR2D<M: Matrix2D> {

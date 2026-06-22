@@ -19,8 +19,11 @@ mod dsatur;
 mod katz_centrality;
 mod layered_label_propagation;
 mod local_clustering;
+mod motifs;
 mod pagerank;
 mod power_iteration_eigenvector_centrality;
+mod square_clustering;
+mod squares;
 mod traversal;
 mod triangles;
 
@@ -38,11 +41,14 @@ pub use layered_label_propagation::{
     LayeredLabelPropagationSorter,
 };
 pub use local_clustering::LocalClusteringCoefficientScorer;
+pub use motifs::MotifCountOrdering;
 use num_traits::{AsPrimitive, cast};
 pub use pagerank::{PageRankScorer, PageRankScorerBuilder};
 pub use power_iteration_eigenvector_centrality::{
     PowerIterationEigenvectorCentralityScorer, PowerIterationEigenvectorCentralityScorerBuilder,
 };
+pub use square_clustering::SquareClusteringCoefficientScorer;
+pub use squares::SquareCountScorer;
 pub use traversal::{
     BfsTraversalSorter, DfsTraversalSorter, TraversalNeighborOrder, TraversalSeedStrategy,
 };
@@ -260,6 +266,7 @@ pub(super) const KATZ_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const BETWEENNESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const CLOSENESS_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const LOCAL_CLUSTERING_SCORE_SCALE: f64 = 1.0e12;
+pub(super) const SQUARE_CLUSTERING_SCORE_SCALE: f64 = 1.0e12;
 pub(super) const POWER_ITERATION_EIGENVECTOR_SCORE_SCALE: f64 = 1.0e12;
 
 #[inline]

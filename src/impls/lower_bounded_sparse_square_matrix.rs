@@ -2,6 +2,8 @@
 //! to the provided index are available. All other defined values with
 //! coordinates less than the provided index are considered undefined.
 
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
 use core::fmt::Debug;
 
 use super::MutabilityError;
@@ -11,6 +13,9 @@ mod lower_bounded_sparse_row;
 mod matrix;
 mod sparse_matrix;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 /// A sliced square matrix.
 pub struct LowerBoundedSquareMatrix<M: SquareMatrix> {

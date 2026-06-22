@@ -161,6 +161,8 @@ impl<'lend2, M: SquareMatrix + SparseMatrix2D> Lending<'lend2> for CircuitSearch
 }
 
 impl<M: SquareMatrix + SparseMatrix2D> Lender for CircuitSearch<'_, '_, M> {
+    lender::check_covariance!();
+
     fn next(&mut self) -> Option<<Self as Lending<'_>>::Lend> {
         self.search_circuit()
     }
@@ -204,6 +206,13 @@ impl<'lend, 'matrix, M: SquareMatrix + SparseMatrix2D> Lending<'lend>
 }
 
 impl<M: SquareMatrix + SparseMatrix2D> Lender for InnerJohnsonIterator<'_, M> {
+    // SAFETY: each lend is a fresh `CircuitSearch` constructed at the moment of
+    // the call, and its `&mut Data` / `&SubsetSquareMatrix` borrows are tied to
+    // `self` for exactly the lend lifetime; no Lend instance outlives the next
+    // call to `next`, so the invariant lifetime acts as a covariant one in
+    // every observable use.
+    lender::unsafe_assume_covariance!();
+
     fn next(&mut self) -> Option<<Self as Lending<'_>>::Lend> {
         if self.data.current_root_id < self.matrix.order() {
             let bounded_matrix =

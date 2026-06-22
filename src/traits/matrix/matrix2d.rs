@@ -24,13 +24,25 @@ pub trait Matrix2D:
     #[inline]
     /// Returns an iterator over the rows of the matrix.
     fn row_indices(&self) -> SimpleRange<Self::RowIndex> {
-        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap()
+        let number_of_rows = self.number_of_rows();
+        if number_of_rows.is_zero() {
+            SimpleRange::default()
+        } else {
+            SimpleRange::try_from((Self::RowIndex::zero(), number_of_rows.prev()))
+                .expect("zero <= number_of_rows - 1 holds when number_of_rows > 0")
+        }
     }
 
     #[inline]
     /// Returns an iterator over the columns of the matrix.
     fn column_indices(&self) -> SimpleRange<Self::ColumnIndex> {
-        SimpleRange::try_from((Self::ColumnIndex::zero(), self.number_of_columns())).unwrap()
+        let number_of_columns = self.number_of_columns();
+        if number_of_columns.is_zero() {
+            SimpleRange::default()
+        } else {
+            SimpleRange::try_from((Self::ColumnIndex::zero(), number_of_columns.prev()))
+                .expect("zero <= number_of_columns - 1 holds when number_of_columns > 0")
+        }
     }
 }
 

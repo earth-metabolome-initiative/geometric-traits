@@ -1,5 +1,7 @@
 //! Compactification of sparse matrices by remapping row and column indices to
 //! contiguous 0..n ranges, eliminating rows and columns with no entries.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;
@@ -9,6 +11,9 @@ use crate::{
     traits::{MatrixMut, SparseMatrixMut, SparseValuedMatrix2D, TryFromUsize},
 };
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Debug, Clone, PartialEq)]
 /// A sparse matrix whose row/column indices have been compacted to contiguous
 /// 0-based ranges, along with reverse mappings back to the original indices.

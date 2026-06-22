@@ -2,6 +2,8 @@
 //! diagonal, meaning it will not change the values of existing elements but
 //! will add new elements where missing. If the underlying matrix is
 //! rectangular, new rows and columns will be added to make it square.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::{AsPrimitive, Bounded, One, Zero};
@@ -26,6 +28,9 @@ use super::{
 #[cfg(feature = "arbitrary")]
 mod arbitrary_impl;
 
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
 #[derive(Clone)]
 /// A 2D matrix which pads the missing elements over the diagonal.
 pub struct GenericMatrix2DWithPaddedDiagonal<M, Map> {
@@ -231,11 +236,18 @@ where
     fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
         // Since we are artificially always adding rows and columns, we
         // will always have non-empty rows.
-        SimpleRange::try_from((Self::RowIndex::zero(), self.number_of_rows())).unwrap_or_else(|_| {
-            unreachable!(
-                "Row range must be valid because GenericMatrix2DWithPaddedDiagonal::new validates square padded capacity."
+        let number_of_rows = self.number_of_rows();
+        if number_of_rows.is_zero() {
+            SimpleRange::default()
+        } else {
+            SimpleRange::try_from((Self::RowIndex::zero(), number_of_rows.prev())).unwrap_or_else(
+                |_| {
+                    unreachable!(
+                        "Row range must be valid because GenericMatrix2DWithPaddedDiagonal::new validates square padded capacity."
+                    )
+                },
             )
-        })
+        }
     }
 
     #[inline]

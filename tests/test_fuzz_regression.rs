@@ -15,9 +15,11 @@ use geometric_traits::{
     prelude::*,
     test_utils::{
         self, FuzzBlossomVCase, FuzzStructuredBlossomVCase, FuzzVf2Case,
-        check_blossom_v_invariants, check_floyd_warshall_invariants, check_gabow_1976_invariants,
-        check_gth_invariants, check_kahn_ordering, check_lap_sparse_wrapper_invariants,
-        check_lap_square_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_blossom_v_invariants, check_diameter_invariants, check_floyd_warshall_invariants,
+        check_gabow_1976_invariants, check_gth_invariants, check_kahn_ordering,
+        check_lap_sparse_wrapper_invariants, check_lap_square_invariants,
+        check_leicht_newman_invariants, check_leiden_invariants, check_louvain_invariants,
+        check_max_flow_invariants, check_max_flow_matches_hopcroft_karp,
         check_padded_diagonal_invariants, check_padded_matrix2d_invariants,
         check_pairwise_bfs_matches_unit_floyd_warshall,
         check_pairwise_dijkstra_matches_floyd_warshall, check_sparse_matrix_invariants,
@@ -220,7 +222,6 @@ fn test_replay_pairwise_bfs_corpus() {
 // ============================================================================
 
 type TestGraph = GenericGraph<u8, SquareCSR2D<CSR2D<u16, u8, u8>>>;
-
 #[test]
 fn test_arbitrary_generic_graph_construction() {
     for_each_instance::<TestGraph, _>(|_graph| {});
@@ -236,11 +237,27 @@ fn test_replay_sink_nodes_corpus() {
     let _: Vec<TestGraph> = replay_shared_fixture();
 }
 
+type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
+
+#[test]
+fn test_arbitrary_diameter() {
+    for_each_instance::<TestSymmetricCSR, _>(|csr| {
+        let graph: GenericGraph<u8, _> = GenericGraph::from((csr.order(), csr.clone()));
+        check_diameter_invariants(&graph);
+    });
+}
+
+#[test]
+fn test_replay_diameter_corpus() {
+    for instance in replay_shared_fixture::<TestSymmetricCSR>() {
+        let graph: GenericGraph<u8, _> = GenericGraph::from((instance.order(), instance.clone()));
+        check_diameter_invariants(&graph);
+    }
+}
+
 // ============================================================================
 // Gabow 1976 (mirrors fuzz/fuzz_targets/gabow_1976.rs)
 // ============================================================================
-
-type TestSymmetricCSR = SymmetricCSR2D<CSR2D<u16, u8, u8>>;
 
 #[test]
 fn test_arbitrary_gabow_1976() {
@@ -464,6 +481,22 @@ fn test_replay_louvain_corpus() {
 }
 
 // ============================================================================
+// Leicht-Newman (mirrors fuzz/fuzz_targets/leicht_newman.rs)
+// ============================================================================
+
+#[test]
+fn test_arbitrary_leicht_newman() {
+    for_each_instance::<TestValuedCSR, _>(check_leicht_newman_invariants);
+}
+
+#[test]
+fn test_replay_leicht_newman_corpus() {
+    for instance in replay_shared_fixture::<TestValuedCSR>() {
+        check_leicht_newman_invariants(&instance);
+    }
+}
+
+// ============================================================================
 // Floyd-Warshall (mirrors fuzz/fuzz_targets/floyd_warshall.rs)
 // ============================================================================
 
@@ -619,4 +652,28 @@ fn test_arbitrary_csr2d_dedup_path() {
         pattern.push(0);
     }
     let _ = from_bytes::<TestCSR>(&pattern);
+}
+
+// ============================================================================
+// Maximum s-t flow (mirrors fuzz/fuzz_targets/max_flow.rs)
+// ============================================================================
+
+type TestMaxFlowCsr = ValuedCSR2D<u16, u8, u8, u32>;
+
+#[test]
+fn test_arbitrary_max_flow() {
+    for_each_instance::<TestMaxFlowCsr, _>(check_max_flow_invariants);
+}
+
+#[test]
+fn test_arbitrary_max_flow_matches_hopcroft_karp() {
+    for_each_instance::<TestMaxFlowCsr, _>(check_max_flow_matches_hopcroft_karp);
+}
+
+#[test]
+fn test_replay_max_flow_corpus() {
+    for instance in replay_shared_fixture::<TestMaxFlowCsr>() {
+        check_max_flow_invariants(&instance);
+        check_max_flow_matches_hopcroft_karp(&instance);
+    }
 }
