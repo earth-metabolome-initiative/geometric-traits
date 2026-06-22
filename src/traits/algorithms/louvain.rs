@@ -243,10 +243,10 @@ where
 
         on_progress(level_index + 1);
 
-        if let Some(previous) = previous_modularity {
-            if modularity - previous < config.modularity_threshold {
-                break;
-            }
+        if let Some(previous) = previous_modularity
+            && modularity - previous < config.modularity_threshold
+        {
+            break;
         }
         previous_modularity = Some(modularity);
 

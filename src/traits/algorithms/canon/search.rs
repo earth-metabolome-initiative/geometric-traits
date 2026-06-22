@@ -1656,33 +1656,32 @@ where
             && had_first_path_before_child
             && !child_is_on_first_path
             && child_path_state.fp_cert_equal;
-        if candidate_matches_first_path_automorphism {
-            if let Some(first_choice_path) =
+        if candidate_matches_first_path_automorphism
+            && let Some(first_choice_path) =
                 state.first_path.as_ref().map(|path| path.choice_path.clone())
-            {
-                state.stats.automorphisms_found += 1;
-                if let Some(&first_choice) = first_choice_path.get(depth) {
-                    let first_order = state.first_path.as_ref().map(|path| path.order.clone());
-                    {
-                        let first_path_orbits =
-                            first_path_orbits_at_depth_mut(state, depth, nodes.len());
-                        first_path_orbits.union(element, first_choice);
-                        if let Some(first_order) = first_order.as_deref() {
-                            first_path_orbits
-                                .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
-                            local_orbits
-                                .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
-                        }
-                    }
-                    state.first_path_orbits_global.union(element, first_choice);
+        {
+            state.stats.automorphisms_found += 1;
+            if let Some(&first_choice) = first_choice_path.get(depth) {
+                let first_order = state.first_path.as_ref().map(|path| path.order.clone());
+                {
+                    let first_path_orbits =
+                        first_path_orbits_at_depth_mut(state, depth, nodes.len());
+                    first_path_orbits.union(element, first_choice);
                     if let Some(first_order) = first_order.as_deref() {
-                        state
-                            .first_path_orbits_global
+                        first_path_orbits
+                            .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
+                        local_orbits
                             .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
                     }
                 }
-                if component_endpoints.is_empty() {}
+                state.first_path_orbits_global.union(element, first_choice);
+                if let Some(first_order) = first_order.as_deref() {
+                    state
+                        .first_path_orbits_global
+                        .ingest_leaf_automorphism(first_order, candidate.order.as_ref());
+                }
             }
+            if component_endpoints.is_empty() {}
         }
         let candidate_first_path_automorphism = child_first_path_automorphism.or_else(|| {
             if candidate_matches_first_path_automorphism {
@@ -1772,58 +1771,54 @@ where
             || candidate_matches_previous_best_automorphism.is_some())
             && had_best_before_child
             && !child_is_on_best_path
-        {
-            if let (Some(best_order), Some(best_choice_path)) =
+            && let (Some(best_order), Some(best_choice_path)) =
                 (previous_best_order.as_ref(), previous_best_choice_path.as_ref())
+        {
+            state.stats.automorphisms_found += 1;
+            let automorphism = candidate_matches_previous_best_automorphism
+                .unwrap_or_else(|| leaf_automorphism(best_order, candidate.order.as_ref()));
+            state.best_path_orbits.ingest_automorphism(&automorphism);
+            state.first_path_orbits_global.ingest_automorphism(&automorphism);
+            state.long_prune_records.push(long_prune_record_from_automorphism(&automorphism));
+            local_orbits.ingest_automorphism(&automorphism);
+
+            let gca_with_first =
+                common_prefix_len(candidate.choice_path.as_ref(), state.first_choice_path());
+            let gca_with_best =
+                common_prefix_len(candidate.choice_path.as_ref(), Some(best_choice_path.as_ref()));
+            let backjump_depth = if gca_with_first < candidate.choice_path.len()
+                && !state
+                    .first_path_orbits_global
+                    .is_minimal_representative(candidate.choice_path[gca_with_first])
             {
-                state.stats.automorphisms_found += 1;
-                let automorphism = candidate_matches_previous_best_automorphism
-                    .unwrap_or_else(|| leaf_automorphism(best_order, candidate.order.as_ref()));
-                state.best_path_orbits.ingest_automorphism(&automorphism);
-                state.first_path_orbits_global.ingest_automorphism(&automorphism);
-                state.long_prune_records.push(long_prune_record_from_automorphism(&automorphism));
-                local_orbits.ingest_automorphism(&automorphism);
+                Some(gca_with_first)
+            } else if gca_with_best < candidate.choice_path.len()
+                && !state
+                    .best_path_orbits
+                    .is_minimal_representative(candidate.choice_path[gca_with_best])
+            {
+                Some(gca_with_best)
+            } else {
+                None
+            };
 
-                let gca_with_first =
-                    common_prefix_len(candidate.choice_path.as_ref(), state.first_choice_path());
-                let gca_with_best = common_prefix_len(
-                    candidate.choice_path.as_ref(),
-                    Some(best_choice_path.as_ref()),
-                );
-                let backjump_depth = if gca_with_first < candidate.choice_path.len()
-                    && !state
-                        .first_path_orbits_global
-                        .is_minimal_representative(candidate.choice_path[gca_with_first])
-                {
-                    Some(gca_with_first)
-                } else if gca_with_best < candidate.choice_path.len()
-                    && !state
-                        .best_path_orbits
-                        .is_minimal_representative(candidate.choice_path[gca_with_best])
-                {
-                    Some(gca_with_best)
-                } else {
-                    None
-                };
-
-                if let Some(backjump_depth) = backjump_depth {
-                    if backjump_depth < depth {
-                        partition.goto_backtrack_point(node_backtrack_point);
-                        component_endpoints.truncate(previous_component_endpoint_len);
-                        return SearchReturn {
-                            best: best
-                                .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
-                            first_path_automorphism: if node_path_state.fp_on {
-                                None
-                            } else {
-                                node_first_path_automorphism
-                            },
-                            best_path_backjump_depth: Some(backjump_depth),
-                        };
-                    }
-                    if backjump_depth == depth {
-                        continue;
-                    }
+            if let Some(backjump_depth) = backjump_depth {
+                if backjump_depth < depth {
+                    partition.goto_backtrack_point(node_backtrack_point);
+                    component_endpoints.truncate(previous_component_endpoint_len);
+                    return SearchReturn {
+                        best: best
+                            .map(|best| SearchOutcome { sibling_orbits: local_orbits, ..best }),
+                        first_path_automorphism: if node_path_state.fp_on {
+                            None
+                        } else {
+                            node_first_path_automorphism
+                        },
+                        best_path_backjump_depth: Some(backjump_depth),
+                    };
+                }
+                if backjump_depth == depth {
+                    continue;
                 }
             }
         }
@@ -2819,21 +2814,22 @@ fn packed_path_compare(
     reference_info: Option<&[SearchPathInfo]>,
     prefix_only: bool,
 ) -> core::cmp::Ordering {
-    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info) {
-        if !current_info.is_empty() && !reference_info.is_empty() {
-            let current_root_end = current_info[0].certificate_index;
-            let reference_root_end = reference_info[0].certificate_index;
-            if current_root_end == reference_root_end {
-                debug_assert_eq!(current[..current_root_end], reference[..reference_root_end]);
-                let current_suffix = &current[current_root_end..];
-                let reference_suffix = &reference[reference_root_end..];
-                return if prefix_only {
-                    let limit = current_suffix.len().min(reference_suffix.len());
-                    current_suffix[..limit].cmp(&reference_suffix[..limit])
-                } else {
-                    current_suffix.cmp(reference_suffix)
-                };
-            }
+    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info)
+        && !current_info.is_empty()
+        && !reference_info.is_empty()
+    {
+        let current_root_end = current_info[0].certificate_index;
+        let reference_root_end = reference_info[0].certificate_index;
+        if current_root_end == reference_root_end {
+            debug_assert_eq!(current[..current_root_end], reference[..reference_root_end]);
+            let current_suffix = &current[current_root_end..];
+            let reference_suffix = &reference[reference_root_end..];
+            return if prefix_only {
+                let limit = current_suffix.len().min(reference_suffix.len());
+                current_suffix[..limit].cmp(&reference_suffix[..limit])
+            } else {
+                current_suffix.cmp(reference_suffix)
+            };
         }
     }
 
@@ -2847,22 +2843,23 @@ fn packed_path_equal(
     reference_info: Option<&[SearchPathInfo]>,
     prefix_only: bool,
 ) -> bool {
-    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info) {
-        if !current_info.is_empty() && !reference_info.is_empty() {
-            let current_root_end = current_info[0].certificate_index;
-            let reference_root_end = reference_info[0].certificate_index;
-            if current_root_end != reference_root_end {
-                return false;
-            }
-            let current_suffix = &current[current_root_end..];
-            let reference_suffix = &reference[reference_root_end..];
-            return if prefix_only {
-                current_suffix.len() <= reference_suffix.len()
-                    && current_suffix == &reference_suffix[..current_suffix.len()]
-            } else {
-                current_suffix == reference_suffix
-            };
+    if let (Some(current_info), Some(reference_info)) = (current_info, reference_info)
+        && !current_info.is_empty()
+        && !reference_info.is_empty()
+    {
+        let current_root_end = current_info[0].certificate_index;
+        let reference_root_end = reference_info[0].certificate_index;
+        if current_root_end != reference_root_end {
+            return false;
         }
+        let current_suffix = &current[current_root_end..];
+        let reference_suffix = &reference[reference_root_end..];
+        return if prefix_only {
+            current_suffix.len() <= reference_suffix.len()
+                && current_suffix == &reference_suffix[..current_suffix.len()]
+        } else {
+            current_suffix == reference_suffix
+        };
     }
 
     if prefix_only {

@@ -312,7 +312,7 @@ where
                 let i = orig(v);
                 self.st_flow[i]
             }
-        } else if u >= 2 && u % 2 == 0 {
+        } else if u >= 2 && u.is_multiple_of(2) {
             // u is x_i (even): forward edge x_i → y_j
             self.edge_cap[eidx] - self.edge_flow[eidx]
         } else {
@@ -432,7 +432,7 @@ where
             // Atom-atom edge: direction determined by parity of u.
             // u even (x_i) → forward: edge_flow += delta
             // u odd (y_i) → backward: edge_flow -= delta
-            if u >= 2 && u % 2 == 0 {
+            if u >= 2 && u.is_multiple_of(2) {
                 self.edge_flow[eidx] += delta;
             } else {
                 self.edge_flow[eidx] -= delta;
@@ -497,7 +497,7 @@ where
                         }
                     }
                 }
-            } else if u >= 2 && u % 2 == 0 {
+            } else if u >= 2 && u.is_multiple_of(2) {
                 // u = x_i (even virtual vertex).
                 let i = orig(u);
 

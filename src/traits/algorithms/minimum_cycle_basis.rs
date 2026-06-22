@@ -384,15 +384,14 @@ fn minimum_orthogonal_cycle<NodeId: PositiveInteger>(
         let target = plane_size + start;
         if let Some((distance, meeting, parents0, parents1)) =
             bidirectional_shortest_path(&lifted, source, target)
+            && best_distance.is_none_or(|best| distance < best)
         {
-            if best_distance.is_none_or(|best| distance < best) {
-                best_distance = Some(distance);
-                best_meeting = Some(meeting);
-                best_parents0 = parents0;
-                best_parents1 = parents1;
-                best_source = source;
-                best_target = target;
-            }
+            best_distance = Some(distance);
+            best_meeting = Some(meeting);
+            best_parents0 = parents0;
+            best_parents1 = parents1;
+            best_source = source;
+            best_target = target;
         }
     }
 

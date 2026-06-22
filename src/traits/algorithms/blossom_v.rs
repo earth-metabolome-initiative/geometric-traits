@@ -113,7 +113,7 @@ where
         let n_cols: usize = self.number_of_columns().as_();
         assert!(n_rows == n_cols, "BlossomV requires a square matrix, got {n_rows} x {n_cols}");
         assert!(
-            n_rows % 2 == 0,
+            n_rows.is_multiple_of(2),
             "BlossomV requires an even number of vertices for a perfect matching, got {n_rows}"
         );
         BlossomVState::new(self).solve()

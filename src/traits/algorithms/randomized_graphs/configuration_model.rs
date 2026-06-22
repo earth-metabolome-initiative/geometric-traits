@@ -27,7 +27,7 @@ pub fn configuration_model(
 ) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
     let n = degrees.len();
     let total_stubs: usize = degrees.iter().sum();
-    assert!(total_stubs % 2 == 0, "sum of degrees must be even");
+    assert!(total_stubs.is_multiple_of(2), "sum of degrees must be even");
 
     if n == 0 || total_stubs == 0 {
         return build_symmetric(n, Vec::new());

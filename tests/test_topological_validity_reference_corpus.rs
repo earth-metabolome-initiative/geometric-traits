@@ -145,13 +145,13 @@ fn test_topological_validity_reference_corpus_1m_without_k4() {
             );
 
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            if done % 10_000 == 0 {
+            if done.is_multiple_of(10_000) {
                 eprintln!("[topology-reference-1m] progress {done}");
             }
 
             let overall_elapsed = overall_start.elapsed();
-            if let Some(threshold_ms) = slow_threshold_ms {
-                if overall_elapsed.as_millis() >= threshold_ms {
+            if let Some(threshold_ms) = slow_threshold_ms
+                && overall_elapsed.as_millis() >= threshold_ms {
                     eprintln!(
                         "[topology-reference-1m-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?}",
                         global_index,
@@ -164,7 +164,6 @@ fn test_topological_validity_reference_corpus_1m_without_k4() {
                         k33_elapsed
                     );
                 }
-            }
 
             (
                 usize::from(is_planar),
@@ -323,13 +322,13 @@ fn test_topological_validity_reference_corpus_1m_with_k4() {
             );
 
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            if done % 10_000 == 0 {
+            if done.is_multiple_of(10_000) {
                 eprintln!("[topology-reference-1m+k4] progress {done}");
             }
 
             let overall_elapsed = overall_start.elapsed();
-            if let Some(threshold_ms) = slow_threshold_ms {
-                if overall_elapsed.as_millis() >= threshold_ms {
+            if let Some(threshold_ms) = slow_threshold_ms
+                && overall_elapsed.as_millis() >= threshold_ms {
                     eprintln!(
                         "[topology-reference-1m+k4-slow] index={} case={} family={} total={:?} planar={:?} outerplanar={:?} k23={:?} k33={:?} k4={:?}",
                         global_index,
@@ -343,7 +342,6 @@ fn test_topological_validity_reference_corpus_1m_with_k4() {
                         k4_elapsed
                     );
                 }
-            }
 
             (
                 usize::from(is_planar),

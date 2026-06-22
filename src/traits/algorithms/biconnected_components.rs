@@ -331,12 +331,11 @@ pub trait BiconnectedComponents: UndirectedMonopartiteMonoplexGraph {
                     let node_index = node.as_();
                     low[parent_index] = low[parent_index].min(low[node_index]);
 
-                    if low[node_index] >= discovery_time[parent_index].unwrap() {
-                        if let Some(component) =
+                    if low[node_index] >= discovery_time[parent_index].unwrap()
+                        && let Some(component) =
                             pop_component_until(&mut edge_stack, Some(normalize_edge(parent, node)))
-                        {
-                            raw_components.push(component);
-                        }
+                    {
+                        raw_components.push(component);
                     }
                 }
             }
