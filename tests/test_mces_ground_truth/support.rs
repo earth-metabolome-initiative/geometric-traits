@@ -1,6 +1,6 @@
 //! Shared support for ground-truth MCES tests.
 
-pub(super) use std::{collections::BTreeMap, fs::File, io::Read as _};
+pub(super) use std::{fs::File, io::Read as _};
 
 pub(super) use geometric_traits::{
     impls::{CSR2D, EdgeContexts, SortedVec, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
@@ -22,6 +22,7 @@ pub(super) struct GroundTruthNodeLabel {
     pub(super) atom_type: u8,
     pub(super) explicit_degree: Option<u8>,
     pub(super) is_aromatic: Option<bool>,
+    pub(super) total_hs: u8,
 }
 
 /// A node labeled by a generic harness-local node label.
@@ -91,6 +92,7 @@ pub(super) fn build_typed_graph(
     edges: &[[usize; 2]],
     atom_type_indices: &[u8],
     atom_is_aromatic: &[bool],
+    atom_total_hs: &[u32],
     bond_types: &[u32],
     ignore_bond_orders: bool,
     ring_matches_ring_only: bool,
@@ -99,6 +101,7 @@ pub(super) fn build_typed_graph(
 ) -> TypedGraph {
     assert_eq!(n_atoms, atom_type_indices.len());
     assert_eq!(n_atoms, atom_is_aromatic.len());
+    assert_eq!(n_atoms, atom_total_hs.len());
     assert_eq!(edges.len(), bond_types.len());
     let mut normalized_edges: Vec<(usize, usize, u32)> = edges
         .iter()
@@ -130,6 +133,14 @@ pub(super) fn build_typed_graph(
                         Some(atom_is_aromatic[i])
                     } else {
                         None
+                    },
+                    // RDKit default MCES matching is looser than exact
+                    // hydrogen-count equality on atoms. Keep the field for
+                    // stable label shape, but do not let total H constrain
+                    // default atom identity in this harness.
+                    total_hs: {
+                        let _ = atom_total_hs[i];
+                        0
                     },
                 },
             }
@@ -311,78 +322,21 @@ pub(super) fn collect_labeled_case_product_diagnostics(
     collect_prepared_labeled_case_product_diagnostics(case, &prepared, use_edge_contexts)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct FixtureBondRecord {
-    pub(super) edge: (usize, usize),
-    pub(super) bond_type: u32,
-    pub(super) canonical_index: usize,
-    pub(super) original_index: usize,
-}
-
-pub(super) fn fixture_bond_records(graph: &GraphData) -> Vec<FixtureBondRecord> {
-    let mut records: Vec<FixtureBondRecord> = graph
-        .edges
-        .iter()
-        .zip(graph.bond_types.iter().copied())
-        .enumerate()
-        .map(|(canonical_index, (&edge, bond_type))| {
-            FixtureBondRecord {
-                edge: canonical_edge(edge),
-                bond_type,
-                canonical_index,
-                original_index: graph
-                    .bond_original_indices
-                    .get(canonical_index)
-                    .copied()
-                    .unwrap_or(canonical_index),
-            }
-        })
-        .collect();
-    records.sort_unstable_by_key(|record| {
-        (record.original_index, record.edge.0, record.edge.1, record.canonical_index)
-    });
-    records
-}
-
 pub(super) fn find_case<'a>(cases: &'a [GroundTruthCase], name: &str) -> &'a GroundTruthCase {
     cases.iter().find(|case| case.name == name).unwrap_or_else(|| panic!("missing case '{name}'"))
 }
 
-pub(super) fn fixture_edge_rank_map(graph: &GraphData) -> BTreeMap<(usize, usize), usize> {
-    let mut ranks = BTreeMap::new();
-    for record in fixture_bond_records(graph) {
-        ranks.entry(record.edge).or_insert(record.original_index);
-    }
-    ranks
-}
-
-pub(super) fn configure_rdkit_raw_pair_order<'g, PF, XC, EC, D, R>(
-    builder: McesBuilder<'g, TypedGraph, PF, XC, EC, D, R>,
-    case: &GroundTruthCase,
-) -> McesBuilder<'g, TypedGraph, PF, XC, EC, D, R> {
-    let first_ranks = fixture_edge_rank_map(&case.graph1);
-    let second_ranks = fixture_edge_rank_map(&case.graph2);
-    let second_major = case.graph1.n_atoms > case.graph2.n_atoms;
-
-    builder.with_product_vertex_ordering(move |_first_lg, _second_lg, first_edge, second_edge| {
-        let first_rank = first_ranks[&canonical_edge([first_edge.0, first_edge.1])];
-        let second_rank = second_ranks[&canonical_edge([second_edge.0, second_edge.1])];
-        if second_major { (second_rank, first_rank) } else { (first_rank, second_rank) }
-    })
-}
-
 pub(super) fn run_labeled_case(case: &GroundTruthCase) -> McesResult<usize> {
-    run_labeled_case_with_search_mode(case, true, McesSearchMode::PartialEnumeration)
+    run_labeled_case_with_search_mode(case, McesSearchMode::PartialEnumeration)
 }
 
 pub(super) fn run_labeled_case_with_search_mode(
     case: &GroundTruthCase,
-    use_edge_contexts: bool,
     search_mode: McesSearchMode,
 ) -> McesResult<usize> {
     let prepared = prepare_labeled_case(case);
 
-    if use_edge_contexts && case_uses_complete_aromatic_rings(case) {
+    if case_uses_complete_aromatic_rings(case) {
         if let (Some(graph1_contexts), Some(graph2_contexts)) =
             (prepared.first_contexts.as_ref(), prepared.second_contexts.as_ref())
         {
@@ -393,7 +347,7 @@ pub(super) fn run_labeled_case_with_search_mode(
             if let Some(threshold) = case_similarity_threshold(case) {
                 builder = builder.with_similarity_threshold(threshold);
             }
-            return configure_rdkit_raw_pair_order(builder, case).compute_labeled();
+            return builder.compute_labeled();
         }
     }
 
@@ -403,7 +357,7 @@ pub(super) fn run_labeled_case_with_search_mode(
     if let Some(threshold) = case_similarity_threshold(case) {
         builder = builder.with_similarity_threshold(threshold);
     }
-    configure_rdkit_raw_pair_order(builder, case).compute_labeled()
+    builder.compute_labeled()
 }
 
 pub(super) fn assert_labeled_result_matches_ground_truth(
@@ -445,10 +399,6 @@ pub(super) fn labeled_result_mismatch(
         "{}: matched_edges={} expected_edges={} similarity={similarity:.6} expected_similarity={:.6}",
         case.name, matched_edges, case.expected_bond_matches, case.expected_similarity
     ))
-}
-
-pub(super) fn canonical_edge(edge: [usize; 2]) -> (usize, usize) {
-    if edge[0] <= edge[1] { (edge[0], edge[1]) } else { (edge[1], edge[0]) }
 }
 
 // ============================================================================

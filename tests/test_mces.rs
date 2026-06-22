@@ -139,6 +139,25 @@ fn test_mces_without_partition() {
     assert_eq!(with.matched_edges().len(), without.matched_edges().len());
 }
 
+#[test]
+fn test_mces_without_partition_all_best() {
+    // Exercises the non-partition AllBest clique path (generic all-maximum
+    // cliques), which the partitioned default never reaches.
+    let g1 = wrap_undi(complete_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    let partitioned =
+        McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
+    let generic = McesBuilder::new(&g1, &g2)
+        .with_partition(false)
+        .with_search_mode(McesSearchMode::AllBest)
+        .compute_unlabeled();
+
+    // Disabling the partition does not change the maximum common edge count.
+    assert_eq!(partitioned.matched_edges().len(), generic.matched_edges().len());
+    assert!(generic.search_completed());
+}
+
 // ===========================================================================
 // Custom pair filter
 // ===========================================================================
@@ -252,24 +271,96 @@ fn test_mces_builder_largest_fragment_metric_matches_explicit_ranker() {
 }
 
 #[test]
-fn test_mces_builder_product_vertex_ordering_identity_matches_default() {
+fn test_mces_builtin_initial_product_orderings_run() {
     let g1 = wrap_undi(cycle_graph(4));
     let g2 = wrap_undi(path_graph(4));
 
     let default =
         McesBuilder::new(&g1, &g2).with_search_mode(McesSearchMode::AllBest).compute_unlabeled();
-    let identity = McesBuilder::new(&g1, &g2)
+    let none = McesBuilder::new(&g1, &g2)
         .with_search_mode(McesSearchMode::AllBest)
-        .with_product_vertex_ordering(|left_lg, right_lg, _first_edge, _second_edge| {
-            (left_lg, right_lg)
-        })
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::None)
+        .compute_unlabeled();
+    let edge_signature = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::EdgeSignature)
+        .compute_unlabeled();
+    let line_graph_wl = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::LineGraphWL)
+        .compute_unlabeled();
+    let degree = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::Degree)
+        .compute_unlabeled();
+    let pagerank = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::PageRank)
         .compute_unlabeled();
 
-    assert_eq!(default.matched_edges(), identity.matched_edges());
-    assert_eq!(default.vertex_matches(), identity.vertex_matches());
-    assert_eq!(default.fragment_count(), identity.fragment_count());
-    assert_eq!(default.largest_fragment_size(), identity.largest_fragment_size());
-    assert_eq!(default.all_cliques().len(), identity.all_cliques().len());
+    // Ordering never changes a completed MCES result, only the search path.
+    assert_eq!(default.matched_edges(), none.matched_edges());
+    assert_eq!(default.vertex_matches(), none.vertex_matches());
+    assert_eq!(default.matched_edges().len(), edge_signature.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), line_graph_wl.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), pagerank.matched_edges().len());
+    assert_eq!(default.matched_edges().len(), degree.matched_edges().len());
+}
+
+#[test]
+fn test_mces_search_budget_reports_effort_and_aborts() {
+    let g1 = wrap_undi(cycle_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    // Unbounded: the search completes and reports a deterministic node count.
+    let unbounded = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert!(unbounded.search_completed(), "unbounded search must complete");
+    let again = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert_eq!(
+        unbounded.search_nodes(),
+        again.search_nodes(),
+        "node count must be deterministic across runs",
+    );
+
+    // A zero budget aborts before the first node and flags the result
+    // incomplete, on every search path: the default partitioned search, the
+    // non-partition (generic) search, and the AllBest enumeration.
+    let partitioned = McesBuilder::new(&g1, &g2).with_search_budget(0).compute_unlabeled();
+    assert!(!partitioned.search_completed(), "zero budget must abort the partitioned search");
+
+    let generic =
+        McesBuilder::new(&g1, &g2).with_partition(false).with_search_budget(0).compute_unlabeled();
+    assert!(!generic.search_completed(), "zero budget must abort the generic search");
+
+    let all_best = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_search_budget(0)
+        .compute_unlabeled();
+    assert!(!all_best.search_completed(), "zero budget must abort the AllBest search");
+}
+
+#[test]
+fn test_mces_search_budget_mid_search_abort_is_deterministic() {
+    // K6 vs K6 yields a non-trivial product graph, so a budget below the full
+    // node count aborts mid-search (not before the first node), exercising the
+    // best-so-far return path.
+    let g1 = wrap_undi(complete_graph(6));
+    let g2 = wrap_undi(complete_graph(6));
+
+    let full = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert!(full.search_completed(), "unbounded K6 search must complete");
+    let full_nodes = full.search_nodes();
+    assert!(full_nodes > 1, "K6 vs K6 must take real search effort, got {full_nodes}");
+
+    let budget = full_nodes / 2;
+    let capped = McesBuilder::new(&g1, &g2).with_search_budget(budget).compute_unlabeled();
+    assert!(!capped.search_completed(), "a sub-total budget must abort mid-search");
+    assert!(capped.search_nodes() <= budget, "spent nodes must not exceed the budget");
+
+    // The aborted run is fully reproducible.
+    let capped_again = McesBuilder::new(&g1, &g2).with_search_budget(budget).compute_unlabeled();
+    assert_eq!(capped.search_nodes(), capped_again.search_nodes());
+    assert_eq!(capped.matched_edges(), capped_again.matched_edges());
 }
 
 #[test]
@@ -439,6 +530,33 @@ fn test_labeled_mces_same_colors() {
     assert!(
         (j - 1.0).abs() < 1e-10,
         "Johnson similarity for identical colored paths should be 1.0, got {j}"
+    );
+}
+
+#[test]
+fn test_labeled_mces_edge_signature_initial_ordering_runs() {
+    let g1 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+    let g2 =
+        build_colored_graph(&[Color::Red, Color::Green, Color::Blue], vec![(0, 1, 1), (1, 2, 1)]);
+
+    let default_result = McesBuilder::new(&g1, &g2).compute_labeled();
+    let edge_signature_result = McesBuilder::new(&g1, &g2)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::EdgeSignature)
+        .compute_labeled();
+    let line_graph_wl_result = McesBuilder::new(&g1, &g2)
+        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::LineGraphWL)
+        .compute_labeled();
+
+    assert_eq!(default_result.matched_edges().len(), edge_signature_result.matched_edges().len());
+    assert!(
+        (default_result.johnson_similarity() - edge_signature_result.johnson_similarity()).abs()
+            <= 1e-12
+    );
+    assert_eq!(default_result.matched_edges().len(), line_graph_wl_result.matched_edges().len());
+    assert!(
+        (default_result.johnson_similarity() - line_graph_wl_result.johnson_similarity()).abs()
+            <= 1e-12
     );
 }
 

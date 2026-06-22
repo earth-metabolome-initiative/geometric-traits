@@ -18,7 +18,7 @@ pub(crate) struct GraphData {
     pub(crate) aromatic_ring_contexts: Vec<Vec<String>>,
     pub(crate) atom_is_aromatic: Vec<bool>,
     #[serde(default)]
-    pub(crate) bond_original_indices: Vec<usize>,
+    pub(crate) atom_total_hs: Vec<u32>,
 }
 
 #[derive(serde::Deserialize)]
@@ -40,8 +40,15 @@ const MASSSPECGYM_GROUND_TRUTH_1000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_1000.json.gz");
 const MASSSPECGYM_GROUND_TRUTH_10000_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_10000.json.gz");
+const MASSSPECGYM_GROUND_TRUTH_200000_PATH: &str =
+    concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_default_200000.json.gz");
 const MASSSPECGYM_ALL_BEST_GROUND_TRUTH_100_PATH: &str =
     concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/massspecgym_mces_all_best_100.json.gz");
+
+fn env_fixture_path(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.trim().is_empty())
+}
+
 pub(crate) fn load_ground_truth_from_bytes(gz_bytes: &[u8]) -> Vec<GroundTruthCase> {
     let mut decoder = flate2::read::GzDecoder::new(gz_bytes);
     let mut json_str = String::new();
@@ -71,11 +78,21 @@ pub(crate) fn load_massspecgym_ground_truth() -> Vec<GroundTruthCase> {
 }
 
 pub(crate) fn load_massspecgym_ground_truth_1000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_1000_PATH)
+    let path = env_fixture_path("MASSSPECGYM_GROUND_TRUTH_1000_PATH")
+        .unwrap_or_else(|| MASSSPECGYM_GROUND_TRUTH_1000_PATH.to_string());
+    load_ground_truth_from_path(&path)
 }
 
 pub(crate) fn load_massspecgym_ground_truth_10000() -> Vec<GroundTruthCase> {
-    load_ground_truth_from_path(MASSSPECGYM_GROUND_TRUTH_10000_PATH)
+    let path = env_fixture_path("MASSSPECGYM_GROUND_TRUTH_10000_PATH")
+        .unwrap_or_else(|| MASSSPECGYM_GROUND_TRUTH_10000_PATH.to_string());
+    load_ground_truth_from_path(&path)
+}
+
+pub(crate) fn load_massspecgym_ground_truth_200000() -> Vec<GroundTruthCase> {
+    let path = env_fixture_path("MASSSPECGYM_GROUND_TRUTH_200000_PATH")
+        .unwrap_or_else(|| MASSSPECGYM_GROUND_TRUTH_200000_PATH.to_string());
+    load_ground_truth_from_path(&path)
 }
 
 pub(crate) fn load_massspecgym_all_best_ground_truth() -> Vec<GroundTruthCase> {
@@ -161,7 +178,7 @@ pub(crate) fn build_edge_contexts(graph: &GraphData) -> Option<EdgeContexts<Stri
     if graph.aromatic_ring_contexts.is_empty() {
         return None;
     }
-    Some(EdgeContexts::from_rows(graph.aromatic_ring_contexts.iter().cloned()))
+    Some(EdgeContexts::from_rows(graph.aromatic_ring_contexts.clone()))
 }
 
 pub(crate) struct PreparedLabeledCase {
@@ -185,6 +202,7 @@ pub(crate) fn prepare_labeled_case_from_graph_data(
             &first_graph.edges,
             &first_type_indices,
             &first_graph.atom_is_aromatic,
+            &first_graph.atom_total_hs,
             &first_graph.bond_types,
             case_ignores_edge_values(case),
             case_uses_ring_matches_ring_only(case),
@@ -196,6 +214,7 @@ pub(crate) fn prepare_labeled_case_from_graph_data(
             &second_graph.edges,
             &second_type_indices,
             &second_graph.atom_is_aromatic,
+            &second_graph.atom_total_hs,
             &second_graph.bond_types,
             case_ignores_edge_values(case),
             case_uses_ring_matches_ring_only(case),

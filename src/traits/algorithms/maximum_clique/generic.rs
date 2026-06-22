@@ -4,6 +4,7 @@ use alloc::vec::Vec;
 
 use bitvec::{order::Lsb0, vec::BitVec};
 
+use super::partitioned::SearchOutcome;
 use crate::{
     impls::BitSquareMatrix,
     traits::{SizedRowsSparseMatrix2D, SparseMatrix2D, SquareMatrix},
@@ -26,15 +27,17 @@ struct Frame {
 pub(crate) fn search<F>(
     adj: &BitSquareMatrix,
     enumerate: bool,
+    max_nodes: usize,
     mut accept_clique: F,
-) -> Vec<Vec<usize>>
+) -> SearchOutcome
 where
     F: FnMut(&[usize]) -> bool,
 {
     let n = adj.order();
     if n == 0 {
         let empty = Vec::new();
-        return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        let cliques = if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        return SearchOutcome { cliques, nodes: 0, completed: true };
     }
 
     let order = degeneracy_ordering(adj);
@@ -45,6 +48,8 @@ where
     let mut best_cliques: Vec<Vec<usize>> = Vec::new();
     let mut clique: Vec<usize> = Vec::new();
     let mut stack: Vec<Frame> = Vec::new();
+    let mut nodes: usize = 0;
+    let mut aborted = false;
     stack.push(Frame { candidates, colors, p_mask, next_idx: 0 });
 
     while let Some(frame) = stack.last_mut() {
@@ -78,6 +83,12 @@ where
             stack.pop();
             continue;
         }
+
+        if nodes >= max_nodes {
+            aborted = true;
+            break;
+        }
+        nodes += 1;
 
         frame.next_idx += 1;
         frame.p_mask.set(v, false);
@@ -118,7 +129,7 @@ where
         }
     }
 
-    best_cliques
+    SearchOutcome { cliques: best_cliques, nodes, completed: !aborted }
 }
 
 /// Computes the degeneracy ordering (smallest-last) of the graph.
