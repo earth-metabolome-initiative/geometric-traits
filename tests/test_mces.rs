@@ -303,9 +303,45 @@ fn test_mces_search_budget_reports_effort_and_aborts() {
         "node count must be deterministic across runs",
     );
 
-    // A zero budget aborts before the first node and flags the result incomplete.
-    let aborted = McesBuilder::new(&g1, &g2).with_search_budget(0).compute_unlabeled();
-    assert!(!aborted.search_completed(), "zero budget must abort the search");
+    // A zero budget aborts before the first node and flags the result
+    // incomplete, on every search path: the default partitioned search, the
+    // non-partition (generic) search, and the AllBest enumeration.
+    let partitioned = McesBuilder::new(&g1, &g2).with_search_budget(0).compute_unlabeled();
+    assert!(!partitioned.search_completed(), "zero budget must abort the partitioned search");
+
+    let generic =
+        McesBuilder::new(&g1, &g2).with_partition(false).with_search_budget(0).compute_unlabeled();
+    assert!(!generic.search_completed(), "zero budget must abort the generic search");
+
+    let all_best = McesBuilder::new(&g1, &g2)
+        .with_search_mode(McesSearchMode::AllBest)
+        .with_search_budget(0)
+        .compute_unlabeled();
+    assert!(!all_best.search_completed(), "zero budget must abort the AllBest search");
+}
+
+#[test]
+fn test_mces_search_budget_mid_search_abort_is_deterministic() {
+    // K6 vs K6 yields a non-trivial product graph, so a budget below the full
+    // node count aborts mid-search (not before the first node), exercising the
+    // best-so-far return path.
+    let g1 = wrap_undi(complete_graph(6));
+    let g2 = wrap_undi(complete_graph(6));
+
+    let full = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert!(full.search_completed(), "unbounded K6 search must complete");
+    let full_nodes = full.search_nodes();
+    assert!(full_nodes > 1, "K6 vs K6 must take real search effort, got {full_nodes}");
+
+    let budget = full_nodes / 2;
+    let capped = McesBuilder::new(&g1, &g2).with_search_budget(budget).compute_unlabeled();
+    assert!(!capped.search_completed(), "a sub-total budget must abort mid-search");
+    assert!(capped.search_nodes() <= budget, "spent nodes must not exceed the budget");
+
+    // The aborted run is fully reproducible.
+    let capped_again = McesBuilder::new(&g1, &g2).with_search_budget(budget).compute_unlabeled();
+    assert_eq!(capped.search_nodes(), capped_again.search_nodes());
+    assert_eq!(capped.matched_edges(), capped_again.matched_edges());
 }
 
 #[test]
