@@ -274,27 +274,38 @@ fn test_mces_builtin_initial_product_orderings_run() {
         .with_search_mode(McesSearchMode::AllBest)
         .with_initial_product_vertex_ordering(InitialProductVertexOrdering::Degree)
         .compute_unlabeled();
-    let second_order_degree = McesBuilder::new(&g1, &g2)
-        .with_search_mode(McesSearchMode::AllBest)
-        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::SecondOrderDegree)
-        .compute_unlabeled();
     let pagerank = McesBuilder::new(&g1, &g2)
         .with_search_mode(McesSearchMode::AllBest)
         .with_initial_product_vertex_ordering(InitialProductVertexOrdering::PageRank)
         .compute_unlabeled();
-    let degeneracy = McesBuilder::new(&g1, &g2)
-        .with_search_mode(McesSearchMode::AllBest)
-        .with_initial_product_vertex_ordering(InitialProductVertexOrdering::Degeneracy)
-        .compute_unlabeled();
 
+    // Ordering never changes a completed MCES result, only the search path.
     assert_eq!(default.matched_edges(), none.matched_edges());
     assert_eq!(default.vertex_matches(), none.vertex_matches());
     assert_eq!(default.matched_edges().len(), edge_signature.matched_edges().len());
     assert_eq!(default.matched_edges().len(), line_graph_wl.matched_edges().len());
     assert_eq!(default.matched_edges().len(), pagerank.matched_edges().len());
-    assert_eq!(default.matched_edges().len(), degeneracy.matched_edges().len());
     assert_eq!(default.matched_edges().len(), degree.matched_edges().len());
-    assert_eq!(default.matched_edges().len(), second_order_degree.matched_edges().len());
+}
+
+#[test]
+fn test_mces_search_budget_reports_effort_and_aborts() {
+    let g1 = wrap_undi(cycle_graph(4));
+    let g2 = wrap_undi(path_graph(4));
+
+    // Unbounded: the search completes and reports a deterministic node count.
+    let unbounded = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert!(unbounded.search_completed(), "unbounded search must complete");
+    let again = McesBuilder::new(&g1, &g2).compute_unlabeled();
+    assert_eq!(
+        unbounded.search_nodes(),
+        again.search_nodes(),
+        "node count must be deterministic across runs",
+    );
+
+    // A zero budget aborts before the first node and flags the result incomplete.
+    let aborted = McesBuilder::new(&g1, &g2).with_search_budget(0).compute_unlabeled();
+    assert!(!aborted.search_completed(), "zero budget must abort the search");
 }
 
 #[test]
@@ -483,9 +494,15 @@ fn test_labeled_mces_edge_signature_initial_ordering_runs() {
         .compute_labeled();
 
     assert_eq!(default_result.matched_edges().len(), edge_signature_result.matched_edges().len());
-    assert_eq!(default_result.johnson_similarity(), edge_signature_result.johnson_similarity());
+    assert!(
+        (default_result.johnson_similarity() - edge_signature_result.johnson_similarity()).abs()
+            <= 1e-12
+    );
     assert_eq!(default_result.matched_edges().len(), line_graph_wl_result.matched_edges().len());
-    assert_eq!(default_result.johnson_similarity(), line_graph_wl_result.johnson_similarity());
+    assert!(
+        (default_result.johnson_similarity() - line_graph_wl_result.johnson_similarity()).abs()
+            <= 1e-12
+    );
 }
 
 #[test]

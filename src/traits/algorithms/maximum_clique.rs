@@ -14,9 +14,10 @@ mod partitioned;
 
 use alloc::vec::Vec;
 
+pub(crate) use generic::search as generic_search;
 pub(crate) use partitioned::partial_u32_best_size_with_budget;
 pub use partitioned::{
-    OwnedPartitionLabels, PartitionInfo, PartitionSide, all_best_search,
+    OwnedPartitionLabels, PartitionInfo, PartitionSide, SearchOutcome, all_best_search,
     choose_partition_side_by_atom_counts, greedy_lower_bound, partial_search, partial_search_u32,
     partial_search_u32_with_bounds, partial_search_with_bounds,
 };
@@ -164,14 +165,18 @@ impl MaximumClique for BitSquareMatrix {
     where
         F: FnMut(&[usize]) -> bool,
     {
-        generic::search(self, false, accept_clique).into_iter().next().unwrap_or_default()
+        generic::search(self, false, usize::MAX, accept_clique)
+            .cliques
+            .into_iter()
+            .next()
+            .unwrap_or_default()
     }
 
     fn all_maximum_cliques_where<F>(&self, accept_clique: F) -> Vec<Vec<usize>>
     where
         F: FnMut(&[usize]) -> bool,
     {
-        generic::search(self, true, accept_clique)
+        generic::search(self, true, usize::MAX, accept_clique).cliques
     }
 }
 

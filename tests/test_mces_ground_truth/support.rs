@@ -22,6 +22,7 @@ pub(super) struct GroundTruthNodeLabel {
     pub(super) atom_type: u8,
     pub(super) explicit_degree: Option<u8>,
     pub(super) is_aromatic: Option<bool>,
+    pub(super) total_hs: u8,
 }
 
 /// A node labeled by a generic harness-local node label.
@@ -91,6 +92,7 @@ pub(super) fn build_typed_graph(
     edges: &[[usize; 2]],
     atom_type_indices: &[u8],
     atom_is_aromatic: &[bool],
+    atom_total_hs: &[u32],
     bond_types: &[u32],
     ignore_bond_orders: bool,
     ring_matches_ring_only: bool,
@@ -99,6 +101,7 @@ pub(super) fn build_typed_graph(
 ) -> TypedGraph {
     assert_eq!(n_atoms, atom_type_indices.len());
     assert_eq!(n_atoms, atom_is_aromatic.len());
+    assert_eq!(n_atoms, atom_total_hs.len());
     assert_eq!(edges.len(), bond_types.len());
     let mut normalized_edges: Vec<(usize, usize, u32)> = edges
         .iter()
@@ -130,6 +133,14 @@ pub(super) fn build_typed_graph(
                         Some(atom_is_aromatic[i])
                     } else {
                         None
+                    },
+                    // RDKit default MCES matching is looser than exact
+                    // hydrogen-count equality on atoms. Keep the field for
+                    // stable label shape, but do not let total H constrain
+                    // default atom identity in this harness.
+                    total_hs: {
+                        let _ = atom_total_hs[i];
+                        0
                     },
                 },
             }
@@ -316,32 +327,16 @@ pub(super) fn find_case<'a>(cases: &'a [GroundTruthCase], name: &str) -> &'a Gro
 }
 
 pub(super) fn run_labeled_case(case: &GroundTruthCase) -> McesResult<usize> {
-    run_labeled_case_with_search_mode(case, true, McesSearchMode::PartialEnumeration)
+    run_labeled_case_with_search_mode(case, McesSearchMode::PartialEnumeration)
 }
 
 pub(super) fn run_labeled_case_with_search_mode(
     case: &GroundTruthCase,
-    use_edge_contexts: bool,
     search_mode: McesSearchMode,
 ) -> McesResult<usize> {
     let prepared = prepare_labeled_case(case);
 
-    let initial_ordering = std::env::var("INITIAL_PRODUCT_ORDERING").ok().map(|raw| {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "none" => InitialProductVertexOrdering::None,
-            "edge_signature" => InitialProductVertexOrdering::EdgeSignature,
-            "line_graph_wl" => InitialProductVertexOrdering::LineGraphWL,
-            "degree" => InitialProductVertexOrdering::Degree,
-            "second_order_degree" => InitialProductVertexOrdering::SecondOrderDegree,
-            "pagerank" => InitialProductVertexOrdering::PageRank,
-            "degeneracy" => InitialProductVertexOrdering::Degeneracy,
-            other => panic!(
-                "unsupported INITIAL_PRODUCT_ORDERING '{other}'; expected one of none, edge_signature, line_graph_wl, degree, second_order_degree, pagerank, degeneracy"
-            ),
-        }
-    });
-
-    if use_edge_contexts && case_uses_complete_aromatic_rings(case) {
+    if case_uses_complete_aromatic_rings(case) {
         if let (Some(graph1_contexts), Some(graph2_contexts)) =
             (prepared.first_contexts.as_ref(), prepared.second_contexts.as_ref())
         {
@@ -349,9 +344,6 @@ pub(super) fn run_labeled_case_with_search_mode(
                 .with_edge_contexts(graph1_contexts, graph2_contexts)
                 .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
                 .with_search_mode(search_mode);
-            if let Some(ordering) = initial_ordering {
-                builder = builder.with_initial_product_vertex_ordering(ordering);
-            }
             if let Some(threshold) = case_similarity_threshold(case) {
                 builder = builder.with_similarity_threshold(threshold);
             }
@@ -362,9 +354,6 @@ pub(super) fn run_labeled_case_with_search_mode(
     let mut builder = McesBuilder::new(&prepared.first, &prepared.second)
         .with_largest_fragment_metric(LargestFragmentMetric::Atoms)
         .with_search_mode(search_mode);
-    if let Some(ordering) = initial_ordering {
-        builder = builder.with_initial_product_vertex_ordering(ordering);
-    }
     if let Some(threshold) = case_similarity_threshold(case) {
         builder = builder.with_similarity_threshold(threshold);
     }

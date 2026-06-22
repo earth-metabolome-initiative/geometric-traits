@@ -899,6 +899,23 @@ pub fn choose_partition_side_by_atom_counts(
 
 const DEFAULT_PARTIAL_ENUMERATION_CAP: usize = 10_000;
 
+/// Outcome of a partitioned clique search with deterministic effort accounting.
+///
+/// The node count is a reproducible measure of branch-and-bound work (it never
+/// depends on wall-clock time), so it doubles as both the abort budget unit and
+/// an effort metric for completed searches.
+#[derive(Clone, Debug)]
+pub struct SearchOutcome {
+    /// Retained cliques, with the same meaning as the bare `Vec<Vec<usize>>`
+    /// previously returned by these functions.
+    pub cliques: Vec<Vec<usize>>,
+    /// Branch-and-bound nodes visited during the search.
+    pub nodes: usize,
+    /// `true` if the search tree was fully explored, `false` if it stopped
+    /// early because the node budget was reached.
+    pub completed: bool,
+}
+
 /// Performs the partition-driven maximum clique search.
 pub(crate) fn search<F>(
     adj: &BitSquareMatrix,
@@ -911,7 +928,7 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     if enumerate {
-        search_with_policy(adj, partition, initial_lower_bound, accept_clique)
+        search_with_policy(adj, partition, initial_lower_bound, usize::MAX, accept_clique).cliques
     } else {
         partial_search_u32(adj, partition, initial_lower_bound, accept_clique)
     }
@@ -932,8 +949,10 @@ where
         partition,
         initial_lower_bound,
         initial_lower_bound,
+        usize::MAX,
         accept_clique,
     )
+    .cliques
 }
 
 #[doc(hidden)]
@@ -942,15 +961,17 @@ pub fn partial_search_with_bounds<F>(
     partition: &PartitionInfo<'_>,
     state_lower_bound: usize,
     best_size_seed: usize,
+    max_nodes: usize,
     mut accept_clique: F,
-) -> Vec<Vec<usize>>
+) -> SearchOutcome
 where
     F: FnMut(&[usize]) -> bool,
 {
     let n = adj.order();
     if n == 0 {
         let empty = Vec::new();
-        return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        let cliques = if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        return SearchOutcome { cliques, nodes: 0, completed: true };
     }
 
     let mut state = PartitionSearchState::new(adj, partition, state_lower_bound);
@@ -959,6 +980,8 @@ where
     let mut best_cliques = Vec::new();
     let mut seen_cliques = BTreeSet::new();
     let mut trail = Vec::new();
+    let mut nodes = 0usize;
+    let mut aborted = false;
 
     dfs_partial_in_place(
         &mut state,
@@ -969,9 +992,12 @@ where
         &mut seen_cliques,
         &mut accept_clique,
         &mut trail,
+        &mut nodes,
+        max_nodes,
+        &mut aborted,
     );
 
-    into_owned_cliques(best_cliques)
+    SearchOutcome { cliques: into_owned_cliques(best_cliques), nodes, completed: !aborted }
 }
 
 #[doc(hidden)]
@@ -989,8 +1015,10 @@ where
         partition,
         initial_lower_bound,
         initial_lower_bound,
+        usize::MAX,
         accept_clique,
     )
+    .cliques
 }
 
 #[doc(hidden)]
@@ -999,8 +1027,9 @@ pub fn partial_search_u32_with_bounds<F>(
     partition: &PartitionInfo<'_>,
     state_lower_bound: usize,
     best_size_seed: usize,
+    max_nodes: usize,
     mut accept_clique: F,
-) -> Vec<Vec<usize>>
+) -> SearchOutcome
 where
     F: FnMut(&[usize]) -> bool,
 {
@@ -1010,6 +1039,7 @@ where
             partition,
             state_lower_bound,
             best_size_seed,
+            max_nodes,
             accept_clique,
         );
     }
@@ -1017,7 +1047,8 @@ where
     let n = adj.order();
     if n == 0 {
         let empty = Vec::new();
-        return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        let cliques = if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        return SearchOutcome { cliques, nodes: 0, completed: true };
     }
 
     let mut state = U32PartitionSearchState::new(adj, partition, state_lower_bound);
@@ -1027,6 +1058,8 @@ where
     let mut seen_cliques = BTreeSet::new();
     let mut trail = Vec::new();
     let mut blocks = Vec::new();
+    let mut nodes = 0usize;
+    let mut aborted = false;
 
     dfs_partial_u32_in_place(
         &mut state,
@@ -1038,9 +1071,12 @@ where
         &mut accept_clique,
         &mut trail,
         &mut blocks,
+        &mut nodes,
+        max_nodes,
+        &mut aborted,
     );
 
-    into_owned_cliques(best_cliques)
+    SearchOutcome { cliques: into_owned_cliques(best_cliques), nodes, completed: !aborted }
 }
 
 #[doc(hidden)]
@@ -1048,12 +1084,13 @@ pub fn all_best_search<F>(
     adj: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     initial_lower_bound: usize,
+    max_nodes: usize,
     accept_clique: F,
-) -> Vec<Vec<usize>>
+) -> SearchOutcome
 where
     F: FnMut(&[usize]) -> bool,
 {
-    search_with_policy(adj, partition, initial_lower_bound, accept_clique)
+    search_with_policy(adj, partition, initial_lower_bound, max_nodes, accept_clique)
 }
 
 #[doc(hidden)]
@@ -1104,25 +1141,38 @@ fn search_with_policy<F>(
     adj: &BitSquareMatrix,
     partition: &PartitionInfo<'_>,
     initial_lower_bound: usize,
+    max_nodes: usize,
     mut accept_clique: F,
-) -> Vec<Vec<usize>>
+) -> SearchOutcome
 where
     F: FnMut(&[usize]) -> bool,
 {
     let n = adj.order();
     if n == 0 {
         let empty = Vec::new();
-        return if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        let cliques = if accept_clique(&empty) { vec![empty] } else { Vec::new() };
+        return SearchOutcome { cliques, nodes: 0, completed: true };
     }
 
     let state = PartitionSearchState::new(adj, partition, initial_lower_bound);
     let mut clique = Vec::new();
     let mut best_size = initial_lower_bound;
     let mut best_cliques = Vec::new();
+    let mut nodes = 0usize;
+    let mut aborted = false;
 
-    dfs(state, &mut clique, &mut best_size, &mut best_cliques, &mut accept_clique);
+    dfs(
+        state,
+        &mut clique,
+        &mut best_size,
+        &mut best_cliques,
+        &mut accept_clique,
+        &mut nodes,
+        max_nodes,
+        &mut aborted,
+    );
 
-    best_cliques
+    SearchOutcome { cliques: best_cliques, nodes, completed: !aborted }
 }
 
 #[must_use]
@@ -1138,14 +1188,16 @@ where
     F: FnMut(&[usize]) -> bool,
 {
     if adj.order() > u32::MAX as usize {
-        let best_cliques = partial_search_with_bounds(
+        let outcome = partial_search_with_bounds(
             adj,
             partition,
             state_lower_bound,
             best_size_seed,
+            usize::MAX,
             accept_clique,
         );
-        return best_cliques
+        return outcome
+            .cliques
             .first()
             .map_or(best_size_seed, |clique| clique.len().max(best_size_seed));
     }
@@ -1162,31 +1214,51 @@ where
     let mut best_size = best_size_seed;
     let mut trail = Vec::new();
     let mut blocks = Vec::new();
-    let mut dfs_calls = 0usize;
+    // The seed only consumes `best_size`, so retention is suppressed with a
+    // zero cap and the retained-clique scratch buffers are discarded. The node
+    // counter is local: seed effort never reaches the main-search metric.
+    let mut best_cliques = Vec::new();
+    let mut seen_cliques = BTreeSet::new();
+    let mut nodes = 0usize;
+    let mut aborted = false;
 
-    dfs_partial_u32_in_place_budgeted(
+    dfs_partial_u32_in_place(
         &mut state,
         &mut clique,
+        0,
         &mut best_size,
+        &mut best_cliques,
+        &mut seen_cliques,
         &mut accept_clique,
         &mut trail,
         &mut blocks,
-        &mut dfs_calls,
+        &mut nodes,
         max_dfs_calls,
+        &mut aborted,
     );
 
     best_size
 }
 
+#[allow(clippy::too_many_arguments)]
 fn dfs<F>(
     state: PartitionSearchState<'_>,
     clique: &mut Vec<usize>,
     best_size: &mut usize,
     best_cliques: &mut Vec<Vec<usize>>,
     accept_clique: &mut F,
+    nodes: &mut usize,
+    max_nodes: usize,
+    aborted: &mut bool,
 ) where
     F: FnMut(&[usize]) -> bool,
 {
+    if *nodes >= max_nodes {
+        *aborted = true;
+        return;
+    }
+    *nodes += 1;
+
     if state.is_empty() {
         return;
     }
@@ -1207,11 +1279,20 @@ fn dfs<F>(
     let mut with_vertex = without_vertex.clone();
     maybe_update_best(clique, best_size, best_cliques, accept_clique);
     with_vertex.prune_vertices(selected);
-    dfs(with_vertex, clique, best_size, best_cliques, accept_clique);
+    dfs(with_vertex, clique, best_size, best_cliques, accept_clique, nodes, max_nodes, aborted);
     clique.pop();
 
     if !without_vertex.is_empty() {
-        dfs(without_vertex, clique, best_size, best_cliques, accept_clique);
+        dfs(
+            without_vertex,
+            clique,
+            best_size,
+            best_cliques,
+            accept_clique,
+            nodes,
+            max_nodes,
+            aborted,
+        );
     }
 }
 
@@ -1225,9 +1306,18 @@ fn dfs_partial_in_place<F>(
     seen_cliques: &mut BTreeSet<SharedClique>,
     accept_clique: &mut F,
     trail: &mut Vec<PruneUndo>,
+    nodes: &mut usize,
+    max_nodes: usize,
+    aborted: &mut bool,
 ) where
     F: FnMut(&[usize]) -> bool,
 {
+    if *nodes >= max_nodes {
+        *aborted = true;
+        return;
+    }
+    *nodes += 1;
+
     if state.is_empty() {
         return;
     }
@@ -1259,6 +1349,9 @@ fn dfs_partial_in_place<F>(
         seen_cliques,
         accept_clique,
         trail,
+        nodes,
+        max_nodes,
+        aborted,
     );
     state.restore_pruned_vertices_in_place(trail, checkpoint);
 
@@ -1273,6 +1366,9 @@ fn dfs_partial_in_place<F>(
             seen_cliques,
             accept_clique,
             trail,
+            nodes,
+            max_nodes,
+            aborted,
         );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);
@@ -1289,9 +1385,18 @@ fn dfs_partial_u32_in_place<F>(
     accept_clique: &mut F,
     trail: &mut Vec<U32PruneEntry>,
     blocks: &mut Vec<U32PruneBlock>,
+    nodes: &mut usize,
+    max_nodes: usize,
+    aborted: &mut bool,
 ) where
     F: FnMut(&[usize]) -> bool,
 {
+    if *nodes >= max_nodes {
+        *aborted = true;
+        return;
+    }
+    *nodes += 1;
+
     if state.is_empty() {
         return;
     }
@@ -1325,6 +1430,9 @@ fn dfs_partial_u32_in_place<F>(
         accept_clique,
         trail,
         blocks,
+        nodes,
+        max_nodes,
+        aborted,
     );
     state.restore_pruned_vertices_in_place(trail, blocks, checkpoint, block_checkpoint);
 
@@ -1340,94 +1448,12 @@ fn dfs_partial_u32_in_place<F>(
             accept_clique,
             trail,
             blocks,
+            nodes,
+            max_nodes,
+            aborted,
         );
     }
     state.restore_selected_vertex_in_place(selected_part, selected);
-}
-
-#[allow(clippy::too_many_arguments)]
-fn dfs_partial_u32_in_place_budgeted<F>(
-    state: &mut U32PartitionSearchState<'_>,
-    clique: &mut Vec<usize>,
-    best_size: &mut usize,
-    accept_clique: &mut F,
-    trail: &mut Vec<U32PruneEntry>,
-    blocks: &mut Vec<U32PruneBlock>,
-    dfs_calls: &mut usize,
-    max_dfs_calls: usize,
-) where
-    F: FnMut(&[usize]) -> bool,
-{
-    if *dfs_calls >= max_dfs_calls {
-        return;
-    }
-    *dfs_calls += 1;
-
-    if state.is_empty() {
-        return;
-    }
-
-    let parts_bound = clique.len() + state.num_parts();
-    if parts_bound <= *best_size {
-        return;
-    }
-
-    let label_bound = clique.len() + state.upper_bound();
-    if label_bound <= *best_size {
-        return;
-    }
-
-    let selected_part = state.selected_part_index();
-    let selected = state.pop_selected_vertex_in_place(selected_part);
-    clique.push(selected);
-
-    maybe_update_best_size(clique, best_size, accept_clique);
-
-    let checkpoint = trail.len();
-    let block_checkpoint = blocks.len();
-    state.prune_vertices_in_place(selected, trail, blocks);
-    dfs_partial_u32_in_place_budgeted(
-        state,
-        clique,
-        best_size,
-        accept_clique,
-        trail,
-        blocks,
-        dfs_calls,
-        max_dfs_calls,
-    );
-    state.restore_pruned_vertices_in_place(trail, blocks, checkpoint, block_checkpoint);
-
-    clique.pop();
-    if !state.is_empty() {
-        dfs_partial_u32_in_place_budgeted(
-            state,
-            clique,
-            best_size,
-            accept_clique,
-            trail,
-            blocks,
-            dfs_calls,
-            max_dfs_calls,
-        );
-    }
-    state.restore_selected_vertex_in_place(selected_part, selected);
-}
-
-fn maybe_update_best_size<F>(clique: &[usize], best_size: &mut usize, accept_clique: &mut F)
-where
-    F: FnMut(&[usize]) -> bool,
-{
-    let size = clique.len();
-    if size <= *best_size {
-        return;
-    }
-
-    let mut candidate = clique.to_vec();
-    candidate.sort_unstable();
-    if accept_clique(&candidate) {
-        *best_size = size;
-    }
 }
 
 fn maybe_update_best_partial<F>(

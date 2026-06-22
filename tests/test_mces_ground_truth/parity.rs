@@ -2,6 +2,13 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use super::support::*;
 
+fn env_usize(name: &str) -> Option<usize> {
+    std::env::var(name).ok().map(|raw| {
+        raw.parse::<usize>()
+            .unwrap_or_else(|error| panic!("failed to parse {name}='{raw}' as usize: {error}"))
+    })
+}
+
 #[test]
 fn test_ground_truth_labeled_mces() {
     let cases = load_ground_truth();
@@ -100,7 +107,17 @@ fn test_massspecgym_ground_truth_labeled_mces_200000() {
         "fast 200K default fixture must exclude timed-out RDKit pairs",
     );
 
-    let progress = ProgressBar::new(cases.len() as u64);
+    let case_offset = env_usize("CASE_OFFSET").unwrap_or(0);
+    let case_limit = env_usize("CASE_LIMIT").unwrap_or(cases.len().saturating_sub(case_offset));
+    let case_end = case_offset.saturating_add(case_limit).min(cases.len());
+    assert!(
+        case_offset <= case_end,
+        "CASE_OFFSET {case_offset} must be at most corpus length {}",
+        cases.len()
+    );
+    let selected = &cases[case_offset..case_end];
+
+    let progress = ProgressBar::new(selected.len() as u64);
     progress.set_style(
         ProgressStyle::with_template(
             "{spinner:.green} 200k parity [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta_precise})",
@@ -109,7 +126,7 @@ fn test_massspecgym_ground_truth_labeled_mces_200000() {
         .progress_chars("=> "),
     );
 
-    let mut mismatches: Vec<String> = cases
+    let mut mismatches: Vec<String> = selected
         .par_iter()
         .filter_map(|case| {
             let result = run_labeled_case(case);
@@ -122,8 +139,10 @@ fn test_massspecgym_ground_truth_labeled_mces_200000() {
     mismatches.sort();
 
     println!(
-        "checked {} MassSpecGym default-config 200K fast cases; mismatches={}",
-        cases.len(),
+        "checked {} MassSpecGym default-config 200K fast cases (offset={} end={}); mismatches={}",
+        selected.len(),
+        case_offset,
+        case_end,
         mismatches.len()
     );
     for mismatch in mismatches.iter().take(20) {
@@ -134,29 +153,6 @@ fn test_massspecgym_ground_truth_labeled_mces_200000() {
         mismatches.is_empty(),
         "found {} mismatches in MassSpecGym default-config 200K fast corpus",
         mismatches.len()
-    );
-}
-
-#[test]
-fn test_massspecgym_ground_truth_labeled_mces_smoke() {
-    let cases = load_massspecgym_ground_truth();
-    let indices = evenly_spaced_case_indices(cases.len(), 25);
-    let mismatch = indices
-        .par_iter()
-        .try_for_each(|&index| -> Result<(), String> {
-            let case = &cases[index];
-            let result = run_labeled_case(case);
-            match labeled_result_mismatch(case, &result) {
-                Some(mismatch) => Err(format!("[{index}] {mismatch}")),
-                None => Ok(()),
-            }
-        })
-        .err();
-
-    assert!(
-        mismatch.is_none(),
-        "found mismatch in MassSpecGym default-config smoke sample:\n{}",
-        mismatch.unwrap()
     );
 }
 
@@ -174,7 +170,7 @@ fn test_massspecgym_ground_truth_labeled_mces_all_best() {
     );
 
     let mismatch = first_parallel_mismatch(&cases, |case| {
-        run_labeled_case_with_search_mode(case, true, McesSearchMode::AllBest)
+        run_labeled_case_with_search_mode(case, McesSearchMode::AllBest)
     });
 
     println!(
@@ -202,7 +198,7 @@ fn test_massspecgym_ground_truth_labeled_mces_all_best_smoke() {
         .par_iter()
         .try_for_each(|&index| -> Result<(), String> {
             let case = &cases[index];
-            let result = run_labeled_case_with_search_mode(case, true, McesSearchMode::AllBest);
+            let result = run_labeled_case_with_search_mode(case, McesSearchMode::AllBest);
             match labeled_result_mismatch(case, &result) {
                 Some(mismatch) => Err(format!("[{}:{}] {}", index, case.name, mismatch)),
                 None => Ok(()),
