@@ -154,6 +154,4 @@ Standalone free functions and a `GraphSimilarities` trait for comparing graphs o
 
 ### Design Philosophy
 
-* **Trait-Based**: Algorithms are implemented generic over traits such as `BipartiteGraph` and `MonopartiteGraph`, allowing them to be used with any backing data structure that implements the required interface (e.g., Matrices, CSR, Adjacency Lists).
-* **Fuzzing & Correctness**: A significant focus is placed on correctness. Key algorithms are continuously fuzzed using `honggfuzz` to ensure robustness against edge cases and to verify invariants.
-* **`no_std` Compatible**: The core traits and several implementations are designed to work in `no_std` environments. Feature flags allow enabling `std` or `alloc` only when necessary.
+The crate is trait-based, correctness-focused, and `no_std` compatible. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to contribute.
