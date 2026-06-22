@@ -159,10 +159,10 @@ where
                 }
             }
 
-            if let Some(diagonal) = distances[pivot_id * order + pivot_id] {
-                if diagonal < Self::Value::zero() {
-                    return Err(FloydWarshallError::NegativeCycle { node_id: pivot_id });
-                }
+            if let Some(diagonal) = distances[pivot_id * order + pivot_id]
+                && diagonal < Self::Value::zero()
+            {
+                return Err(FloydWarshallError::NegativeCycle { node_id: pivot_id });
             }
         }
 

@@ -38,7 +38,7 @@ fn build_valued_graph(n: usize, edges: &[(usize, usize, i32)]) -> Vcsr {
 }
 
 fn make_case(name: &str, seed: u64, n: usize, extra_edges: usize) -> WeightedCase {
-    assert!(n >= 2 && n % 2 == 0);
+    assert!(n >= 2 && n.is_multiple_of(2));
 
     let mut rng = SmallRng::seed_from_u64(seed);
     let mut perm: Vec<usize> = (0..n).collect();

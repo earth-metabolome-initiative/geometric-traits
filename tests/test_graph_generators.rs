@@ -22,7 +22,7 @@ fn same_graph(left: &UndirectedGraph, right: &UndirectedGraph) -> bool {
 }
 
 fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
-    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
+    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size.is_multiple_of(2))
 }
 
 // ============================================================================

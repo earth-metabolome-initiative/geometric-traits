@@ -21,7 +21,7 @@ pub fn watts_strogatz(
     k: usize,
     beta: f64,
 ) -> SymmetricCSR2D<CSR2D<usize, usize, usize>> {
-    assert!(k % 2 == 0, "k must be even");
+    assert!(k.is_multiple_of(2), "k must be even");
     assert!(k >= 2, "k must be at least 2");
     assert!(n > k, "n must be greater than k");
 

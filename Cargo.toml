@@ -10,7 +10,7 @@ documentation = "https://docs.rs/geometric-traits"
 readme = "README.md"
 keywords = ["graph", "algorithms", "traits", "no_std", "bipartite"]
 categories = ["algorithms", "data-structures", "no-std"]
-rust-version = "1.86"
+rust-version = "1.88"
 
 [dependencies]
 arbitrary = { version = "1", features = ["derive"], default-features = false, optional = true }

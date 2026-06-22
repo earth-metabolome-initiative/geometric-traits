@@ -416,10 +416,10 @@ where
 
     let mut original_flow = vec![0usize; original_edges.len()];
     for (left, right) in perfect_matching {
-        if let Some(edge_index) = find_cross_edge(&cross_edges, left, right) {
-            if let ExpandedEdgeKind::Original(original_index) = expanded_edges[edge_index].kind {
-                original_flow[original_index] += 1;
-            }
+        if let Some(edge_index) = find_cross_edge(&cross_edges, left, right)
+            && let ExpandedEdgeKind::Original(original_index) = expanded_edges[edge_index].kind
+        {
+            original_flow[original_index] += 1;
         }
     }
 

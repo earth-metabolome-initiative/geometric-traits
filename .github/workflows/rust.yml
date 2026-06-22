@@ -130,3 +130,64 @@ jobs:
           exit 1
         fi
         echo "No Python files found."
+
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust 1.88
+      uses: dtolnay/rust-toolchain@1.88
+    - name: Check (all features)
+      run: cargo check --all-features
+    - name: Check (no_std + alloc)
+      run: cargo check --no-default-features --features alloc
+
+  miri:
+    name: Miri (unsafe)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install nightly with Miri
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+    # Scoped to the modules that contain `unsafe`, where Miri adds value over
+    # the rest of the suite. Strict provenance is not enabled because a
+    # dependency performs integer-to-pointer casts; default Miri still detects
+    # genuine undefined behavior.
+    - name: Run Miri on the unsafe-bearing modules
+      run: cargo miri test --lib -- transmute_from sorted_array sorted_vec partitioned johnson
+
+  no-std:
+    name: no_std target build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust with a bare-metal target
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: thumbv7em-none-eabi
+    - name: Check core-only on a bare-metal target
+      run: cargo check --no-default-features --target thumbv7em-none-eabi
+    - name: Check alloc on a bare-metal target
+      run: cargo check --no-default-features --features alloc --target thumbv7em-none-eabi
+
+  semver:
+    name: SemVer (API compatibility)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    # Advisory while the crate is pre-1.0 and unpublished: reports API breaks
+    # against the base branch without blocking. Promote to a required check
+    # against the crates.io baseline once the crate is published.
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Check semver
+      uses: obi1kenobi/cargo-semver-checks-action@v2
+      with:
+        baseline-rev: ${{ github.event.pull_request.base.sha }}

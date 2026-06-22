@@ -200,19 +200,15 @@ fn prepare_labeled_case(case: GroundTruthCase) -> PreparedLabeledCase {
 }
 
 fn run_prepared_labeled_case(case: &PreparedLabeledCase) -> McesResult<usize> {
-    if case.use_edge_contexts {
-        if let (Some(first_contexts), Some(second_contexts)) =
+    if case.use_edge_contexts
+        && let (Some(first_contexts), Some(second_contexts)) =
             (case.first_contexts.as_ref(), case.second_contexts.as_ref())
-        {
-            let builder = McesBuilder::new(&case.first, &case.second)
-                .with_edge_contexts(first_contexts, second_contexts);
-            let builder = if case.ignore_edge_values {
-                builder.with_ignore_edge_values(true)
-            } else {
-                builder
-            };
-            return builder.compute_labeled();
-        }
+    {
+        let builder = McesBuilder::new(&case.first, &case.second)
+            .with_edge_contexts(first_contexts, second_contexts);
+        let builder =
+            if case.ignore_edge_values { builder.with_ignore_edge_values(true) } else { builder };
+        return builder.compute_labeled();
     }
 
     let builder = McesBuilder::new(&case.first, &case.second);

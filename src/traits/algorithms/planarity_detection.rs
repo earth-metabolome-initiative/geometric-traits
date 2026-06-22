@@ -2390,10 +2390,10 @@ pub(crate) mod embedding {
             let mut slot = root_copy_slot;
             loop {
                 slot = self.k4_ext_face_neighbor(slot, &mut slot_prev_link);
-                if let EmbeddingSlotKind::Primary { .. } = self.slots[slot].kind {
-                    if slot < active_slot {
-                        return true;
-                    }
+                if let EmbeddingSlotKind::Primary { .. } = self.slots[slot].kind
+                    && slot < active_slot
+                {
+                    return true;
                 }
                 if slot == active_slot {
                     return false;
@@ -2825,15 +2825,13 @@ pub(crate) mod embedding {
                     end_kind,
                 )
                 .map_err(WalkDownExecutionError::Mutation)?;
-            if path_is_tree_edge {
-                if let Some(reduction_arc) = reduction_arc {
-                    if self.arcs[reduction_arc].kind == DfsArcType::Child {
-                        self.arcs[reduction_arc].inverted = cumulative_inverted;
-                    } else {
-                        let reduction_twin = self.arcs[reduction_arc].twin;
-                        if self.arcs[reduction_twin].kind == DfsArcType::Child {
-                            self.arcs[reduction_twin].inverted = cumulative_inverted;
-                        }
+            if path_is_tree_edge && let Some(reduction_arc) = reduction_arc {
+                if self.arcs[reduction_arc].kind == DfsArcType::Child {
+                    self.arcs[reduction_arc].inverted = cumulative_inverted;
+                } else {
+                    let reduction_twin = self.arcs[reduction_arc].twin;
+                    if self.arcs[reduction_twin].kind == DfsArcType::Child {
+                        self.arcs[reduction_twin].inverted = cumulative_inverted;
                     }
                 }
             }
@@ -4053,12 +4051,11 @@ pub(crate) mod embedding {
                     }
                 }
 
-                if let Some(best_child) = best_child {
-                    if let Some(descendant_slot) =
+                if let Some(best_child) = best_child
+                    && let Some(descendant_slot) =
                         self.find_descendant_with_least_ancestor_below(best_child, u_max)
-                    {
-                        return Some(descendant_slot);
-                    }
+                {
+                    return Some(descendant_slot);
                 }
 
                 excluded_child = p_slot;
@@ -5588,24 +5585,22 @@ pub(crate) mod embedding {
 
                 'walkdown: while current_slot != root_copy_slot {
                     if self.slots[current_slot].pertinent_edge.is_some() {
-                        if mode == super::EmbeddingRunMode::K33Search {
-                            if let Some((merge_blocker_slot, u_max, merge_root_copy_slot)) = self
+                        if mode == super::EmbeddingRunMode::K33Search
+                            && let Some((merge_blocker_slot, u_max, merge_root_copy_slot)) = self
                                 .find_k33_merge_blocker(
                                     current_primary_slot,
                                     current_slot,
                                     root_copy_slot,
                                     &frames,
                                 )
-                            {
-                                if self.probe_k33_merge_blocker(
-                                    preprocessing,
-                                    merge_blocker_slot,
-                                    u_max,
-                                    merge_root_copy_slot,
-                                )? {
-                                    return Ok(WalkDownChildOutcome::K33Found);
-                                }
-                            }
+                            && self.probe_k33_merge_blocker(
+                                preprocessing,
+                                merge_blocker_slot,
+                                u_max,
+                                merge_root_copy_slot,
+                            )?
+                        {
+                            return Ok(WalkDownChildOutcome::K33Found);
                         }
                         if !frames.is_empty() {
                             self.merge_trace_frames(current_primary_slot, &frames)?;
@@ -5730,10 +5725,9 @@ pub(crate) mod embedding {
                         for &child_primary_slot in self.sorted_dfs_children(slot) {
                             if let Some(root_copy_slot) =
                                 self.root_copy_by_primary_dfi[child_primary_slot]
+                                && !visited_slots[root_copy_slot]
                             {
-                                if !visited_slots[root_copy_slot] {
-                                    stack.push(root_copy_slot);
-                                }
+                                stack.push(root_copy_slot);
                             }
                         }
                     }

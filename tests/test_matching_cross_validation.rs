@@ -38,7 +38,7 @@ fn build_graph(n: usize, edges: &[(usize, usize)]) -> SymmetricCSR2D<CSR2D<usize
 }
 
 fn windmill_matching_size(num_cliques: usize, clique_size: usize) -> usize {
-    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size % 2 == 0)
+    num_cliques * ((clique_size - 1) / 2) + usize::from(clique_size.is_multiple_of(2))
 }
 
 /// Run all exact matchers on the same graph and assert they agree.

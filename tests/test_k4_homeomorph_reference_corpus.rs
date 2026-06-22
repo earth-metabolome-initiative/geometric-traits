@@ -79,7 +79,7 @@ fn test_k4_homeomorph_reference_corpus_1m() {
             );
 
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
-            if done % 10_000 == 0 {
+            if done.is_multiple_of(10_000) {
                 eprintln!("[k4-homeomorph-reference-1m] progress {done}");
             }
 

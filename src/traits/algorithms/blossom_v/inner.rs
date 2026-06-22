@@ -1284,22 +1284,22 @@ where
         }
 
         let mut eps = i64::MAX;
-        if let Some(e_idx) = self.tree_min_pq0_for_duals(root) {
-            if (e_idx as usize) < self.edge_num {
-                eps = eps.min(self.edges[e_idx as usize].slack);
-            }
+        if let Some(e_idx) = self.tree_min_pq0_for_duals(root)
+            && (e_idx as usize) < self.edge_num
+        {
+            eps = eps.min(self.edges[e_idx as usize].slack);
         }
 
-        if let Some(e_idx) = self.tree_min_pq00_local_for_duals(root) {
-            if (e_idx as usize) < self.edge_num {
-                eps = eps.min(self.edges[e_idx as usize].slack / 2);
-            }
+        if let Some(e_idx) = self.tree_min_pq00_local_for_duals(root)
+            && (e_idx as usize) < self.edge_num
+        {
+            eps = eps.min(self.edges[e_idx as usize].slack / 2);
         }
 
-        if let Some(e_idx) = self.tree_min_pq_blossom_for_duals(root) {
-            if (e_idx as usize) < self.edge_num {
-                eps = eps.min(self.edges[e_idx as usize].slack);
-            }
+        if let Some(e_idx) = self.tree_min_pq_blossom_for_duals(root)
+            && (e_idx as usize) < self.edge_num
+        {
+            eps = eps.min(self.edges[e_idx as usize].slack);
         }
 
         eps
@@ -2337,10 +2337,10 @@ where
                     break;
                 }
                 let next = self.scheduler_tree_edges[pair_idx].next[dir];
-                if let Some(other_root) = self.scheduler_tree_edge_other(pair_idx, root) {
-                    if (other_root as usize) < self.scheduler_trees.len() {
-                        self.scheduler_trees[other_root as usize].current = SchedulerCurrent::None;
-                    }
+                if let Some(other_root) = self.scheduler_tree_edge_other(pair_idx, root)
+                    && (other_root as usize) < self.scheduler_trees.len()
+                {
+                    self.scheduler_trees[other_root as usize].current = SchedulerCurrent::None;
                 }
                 pair_cursor = next;
             }

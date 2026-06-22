@@ -2001,15 +2001,15 @@ where
         }
     }
 
-    if let Some(query_future_counts) = query_future_counts {
-        if !future_neighbor_counts_are_compatible(
+    if let Some(query_future_counts) = query_future_counts
+        && !future_neighbor_counts_are_compatible(
             context.mode,
             state,
             query_future_counts,
             target_node,
-        ) {
-            return false;
-        }
+        )
+    {
+        return false;
     }
 
     true

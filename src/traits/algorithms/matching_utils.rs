@@ -5,10 +5,10 @@ use alloc::vec::Vec;
 pub(crate) fn mate_to_pairs<I: Copy>(mate: &[Option<usize>], indices: &[I]) -> Vec<(I, I)> {
     let mut pairs = Vec::with_capacity(mate.len() / 2);
     for (i, slot) in mate.iter().enumerate() {
-        if let Some(j) = *slot {
-            if i < j {
-                pairs.push((indices[i], indices[j]));
-            }
+        if let Some(j) = *slot
+            && i < j
+        {
+            pairs.push((indices[i], indices[j]));
         }
     }
     pairs

@@ -281,10 +281,10 @@ impl ScreeningEstimate {
         sim_threshold: Option<f64>,
         dist_threshold: Option<f64>,
     ) -> bool {
-        if let Some(t) = sim_threshold {
-            if self.similarity(v1, e1, v2, e2) < t {
-                return true;
-            }
+        if let Some(t) = sim_threshold
+            && self.similarity(v1, e1, v2, e2) < t
+        {
+            return true;
         }
         if let Some(t) = dist_threshold {
             #[allow(clippy::cast_precision_loss)]
