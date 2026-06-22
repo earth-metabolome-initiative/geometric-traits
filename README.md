@@ -5,13 +5,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Codecov](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits/branch/main/graph/badge.svg)](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits)
 
-Rust crate providing algebraic & graph algorithms, and basic structs.
+Rust crate providing algebraic and graph algorithms, and basic structs, designed with a trait-first approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation.
 
-## Main Features
-
-This crate provides a collection of graph and algebraic algorithms designed with a trait-first approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation.
-
-### Available Algorithms
+## Available Algorithms
 
 The table below lists the main algorithm entrypoints currently exported from `geometric_traits::traits::algorithms`. All listed algorithms require the `alloc` feature. `RandomizedDAG` additionally requires either `std` or `hashbrown`. Full citations live in the API docs, and the fuzz harnesses are under [`fuzz/fuzz_targets`](fuzz/fuzz_targets).
 
@@ -71,7 +67,7 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 | **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [Jacomy et al. (2014)](https://doi.org/10.1371/journal.pone.0098679) |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | Utility generator (needs `std` or `hashbrown`) |
 
-### Node Ordering Primitives
+## Node Ordering Primitives
 
 The crate also exports reusable graph-level node ordering and node scoring building blocks from `geometric_traits::traits::algorithms`.
 
@@ -93,11 +89,11 @@ The crate also exports reusable graph-level node ordering and node scoring build
 | **ClosenessCentralityScorer** | centrality score | O(V · (V+E)) | [Freeman (1979)](https://doi.org/10.1016/0378-8733(78)90021-7) |
 | **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Lexicographic two-key sorter |
 
-### Undirected Graph Generators
+## Undirected Graph Generators
 
 Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.
 
-#### Deterministic Generators
+### Deterministic Generators
 
 | Generator | Function | Parameters |
 |-----------|----------|------------|
@@ -119,7 +115,7 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
 | **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
 
-#### Random Generators
+### Random Generators
 
 Random generators require `std` or `hashbrown` in addition to `alloc` when they use a `HashSet` internally.
 
@@ -135,7 +131,7 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 | **Chung-Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
 | **Random Geometric** | `random_geometric_graph(seed, n, radius)` | n = vertices, r = connection radius | Gilbert (1961); Penrose (2003) |
 
-### Graph & Set Similarity Metrics
+## Graph & Set Similarity Metrics
 
 Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations. Any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
 
@@ -152,6 +148,6 @@ Standalone free functions and a `GraphSimilarities` trait for comparing graphs o
 | **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | Spectral matching in metabolomics; correlation-like | McConnaughey (1964) |
 | **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | MCES result scoring (RASCAL) | Raymond et al. (2002) |
 
-### Design Philosophy
+## Design Philosophy
 
 The crate is trait-based, correctness-focused, and `no_std` compatible. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to contribute.
