@@ -5,6 +5,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Allow the release workflow to reuse these checks as a publish gate.
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
