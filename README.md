@@ -5,99 +5,95 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Codecov](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits/branch/main/graph/badge.svg)](https://codecov.io/gh/earth-metabolome-initiative/geometric-traits)
 
-Rust crate providing algebraic & graph algorithms, and basic structs.
+Rust crate providing algebraic and graph algorithms, and basic structs, designed with a trait-first, correctness-focused approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the design philosophy and how to contribute.
 
-## Main Features
+## Available Algorithms
 
-This crate provides a collection of graph and algebraic algorithms designed with a trait-first approach. It supports `no_std` environments and offers optional `alloc` support for algorithms requiring dynamic memory allocation.
+The table below lists the main algorithm entrypoints currently exported from `geometric_traits::traits::algorithms`. All listed algorithms require the `alloc` feature. `RandomizedDAG` additionally requires either `std` or `hashbrown`. Full citations live in the API docs, and the fuzz harnesses are under [`fuzz/fuzz_targets`](fuzz/fuzz_targets).
 
-### Available Algorithms
+| Algorithm | Trait | Complexity | Reference |
+|-----------|-------|------------|-----------|
+| **Bipartite Maximum Matching** | `HopcroftKarp` | O(E√V) | [Hopcroft & Karp (1973)](https://doi.org/10.1137/0202019) |
+| **General Maximum Matching** | `Blossom` | O(V²E) | [Edmonds (1965)](https://doi.org/10.4153/CJM-1965-045-4) |
+| **General Min-Cost Perfect Matching** | `BlossomV` | O(V²E) believed | [Kolmogorov (2009)](https://doi.org/10.1007/s12532-009-0002-8) |
+| **General Maximum Matching** | `Gabow1976` | O(V³) | [Gabow (1976)](https://doi.org/10.1145/321941.321942) |
+| **General Maximum Matching** | `MicaliVazirani` | O(E√V) | [Micali & Vazirani (1980)](https://doi.org/10.1109/SFCS.1980.12) |
+| **Linear Assignment (Dense LAPJV)** | `LAPJV` | O(n³) | [Jonker & Volgenant (1987)](https://doi.org/10.1007/BF02278710) |
+| **Linear Assignment (Sparse + Padding)** | `SparseLAPJV` | O(n³) | [Jonker & Volgenant (1987)](https://doi.org/10.1007/BF02278710) |
+| **Linear Assignment (Sparse Core)** | `LAPMOD` | O(n³) | [Volgenant (1996)](https://doi.org/10.1016/0305-0548(96)00010-X) |
+| **Rectangular Assignment (Diagonal Cost Extension)** | `Jaqaman` | O((L+R)³) | [Jaqaman et al. (2008)](https://doi.org/10.1038/nmeth.1237) |
+| **Rectangular Assignment (Crouse LAPJV)** | `Crouse` | O(min(n,m)²·max(n,m)) | [Crouse (2016)](https://doi.org/10.1109/TAES.2016.140952) |
+| **Topological Sorting** | `Kahn` | O(V+E) | [Kahn (1962)](https://doi.org/10.1145/368996.369025) |
+| **Elementary Circuit Enumeration** | `Johnson` | O((V+E)(C+1)) | [Johnson (1975)](https://doi.org/10.1137/0204007) |
+| **All-Pairs Shortest Paths (Weighted)** | `FloydWarshall` | O(V³) | [Floyd (1962)](https://doi.org/10.1145/367766.368168), Warshall (1962) |
+| **All-Pairs Shortest Paths (Non-Negative Weighted)** | `PairwiseDijkstra` | O(V·(V+E)·log V) | [Dijkstra (1959)](https://doi.org/10.1007/BF01386390) |
+| **All-Pairs Shortest Paths (Unweighted)** | `PairwiseBFS` | O(V·(V+E)) | Moore (1959) |
+| **Diameter (Exact, Undirected Unweighted)** | `Diameter` | worst-case O(V·(V+E)) | Crescenzi et al. (2013) |
+| **Strongly Connected Components** | `Tarjan` | O(V+E) | [Tarjan (1972)](https://doi.org/10.1137/0201010) |
+| **Maximum s-t Flow / Minimum Cut** | `Dinic` | O(V²E) | Dinitz (1970) |
+| **Maximum s-t Flow / Minimum Cut** | `EdmondsKarp` | O(VE²) | [Edmonds & Karp (1972)](https://doi.org/10.1145/321694.321699) |
+| **Feedback Arc Set (Greedy Heuristic)** | `EadesLinSmyth` | O(V+E+cV), c = tangled-core size | [Eades, Lin & Smyth (1993)](https://doi.org/10.1016/0020-0190(93)90079-O) |
+| **Biconnected Components / Articulation Points / Bridges** | `BiconnectedComponents` | O(V+E) | [Hopcroft & Tarjan (1973)](https://doi.org/10.1145/362248.362272) |
+| **Cycle Detection (DFS)** | `CycleDetection` | O(V+E) | DFS back-edge detection |
+| **Connected Components (Undirected)** | `ConnectedComponents` | O(V+E) | Linear-time graph traversal |
+| **Bipartite Detection / 2-Coloring** | `BipartiteDetection` | O(V+E) | BFS 2-coloring |
+| **Tree / Forest Detection** | `TreeDetection` | O(V+E) | Component and edge-count predicates |
+| **Planarity Testing / Embedding** | `PlanarityDetection` | O(V+E) | [Boyer & Myrvold (2004)](https://doi.org/10.7155/jgaa.00091) |
+| **Outerplanarity Testing** | `OuterplanarityDetection` | O(V+E) | [Boyer (2012)](https://doi.org/10.7155/jgaa.00268) |
+| **K_{2,3} Homeomorph Detection** | `K23HomeomorphDetection` | O(V+E) | [Boyer (2012)](https://doi.org/10.7155/jgaa.00268) |
+| **K_{3,3} Homeomorph Detection** | `K33HomeomorphDetection` | O(V+E) | [Boyer (2012)](https://doi.org/10.7155/jgaa.00268) |
+| **Canonical Labeling (Labeled Simple Graphs)** | `CanonicalLabeling` | worst-case exponential backtracking | Junttila & Kaski (2007) |
+| **Subgraph Isomorphism** | `Vf2` | worst-case exponential backtracking | [Cordella et al. (2004)](https://doi.org/10.1109/TPAMI.2004.75) |
+| **Community Detection** | `Louvain` | O(V+E) per level | [Blondel et al. (2008)](https://doi.org/10.1088/1742-5468/2008/10/P10008) |
+| **Community Detection** | `Leiden` | O(L·E), L = iterations | [Traag et al. (2019)](https://doi.org/10.1038/s41598-019-41695-z) |
+| **Root Node Extraction** | `RootNodes` | O(V+E) | Graph primitive |
+| **Sink Node Extraction** | `SinkNodes` | O(V+E) | Graph primitive |
+| **Singleton Node Extraction** | `SingletonNodes` | O(V+E) | Graph primitive |
+| **Simple Path Detection** | `SimplePath` | O(V+E) | Graph property check |
+| **Information Content Propagation** | `InformationContent` | O(V+E) | [Resnik (1995)](https://arxiv.org/abs/cmp-lg/9511007) |
+| **Resnik Semantic Similarity** | `Resnik` | O(R·(V+E)) per query | [Resnik (1995)](https://arxiv.org/abs/cmp-lg/9511007) |
+| **Lin Semantic Similarity** | `Lin` | O(R·(V+E)) per query | Lin (1998) |
+| **Wu-Palmer Semantic Similarity** | `WuPalmer` | O(R·(V+E)) per query | [Wu & Palmer (1994)](https://doi.org/10.3115/981732.981751) |
+| **Line Graph** | `LineGraph` | O(∑deg²) | Whitney (1932) |
+| **Labeled Line Graph** | `LabeledLineGraph` | O(∑deg²) | Labeled variant for MCES / RASCAL |
+| **Modular Product** | `ModularProduct` | O(\|P\|²) | [Barrow & Burstall (1976)](https://doi.org/10.1016/0020-0190(76)90049-1) |
+| **Maximum Clique Enumeration** | `MaximumClique` | O(3^(n/3)) worst case | Tomita & Seki (2003); Prosser (2012) |
+| **Delta-Y Exchange Detection** | `DeltaYExchange` | O(V+E) | Delta-Y / Y-Delta detector for MCES filtering |
+| **Balanced Network Flow** | `Kocay` | O(K·(V+E)) | [Kocay & Stone (1995)](https://combinatorialpress.com/jcmcc-articles/volume-019/an-algorithm-for-balanced-flows/) |
+| **Minimum-Cost Maximum Balanced Flow** | `MinimumCostBalancedFlow` | hybrid exact (tree DP, bipartite min-cost flow, Blossom-V fallback) | Kocay & Stone (1995); Kolmogorov (2009) |
+| **Stationary Distribution (Dense GTH)** | `Gth` | O(n³) | [Grassmann et al. (1985)](https://doi.org/10.1287/opre.33.5.1107) |
+| **Eigenvalue Decomposition** | `Jacobi` | O(n³) | Jacobi (1846) |
+| **Classical MDS** | `ClassicalMds` | O(n³) | [Torgerson (1952)](https://doi.org/10.1007/BF02288916) |
+| **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [Jacomy et al. (2014)](https://doi.org/10.1371/journal.pone.0098679) |
+| **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | Utility generator (needs `std` or `hashbrown`) |
 
-The table below lists the main algorithm entrypoints currently exported from `geometric_traits::traits::algorithms`. All listed algorithms require the `alloc` feature. `RandomizedDAG` additionally requires either `std` or `hashbrown`.
-
-| Algorithm | Trait | Complexity | Fuzzing Harness | Reference |
-|-----------|-------|------------|-----------------|-----------|
-| **Bipartite Maximum Matching** | `HopcroftKarp` | O(E√V) | [`hopcroft_karp.rs`](fuzz/fuzz_targets/hopcroft_karp.rs) | Hopcroft, J. E., & Karp, R. M. (1973). [An n^(5/2) algorithm for maximum matchings in bipartite graphs](https://doi.org/10.1137/0202019). *SIAM Journal on Computing*, 2(4), 225-231. |
-| **General Maximum Matching** | `Blossom` | O(V²E) | [`blossom.rs`](fuzz/fuzz_targets/blossom.rs) | Edmonds, J. (1965). [Paths, trees, and flowers](https://doi.org/10.4153/CJM-1965-045-4). *Canadian Journal of Mathematics*, 17, 449-467. |
-| **General Min-Cost Perfect Matching** | `BlossomV` | O(V²E) believed | [`blossom_v.rs`](fuzz/fuzz_targets/blossom_v.rs), [`blossom_v_structured.rs`](fuzz/fuzz_targets/blossom_v_structured.rs) | Kolmogorov, V. (2009). [Blossom V: A new implementation of a minimum cost perfect matching algorithm](https://doi.org/10.1007/s12532-009-0002-8). *Mathematical Programming Computation*, 1(1), 43-67. |
-| **General Maximum Matching** | `Gabow1976` | O(V³) | [`gabow_1976.rs`](fuzz/fuzz_targets/gabow_1976.rs) | Gabow, H. N. (1976). [An efficient implementation of Edmonds' algorithm for maximum matching on graphs](https://doi.org/10.1145/321941.321942). *Journal of the ACM*, 23(2), 221-234. |
-| **General Maximum Matching** | `MicaliVazirani` | O(E√V) | [`micali_vazirani.rs`](fuzz/fuzz_targets/micali_vazirani.rs) | Micali, S., & Vazirani, V. V. (1980). [An O(√\|V\| · \|E\|) algorithm for finding maximum matching in general graphs](https://doi.org/10.1109/SFCS.1980.12). *FOCS*, 17-27. Peterson, P. A., & Loui, M. C. (1988). [The general maximum matching algorithm of Micali and Vazirani](https://doi.org/10.1007/BF01762129). *Algorithmica*, 3, 511-533. |
-| **Linear Assignment (Dense LAPJV)** | `LAPJV` | O(n³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Jonker, R., & Volgenant, A. (1987). [A shortest augmenting path algorithm for dense and sparse linear assignment problems](https://doi.org/10.1007/BF02278710). *Computing*, 38(4), 325-340. |
-| **Linear Assignment (Sparse + Padding)** | `SparseLAPJV` | O(n³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Jonker, R., & Volgenant, A. (1987). [A shortest augmenting path algorithm for dense and sparse linear assignment problems](https://doi.org/10.1007/BF02278710). *Computing*, 38(4), 325-340. |
-| **Linear Assignment (Sparse Core)** | `LAPMOD` | O(n³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Volgenant, A. (1996). [Linear and semi-assignment problems: A core oriented approach](https://doi.org/10.1016/0305-0548(96)00010-X). *Computers & Operations Research*, 23(10), 917-932. |
-| **Rectangular Assignment (Diagonal Cost Extension)** | `Jaqaman` | O((L+R)³) | [`lap.rs`](fuzz/fuzz_targets/lap.rs) | Jaqaman, K., et al. (2008). [Robust single-particle tracking in live-cell time-lapse sequences](https://doi.org/10.1038/nmeth.1237). *Nature Methods*, 5(8), 695-702. See also Ramshaw, L., & Tarjan, R. E. (2012). *On minimum-cost assignments in unbalanced bipartite graphs* (Tech. Rep. HPL-2012-40). Related conference paper: [A weight-scaling algorithm for min-cost imperfect matchings in bipartite graphs](https://doi.org/10.1109/FOCS.2012.9). |
-| **Rectangular Assignment (Crouse LAPJV)** | `Crouse` | O(min(n,m)²·max(n,m)) | - | Crouse, D. F. (2016). *On implementing 2D rectangular assignment algorithms*. *IEEE Transactions on Aerospace and Electronic Systems*, 52(4), 1679-1696. DOI: `10.1109/TAES.2016.140952`. |
-| **Topological Sorting** | `Kahn` | O(V+E) | [`kahn.rs`](fuzz/fuzz_targets/kahn.rs) | Kahn, A. B. (1962). [Topological sorting of large networks](https://doi.org/10.1145/368996.369025). *Communications of the ACM*, 5(11), 558-562. |
-| **Elementary Circuit Enumeration** | `Johnson` | O((V+E)(C+1)) | [`johnson_cycle.rs`](fuzz/fuzz_targets/johnson_cycle.rs) | Johnson, D. B. (1975). [Finding all the elementary circuits of a directed graph](https://doi.org/10.1137/0204007). *SIAM Journal on Computing*, 4(1), 77-84. |
-| **All-Pairs Shortest Paths (Weighted)** | `FloydWarshall` | O(V³) | [`floyd_warshall.rs`](fuzz/fuzz_targets/floyd_warshall.rs) | Floyd, R. W. (1962). [Algorithm 97: Shortest path](https://doi.org/10.1145/367766.368168). *Communications of the ACM*, 5(6), 345. Warshall, S. (1962). [A theorem on Boolean matrices](https://doi.org/10.1145/321105.321107). *Journal of the ACM*, 9(1), 11-12. |
-| **All-Pairs Shortest Paths (Non-Negative Weighted)** | `PairwiseDijkstra` | O(V·(V+E)·log V) | [`pairwise_dijkstra.rs`](fuzz/fuzz_targets/pairwise_dijkstra.rs) | Dijkstra, E. W. (1959). [A note on two problems in connexion with graphs](https://doi.org/10.1007/BF01386390). *Numerische Mathematik*, 1, 269-271. |
-| **All-Pairs Shortest Paths (Unweighted)** | `PairwiseBFS` | O(V·(V+E)) | [`pairwise_bfs.rs`](fuzz/fuzz_targets/pairwise_bfs.rs) | Repeated breadth-first search for unweighted APSP; see Moore, E. F. (1959). *The shortest path through a maze*. In *Proceedings of the International Symposium on the Theory of Switching*, 285-292. |
-| **Diameter (Exact, Undirected Unweighted)** | `Diameter` | worst-case O(V·(V+E)), often much fewer BFS traversals in practice | [`diameter.rs`](fuzz/fuzz_targets/diameter.rs) | Crescenzi, P., Grossi, R., Habib, M., Lanzi, L., & Marino, A. (2013). *On computing the diameter of real-world undirected graphs*. *Theoretical Computer Science*, 514, 84-95. Current implementation uses exact iFUB with an adaptive deterministic start policy that chooses between degree-start and 4-sweep. |
-| **Strongly Connected Components** | `Tarjan` | O(V+E) | [`tarjan.rs`](fuzz/fuzz_targets/tarjan.rs) | Tarjan, R. E. (1972). [Depth-first search and linear graph algorithms](https://doi.org/10.1137/0201010). *SIAM Journal on Computing*, 1(2), 146-160. |
-| **Maximum s-t Flow / Minimum Cut** | `Dinic` | O(V²E) | [`max_flow.rs`](fuzz/fuzz_targets/max_flow.rs) | Dinitz, E. A. (1970). *Algorithm for solution of a problem of maximum flow in networks with power estimation*. *Soviet Mathematics Doklady*, 11, 1277-1280. Generic over the capacity type, with a residual-reachability minimum cut. Shares the `MaxFlowResult` and residual machinery with `EdmondsKarp`, is differentially fuzzed against it and against `HopcroftKarp` on bipartite reductions, and is cross-checked against NetworkX `dinitz`. |
-| **Maximum s-t Flow / Minimum Cut** | `EdmondsKarp` | O(VE²) | [`max_flow.rs`](fuzz/fuzz_targets/max_flow.rs) | Edmonds, J., & Karp, R. M. (1972). [Theoretical improvements in algorithmic efficiency for network flow problems](https://doi.org/10.1145/321694.321699). *Journal of the ACM*, 19(2), 248-264. Shortest-augmenting-path maximum flow sharing the `MaxFlowResult` and residual machinery with `Dinic`, kept as its structurally different cross-check. |
-| **Feedback Arc Set (Greedy Heuristic)** | `EadesLinSmyth` | O(V+E+cV), c = tangled-core size | [`eades_lin_smyth.rs`](fuzz/fuzz_targets/eades_lin_smyth.rs) | Eades, P., Lin, X., & Smyth, W. F. (1993). [A fast and effective heuristic for the feedback arc set problem](https://doi.org/10.1016/0020-0190(93)90079-O). *Information Processing Letters*, 47(6), 319-323. |
-| **Biconnected Components / Articulation Points / Bridges** | `BiconnectedComponents` | O(V+E) | [`biconnected_components.rs`](fuzz/fuzz_targets/biconnected_components.rs) | Hopcroft, J., & Tarjan, R. (1973). [Algorithm 447: Efficient algorithms for graph manipulation](https://doi.org/10.1145/362248.362272). *Communications of the ACM*, 16(6), 372-378. |
-| **Cycle Detection (DFS)** | `CycleDetection` | O(V+E) | - | Standard depth-first back-edge detection (no single canonical paper citation). |
-| **Connected Components (Undirected)** | `ConnectedComponents` | O(V+E) | - | Standard linear-time graph traversal (no single canonical paper citation). |
-| **Bipartite Detection / 2-Coloring** | `BipartiteDetection` | O(V+E) | - | Standard breadth-first 2-coloring test for bipartiteness (no single canonical paper citation). |
-| **Tree / Forest Detection** | `TreeDetection` | O(V+E) | - | Standard linear-time tree and forest predicates based on connected components and edge counts. |
-| **Planarity Testing / Embedding** | `PlanarityDetection` | O(V+E) | - | Boyer, J., & Myrvold, W. (2004). [On the Cutting Edge: Simplified O(n) Planarity by Edge Addition](https://doi.org/10.7155/jgaa.00091). *Journal of Graph Algorithms and Applications*, 8(3), 241-273. |
-| **Outerplanarity Testing** | `OuterplanarityDetection` | O(V+E) | - | Boyer, J. (2012). [Subgraph Homeomorphism via the Edge Addition Planarity Algorithm](https://doi.org/10.7155/jgaa.00268). *Journal of Graph Algorithms and Applications*, 16(2), 381-410. Implemented as the same edge-addition engine in outerplanar mode, with final external-face coverage checking. |
-| **K_{2,3} Homeomorph Detection** | `K23HomeomorphDetection` | O(V+E) | - | Boyer, J. (2012). [Subgraph Homeomorphism via the Edge Addition Planarity Algorithm](https://doi.org/10.7155/jgaa.00268). *Journal of Graph Algorithms and Applications*, 16(2), 381-410. Implemented as a boolean detector layered on the crate's internal Boyer-style edge-addition embedding engine. |
-| **K_{3,3} Homeomorph Detection** | `K33HomeomorphDetection` | O(V+E) | - | Boyer, J. (2012). [Subgraph Homeomorphism via the Edge Addition Planarity Algorithm](https://doi.org/10.7155/jgaa.00268). *Journal of Graph Algorithms and Applications*, 16(2), 381-410. Implemented as a boolean detector layered on the crate's internal Boyer-style edge-addition embedding engine. |
-| **Canonical Labeling (Labeled Simple Graphs)** | `CanonicalLabeling` | worst-case exponential backtracking | - | Junttila, T., & Kaski, P. (2007). *Engineering an efficient canonical labeling tool for large and sparse graphs*. *Proceedings of the Ninth Workshop on Algorithm Engineering and Experiments (ALENEX)*, 135-149. Current implementation is a `bliss`-aligned individualization-refinement canonizer for simple undirected graphs with total-order vertex and edge labels. |
-| **Subgraph Isomorphism** | `Vf2` | worst-case exponential backtracking | [`vf2.rs`](fuzz/fuzz_targets/vf2.rs) | Cordella, L. P., Foggia, P., Sansone, C., & Vento, M. (2001). *An improved algorithm for matching large graphs*. 3rd IAPR-TC15 Workshop on Graph-based Representations in Pattern Recognition. Cordella, L. P., Foggia, P., Sansone, C., & Vento, M. (2004). [A (sub)graph isomorphism algorithm for matching large graphs](https://doi.org/10.1109/TPAMI.2004.75). *IEEE Transactions on Pattern Analysis and Machine Intelligence*, 26(10), 1367-1372. Generic VF2 core with directed, undirected, self-loop, semantic-hook, and explicit monomorphism support. |
-| **Community Detection** | `Louvain` | O(V+E) per level | [`louvain.rs`](fuzz/fuzz_targets/louvain.rs) | Blondel, V. D., Guillaume, J.-L., Lambiotte, R., & Lefebvre, E. (2008). [Fast unfolding of communities in large networks](https://doi.org/10.1088/1742-5468/2008/10/P10008). *Journal of Statistical Mechanics: Theory and Experiment*, 2008(10), P10008. |
-| **Community Detection** | `Leiden` | O(L·E), L = iterations | [`leiden.rs`](fuzz/fuzz_targets/leiden.rs) | Traag, V. A., Waltman, L., & van Eck, N. J. (2019). [From Louvain to Leiden: guaranteeing well-connected communities](https://doi.org/10.1038/s41598-019-41695-z). *Scientific Reports*, 9, 5233. |
-| **Root Node Extraction** | `RootNodes` | O(V+E) | [`root_nodes.rs`](fuzz/fuzz_targets/root_nodes.rs) | Graph primitive (no specific paper citation). |
-| **Sink Node Extraction** | `SinkNodes` | O(V+E) | [`sink_nodes.rs`](fuzz/fuzz_targets/sink_nodes.rs) | Graph primitive (no specific paper citation). |
-| **Singleton Node Extraction** | `SingletonNodes` | O(V+E) | - | Graph primitive (no specific paper citation). |
-| **Simple Path Detection** | `SimplePath` | O(V+E) | [`simple_path.rs`](fuzz/fuzz_targets/simple_path.rs) | Graph property check (no specific paper citation). |
-| **Information Content Propagation** | `InformationContent` | O(V+E) | - | Resnik, P. (1995). [Using information content to evaluate semantic similarity in a taxonomy](https://arxiv.org/abs/cmp-lg/9511007). In *Proceedings of IJCAI-95*, 448-453. |
-| **Resnik Semantic Similarity** | `Resnik` | O(R·(V+E)) per query | - | Resnik, P. (1995). [Using information content to evaluate semantic similarity in a taxonomy](https://arxiv.org/abs/cmp-lg/9511007). In *Proceedings of IJCAI-95*, 448-453. |
-| **Lin Semantic Similarity** | `Lin` | O(R·(V+E)) per query | [`lin.rs`](fuzz/fuzz_targets/lin.rs) | Lin, D. (1998). *An Information-Theoretic Definition of Similarity*. In *Proceedings of ICML 1998*, 296-304. |
-| **Wu-Palmer Semantic Similarity** | `WuPalmer` | O(R·(V+E)) per query | [`wu_palmer.rs`](fuzz/fuzz_targets/wu_palmer.rs) | Wu, Z., & Palmer, M. (1994). [Verb Semantics and Lexical Selection](https://doi.org/10.3115/981732.981751). In *Proceedings of ACL 1994*, 133-138. DOI: `10.3115/981732.981751`. |
-| **Line Graph** | `LineGraph` | O(∑deg²) | [`line_graph.rs`](fuzz/fuzz_targets/line_graph.rs) | Whitney, H. (1932). Congruent graphs and the connectivity of graphs. *American Journal of Mathematics*, 54(1), 150-168. |
-| **Labeled Line Graph** | `LabeledLineGraph` | O(∑deg²) | - | Labeled variant: edges carry the node type of the shared endpoint. Building block for labeled MCES / RASCAL. |
-| **Modular Product** | `ModularProduct` | O(\|P\|²) | [`modular_product.rs`](fuzz/fuzz_targets/modular_product.rs), [`labeled_modular_product.rs`](fuzz/fuzz_targets/labeled_modular_product.rs) | Barrow, H. G., & Burstall, R. M. (1976). [Subgraph isomorphism, matching relational structures and maximal cliques](https://doi.org/10.1016/0020-0190(76)90049-1). *Information Processing Letters*, 4(4), 83-84. Unlabeled and labeled variants with custom edge comparator. |
-| **Maximum Clique Enumeration** | `MaximumClique` | O(3^(n/3)) worst case | [`maximum_clique.rs`](fuzz/fuzz_targets/maximum_clique.rs) | Tomita, E., & Seki, T. (2003). An efficient branch-and-bound algorithm for finding a maximum clique. *LNCS* 2731:278-289. San Segundo, P., et al. (2011). An exact bit-parallel algorithm for the maximum clique problem. *Computers & OR* 38(2). Prosser, P. (2012). Exact Algorithms for Maximum Clique. *Algorithms* 5(4):545-587. |
-| **Delta-Y Exchange Detection** | `DeltaYExchange` | O(V+E) | [`delta_y_exchange.rs`](fuzz/fuzz_targets/delta_y_exchange.rs) | Detects whether two graphs are related by a Delta-Y or Y-Delta exchange. Used for MCES filtering. |
-| **Balanced Network Flow** | `Kocay` | O(K·(V+E)) | [`kocay.rs`](fuzz/fuzz_targets/kocay.rs) | Kocay, W., & Stone, D. (1995). [An Algorithm for Balanced Flows](https://combinatorialpress.com/jcmcc-articles/volume-019/an-algorithm-for-balanced-flows/). *Journal of Combinatorial Mathematics and Combinatorial Computing*, 19, 3-31. Earlier exposition: Kocay, W., & Stone, D. (1993). *Balanced network flows*. *Bulletin of the Institute of Combinatorics and its Applications*, 7, 17-32. |
-| **Minimum-Cost Maximum Balanced Flow** | `MinimumCostBalancedFlow` | hybrid exact; tree DP, bipartite min-cost flow, Blossom-V fallback | - | Exact lexicographic solver for capacitated balanced flow with per-vertex budgets. It uses Kocay to determine the maximum feasible flow value, solves tree components by dynamic programming, solves bipartite components by ordinary minimum-cost flow, and falls back to a weighted perfect-matching reduction with Blossom V on general non-bipartite components. See Kocay & Stone (1995), Ahuja, Magnanti, & Orlin (1993), and Kolmogorov (2009). |
-| **Stationary Distribution (Dense GTH)** | `Gth` | O(n³) | - | Grassmann, W. K., Taksar, M. I., & Heyman, D. P. (1985). [Regenerative Analysis and Steady State Distributions for Markov Chains](https://doi.org/10.1287/opre.33.5.1107). *Operations Research*, 33(5), 1107-1116. |
-| **Eigenvalue Decomposition** | `Jacobi` | O(n³) | [`jacobi.rs`](fuzz/fuzz_targets/jacobi.rs) | Jacobi, C. G. J. (1846). Über ein leichtes Verfahren die in der Theorie der Säcularstörungen vorkommenden Gleichungen numerisch aufzulösen. *Journal für die reine und angewandte Mathematik*, 30, 51-94. See Golub & Van Loan (2013), §8.5. |
-| **Classical MDS** | `ClassicalMds` | O(n³) | [`mds.rs`](fuzz/fuzz_targets/mds.rs) | Torgerson, W. S. (1952). [Multidimensional scaling: I. Theory and method](https://doi.org/10.1007/BF02288916). *Psychometrika*, 17(4), 401-419. |
-| **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [`forceatlas2.rs`](fuzz/fuzz_targets/forceatlas2.rs) | Jacomy, M., Venturini, T., Heymann, S., & Bastian, M. (2014). [ForceAtlas2, a Continuous Graph Layout Algorithm for Handy Network Visualization Designed for the Gephi Software](https://doi.org/10.1371/journal.pone.0098679). *PLoS ONE*, 9(6), e98679. Cross-validated against the Gephi toolkit and the Python fa2 package. |
-| **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | - | Utility generator (requires `std` or `hashbrown` in addition to `alloc`). |
-
-### Node Ordering Primitives
+## Node Ordering Primitives
 
 The crate also exports reusable graph-level node ordering and node scoring building blocks from `geometric_traits::traits::algorithms`.
 
 | Primitive | Kind | Complexity | Reference |
 |-----------|------|------------|-----------|
-| **DegeneracySorter** | smallest-last node ordering | O(V+E) | Matula, D. W., & Beck, L. L. (1983). [Smallest-last ordering and clustering and graph coloring algorithms](https://doi.org/10.1145/2402.322385). *Journal of the ACM*, 30(3), 417-427. See also Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
-| **LayeredLabelPropagationSorter** | multiresolution node ordering | O(|Γ| · U · (V+E) + |Γ|² · V log V), where |Γ| is the number of gamma values and U the maximum number of label-propagation updates | Boldi, P., Rosa, M., Santini, M., & Vigna, S. (2011). [Layered label propagation: a multiresolution coordinate-free ordering for compressing social networks](https://doi.org/10.1145/1963405.1963488). Defaults mirror the LAW implementation: `gammas=[1, 1/2, ..., 1/1024, 0]`, `max_updates=100`, deterministic `seed=42`. |
-| **CoreNumberScorer** | k-core / shell score | O(V+E) | Batagelj, V., & Zaversnik, M. (2003). [An O(m) Algorithm for Cores Decomposition of Networks](https://arxiv.org/abs/cs/0310049). |
-| **DegreeScorer** | node score | O(V+E) | Basic graph primitive. |
-| **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score used in max-clique ordering heuristics. |
-| **TriangleCountScorer** | node score | O(|V̂| · d_cover²) by default | Exact triangle-count scorer. It uses the shared `MotifCountOrdering` enum from the ICCS 2023 paper: `Natural`, `DecreasingDegree`, and `IncreasingDegree`. `IncreasingDegree` is the preferred and default cover schema for triangles. Returns the number of triangles incident to each node. |
-| **SquareCountScorer** | node score | O(|V̂| · d_cover² · d_graph) by default | Exact 4-cycle scorer. It uses the shared `MotifCountOrdering` enum from the ICCS 2023 paper: `Natural`, `DecreasingDegree`, and `IncreasingDegree`. The paper does not show a clear globally best cover schema for squares, so the default is `Natural`. Returns the number of 4-cycles incident to each node; chorded 4-cycles are counted. |
-| **LocalClusteringCoefficientScorer** | node score | O(|V̂| · d_cover² + V+E) | Exact unweighted undirected local clustering coefficient matching `NetworkX` `clustering()`, derived from triangle counts and degree. |
-| **SquareClusteringCoefficientScorer** | node score | O(V · d_graph³) | Exact unweighted undirected square clustering coefficient matching `NetworkX` `square_clustering()`. Self loops are ignored. |
-| **PageRankScorer** | centrality score | O(iterations · (V+E)) | Brin, S., & Page, L. (1998). *The Anatomy of a Large-Scale Hypertextual Web Search Engine*. Default parameters match `NetworkX` on undirected graphs: `alpha=0.85`, `max_iter=100`, `tol=1e-6`. |
-| **PowerIterationEigenvectorCentralityScorer** | centrality score | O(iterations · (V+E)) | Dominant-eigenvector centrality computed with shifted power iteration. Defaults match `NetworkX` on unweighted undirected graphs: all-ones initialization, `(A + I)` iteration, `max_iter=100`, `tol=1e-6`. |
-| **KatzCentralityScorer** | centrality score | O(iterations · (V+E)) | Katz, L. (1953). *A New Status Index Derived from Sociometric Analysis*. Scalar-`beta`, unweighted parameters match `NetworkX` defaults: `alpha=0.1`, `beta=1.0`, `max_iter=1000`, `tol=1e-6`, `normalized=true`. That default is not convergence-safe on arbitrary graphs; for undirected graphs a sufficient condition is `alpha < 1 / Delta`, and the scorer exposes conservative `safe_alpha_*` helpers based on max degree. |
-| **BetweennessCentralityScorer** | centrality score | O(V · (V+E)) | Brandes, U. (2001). [A Faster Algorithm for Betweenness Centrality](https://doi.org/10.1080/0022250X.2001.9990249). Exact unweighted undirected scorer matching the `NetworkX` `normalized` and `endpoints` parameter behavior. |
-| **ClosenessCentralityScorer** | centrality score | O(V · (V+E)) | Freeman, L. C. (1979). [Centrality in networks: I. Conceptual clarification](https://doi.org/10.1016/0378-8733(78)90021-7). Exact unweighted undirected scorer matching the `NetworkX` `wf_improved` parameter behavior. |
-| **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Generic lexicographic sorter over two score vectors. |
+| **DegeneracySorter** | smallest-last node ordering | O(V+E) | [Matula & Beck (1983)](https://doi.org/10.1145/2402.322385) |
+| **LayeredLabelPropagationSorter** | multiresolution node ordering | O(\|Γ\| · U · (V+E) + \|Γ\|² · V log V) | [Boldi et al. (2011)](https://doi.org/10.1145/1963405.1963488) |
+| **CoreNumberScorer** | k-core / shell score | O(V+E) | [Batagelj & Zaveršnik (2003)](https://arxiv.org/abs/cs/0310049) |
+| **DegreeScorer** | node score | O(V+E) | Graph primitive |
+| **SecondOrderDegreeScorer** | node score | O(V+E) | Degree-of-neighbors score |
+| **TriangleCountScorer** | node score | O(\|V̂\| · d_cover²) | Exact triangle count |
+| **SquareCountScorer** | node score | O(\|V̂\| · d_cover² · d_graph) | Exact 4-cycle count |
+| **LocalClusteringCoefficientScorer** | node score | O(\|V̂\| · d_cover² + V+E) | Matches `NetworkX` `clustering()` |
+| **SquareClusteringCoefficientScorer** | node score | O(V · d_graph³) | Matches `NetworkX` `square_clustering()` |
+| **PageRankScorer** | centrality score | O(iterations · (V+E)) | Brin & Page (1998); `NetworkX`-aligned |
+| **PowerIterationEigenvectorCentralityScorer** | centrality score | O(iterations · (V+E)) | Shifted power iteration; `NetworkX`-aligned |
+| **KatzCentralityScorer** | centrality score | O(iterations · (V+E)) | Katz (1953); `NetworkX`-aligned |
+| **BetweennessCentralityScorer** | centrality score | O(V · (V+E)) | [Brandes (2001)](https://doi.org/10.1080/0022250X.2001.9990249) |
+| **ClosenessCentralityScorer** | centrality score | O(V · (V+E)) | [Freeman (1979)](https://doi.org/10.1016/0378-8733(78)90021-7) |
+| **DescendingLexicographicScoreSorter** | two-key node ordering | O(V log V) plus scorer cost | Lexicographic two-key sorter |
 
-### Undirected Graph Generators
+## Undirected Graph Generators
 
 Standalone functions for generating undirected graphs, all returning `SymmetricCSR2D<CSR2D<usize, usize, usize>>`. All require the `alloc` feature. Random generators additionally take a `seed: u64` parameter.
 
-#### Deterministic Generators
+### Deterministic Generators
 
 | Generator | Function | Parameters |
 |-----------|----------|------------|
@@ -119,7 +115,7 @@ Standalone functions for generating undirected graphs, all returning `SymmetricC
 | **Windmill** Wd(k, n) | `windmill_graph(num_cliques, clique_size)` | num_cliques, clique_size |
 | **Friendship** F_n | `friendship_graph(n)` | n = triangles = `windmill_graph(n, 3)` |
 
-#### Random Generators
+### Random Generators
 
 Random generators require `std` or `hashbrown` in addition to `alloc` when they use a `HashSet` internally.
 
@@ -135,25 +131,19 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 | **Chung-Lu** | `chung_lu(seed, weights)` | weight vector | Chung & Lu (2002) |
 | **Random Geometric** | `random_geometric_graph(seed, n, radius)` | n = vertices, r = connection radius | Gilbert (1961); Penrose (2003) |
 
-### Graph & Set Similarity Metrics
+## Graph & Set Similarity Metrics
 
 Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations. Any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
 
-| Metric | Function | Formula | Range | Common Uses | Reference |
-|--------|----------|---------|-------|-------------|-----------|
-| **Jaccard / Tanimoto** | `tanimoto_similarity` | \|A∩B\| / \|A∪B\| | [0, 1] | Molecular fingerprint comparison, ecology, information retrieval | Jaccard, P. (1901). Distribution de la flore alpine dans le bassin des Dranses et dans quelques regions voisines. *Bulletin de la Societe Vaudoise des Sciences Naturelles*, 37, 241-272. |
-| **Dice / Sorensen** | `dice_similarity` | 2\|A∩B\| / (\|A\|+\|B\|) | [0, 1] | Medical image segmentation, ecological vegetation surveys, NLP token overlap; equivalent to F1 score | Dice, L. R. (1945). Measures of the amount of ecologic association between species. *Ecology*, 26(3), 297-302. Sorensen, T. (1948). A method of establishing groups of equal amplitude in plant sociology. *Kongelige Danske Videnskabernes Selskab*, 5(4), 1-34. |
-| **Overlap / Szymkiewicz-Simpson** | `overlap_similarity` | \|A∩B\| / min(\|A\|,\|B\|) | [0, 1] | Genomic region overlap, graph link prediction (RAPIDS cuGraph), containment queries | Szymkiewicz, D. (1934). Une contribution statistique a la geographie floristique. *Acta Societatis Botanicorum Poloniae*, 11(3), 249-265. Simpson, G. G. (1943). Mammals and the nature of continents. *American Journal of Science*, 241(1), 1-31. |
-| **Cosine** | `cosine_similarity` | \|A∩B\| / sqrt(\|A\|\|B\|) | [0, 1] | Document/text similarity (NLP), sparse high-dimensional feature comparison, recommendation systems | Salton, G., & McGill, M. J. (1983). *Introduction to Modern Information Retrieval*. McGraw-Hill. |
-| **Tversky** | `tversky_similarity` | \|A∩B\| / (\|A∩B\| + α\|A\\B\| + β\|B\\A\|) | [0, 1] | Asymmetric substructure search, scaffold hopping in drug discovery; generalizes Jaccard (α=β=1) and Dice (α=β=0.5) | Tversky, A. (1977). Features of similarity. *Psychological Review*, 84(4), 327-352. |
-| **Kulczynski** (2nd) | `kulczynski_similarity` | 0.5(\|A∩B\|/\|A\| + \|A∩B\|/\|B\|) | [0, 1] | Botanical community comparison, balanced view when sets differ in size | Kulczynski, S. (1927). Die Pflanzenassoziationen der Pieninen. *Bulletin International de l'Academie Polonaise des Sciences et des Lettres*, Classe des Sciences Mathematiques et Naturelles, Serie B, 57-203. |
-| **Braun-Blanquet** | `braun_blanquet_similarity` | \|A∩B\| / max(\|A\|,\|B\|) | [0, 1] | Phytosociology, conservative containment assessment; counterpart of overlap (uses max instead of min) | Braun-Blanquet, J. (1932). *Plant Sociology: The Study of Plant Communities*. McGraw-Hill. |
-| **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Numerical taxonomy, strict classification with double penalty for mismatches | Sokal, R. R., & Sneath, P. H. A. (1963). *Principles of Numerical Taxonomy*. W. H. Freeman. |
-| **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | Spectral matching in metabolomics, compound identification in mass spectrometry; correlation-like (can detect anti-correlation) | McConnaughey, B. H. (1964). The determination and analysis of plankton communities. *Marine Research in Indonesia*, 1-40. |
-| **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | MCES result scoring (RASCAL algorithm); combines matched edge and vertex counts | Raymond, J. W., Gardiner, E. J., & Willett, P. (2002). RASCAL: Calculation of graph similarity using maximum common edge subgraphs. *The Computer Journal*, 45(6), 631-644. |
-
-### Design Philosophy
-
-* **Trait-Based**: Algorithms are implemented generic over traits such as `BipartiteGraph` and `MonopartiteGraph`, allowing them to be used with any backing data structure that implements the required interface (e.g., Matrices, CSR, Adjacency Lists).
-* **Fuzzing & Correctness**: A significant focus is placed on correctness. Key algorithms are continuously fuzzed using `honggfuzz` to ensure robustness against edge cases and to verify invariants.
-* **`no_std` Compatible**: The core traits and several implementations are designed to work in `no_std` environments. Feature flags allow enabling `std` or `alloc` only when necessary.
+| Metric | Function | Formula | Range | Reference |
+|--------|----------|---------|-------|-----------|
+| **Jaccard / Tanimoto** | `tanimoto_similarity` | \|A∩B\| / \|A∪B\| | [0, 1] | Jaccard (1901) |
+| **Dice / Sorensen** | `dice_similarity` | 2\|A∩B\| / (\|A\|+\|B\|) | [0, 1] | Dice (1945); Sørensen (1948) |
+| **Overlap / Szymkiewicz-Simpson** | `overlap_similarity` | \|A∩B\| / min(\|A\|,\|B\|) | [0, 1] | Szymkiewicz (1934); Simpson (1943) |
+| **Cosine** | `cosine_similarity` | \|A∩B\| / sqrt(\|A\|\|B\|) | [0, 1] | Salton & McGill (1983) |
+| **Tversky** | `tversky_similarity` | \|A∩B\| / (\|A∩B\| + α\|A\\B\| + β\|B\\A\|) | [0, 1] | Tversky (1977) |
+| **Kulczynski** (2nd) | `kulczynski_similarity` | 0.5(\|A∩B\|/\|A\| + \|A∩B\|/\|B\|) | [0, 1] | Kulczyński (1927) |
+| **Braun-Blanquet** | `braun_blanquet_similarity` | \|A∩B\| / max(\|A\|,\|B\|) | [0, 1] | Braun-Blanquet (1932) |
+| **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Sokal & Sneath (1963) |
+| **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | McConnaughey (1964) |
+| **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | Raymond et al. (2002) |
