@@ -135,18 +135,18 @@ Random generators require `std` or `hashbrown` in addition to `alloc` when they 
 
 Standalone free functions and a `GraphSimilarities` trait for comparing graphs or sets by their overlap. The trait provides edge-based, vertex-based, and combined similarity methods via default implementations. Any type that reports matched counts and graph sizes gets all metrics for free. These do **not** require the `alloc` feature.
 
-| Metric | Function | Formula | Range | Common Uses | Reference |
-|--------|----------|---------|-------|-------------|-----------|
-| **Jaccard / Tanimoto** | `tanimoto_similarity` | \|A∩B\| / \|A∪B\| | [0, 1] | Molecular fingerprint comparison, ecology, information retrieval | Jaccard (1901) |
-| **Dice / Sorensen** | `dice_similarity` | 2\|A∩B\| / (\|A\|+\|B\|) | [0, 1] | Image segmentation, ecology, NLP token overlap; equals F1 | Dice (1945); Sørensen (1948) |
-| **Overlap / Szymkiewicz-Simpson** | `overlap_similarity` | \|A∩B\| / min(\|A\|,\|B\|) | [0, 1] | Genomic region overlap, link prediction, containment queries | Szymkiewicz (1934); Simpson (1943) |
-| **Cosine** | `cosine_similarity` | \|A∩B\| / sqrt(\|A\|\|B\|) | [0, 1] | Text similarity, sparse feature comparison, recommendation | Salton & McGill (1983) |
-| **Tversky** | `tversky_similarity` | \|A∩B\| / (\|A∩B\| + α\|A\\B\| + β\|B\\A\|) | [0, 1] | Asymmetric substructure search; generalizes Jaccard and Dice | Tversky (1977) |
-| **Kulczynski** (2nd) | `kulczynski_similarity` | 0.5(\|A∩B\|/\|A\| + \|A∩B\|/\|B\|) | [0, 1] | Community comparison, balanced when sets differ in size | Kulczyński (1927) |
-| **Braun-Blanquet** | `braun_blanquet_similarity` | \|A∩B\| / max(\|A\|,\|B\|) | [0, 1] | Phytosociology, conservative containment | Braun-Blanquet (1932) |
-| **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Numerical taxonomy, strict classification | Sokal & Sneath (1963) |
-| **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | Spectral matching in metabolomics; correlation-like | McConnaughey (1964) |
-| **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | MCES result scoring (RASCAL) | Raymond et al. (2002) |
+| Metric | Function | Formula | Range | Reference |
+|--------|----------|---------|-------|-----------|
+| **Jaccard / Tanimoto** | `tanimoto_similarity` | \|A∩B\| / \|A∪B\| | [0, 1] | Jaccard (1901) |
+| **Dice / Sorensen** | `dice_similarity` | 2\|A∩B\| / (\|A\|+\|B\|) | [0, 1] | Dice (1945); Sørensen (1948) |
+| **Overlap / Szymkiewicz-Simpson** | `overlap_similarity` | \|A∩B\| / min(\|A\|,\|B\|) | [0, 1] | Szymkiewicz (1934); Simpson (1943) |
+| **Cosine** | `cosine_similarity` | \|A∩B\| / sqrt(\|A\|\|B\|) | [0, 1] | Salton & McGill (1983) |
+| **Tversky** | `tversky_similarity` | \|A∩B\| / (\|A∩B\| + α\|A\\B\| + β\|B\\A\|) | [0, 1] | Tversky (1977) |
+| **Kulczynski** (2nd) | `kulczynski_similarity` | 0.5(\|A∩B\|/\|A\| + \|A∩B\|/\|B\|) | [0, 1] | Kulczyński (1927) |
+| **Braun-Blanquet** | `braun_blanquet_similarity` | \|A∩B\| / max(\|A\|,\|B\|) | [0, 1] | Braun-Blanquet (1932) |
+| **Sokal-Sneath** (1st) | `sokal_sneath_similarity` | \|A∩B\| / (\|A∩B\| + 2\|AΔB\|) | [0, 1] | Sokal & Sneath (1963) |
+| **McConnaughey** | `mcconnaughey_similarity` | (\|A∩B\|² - \|A\\B\|\|B\\A\|) / (\|A\|\|B\|) | [-1, 1] | McConnaughey (1964) |
+| **Johnson** | `johnson_similarity` | (E_c+V_c)² / ((V₁+E₁)(V₂+E₂)) | [0, 1] | Raymond et al. (2002) |
 
 ## Design Philosophy
 
