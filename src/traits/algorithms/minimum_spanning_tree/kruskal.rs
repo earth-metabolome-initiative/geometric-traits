@@ -3,28 +3,30 @@
 
 use alloc::vec::Vec;
 
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Zero};
 
-use super::common::{CollectedGraph, MinimumSpanningForest, MinimumSpanningTreeError};
-use crate::traits::{Finite, SparseValuedMatrix2D, algorithms::union_find::UnionFind};
+use super::common::{CollectedGraph, MinimumSpanningTreeError, root_forest};
+use crate::{
+    impls::WeightedForest,
+    traits::{Finite, SparseValuedMatrix2D, TotalOrd, algorithms::union_find::UnionFind},
+};
 
 /// Minimum spanning forest via Kruskal's algorithm (sort edges, union-find).
 pub trait Kruskal: SparseValuedMatrix2D + Sized
 where
     Self::RowIndex: AsPrimitive<usize>,
     Self::ColumnIndex: AsPrimitive<usize>,
-    Self::Value: ToPrimitive + Finite,
+    Self::Value: TotalOrd + Finite + Copy + Zero,
 {
     /// Minimum spanning forest via Kruskal's algorithm.
     ///
     /// # Errors
     ///
-    /// If the matrix is not square or a weight is non-finite or unrepresentable
-    /// as `f64`.
+    /// If the matrix is not square or a weight is non-finite.
     #[inline]
     fn minimum_spanning_tree_kruskal(
         &self,
-    ) -> Result<MinimumSpanningForest, MinimumSpanningTreeError> {
+    ) -> Result<WeightedForest<usize, Self::Value>, MinimumSpanningTreeError> {
         Ok(CollectedGraph::from_matrix(self)?.kruskal())
     }
 }
@@ -33,12 +35,12 @@ impl<M: SparseValuedMatrix2D> Kruskal for M
 where
     M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: AsPrimitive<usize>,
-    M::Value: ToPrimitive + Finite,
+    M::Value: TotalOrd + Finite + Copy + Zero,
 {
 }
 
-impl CollectedGraph {
-    pub(super) fn kruskal(self) -> MinimumSpanningForest {
+impl<F: Copy + TotalOrd + Zero> CollectedGraph<F> {
+    pub(super) fn kruskal(self) -> WeightedForest<usize, F> {
         let Self { node_count, mut edges } = self;
         // Ascending weight, with a deterministic endpoint tie-break.
         edges.sort_by(|left, right| {
@@ -53,6 +55,6 @@ impl CollectedGraph {
             }
         }
 
-        MinimumSpanningForest::from_edges(node_count, tree)
+        root_forest(node_count, &tree)
     }
 }

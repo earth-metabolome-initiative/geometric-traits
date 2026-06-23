@@ -4,11 +4,11 @@
 //! result is a valid acyclic forest with the right edge and component counts.
 
 use geometric_traits::{
-    impls::ValuedCSR2D,
+    impls::{ValuedCSR2D, WeightedForest},
     naive_structs::GenericEdgesBuilder,
     traits::{
         EdgesBuilder,
-        algorithms::minimum_spanning_tree::{Boruvka, Kruskal, MinimumSpanningForest, Prim},
+        algorithms::minimum_spanning_tree::{Boruvka, Kruskal, Prim},
     },
 };
 use honggfuzz::fuzz;
@@ -108,7 +108,7 @@ fn validate_forest(
     node_count: usize,
     edges: &[(usize, usize, u32)],
     components: usize,
-    forest: &MinimumSpanningForest,
+    forest: &WeightedForest<usize, f64>,
 ) -> u64 {
     assert_eq!(forest.number_of_nodes(), node_count);
     assert_eq!(forest.number_of_components(), components);
@@ -121,7 +121,7 @@ fn validate_forest(
 
     let mut disjoint = DisjointSet::new(node_count);
     let mut weight = 0u64;
-    for &(source, destination, edge_weight) in forest.edges() {
+    for (source, destination, edge_weight) in forest.edge_iter() {
         assert!(source < destination);
         let key = if source < destination { (source, destination) } else { (destination, source) };
         assert!(available.contains(&key));

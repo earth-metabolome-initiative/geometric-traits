@@ -11,6 +11,6 @@ mod kruskal;
 mod prim;
 
 pub use boruvka::Boruvka;
-pub use common::{MinimumSpanningForest, MinimumSpanningTreeError};
+pub use common::MinimumSpanningTreeError;
 pub use kruskal::Kruskal;
 pub use prim::Prim;

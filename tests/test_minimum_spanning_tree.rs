@@ -15,9 +15,7 @@ use geometric_traits::{
     prelude::*,
     traits::{
         EdgesBuilder,
-        algorithms::minimum_spanning_tree::{
-            Boruvka, Kruskal, MinimumSpanningForest, MinimumSpanningTreeError, Prim,
-        },
+        algorithms::minimum_spanning_tree::{Boruvka, Kruskal, MinimumSpanningTreeError, Prim},
     },
 };
 
@@ -42,7 +40,7 @@ fn build(node_count: usize, edges: &[(usize, usize, f64)]) -> WeightedMatrix {
 }
 
 /// Runs all three algorithms on a matrix, returning labeled results.
-fn run_all(matrix: &WeightedMatrix) -> Vec<(&'static str, MinimumSpanningForest)> {
+fn run_all(matrix: &WeightedMatrix) -> Vec<(&'static str, WeightedForest<usize, f64>)> {
     vec![
         ("kruskal", matrix.minimum_spanning_tree_kruskal().unwrap()),
         ("prim", matrix.minimum_spanning_tree_prim().unwrap()),
@@ -101,7 +99,7 @@ fn assert_valid_forest(
     node_count: usize,
     graph_edges: &[(usize, usize, f64)],
     expected_components: usize,
-    forest: &MinimumSpanningForest,
+    forest: &WeightedForest<usize, f64>,
 ) {
     assert_eq!(forest.number_of_nodes(), node_count, "{case_name}/{label}: node count");
     assert_eq!(
@@ -120,7 +118,7 @@ fn assert_valid_forest(
 
     let mut disjoint = DisjointSet::new(node_count);
     let mut summed = 0.0;
-    for &(source, destination, weight) in forest.edges() {
+    for (source, destination, weight) in forest.edge_iter() {
         assert!(source < destination, "{case_name}/{label}: edges must be canonical");
         assert!(
             available.contains(&edge_key(source, destination)),
@@ -151,7 +149,7 @@ fn triangle_drops_heaviest_edge() {
         assert_eq!(forest.number_of_components(), 1, "{label}: connected");
         assert_eq!(forest.len(), 2, "{label}: two edges");
         let keys: std::collections::HashSet<(usize, usize)> =
-            forest.edges().iter().map(|&(s, d, _)| edge_key(s, d)).collect();
+            forest.edge_iter().map(|(s, d, _)| edge_key(s, d)).collect();
         assert_eq!(keys, std::collections::HashSet::from([(0, 1), (1, 2)]), "{label}: edge set");
     }
 }
@@ -186,6 +184,37 @@ fn all_ties_square_picks_any_three_edges() {
         assert!(approx_eq(forest.total_weight(), 3.0), "{label}: weight");
         assert_valid_forest(label, "square_all_ties", 4, &edges, 1, &forest);
     }
+}
+
+#[test]
+fn integer_and_negative_weights() {
+    use geometric_traits::impls::ValuedCSR2D;
+
+    // The generic rework must work for non-f64 weights and negative weights.
+    // A triangle with weights -3, -1, 2: the MST keeps the two most negative
+    // edges for a total of -4.
+    type IntMatrix = ValuedCSR2D<usize, usize, usize, i64>;
+    let mut directed = Vec::new();
+    for &(source, destination, weight) in &[(0usize, 1usize, -3i64), (1, 2, -1), (0, 2, 2)] {
+        directed.push((source, destination, weight));
+        directed.push((destination, source, weight));
+    }
+    directed.sort_unstable_by(|(ls, ld, _), (rs, rd, _)| (ls, ld).cmp(&(rs, rd)));
+    let matrix: IntMatrix = GenericEdgesBuilder::<_, IntMatrix>::default()
+        .expected_number_of_edges(directed.len())
+        .expected_shape((3, 3))
+        .edges(directed.into_iter())
+        .build()
+        .unwrap();
+
+    let kruskal = matrix.minimum_spanning_tree_kruskal().unwrap();
+    assert_eq!(kruskal.total_weight(), -4);
+    assert_eq!(kruskal.number_of_components(), 1);
+    assert_eq!(kruskal.parent_array(), matrix.minimum_spanning_tree_prim().unwrap().parent_array());
+    assert_eq!(
+        kruskal.parent_array(),
+        matrix.minimum_spanning_tree_boruvka().unwrap().parent_array()
+    );
 }
 
 // ----------------------------------------------------------------------------
@@ -233,10 +262,10 @@ fn matches_networkx_for_every_algorithm() {
 fn assert_exact_edges(
     label: &str,
     case: &MinimumSpanningTreeFixtureCase,
-    forest: &MinimumSpanningForest,
+    forest: &WeightedForest<usize, f64>,
 ) {
     let actual: std::collections::HashSet<(usize, usize)> =
-        forest.edges().iter().map(|&(s, d, _)| edge_key(s, d)).collect();
+        forest.edge_iter().map(|(s, d, _)| edge_key(s, d)).collect();
     let expected: std::collections::HashSet<(usize, usize)> =
         case.mst_edges.iter().map(|&(s, d, _)| edge_key(s, d)).collect();
     assert_eq!(actual, expected, "{}/{label}: exact edge set under distinct weights", case.name);
@@ -261,6 +290,30 @@ fn algorithms_agree_on_total_weight() {
             case.name,
         );
     }
+}
+
+#[test]
+fn algorithms_agree_on_parent_array_for_unique_mst() {
+    // Distinct weights make the MST unique, so the rooted parent array (rooted
+    // at each component's lowest index) must be identical across all three.
+    let matrix = build(
+        6,
+        &[
+            (0, 1, 1.0),
+            (1, 2, 2.0),
+            (2, 3, 3.0),
+            (3, 4, 4.0),
+            (4, 5, 5.0),
+            (0, 5, 9.0),
+            (1, 4, 8.0),
+            (2, 5, 7.0),
+        ],
+    );
+    let kruskal = matrix.minimum_spanning_tree_kruskal().unwrap();
+    let prim = matrix.minimum_spanning_tree_prim().unwrap();
+    let boruvka = matrix.minimum_spanning_tree_boruvka().unwrap();
+    assert_eq!(kruskal.parent_array(), prim.parent_array(), "kruskal vs prim parent array");
+    assert_eq!(kruskal.parent_array(), boruvka.parent_array(), "kruskal vs boruvka parent array");
 }
 
 #[test]

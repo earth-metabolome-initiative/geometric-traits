@@ -4,28 +4,30 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
 use core::cmp::Ordering;
 
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Zero};
 
-use super::common::{CollectedGraph, MinimumSpanningForest, MinimumSpanningTreeError};
-use crate::traits::{Finite, SparseValuedMatrix2D};
+use super::common::{CollectedGraph, MinimumSpanningTreeError, root_forest};
+use crate::{
+    impls::WeightedForest,
+    traits::{Finite, SparseValuedMatrix2D, TotalOrd},
+};
 
 /// Minimum spanning forest via Prim's algorithm (binary-heap frontier growth).
 pub trait Prim: SparseValuedMatrix2D + Sized
 where
     Self::RowIndex: AsPrimitive<usize>,
     Self::ColumnIndex: AsPrimitive<usize>,
-    Self::Value: ToPrimitive + Finite,
+    Self::Value: TotalOrd + Finite + Copy + Zero,
 {
     /// Minimum spanning forest via Prim's algorithm.
     ///
     /// # Errors
     ///
-    /// If the matrix is not square or a weight is non-finite or unrepresentable
-    /// as `f64`.
+    /// If the matrix is not square or a weight is non-finite.
     #[inline]
     fn minimum_spanning_tree_prim(
         &self,
-    ) -> Result<MinimumSpanningForest, MinimumSpanningTreeError> {
+    ) -> Result<WeightedForest<usize, Self::Value>, MinimumSpanningTreeError> {
         Ok(CollectedGraph::from_matrix(self)?.prim())
     }
 }
@@ -34,20 +36,20 @@ impl<M: SparseValuedMatrix2D> Prim for M
 where
     M::RowIndex: AsPrimitive<usize>,
     M::ColumnIndex: AsPrimitive<usize>,
-    M::Value: ToPrimitive + Finite,
+    M::Value: TotalOrd + Finite + Copy + Zero,
 {
 }
 
 /// A binary-heap frontier candidate. The `Ord` impl reverses the weight so the
 /// max-heap pops the lightest edge first.
 #[derive(Debug)]
-struct PrimEntry {
-    weight: f64,
+struct PrimEntry<F> {
+    weight: F,
     from: usize,
     to: usize,
 }
 
-impl Ord for PrimEntry {
+impl<F: TotalOrd> Ord for PrimEntry<F> {
     fn cmp(&self, other: &Self) -> Ordering {
         other
             .weight
@@ -57,25 +59,25 @@ impl Ord for PrimEntry {
     }
 }
 
-impl PartialOrd for PrimEntry {
+impl<F: TotalOrd> PartialOrd for PrimEntry<F> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for PrimEntry {
+impl<F: TotalOrd> PartialEq for PrimEntry<F> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl Eq for PrimEntry {}
+impl<F: TotalOrd> Eq for PrimEntry<F> {}
 
-impl CollectedGraph {
-    pub(super) fn prim(self) -> MinimumSpanningForest {
+impl<F: Copy + TotalOrd + Zero> CollectedGraph<F> {
+    pub(super) fn prim(self) -> WeightedForest<usize, F> {
         let Self { node_count, edges } = self;
 
-        let mut adjacency: Vec<Vec<(usize, f64)>> = alloc::vec![Vec::new(); node_count];
+        let mut adjacency: Vec<Vec<(usize, F)>> = alloc::vec![Vec::new(); node_count];
         for &(source, destination, weight) in &edges {
             adjacency[source].push((destination, weight));
             adjacency[destination].push((source, weight));
@@ -83,7 +85,7 @@ impl CollectedGraph {
 
         let mut visited = alloc::vec![false; node_count];
         let mut tree = Vec::new();
-        let mut heap: BinaryHeap<PrimEntry> = BinaryHeap::new();
+        let mut heap: BinaryHeap<PrimEntry<F>> = BinaryHeap::new();
 
         // Each unvisited seed starts a new tree, so the loop covers every
         // connected component.
@@ -103,8 +105,9 @@ impl CollectedGraph {
                     continue;
                 }
                 visited[to] = true;
-                let (low, high) = if from < to { (from, to) } else { (to, from) };
-                tree.push((low, high, weight));
+                // The rooting pass treats edges as undirected, so the endpoint
+                // order does not matter here.
+                tree.push((from, to, weight));
                 for &(neighbor, neighbor_weight) in &adjacency[to] {
                     if !visited[neighbor] {
                         heap.push(PrimEntry { weight: neighbor_weight, from: to, to: neighbor });
@@ -113,7 +116,7 @@ impl CollectedGraph {
             }
         }
 
-        MinimumSpanningForest::from_edges(node_count, tree)
+        root_forest(node_count, &tree)
     }
 }
 
@@ -123,7 +126,7 @@ mod tests {
 
     use super::PrimEntry;
 
-    fn entry(weight: f64, from: usize, to: usize) -> PrimEntry {
+    fn entry(weight: f64, from: usize, to: usize) -> PrimEntry<f64> {
         PrimEntry { weight, from, to }
     }
 
