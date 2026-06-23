@@ -40,6 +40,7 @@ where
 
 /// A binary-heap frontier candidate. The `Ord` impl reverses the weight so the
 /// max-heap pops the lightest edge first.
+#[derive(Debug)]
 struct PrimEntry {
     weight: f64,
     from: usize,
@@ -113,5 +114,45 @@ impl CollectedGraph {
         }
 
         MinimumSpanningForest::from_edges(node_count, tree)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::cmp::Ordering;
+
+    use super::PrimEntry;
+
+    fn entry(weight: f64, from: usize, to: usize) -> PrimEntry {
+        PrimEntry { weight, from, to }
+    }
+
+    #[test]
+    fn lighter_edge_ranks_higher_for_the_max_heap() {
+        let light = entry(1.0, 0, 1);
+        let heavy = entry(2.0, 0, 1);
+        // The weight order is reversed so a `BinaryHeap` pops the lightest edge.
+        assert_eq!(light.cmp(&heavy), Ordering::Greater);
+        assert_eq!(heavy.cmp(&light), Ordering::Less);
+        assert_eq!(light.partial_cmp(&heavy), Some(Ordering::Greater));
+        assert!(light > heavy);
+        assert_ne!(light, heavy);
+    }
+
+    #[test]
+    fn equal_weight_breaks_ties_on_endpoints() {
+        let a = entry(1.0, 0, 1);
+        let b = entry(1.0, 0, 2);
+        assert_eq!(a.cmp(&b), Ordering::Less);
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn identical_entries_are_equal() {
+        let a = entry(1.5, 2, 3);
+        let b = entry(1.5, 2, 3);
+        assert_eq!(a.cmp(&b), Ordering::Equal);
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Equal));
+        assert_eq!(a, b);
     }
 }
