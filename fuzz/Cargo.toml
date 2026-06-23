@@ -273,3 +273,9 @@ name = "max_flow"
 path = "fuzz_targets/max_flow.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "minimum_spanning_tree"
+path = "fuzz_targets/minimum_spanning_tree.rs"
+test = false
+doc = false

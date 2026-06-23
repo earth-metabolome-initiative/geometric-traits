@@ -3,6 +3,8 @@
 #[cfg(feature = "alloc")]
 pub mod connected_components;
 #[cfg(feature = "alloc")]
+pub(crate) mod union_find;
+#[cfg(feature = "alloc")]
 pub use connected_components::ConnectedComponents;
 #[cfg(feature = "alloc")]
 pub mod diameter;
@@ -131,6 +133,12 @@ pub use johnson::*;
 mod floyd_warshall;
 #[cfg(feature = "alloc")]
 pub use floyd_warshall::*;
+#[cfg(feature = "alloc")]
+pub mod minimum_spanning_tree;
+#[cfg(feature = "alloc")]
+pub use minimum_spanning_tree::{
+    Boruvka, Kruskal, MinimumSpanningForest, MinimumSpanningTreeError, Prim,
+};
 #[cfg(feature = "alloc")]
 mod pairwise_bfs;
 #[cfg(feature = "alloc")]

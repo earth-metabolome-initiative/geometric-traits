@@ -59,12 +59,11 @@ pub fn replay_dir<T: for<'a> Arbitrary<'a>>(dir: &std::path::Path) -> Vec<T> {
         return results;
     };
     for entry in entries.flatten() {
-        if entry.path().is_file() {
-            if let Ok(bytes) = std::fs::read(entry.path()) {
-                if let Some(instance) = from_bytes::<T>(&bytes) {
-                    results.push(instance);
-                }
-            }
+        if entry.path().is_file()
+            && let Ok(bytes) = std::fs::read(entry.path())
+            && let Some(instance) = from_bytes::<T>(&bytes)
+        {
+            results.push(instance);
         }
     }
     results
@@ -2243,23 +2242,21 @@ pub fn check_lap_sparse_wrapper_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) 
     if let Ok(hungarian_assignment) = &sparse_hungarian {
         validate_lap_assignment(csr, hungarian_assignment, "SparseHungarian");
 
-        if numerically_stable {
-            if let Ok(jaqaman_assignment) = &jaqaman_result {
-                assert_eq!(
-                    hungarian_assignment.len(),
-                    jaqaman_assignment.len(),
-                    "SparseHungarian/Jaqaman cardinality mismatch: {csr:?}"
-                );
+        if numerically_stable && let Ok(jaqaman_assignment) = &jaqaman_result {
+            assert_eq!(
+                hungarian_assignment.len(),
+                jaqaman_assignment.len(),
+                "SparseHungarian/Jaqaman cardinality mismatch: {csr:?}"
+            );
 
-                let hungarian_cost = lap_assignment_cost(csr, hungarian_assignment);
-                let jaqaman_cost = lap_assignment_cost(csr, jaqaman_assignment);
-                let denom = hungarian_cost.abs().max(jaqaman_cost.abs()).max(1e-30);
-                assert!(
-                    (hungarian_cost - jaqaman_cost).abs() / denom < 1e-9,
-                    "SparseHungarian/Jaqaman objective mismatch ({hungarian_cost} vs \
-                     {jaqaman_cost}): {csr:?}"
-                );
-            }
+            let hungarian_cost = lap_assignment_cost(csr, hungarian_assignment);
+            let jaqaman_cost = lap_assignment_cost(csr, jaqaman_assignment);
+            let denom = hungarian_cost.abs().max(jaqaman_cost.abs()).max(1e-30);
+            assert!(
+                (hungarian_cost - jaqaman_cost).abs() / denom < 1e-9,
+                "SparseHungarian/Jaqaman objective mismatch ({hungarian_cost} vs \
+                 {jaqaman_cost}): {csr:?}"
+            );
         }
     } else if numerically_stable && jaqaman_result.is_ok() {
         panic!(
@@ -2295,14 +2292,12 @@ pub fn check_lap_square_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     validate_lap_assignment(csr, &lapmod_assignment, "LAPMOD");
 
     let numerically_stable = lap_values_are_numerically_stable(csr);
-    if numerically_stable {
-        if let Ok(hopcroft_karp_assignment) = csr.hopcroft_karp() {
-            assert_eq!(
-                lapmod_assignment.len(),
-                hopcroft_karp_assignment.len(),
-                "LAPMOD/Hopcroft-Karp cardinality mismatch: {csr:?}"
-            );
-        }
+    if numerically_stable && let Ok(hopcroft_karp_assignment) = csr.hopcroft_karp() {
+        assert_eq!(
+            lapmod_assignment.len(),
+            hopcroft_karp_assignment.len(),
+            "LAPMOD/Hopcroft-Karp cardinality mismatch: {csr:?}"
+        );
     }
 
     let padding_value = maximum_value * 4.2;

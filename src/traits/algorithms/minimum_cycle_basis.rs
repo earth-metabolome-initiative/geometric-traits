@@ -16,6 +16,7 @@ use core::cmp::Reverse;
 
 use crate::traits::{
     ConnectedComponents, MonopartiteGraph, PositiveInteger, UndirectedMonopartiteMonoplexGraph,
+    algorithms::union_find::UnionFind,
 };
 
 /// Result returned by [`MinimumCycleBasis::minimum_cycle_basis`].
@@ -156,45 +157,6 @@ impl<NodeId: PositiveInteger> LocalGraph<NodeId> {
 struct OrthogonalCycle<NodeId: PositiveInteger> {
     cycle: Vec<NodeId>,
     edge_bits: Vec<u64>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct UnionFind {
-    parents: Vec<usize>,
-    ranks: Vec<u8>,
-}
-
-impl UnionFind {
-    fn new(size: usize) -> Self {
-        Self { parents: (0..size).collect(), ranks: vec![0; size] }
-    }
-
-    fn find(&mut self, node: usize) -> usize {
-        if self.parents[node] != node {
-            let parent = self.parents[node];
-            self.parents[node] = self.find(parent);
-        }
-        self.parents[node]
-    }
-
-    fn union(&mut self, left: usize, right: usize) -> bool {
-        let left_root = self.find(left);
-        let right_root = self.find(right);
-        if left_root == right_root {
-            return false;
-        }
-
-        match self.ranks[left_root].cmp(&self.ranks[right_root]) {
-            core::cmp::Ordering::Less => self.parents[left_root] = right_root,
-            core::cmp::Ordering::Greater => self.parents[right_root] = left_root,
-            core::cmp::Ordering::Equal => {
-                self.parents[right_root] = left_root;
-                self.ranks[left_root] += 1;
-            }
-        }
-
-        true
-    }
 }
 
 /// Trait providing an exact minimum cycle basis for undirected simple graphs.

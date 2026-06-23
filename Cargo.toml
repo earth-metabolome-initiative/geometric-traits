@@ -91,6 +91,10 @@ rayon = "1"
 indicatif = { version = "0.18", features = ["rayon"] }
 
 [[bench]]
+name = "minimum_spanning_tree"
+harness = false
+
+[[bench]]
 name = "wu_palmer"
 harness = false
 
