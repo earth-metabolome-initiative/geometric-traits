@@ -212,3 +212,9 @@ The stored value is a consensus value. At generation time it is cross-checked ac
 The cases span tiny hand-checkable networks (single arc, path bottleneck, diamond, antiparallel arcs, the CLRS textbook network, self-loops, a disconnected source and sink, a wider layered network), bipartite matching reductions of growing size, and several seeded random directed capacity networks.
 
 It is consumed by `tests/test_max_flow.rs` and `benches/max_flow.rs`. It is a one-shot recording from NetworkX `3.3`, and the generator is not part of the repository.
+
+# Minimum-Spanning-Tree Ground-Truth Fixtures
+
+`minimum_spanning_tree_networkx.json.gz` is the shared NetworkX oracle for the `Kruskal`, `Prim`, and `Boruvka` traits. Each case stores an undirected weighted graph as `[u, v, weight]` triples plus the NetworkX summary (`mst_total_weight`, `mst_edge_count`, `number_of_components`, a `weights_distinct` flag, and `mst_edges`). Exact-edge comparison is used only when `weights_distinct` is true, since an MST is not unique under tied weights.
+
+Cases span tiny hand-checkable graphs, disconnected forests, and seeded `G(n, p)` graphs (`n` from 10 to 1000) with both distinct and tied weights. Consumed by `tests/test_minimum_spanning_tree.rs` and `benches/minimum_spanning_tree.rs`. A one-shot recording from NetworkX `3.3`. The generator is not part of the repository.

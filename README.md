@@ -36,6 +36,9 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 | **Biconnected Components / Articulation Points / Bridges** | `BiconnectedComponents` | O(V+E) | [Hopcroft & Tarjan (1973)](https://doi.org/10.1145/362248.362272) |
 | **Cycle Detection (DFS)** | `CycleDetection` | O(V+E) | DFS back-edge detection |
 | **Connected Components (Undirected)** | `ConnectedComponents` | O(V+E) | Linear-time graph traversal |
+| **Minimum Spanning Forest (Kruskal)** | `Kruskal` | O(E log E) | [Kruskal (1956)](https://doi.org/10.1090/S0002-9939-1956-0078686-7) |
+| **Minimum Spanning Forest (Prim)** | `Prim` | O(E log V) | [Prim (1957)](https://doi.org/10.1002/j.1538-7305.1957.tb01515.x) |
+| **Minimum Spanning Forest (Boruvka)** | `Boruvka` | O(E log V) | Borůvka (1926), transl. [Nešetřil et al. (2001)](https://doi.org/10.1016/S0012-365X(00)00224-7) |
 | **Bipartite Detection / 2-Coloring** | `BipartiteDetection` | O(V+E) | BFS 2-coloring |
 | **Tree / Forest Detection** | `TreeDetection` | O(V+E) | Component and edge-count predicates |
 | **Planarity Testing / Embedding** | `PlanarityDetection` | O(V+E) | [Boyer & Myrvold (2004)](https://doi.org/10.7155/jgaa.00091) |
