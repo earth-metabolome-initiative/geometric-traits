@@ -11,6 +11,19 @@ readme = "README.md"
 keywords = ["graph", "algorithms", "traits", "no_std", "bipartite"]
 categories = ["algorithms", "data-structures", "no-std"]
 rust-version = "1.88"
+# Publish only the library and its docs. The tests, fuzz harnesses, benches, and
+# their multi-megabyte ground-truth fixtures are not needed by downstream users
+# and would push the package far past the crates.io size limit.
+include = [
+    "src/**/*",
+    "/README.md",
+    "/CONTRIBUTING.md",
+    "/LICENSE",
+]
+
+[package.metadata.docs.rs]
+# Document the feature-gated APIs (hashbrown, arbitrary, mem_dbg, ...) on docs.rs.
+all-features = true
 
 [dependencies]
 arbitrary = { version = "1", features = ["derive"], default-features = false, optional = true }
