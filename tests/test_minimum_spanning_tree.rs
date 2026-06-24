@@ -187,6 +187,17 @@ fn all_ties_square_picks_any_three_edges() {
 }
 
 #[test]
+fn self_loops_are_ignored() {
+    // A heavy self-loop on node 0 must be dropped, never selected.
+    let matrix = build(3, &[(0, 0, 10.0), (0, 1, 1.0), (1, 2, 2.0)]);
+    for (label, forest) in run_all(&matrix) {
+        assert!(approx_eq(forest.total_weight(), 3.0), "{label}: self-loop must not count");
+        assert_eq!(forest.number_of_components(), 1, "{label}: connected");
+        assert_eq!(forest.len(), 2, "{label}: two edges");
+    }
+}
+
+#[test]
 fn integer_and_negative_weights() {
     use geometric_traits::impls::ValuedCSR2D;
 

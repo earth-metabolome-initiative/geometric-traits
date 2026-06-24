@@ -596,4 +596,22 @@ mod tests {
         let debug = alloc::format!("{forest:?}");
         assert!(debug.contains("WeightedForest"));
     }
+
+    #[test]
+    fn test_matrix_columns_rows_and_diagonal() {
+        let forest = two_component_forest();
+        assert_eq!(forest.number_of_rows(), 5);
+        assert_eq!(forest.number_of_columns(), 5);
+        assert_eq!(forest.number_of_defined_diagonal_values(), 0);
+        // The whole-matrix column and row views, one per non-root edge.
+        let columns: Vec<usize> = forest.sparse_columns().collect();
+        assert_eq!(columns, vec![0, 1, 3]);
+        let rows: Vec<usize> = forest.sparse_rows().collect();
+        assert_eq!(rows, vec![1, 2, 4]);
+        // Reverse iteration of the column and row views.
+        let columns_rev: Vec<usize> = forest.sparse_columns().rev().collect();
+        assert_eq!(columns_rev, vec![3, 1, 0]);
+        let rows_rev: Vec<usize> = forest.sparse_rows().rev().collect();
+        assert_eq!(rows_rev, vec![4, 2, 1]);
+    }
 }
