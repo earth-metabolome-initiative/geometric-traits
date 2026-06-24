@@ -1,11 +1,14 @@
-//! Shared error, result, and graph-extraction types for the
+//! Shared error, graph extraction, and forest construction for the
 //! minimum-spanning-tree algorithms.
 
 use alloc::vec::Vec;
 
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Zero};
 
-use crate::traits::{Finite, SparseValuedMatrix2D};
+use crate::{
+    impls::WeightedForest,
+    traits::{Finite, SparseValuedMatrix2D, TotalOrd},
+};
 
 /// Error returned by the minimum spanning tree traits.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -26,105 +29,27 @@ pub enum MinimumSpanningTreeError {
         /// Destination endpoint.
         destination_id: usize,
     },
-    /// An edge weight cannot be represented as an `f64`.
-    #[error("Edge ({source_id}, {destination_id}) has a weight not representable as f64.")]
-    UnrepresentableWeight {
-        /// Source endpoint.
-        source_id: usize,
-        /// Destination endpoint.
-        destination_id: usize,
-    },
-}
-
-/// A minimum spanning forest: the selected tree edges (canonical, `usize`
-/// indices) and summary statistics.
-#[derive(Clone, Debug, PartialEq)]
-pub struct MinimumSpanningForest {
-    edges: Vec<(usize, usize, f64)>,
-    total_weight: f64,
-    number_of_nodes: usize,
-    number_of_components: usize,
-}
-
-impl MinimumSpanningForest {
-    /// Builds the result, deriving the weight and the component count
-    /// (`node_count - edges.len()` for any forest).
-    pub(super) fn from_edges(node_count: usize, edges: Vec<(usize, usize, f64)>) -> Self {
-        let total_weight = edges.iter().map(|&(_, _, weight)| weight).sum();
-        let number_of_components = node_count - edges.len();
-        Self { edges, total_weight, number_of_nodes: node_count, number_of_components }
-    }
-
-    /// The tree edges as `(source, destination, weight)` triples, `source <
-    /// destination`.
-    #[inline]
-    #[must_use]
-    pub fn edges(&self) -> &[(usize, usize, f64)] {
-        &self.edges
-    }
-
-    /// The total weight (unique even when the edge set is not).
-    #[inline]
-    #[must_use]
-    pub fn total_weight(&self) -> f64 {
-        self.total_weight
-    }
-
-    /// The number of nodes in the input graph.
-    #[inline]
-    #[must_use]
-    pub fn number_of_nodes(&self) -> usize {
-        self.number_of_nodes
-    }
-
-    /// The number of trees, equal to the graph's connected components.
-    #[inline]
-    #[must_use]
-    pub fn number_of_components(&self) -> usize {
-        self.number_of_components
-    }
-
-    /// The number of tree edges.
-    #[inline]
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.edges.len()
-    }
-
-    /// Whether the forest has no edges.
-    #[inline]
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.edges.is_empty()
-    }
-
-    /// Whether the graph is connected (the forest is a single spanning tree).
-    #[inline]
-    #[must_use]
-    pub fn is_spanning_tree(&self) -> bool {
-        self.number_of_components <= 1
-    }
 }
 
 /// The undirected graph extracted from a matrix. Crossing the matrix generics
-/// once here keeps the three algorithms non-generic (compiled once, not per
-/// matrix type).
-pub(super) struct CollectedGraph {
+/// once here keeps the three algorithms non-generic over the matrix type. The
+/// weight type `F` is the matrix value type, carried through without
+/// conversion.
+pub(super) struct CollectedGraph<F> {
     pub(super) node_count: usize,
     /// Canonical edges (`source < destination`), one per pair, sorted by
     /// endpoint.
-    pub(super) edges: Vec<(usize, usize, f64)>,
+    pub(super) edges: Vec<(usize, usize, F)>,
 }
 
-impl CollectedGraph {
+impl<F: Copy + TotalOrd + Finite> CollectedGraph<F> {
     /// Reads the matrix as an undirected weighted graph, validating it and
     /// folding each unordered pair to one canonical edge.
     pub(super) fn from_matrix<M>(matrix: &M) -> Result<Self, MinimumSpanningTreeError>
     where
-        M: SparseValuedMatrix2D,
+        M: SparseValuedMatrix2D<Value = F>,
         M::RowIndex: AsPrimitive<usize>,
         M::ColumnIndex: AsPrimitive<usize>,
-        M::Value: ToPrimitive + Finite,
     {
         let node_count = matrix.number_of_rows().as_();
         let columns = matrix.number_of_columns().as_();
@@ -148,11 +73,6 @@ impl CollectedGraph {
                         destination_id: destination,
                     });
                 }
-                let weight =
-                    weight.to_f64().ok_or(MinimumSpanningTreeError::UnrepresentableWeight {
-                        source_id: source,
-                        destination_id: destination,
-                    })?;
                 let (low, high) = if source < destination {
                     (source, destination)
                 } else {
@@ -171,4 +91,48 @@ impl CollectedGraph {
 
         Ok(Self { node_count, edges })
     }
+}
+
+/// Roots the selected tree edges into a parent-array forest.
+///
+/// Each connected component is rooted at its lowest-index node, and edges are
+/// oriented away from that root. Because a tree has a unique parent structure
+/// once rooted, the traversal order does not affect the result, so the three
+/// algorithms produce the same forest on any graph with a unique minimum
+/// spanning tree.
+pub(super) fn root_forest<F: Copy + Zero>(
+    node_count: usize,
+    tree_edges: &[(usize, usize, F)],
+) -> WeightedForest<usize, F> {
+    let mut adjacency: Vec<Vec<(usize, F)>> = alloc::vec![Vec::new(); node_count];
+    for &(source, destination, weight) in tree_edges {
+        adjacency[source].push((destination, weight));
+        adjacency[destination].push((source, weight));
+    }
+
+    // Every node starts as its own root with a zero weight to itself.
+    let mut parent: Vec<(usize, F)> = (0..node_count).map(|node| (node, F::zero())).collect();
+    let mut visited = alloc::vec![false; node_count];
+    let mut stack: Vec<usize> = Vec::new();
+
+    for root in 0..node_count {
+        if visited[root] {
+            continue;
+        }
+        // The lowest unvisited index is its component's root and keeps its
+        // self-parent.
+        visited[root] = true;
+        stack.push(root);
+        while let Some(node) = stack.pop() {
+            for &(neighbor, weight) in &adjacency[node] {
+                if !visited[neighbor] {
+                    visited[neighbor] = true;
+                    parent[neighbor] = (node, weight);
+                    stack.push(neighbor);
+                }
+            }
+        }
+    }
+
+    WeightedForest::from_parent_array(parent)
 }

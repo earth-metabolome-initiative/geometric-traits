@@ -136,9 +136,7 @@ pub use floyd_warshall::*;
 #[cfg(feature = "alloc")]
 pub mod minimum_spanning_tree;
 #[cfg(feature = "alloc")]
-pub use minimum_spanning_tree::{
-    Boruvka, Kruskal, MinimumSpanningForest, MinimumSpanningTreeError, Prim,
-};
+pub use minimum_spanning_tree::{Boruvka, Kruskal, MinimumSpanningTreeError, Prim};
 #[cfg(feature = "alloc")]
 mod pairwise_bfs;
 #[cfg(feature = "alloc")]

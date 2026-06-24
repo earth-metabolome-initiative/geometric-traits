@@ -19,6 +19,10 @@ pub use bit_square_matrix::BitSquareMatrix;
 mod edge_contexts;
 #[cfg(feature = "alloc")]
 pub use edge_contexts::EdgeContexts;
+#[cfg(feature = "alloc")]
+pub mod forest;
+#[cfg(feature = "alloc")]
+pub use forest::*;
 
 mod array;
 mod implicit_numeric_vocabularies;
