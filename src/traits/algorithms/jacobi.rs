@@ -225,7 +225,7 @@ where
     // Force exact symmetry.
     for row in 0..order {
         for col in (row + 1)..order {
-            let avg = (flat[row * order + col] + flat[col * order + row]) * 0.5;
+            let avg = flat[row * order + col].midpoint(flat[col * order + row]);
             flat[row * order + col] = avg;
             flat[col * order + row] = avg;
         }

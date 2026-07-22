@@ -318,7 +318,7 @@ pub fn kulczynski_similarity(intersection: usize, size_a: usize, size_b: usize) 
     {
         let ratio_a = intersection as f64 / size_a as f64;
         let ratio_b = intersection as f64 / size_b as f64;
-        0.5 * (ratio_a + ratio_b)
+        ratio_a.midpoint(ratio_b)
     }
 }
 

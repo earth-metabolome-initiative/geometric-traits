@@ -345,7 +345,7 @@ where
         // Force exact symmetry.
         for i in 0..n {
             for j in (i + 1)..n {
-                let avg = (dist[i * n + j] + dist[j * n + i]) * 0.5;
+                let avg = dist[i * n + j].midpoint(dist[j * n + i]);
                 dist[i * n + j] = avg;
                 dist[j * n + i] = avg;
             }
@@ -420,7 +420,7 @@ fn square_and_double_center(dist: &[f64], n: usize) -> Vec<f64> {
     // Force exact symmetry of B.
     for i in 0..n {
         for j in (i + 1)..n {
-            let avg = (b[i * n + j] + b[j * n + i]) * 0.5;
+            let avg = b[i * n + j].midpoint(b[j * n + i]);
             b[i * n + j] = avg;
             b[j * n + i] = avg;
         }
