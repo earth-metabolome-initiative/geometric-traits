@@ -66,6 +66,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
+name = "barnes-hut-tree"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d53b280719df0ecfa7be8ee6c4b3094e3687bb61c4946a2343909d7931619964"
+dependencies = [
+ "num-traits",
+ "rayon",
+]
+
+[[package]]
 name = "bitflags"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -342,6 +352,7 @@ name = "geometric-traits"
 version = "0.1.0"
 dependencies = [
  "arbitrary",
+ "barnes-hut-tree",
  "bitvec",
  "criterion",
  "flate2",
