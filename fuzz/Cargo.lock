@@ -31,9 +31,9 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "barnes-hut-tree"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d53b280719df0ecfa7be8ee6c4b3094e3687bb61c4946a2343909d7931619964"
+checksum = "71e722517096156bfb9854089d365d0066892b613ee79579b570e4585687bb52"
 dependencies = [
  "num-traits",
  "rayon",

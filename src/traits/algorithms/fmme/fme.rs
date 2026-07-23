@@ -68,7 +68,12 @@ pub struct FastMultipoleEmbedder<F> {
 
 impl<F> Default for FastMultipoleEmbedder<F>
 where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     fn default() -> Self {
         Self::new()
@@ -77,7 +82,12 @@ where
 
 impl<F> FastMultipoleEmbedder<F>
 where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     /// Creates an embedder with empty scratch buffers.
     #[must_use]
@@ -256,7 +266,7 @@ where
                     dsq += value * value;
                 }
                 let s_sum = node_sizes[i] + node_sizes[j];
-                let denom = (s_sum * protection).max(dsq);
+                let denom = Float::max(s_sum * protection, dsq);
                 let f = (s_sum / denom) * factor;
                 for d in 0..2 {
                     let push = disp[d] * f;
@@ -298,7 +308,7 @@ where
                       is_leaf: bool,
                       force: &mut [F; 2]| {
             let charge = if is_leaf { mass * two } else { mass };
-            let f = charge / distance_squared.max(floor);
+            let f = charge / Float::max(distance_squared, floor);
             for d in 0..2 {
                 force[d] += displacement[d] * f;
             }

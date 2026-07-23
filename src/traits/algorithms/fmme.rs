@@ -50,7 +50,12 @@ use crate::traits::SparseValuedMatrix2D;
 #[must_use]
 pub fn layout_graph<F>(n: usize, edges: &[(usize, usize)], config: &MixerConfig<F>) -> Vec<F>
 where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     if n == 0 {
         return Vec::new();
@@ -75,7 +80,12 @@ fn layout_components<F>(
     config: &MixerConfig<F>,
 ) -> Vec<F>
 where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     struct Placed<F> {
         nodes: Vec<usize>,
@@ -97,15 +107,19 @@ where
             .map(|(a, b)| (index_of[a], index_of[b]))
             .collect();
         let mut coords = multilevel_layout::<F>(local_n, &local_edges, config);
-        let (mut min0, mut min1, mut max0, mut max1) =
-            (F::infinity(), F::infinity(), F::neg_infinity(), F::neg_infinity());
+        let (mut min0, mut min1, mut max0, mut max1) = (
+            <F as Float>::infinity(),
+            <F as Float>::infinity(),
+            <F as Float>::neg_infinity(),
+            <F as Float>::neg_infinity(),
+        );
         for i in 0..local_n {
             let x = coords[i * 2];
             let y = coords[i * 2 + 1];
-            min0 = min0.min(x);
-            max0 = max0.max(x);
-            min1 = min1.min(y);
-            max1 = max1.max(y);
+            min0 = Float::min(min0, x);
+            max0 = Float::max(max0, x);
+            min1 = Float::min(min1, y);
+            max1 = Float::max(max1, y);
         }
         for i in 0..local_n {
             coords[i * 2] -= min0;
@@ -114,13 +128,13 @@ where
         placed.push(Placed {
             nodes: nodes.clone(),
             coords,
-            width: (max0 - min0).max(F::zero()),
-            height: (max1 - min1).max(F::zero()),
+            width: Float::max(max0 - min0, F::zero()),
+            height: Float::max(max1 - min1, F::zero()),
         });
     }
 
     let total_area = placed.iter().fold(F::zero(), |acc, p| acc + p.width * p.height);
-    let target_width = total_area.sqrt().max(F::from(f64::MIN_POSITIVE).unwrap());
+    let target_width = Float::max(total_area.sqrt(), F::from(f64::MIN_POSITIVE).unwrap());
     let border = placed.iter().fold(F::zero(), |acc, p| acc + p.width + p.height)
         / F::from(2 * placed.len().max(1)).unwrap()
         * F::from(0.1).unwrap();
@@ -141,7 +155,7 @@ where
             out[global * 2 + 1] += cursor_y;
         }
         cursor_x += p.width + border;
-        row_height = row_height.max(p.height);
+        row_height = Float::max(row_height, p.height);
     }
     out
 }
@@ -268,7 +282,12 @@ where
     /// edge list.
     fn fmme_layout<F>(&self, config: &MixerConfig<F>) -> FmmeResult<F>
     where
-        F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+        F: Float
+            + num_traits::float::FloatCore
+            + Send
+            + Sync
+            + core::ops::AddAssign
+            + core::ops::SubAssign,
     {
         let mut n = self.number_of_rows().as_().max(self.number_of_columns().as_());
         let mut undirected: BTreeSet<(usize, usize)> = BTreeSet::new();

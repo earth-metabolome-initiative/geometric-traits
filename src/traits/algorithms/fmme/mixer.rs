@@ -69,7 +69,12 @@ pub(super) fn multilevel_layout<F>(
     config: &MixerConfig<F>,
 ) -> Vec<F>
 where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     // FME node size s = 0.5 * sqrt(w^2 + h^2) with w = h = node_size.
     let s = config.node_size * F::from(2.0).unwrap().sqrt() / F::from(2.0).unwrap();
@@ -100,7 +105,12 @@ fn run_level<F>(
     node_size: F,
     config: &MixerConfig<F>,
 ) where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     let sizes = vec![node_size; level.n];
     scaling_layout::<F>(
@@ -131,7 +141,12 @@ fn scaling_layout<F>(
     rep_factor: F,
     edge_factor: F,
 ) where
-    F: Float + Send + Sync + core::ops::AddAssign + core::ops::SubAssign,
+    F: Float
+        + num_traits::float::FloatCore
+        + Send
+        + Sync
+        + core::ops::AddAssign
+        + core::ops::SubAssign,
 {
     let n = node_sizes.len();
     let mut avg_start = F::zero();
