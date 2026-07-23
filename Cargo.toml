@@ -35,6 +35,7 @@ hashbrown = { version = "0.17", optional = true }
 bitvec = { version = "1", default-features = false, features = ["alloc"] }
 rand = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
 mem_dbg_crate = { package = "mem_dbg", version = "0.4.1", default-features = false, optional = true }
+barnes_hut_tree = { package = "barnes-hut-tree", version = "0.1.1", default-features = false, optional = true }
 
 [lints.rust]
 missing_docs = "forbid"
@@ -71,10 +72,13 @@ default = ["std"]
 std = [
     "alloc",
     "num-traits/std",
+    "barnes_hut_tree/std",
+    "barnes_hut_tree/parallel",
 ]
 alloc = [
     "hashbrown?/alloc",
     "dep:rand",
+    "dep:barnes_hut_tree",
 ]
 arbitrary = ["dep:arbitrary", "std"]
 hashbrown = ["dep:hashbrown"]

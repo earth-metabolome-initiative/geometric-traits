@@ -214,7 +214,7 @@ pub trait WeightedMonoplexGraph:
         &self,
         source_node_id: <Self::WeightedEdges as Edges>::SourceNodeId,
     ) -> <<Self::WeightedEdges as WeightedEdges>::WeightedMatrix as SparseValuedMatrix2D>::SparseRowValues<'_>
-    {
+{
         self.edges().successor_weights(source_node_id)
     }
 

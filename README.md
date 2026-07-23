@@ -68,6 +68,7 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 | **Eigenvalue Decomposition** | `Jacobi` | O(n³) | Jacobi (1846) |
 | **Classical MDS** | `ClassicalMds` | O(n³) | [Torgerson (1952)](https://doi.org/10.1007/BF02288916) |
 | **Force-Directed Layout** | `ForceAtlas2` | O(I·(V²+E)) exact, O(I·(V log V+E)) Barnes-Hut | [Jacomy et al. (2014)](https://doi.org/10.1371/journal.pone.0098679) |
+| **Fast-Multipole Multilevel Layout (TMAP)** | `Fmme` | O(L·I·(V log V + E)), L = coarsening levels | [Probst & Reymond (2020)](https://doi.org/10.1186/s13321-020-0416-x) |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | Utility generator (needs `std` or `hashbrown`) |
 
 ## Node Ordering Primitives
