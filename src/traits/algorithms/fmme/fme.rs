@@ -11,9 +11,9 @@
 //! - Attraction along each edge, `0.25 * log(distance / e)` split by endpoint
 //!   degree, where `e = s_a + s_b` is the desired edge length.
 //!
-//! [`FastMultipoleEmbedder::run`] dispatches on node count: an exact O(N^2)
-//! direct sum under 100 nodes, a Barnes-Hut multipole approximation at or
-//! above. 2D only, matching OGDF.
+//! [`FastMultipoleEmbedder::run_with_factors`] dispatches on node count: an
+//! exact O(N^2) direct sum under 100 nodes, a Barnes-Hut multipole
+//! approximation at or above. 2D only, matching OGDF.
 
 #![allow(clippy::needless_range_loop)]
 

@@ -22,7 +22,7 @@ pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
         &self,
         destination_node_id: Self::DestinationNodeId,
     ) -> <<Self::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SparseMatrix2D>::SparseRow<'_>
-    {
+{
         self.matrix().sparse_column(destination_node_id)
     }
 
