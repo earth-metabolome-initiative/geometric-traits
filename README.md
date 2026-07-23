@@ -1,5 +1,7 @@
 # Geometric traits
 
+[![Crates.io](https://img.shields.io/crates/v/geometric-traits.svg)](https://crates.io/crates/geometric-traits)
+[![docs.rs](https://docs.rs/geometric-traits/badge.svg)](https://docs.rs/geometric-traits)
 [![CI](https://github.com/earth-metabolome-initiative/geometric-traits/workflows/Rust%20CI/badge.svg)](https://github.com/earth-metabolome-initiative/geometric-traits/actions)
 [![Security Audit](https://github.com/earth-metabolome-initiative/geometric-traits/workflows/Security%20Audit/badge.svg)](https://github.com/earth-metabolome-initiative/geometric-traits/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)

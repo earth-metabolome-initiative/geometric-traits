@@ -17,3 +17,8 @@ https://epubs.siam.org/.*
 
 # Combinatorial Press (JCMCC)
 https://combinatorialpress.com/.*
+
+# Self-referential crates.io and docs.rs links (including badges), which 404
+# until the crate is first published
+https://crates.io/crates/geometric-traits.*
+https://docs.rs/geometric-traits.*
