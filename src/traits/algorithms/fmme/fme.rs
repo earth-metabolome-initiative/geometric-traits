@@ -297,10 +297,11 @@ where
         let mean_size =
             node_sizes.iter().copied().fold(F::zero(), |acc, s| acc + s) / F::from(n).unwrap();
         let floor = F::from(constants::PROTECTION).unwrap() * (mean_size + mean_size);
-        // OGDF charges a near pair with `s_i + s_j` but a far cell with only its
-        // summed charge. For uniform sizes a leaf's near-field is twice its
-        // center-of-mass charge, so leaf contributions are doubled to match,
-        // setting packed-cluster density relative to the sparse periphery.
+        // OGDF charges a near pair with `s_i + s_j` but a far cell with only
+        // its summed charge. For uniform sizes a leaf's near-field is
+        // twice its center-of-mass charge, so leaf contributions are
+        // doubled to match, setting packed-cluster density relative to
+        // the sparse periphery.
         let two = F::from(2.0).unwrap();
         let kernel = |displacement: &[F; 2],
                       distance_squared: F,
@@ -314,7 +315,8 @@ where
             }
         };
         // `accumulate_all` overwrites its output, so the scratch buffer only
-        // needs the right length, not zeroing. A matching resize never allocates.
+        // needs the right length, not zeroing. A matching resize never
+        // allocates.
         if self.rep.len() != n * 2 {
             self.rep.resize(n * 2, F::zero());
         }

@@ -122,11 +122,13 @@ impl<M: SquareMatrix + SparseMatrix2D> Iterator for TarjanIterator<'_, M> {
                 }
                 continue;
             }
-            // If the last sparse coordinates are exhausted, we need to determine whether it
-            // completes the last strongly connected component or not.
+            // If the last sparse coordinates are exhausted, we need to
+            // determine whether it completes the last strongly
+            // connected component or not.
             let column_id = self.last_scc_row_id();
             let maybe_scc = self.complete_last_scc_search();
-            // If the rows iterator is exhausted, we no longer have a next row to process.
+            // If the rows iterator is exhausted, we no longer have a next row
+            // to process.
             if !self.dfs_stack.is_empty() {
                 let root_id = self.last_scc_row_id();
                 self.lowlink[root_id.as_()] = self.lowlink[root_id.as_()]

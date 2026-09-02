@@ -47,8 +47,8 @@ impl<M: SquareMatrix + SparseMatrix2D> DoubleEndedIterator for LowerBoundedSpars
             Some(column)
         } else {
             // If the column is less than the threshold index, we are done since
-            // the row is sorted in ascending order and we are iterating from the
-            // back.
+            // the row is sorted in ascending order and we are iterating from
+            // the back.
             self.row = None;
             None
         }

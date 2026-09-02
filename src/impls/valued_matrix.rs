@@ -978,9 +978,9 @@ mod tests {
 
     #[test]
     fn test_transpose_carries_weights() {
-        // Build a small asymmetric valued matrix and confirm the transpose moves
-        // every entry to its mirrored coordinate while carrying its weight: edge
-        // (0, 1, w) becomes (1, 0, w).
+        // Build a small asymmetric valued matrix and confirm the transpose
+        // moves every entry to its mirrored coordinate while carrying
+        // its weight: edge (0, 1, w) becomes (1, 0, w).
         let mut matrix: ValuedCSR2D<usize, usize, usize, i32> =
             SparseMatrixMut::with_sparse_shape((3, 4));
         matrix.add((0, 1, 11)).unwrap();

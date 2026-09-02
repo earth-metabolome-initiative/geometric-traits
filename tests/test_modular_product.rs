@@ -224,8 +224,8 @@ fn test_filtered_pairs_subset() {
 fn test_single_edge_vs_empty() {
     // G1 has one edge, G2 is empty.
     // For any pair (u1,u2)-(v1,v2) with u1!=v1 and u2!=v2:
-    //   adj1(u1,v1) is true for exactly the one edge, adj2(u2,v2) is always false.
-    //   So edge iff adj1==adj2, i.e. iff adj1(u1,v1) is false.
+    //   adj1(u1,v1) is true for exactly the one edge, adj2(u2,v2) is always
+    // false.   So edge iff adj1==adj2, i.e. iff adj1(u1,v1) is false.
     //   Edges exist only between non-adjacent G1 nodes crossed with distinct G2
     // nodes.
     let g1 = BitSquareMatrix::from_symmetric_edges(4, vec![(0, 1)]);
@@ -257,8 +257,10 @@ fn test_number_of_edges_consistency() {
     let pairs: Vec<(usize, usize)> = (0..5).flat_map(|i| (0..4).map(move |j| (i, j))).collect();
     let mp = g1.modular_product(&g2, &pairs);
 
-    // Count edges from upper triangle and compare with number_of_defined_values().
+    // Count edges from upper triangle and compare with
+    // number_of_defined_values().
     let upper = upper_triangle_edges(&mp).len();
-    // number_of_defined_values() counts directed entries (both (a,b) and (b,a)).
+    // number_of_defined_values() counts directed entries (both (a,b) and
+    // (b,a)).
     assert_eq!(mp.number_of_defined_values(), upper * 2);
 }

@@ -37,9 +37,9 @@ fn build_padded(
 
 #[test]
 fn test_padded_row_backward_diagonal_present() {
-    // Row 0 has (0,0) and (0,1). The diagonal (0,0) IS present in the sparse data.
-    // backward iteration should yield: col 1, col 0 (with diagonal value from
-    // sparse)
+    // Row 0 has (0,0) and (0,1). The diagonal (0,0) IS present in the sparse
+    // data. backward iteration should yield: col 1, col 0 (with diagonal
+    // value from sparse)
     let padded = build_padded(vec![(0, 0, 5.0), (0, 1, 1.0)], 2, 2);
     let row_rev: Vec<usize> = padded.sparse_row(0).rev().collect();
     // Row 0 should have columns [0, 1] forward. With padded diagonal (0), the
@@ -61,9 +61,9 @@ fn test_padded_row_backward_diagonal_missing() {
 
 #[test]
 fn test_padded_row_backward_diagonal_after_sparse() {
-    // Row 0 has only (0,0). Row 1 has only (1,0). Diagonal for row 1 is (1,1) which
-    // is missing. For row 1: sparse has col 0, diagonal is col 1 (imputed).
-    // Forward: [0, 1]. Backward: [1, 0].
+    // Row 0 has only (0,0). Row 1 has only (1,0). Diagonal for row 1 is (1,1)
+    // which is missing. For row 1: sparse has col 0, diagonal is col 1
+    // (imputed). Forward: [0, 1]. Backward: [1, 0].
     let padded = build_padded(vec![(0, 0, 5.0), (1, 0, 3.0)], 2, 2);
     let row1_rev: Vec<usize> = padded.sparse_row(1).rev().collect();
     assert_eq!(row1_rev, vec![1, 0]);

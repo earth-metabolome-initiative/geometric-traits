@@ -51,8 +51,8 @@ fn test_sparse_rows_forward_diagonal_imputed() {
 
 #[test]
 fn test_sparse_rows_forward_mixed() {
-    // 2x2: row 0 has diagonal (0,0) + off-diag (0,1); row 1 has no entries (diag
-    // imputed)
+    // 2x2: row 0 has diagonal (0,0) + off-diag (0,1); row 1 has no entries
+    // (diag imputed)
     let padded = build_padded_diagonal(vec![(0, 0, 1.0), (0, 1, 2.0)], 2, 2);
     let rows: Vec<usize> = padded.sparse_rows().collect();
     // Row 0: [0, 1] → 2 entries → [0, 0]

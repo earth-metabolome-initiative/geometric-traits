@@ -87,7 +87,8 @@ fn test_source_feeding_a_cycle_is_peeled_left() {
     // Node 0 is a pure source (no in-edges) that feeds a downstream 2-cycle
     // 1 <-> 2. The cycle keeps 1 and 2 from draining as sinks, so GR can only
     // make progress by peeling the source 0 to the left. Its edge 0 -> 1 then
-    // points forward and the lone back edge is the one closing the 1 <-> 2 cycle.
+    // points forward and the lone back edge is the one closing the 1 <-> 2
+    // cycle.
     let result = arrange(3, vec![(0, 1, 1.0), (1, 2, 1.0), (2, 1, 1.0)]);
 
     assert_eq!(result.positions()[0], 0);
@@ -120,8 +121,9 @@ fn test_self_loops_are_ignored() {
 
 #[test]
 fn test_self_loop_with_invalid_weight_is_still_ignored() {
-    // Self-loops are dropped before weight validation, so a self-loop carrying a
-    // non-finite or non-positive weight is ignored entirely rather than rejected.
+    // Self-loops are dropped before weight validation, so a self-loop carrying
+    // a non-finite or non-positive weight is ignored entirely rather than
+    // rejected.
     let nan_loop = build(2, vec![(0, 0, f64::NAN), (0, 1, 1.0)]).eades_lin_smyth().unwrap();
     assert!(nan_loop.is_acyclic());
     assert!((nan_loop.total_weight() - 1.0).abs() < TOLERANCE);
@@ -156,10 +158,11 @@ fn test_arrangement_is_deterministic() {
 
 #[test]
 fn test_complete_mutual_tangle_keeps_half_the_weight() {
-    // Every ordered pair of four nodes has an edge in both directions: a maximal
-    // mutual tangle. For any linear arrangement exactly one edge of each pair
-    // points backward, so a genuine tangle stays pinned at a tangle fraction of
-    // 0.5 no matter how GR orders it (the positive control the metric needs).
+    // Every ordered pair of four nodes has an edge in both directions: a
+    // maximal mutual tangle. For any linear arrangement exactly one edge of
+    // each pair points backward, so a genuine tangle stays pinned at a
+    // tangle fraction of 0.5 no matter how GR orders it (the positive
+    // control the metric needs).
     let mut edges = Vec::new();
     for source in 0..4 {
         for destination in 0..4 {
@@ -217,11 +220,11 @@ fn test_parity_weighted_facade_with_pure_source() {
 
 #[test]
 fn test_parity_weighted_cycle_no_ties() {
-    // A 3-cycle with one heavy edge: deltas are -9 / 0 / 9, so there are NO ties
-    // and the ordering is unique regardless of tie-break rule. Reference: order
-    // [2, 0, 1], cut {1 -> 2}, keeping the heavy 2 -> 0 (weight 10) forward.
-    // The strongest cross-implementation check, since it is entirely
-    // tie-break-insensitive.
+    // A 3-cycle with one heavy edge: deltas are -9 / 0 / 9, so there are NO
+    // ties and the ordering is unique regardless of tie-break rule.
+    // Reference: order [2, 0, 1], cut {1 -> 2}, keeping the heavy 2 -> 0
+    // (weight 10) forward. The strongest cross-implementation check, since
+    // it is entirely tie-break-insensitive.
     let result = arrange(3, vec![(0, 1, 1.0), (1, 2, 1.0), (2, 0, 10.0)]);
 
     assert_eq!(result.order(), &[2, 0, 1]);

@@ -491,7 +491,8 @@ fn test_lapmod_benchmark_n20_seed62_timeout() {
         result
     });
 
-    // Allow up to 2 seconds; a well-functioning implementation finishes in << 1 ms.
+    // Allow up to 2 seconds; a well-functioning implementation finishes in << 1
+    // ms.
     thread::sleep(Duration::from_secs(2));
 
     assert!(

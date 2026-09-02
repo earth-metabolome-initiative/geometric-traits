@@ -37,7 +37,8 @@ fn test_lapjv_all_rows_identical() {
 
 #[test]
 fn test_lapjv_perfect_match_no_augmentation() {
-    // Diagonal matrix — column reduction solves everything, no augmentation needed
+    // Diagonal matrix — column reduction solves everything, no augmentation
+    // needed
     let m: ValuedCSR2D<u8, u8, u8, f64> =
         ValuedCSR2D::try_from([[1.0, 100.0], [100.0, 1.0]]).unwrap();
     let padded = PaddedMatrix2D::new(m, |_: (u8, u8)| 900.0).unwrap();

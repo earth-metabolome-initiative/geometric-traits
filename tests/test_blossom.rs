@@ -141,9 +141,9 @@ fn test_blossom_required() {
 #[test]
 fn test_nested_blossom() {
     // Two overlapping odd cycles that force nested blossom contraction.
-    // Triangle (0,1,2) shares vertex 2 with triangle (2,3,4), plus tail 4-5, 5-6.
-    // First contraction: {0,1,2}. Second contraction encompasses {0,1,2,3,4}.
-    // Max matching: {(0,1), (2,3), (4,5)} or similar, size 3.
+    // Triangle (0,1,2) shares vertex 2 with triangle (2,3,4), plus tail 4-5,
+    // 5-6. First contraction: {0,1,2}. Second contraction encompasses
+    // {0,1,2,3,4}. Max matching: {(0,1), (2,3), (4,5)} or similar, size 3.
     // Also validated against the reference crate below.
     let g = build_graph(7, &[(0, 1), (0, 2), (1, 2), (2, 3), (2, 4), (3, 4), (4, 5), (5, 6)]);
     let matching = g.blossom();

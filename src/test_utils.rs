@@ -194,8 +194,9 @@ pub struct FuzzStructuredBlossomVCase {
 
 impl<'a> Arbitrary<'a> for FuzzStructuredBlossomVCase {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        // Keep structured cases smaller than the raw edge-bag target so honggfuzz
-        // spends its budget on diverse families rather than very large dense graphs.
+        // Keep structured cases smaller than the raw edge-bag target so
+        // honggfuzz spends its budget on diverse families rather than
+        // very large dense graphs.
         let pair_count: u8 = u.int_in_range(1..=10)?;
         let order = pair_count.saturating_mul(2);
         Ok(Self {
@@ -3897,7 +3898,8 @@ pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]
     assert_eq!(rebuilt, *m, "from_edges roundtrip mismatch");
 
     // ── from_symmetric_edges constructor ─────────────────────────────────
-    // Collect undirected edges (src <= dst) from original, build symmetric, verify
+    // Collect undirected edges (src <= dst) from original, build symmetric,
+    // verify
     let sym_edges: Vec<(usize, usize)> = edges.iter().filter(|&&(r, c)| r <= c).copied().collect();
     let sym = BitSquareMatrix::from_symmetric_edges(order, sym_edges.iter().copied());
     // Every original edge that has its mirror should appear in sym

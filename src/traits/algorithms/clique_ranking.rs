@@ -462,7 +462,8 @@ mod tests {
 
     #[test]
     fn test_compute_fragments_uneven() {
-        // Path (0,1,2) + isolated edge (5,6) → 2 components, largest has 2 edges.
+        // Path (0,1,2) + isolated edge (5,6) → 2 components, largest has 2
+        // edges.
         let (count, largest_edges, largest_atoms) = compute_fragments(&[(0u32, 1), (1, 2), (5, 6)]);
         assert_eq!(count, 2);
         assert_eq!(largest_edges, 2);

@@ -2203,10 +2203,11 @@ mod tests {
 
     #[test]
     fn test_wl_refine_iterates_to_fixpoint_over_multiple_rounds() {
-        // A 5-vertex path 0-1-2-3-4 with a uniform seed needs several refinement
-        // rounds: a single round only separates the endpoints from the interior,
-        // so reaching the distance-to-end coloring exercises the iterate-again
-        // branch (`colors = next_colors;`).
+        // A 5-vertex path 0-1-2-3-4 with a uniform seed needs several
+        // refinement rounds: a single round only separates the
+        // endpoints from the interior, so reaching the distance-to-end
+        // coloring exercises the iterate-again branch (`colors =
+        // next_colors;`).
         let path = BitSquareMatrix::from_symmetric_edges(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
         let refined = wl_refine_with_edge_colors(&path, &[0usize; 5], |_, _| ());
         assert_eq!(refined, vec![0, 1, 2, 1, 0]);

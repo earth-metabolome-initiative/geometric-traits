@@ -507,8 +507,9 @@ where
                     return true;
                 }
 
-                // Neighbors y_j for each j adjacent to i where forward rescap > 0.
-                // We need to snapshot adjacency to avoid borrow issues.
+                // Neighbors y_j for each j adjacent to i where forward rescap >
+                // 0. We need to snapshot adjacency to avoid
+                // borrow issues.
                 let adj_i = self.adj[i].clone();
                 for &(j, eidx) in &adj_i {
                     if self.edge_cap[eidx] > self.edge_flow[eidx] {
@@ -530,8 +531,8 @@ where
                     return true;
                 }
 
-                // Neighbors x_j for each j adjacent to i where backward rescap > 0
-                // (flow on x_j → y_i > 0).
+                // Neighbors x_j for each j adjacent to i where backward rescap
+                // > 0 (flow on x_j → y_i > 0).
                 let adj_i = self.adj[i].clone();
                 for &(j, eidx) in &adj_i {
                     if self.edge_flow[eidx] > 0 {

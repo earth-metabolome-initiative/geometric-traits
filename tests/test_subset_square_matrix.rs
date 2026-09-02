@@ -170,6 +170,7 @@ fn test_subset_sparse_rows() {
     let subset = SubsetSquareMatrix::with_sorted_indices(matrix, vec![0, 1, 2]);
 
     let rows: Vec<usize> = subset.sparse_rows().collect();
-    // Row 0 has 2 filtered entries → [0, 0], Row 1 has 2 filtered entries → [1, 1]
+    // Row 0 has 2 filtered entries → [0, 0], Row 1 has 2 filtered entries → [1,
+    // 1]
     assert_eq!(rows, vec![0, 0, 1, 1]);
 }

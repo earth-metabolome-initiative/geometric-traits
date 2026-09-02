@@ -122,8 +122,9 @@ impl DirectedWorkingGraph {
             return Err(ModularityError::NonSquareMatrix { rows, columns });
         }
 
-        // `row_indices()` yields the contiguous range `0..rows` in order, so the
-        // collected arcs are grouped by ascending source with sorted targets.
+        // `row_indices()` yields the contiguous range `0..rows` in order, so
+        // the collected arcs are grouped by ascending source with
+        // sorted targets.
         let mut edges: Vec<(usize, usize, f64)> = Vec::new();
         for row_id in matrix.row_indices() {
             let source = row_id.as_();
@@ -825,10 +826,11 @@ mod tests {
         let resolution = 1.3;
         let inverse_total = 1.0 / graph.total_weight();
 
-        // Start from a partition, move node 1 from community A into community B,
-        // measuring the gain by the same accumulation the local-moving uses.
-        // Move node 0, which carries a self-loop, to exercise the self-loop
-        // handling: a self-loop must not enter the arc-to-community terms.
+        // Start from a partition, move node 1 from community A into community
+        // B, measuring the gain by the same accumulation the
+        // local-moving uses. Move node 0, which carries a self-loop, to
+        // exercise the self-loop handling: a self-loop must not enter
+        // the arc-to-community terms.
         let mut partition = vec![0usize, 0, 0, 1, 1];
         let node = 0;
         let source = partition[node];
@@ -922,9 +924,10 @@ mod tests {
 
     #[test]
     fn test_split_separates_weakly_disconnected_community() {
-        // Two directed 2-cycles wrongly merged into community 0, plus a separate
-        // community 1, so the single-community early return does not apply. The
-        // disconnected community 0 must split into two weakly connected pieces.
+        // Two directed 2-cycles wrongly merged into community 0, plus a
+        // separate community 1, so the single-community early return
+        // does not apply. The disconnected community 0 must split into
+        // two weakly connected pieces.
         let graph = graph(5, vec![(0, 1, 1.0), (1, 0, 1.0), (2, 3, 1.0), (3, 2, 1.0), (4, 4, 1.0)]);
         let mut partition = vec![0usize, 0, 0, 0, 1];
         graph.split_disconnected_communities(&mut partition);
@@ -1002,7 +1005,8 @@ mod tests {
 
     #[test]
     fn test_local_moving_skips_isolated_nodes() {
-        // Node 2 has no arcs at all: local moving must skip it without panicking.
+        // Node 2 has no arcs at all: local moving must skip it without
+        // panicking.
         let graph = graph(3, vec![(0, 1, 1.0), (1, 0, 1.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 10, seed: 3 };
         let (partition, _) = graph.local_moving(config, 0);
@@ -1013,7 +1017,8 @@ mod tests {
     #[test]
     fn test_from_matrix_orders_multiple_incoming_arcs() {
         // Node 2 receives from both 0 and 1: the incoming adjacency must place
-        // them in distinct, source-ordered slots (guards the CSC scatter cursor).
+        // them in distinct, source-ordered slots (guards the CSC scatter
+        // cursor).
         let graph = graph(3, vec![(0, 2, 1.0), (1, 2, 2.0)]);
         assert_eq!(collect_in(&graph, 2), vec![(0, 1.0), (1, 2.0)]);
         assert_eq!(collect_out(&graph, 0), vec![(2, 1.0)]);
@@ -1042,8 +1047,9 @@ mod tests {
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[2], partition[3]);
         assert_eq!(partition[4], partition[5]);
-        // The three components must land in three different communities, and the
-        // fresh ids must not collide with the untouched community 1 (node 6).
+        // The three components must land in three different communities, and
+        // the fresh ids must not collide with the untouched community 1
+        // (node 6).
         assert_ne!(partition[0], partition[2]);
         assert_ne!(partition[0], partition[4]);
         assert_ne!(partition[2], partition[4]);
@@ -1053,9 +1059,10 @@ mod tests {
 
     #[test]
     fn test_local_moving_attaches_pure_sink_and_pure_source() {
-        // Node 2 is a pure sink (only incoming) that must still be drawn into the
-        // pair's community; node 2 as a pure source likewise. This pins the
-        // isolated-node degree guard against skipping one-directional nodes.
+        // Node 2 is a pure sink (only incoming) that must still be drawn into
+        // the pair's community; node 2 as a pure source likewise. This
+        // pins the isolated-node degree guard against skipping
+        // one-directional nodes.
         let with_sink = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (0, 2, 1.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 5 };
         let (partition, _) = with_sink.local_moving(config, 0);
@@ -1070,8 +1077,9 @@ mod tests {
 
     #[test]
     fn test_local_moving_guards_against_non_normal_total_weight() {
-        // A non-normal total weight (here +inf) must short-circuit to the trivial
-        // singleton partition rather than letting zero-scaled gains shuffle nodes.
+        // A non-normal total weight (here +inf) must short-circuit to the
+        // trivial singleton partition rather than letting zero-scaled
+        // gains shuffle nodes.
         let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
         assert!(!graph.total_weight().is_normal());
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 1 };
@@ -1080,10 +1088,11 @@ mod tests {
 
     #[test]
     fn test_local_moving_merges_clear_pairs() {
-        // Two strongly bidirectional pairs with no inter-pair arcs: local moving
-        // must merge each pair and reach the optimum, moving exactly one node per
-        // pair. This pins the gain bookkeeping (community-total updates, the move
-        // counter, and the degree guard).
+        // Two strongly bidirectional pairs with no inter-pair arcs: local
+        // moving must merge each pair and reach the optimum, moving
+        // exactly one node per pair. This pins the gain bookkeeping
+        // (community-total updates, the move counter, and the degree
+        // guard).
         let graph = graph(4, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 3, 10.0), (3, 2, 10.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 9 };
         let (partition, moved_nodes) = graph.local_moving(config, 0);
@@ -1097,10 +1106,10 @@ mod tests {
 
     #[test]
     fn test_local_moving_merges_directed_cycles_without_bidirectional_arcs() {
-        // Each node here has only outgoing OR only balanced one-way arcs around a
-        // directed 3-cycle, so a node is never skipped for missing one direction.
-        // The two cycles must still separate (guards the isolated-node degree
-        // condition against `&&`/`||` swaps).
+        // Each node here has only outgoing OR only balanced one-way arcs around
+        // a directed 3-cycle, so a node is never skipped for missing
+        // one direction. The two cycles must still separate (guards the
+        // isolated-node degree condition against `&&`/`||` swaps).
         let graph = graph(
             6,
             vec![(0, 1, 5.0), (1, 2, 5.0), (2, 0, 5.0), (3, 4, 5.0), (4, 5, 5.0), (5, 3, 5.0)],
@@ -1135,8 +1144,8 @@ mod tests {
         // to zero rather than propagate NaN through the null term.
         let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
         assert!(!graph.total_weight().is_normal());
-        // The guard returns exactly zero; a missing guard would yield NaN, whose
-        // `abs()` is also not below the tolerance.
+        // The guard returns exactly zero; a missing guard would yield NaN,
+        // whose `abs()` is also not below the tolerance.
         assert!(graph.modularity(&[0, 0], 1.0).abs() < TOLERANCE);
     }
 
@@ -1169,10 +1178,10 @@ mod tests {
 
     #[test]
     fn test_refine_skips_self_loops_cross_parent_and_zero_degree_nodes() {
-        // Parent community 0 = {0, 1, 3}: node 0 carries a self-loop, node 1 has
-        // an arc into the other parent community, and node 3 is isolated. The
-        // refinement must skip the self-loop, the cross-parent arc, and the
-        // zero-degree node without panicking.
+        // Parent community 0 = {0, 1, 3}: node 0 carries a self-loop, node 1
+        // has an arc into the other parent community, and node 3 is
+        // isolated. The refinement must skip the self-loop, the
+        // cross-parent arc, and the zero-degree node without panicking.
         let graph = graph(4, vec![(0, 0, 1.0), (0, 1, 1.0), (1, 0, 1.0), (1, 2, 1.0)]);
         let config =
             RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 5, seed: 2 };

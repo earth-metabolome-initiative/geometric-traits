@@ -108,7 +108,8 @@ where
             return LineGraphResult { graph, edge_map };
         }
 
-        // Step 2: Build incidence lists — for each vertex, the list of edge indices.
+        // Step 2: Build incidence lists — for each vertex, the list of edge
+        // indices.
         let mut incident: Vec<Vec<usize>> = vec![Vec::new(); n];
         for (idx, &(src, dst)) in edge_map.iter().enumerate() {
             incident[src.as_()].push(idx);
@@ -160,8 +161,8 @@ where
             incoming[dst.as_()].push(idx);
         }
 
-        // Step 3: For each vertex v, connect every incoming edge to every outgoing
-        // edge.
+        // Step 3: For each vertex v, connect every incoming edge to every
+        // outgoing edge.
         let mut lg_edges: Vec<(usize, usize)> = Vec::new();
         for v in 0..n {
             for &i in &incoming[v] {

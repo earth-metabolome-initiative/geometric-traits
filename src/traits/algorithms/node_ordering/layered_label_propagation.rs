@@ -46,7 +46,8 @@ struct LawRng {
 impl LawRng {
     #[inline]
     fn new(seed: u64) -> Self {
-        // LAW hashes the user seed before expanding it into the xoroshiro state.
+        // LAW hashes the user seed before expanding it into the xoroshiro
+        // state.
         let mut splitmix_state = murmur_hash3(seed);
         Self { s0: splitmix64_next(&mut splitmix_state), s1: splitmix64_next(&mut splitmix_state) }
     }

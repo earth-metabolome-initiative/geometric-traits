@@ -80,7 +80,8 @@ fn blocking_flow<V: Number>(
     while let Some(&node) = node_stack.last() {
         if node == sink {
             // Bottleneck of the located augmenting path. `<` and `<=` pick the
-            // same minimum here (an equivalent mutant, skipped in .cargo/mutants.toml).
+            // same minimum here (an equivalent mutant, skipped in
+            // .cargo/mutants.toml).
             let mut bottleneck = V::max_value();
             for &arc in &arc_stack {
                 if arc_cap[arc] < bottleneck {

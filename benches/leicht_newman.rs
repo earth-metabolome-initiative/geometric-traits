@@ -76,7 +76,8 @@ fn prepare() -> (Vec<PreparedCase>, f64, u64, u64) {
 
         let reference_partition = case.reference.as_ref().map(|reference| {
             networkx_total_nanos += reference.nanos;
-            // Validate our metric against the stored NetworkX value before timing.
+            // Validate our metric against the stored NetworkX value before
+            // timing.
             let ours = DirectedModularity::<usize>::directed_modularity(
                 &graph,
                 &reference.partition,

@@ -149,8 +149,8 @@ fn test_diamond_sums_two_disjoint_paths() {
 
 #[test]
 fn test_antiparallel_arcs_stay_independent() {
-    // The reverse arc 1 -> 0 must not cancel the forward arc 0 -> 1: the flow is
-    // limited only by the 1 -> 2 arc.
+    // The reverse arc 1 -> 0 must not cancel the forward arc 0 -> 1: the flow
+    // is limited only by the 1 -> 2 arc.
     assert_eq!(max_flow(3, &[(0, 1, 3), (1, 0, 5), (1, 2, 2)], 0, 2), 2);
 }
 
@@ -397,7 +397,8 @@ fn test_matches_hopcroft_karp_perfect_matching() {
 #[test]
 fn test_matches_hopcroft_karp_deficient_matching() {
     // Left 0 and 1 compete for right 0, left 2 and 3 compete for right 1, and
-    // right 2 is isolated, so the maximum matching is only 2 (a Hall deficiency).
+    // right 2 is isolated, so the maximum matching is only 2 (a Hall
+    // deficiency).
     let edges = [(0, 0), (1, 0), (2, 1), (3, 1)];
     let expected = hopcroft_karp_matching(4, 3, &edges);
     assert_eq!(expected, 2);

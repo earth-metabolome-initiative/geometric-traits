@@ -92,9 +92,9 @@ fn layout_is_deterministic_for_a_fixed_seed() {
 fn layout_is_space_filling_not_spindly() {
     // A tree laid out well fills the plane near-uniformly: the nearest-neighbor
     // distance coefficient of variation sits well below one. A spindly layout
-    // (long sparse strands with tight clumps) scores above one. OGDF scores about
-    // 0.47 on comparable trees, so 0.8 is a comfortable ceiling that a dense
-    // layout clears and a spindle fails.
+    // (long sparse strands with tight clumps) scores above one. OGDF scores
+    // about 0.47 on comparable trees, so 0.8 is a comfortable ceiling that
+    // a dense layout clears and a spindle fails.
     let n = 1000;
     let edges = random_tree(n, 0x5eed);
     let coords = layout_graph::<f64>(n, &edges, &MixerConfig::default());
@@ -125,8 +125,8 @@ fn disconnected_components_do_not_overlap() {
 
 #[test]
 fn fmme_trait_lays_out_a_sparse_matrix() {
-    // Build a symmetric star: a hub connected to eight leaves. The builder wants
-    // the entries in row-major order.
+    // Build a symmetric star: a hub connected to eight leaves. The builder
+    // wants the entries in row-major order.
     let mut triples = Vec::new();
     for leaf in 1..=8usize {
         triples.push((0, leaf, 1.0));
@@ -144,7 +144,8 @@ fn fmme_trait_lays_out_a_sparse_matrix() {
 
     let result = csr.fmme_layout::<f64>(&MixerConfig::default());
     assert_eq!(result.num_points(), 9);
-    // The eight undirected edges are deduplicated from the sixteen stored entries.
+    // The eight undirected edges are deduplicated from the sixteen stored
+    // entries.
     assert_eq!(result.edges().len(), 8);
     assert!(result.coordinates_flat().iter().copied().all(f64::is_finite));
 }

@@ -68,9 +68,9 @@ fn shortest_augmenting_paths<V: Number>(
             break;
         }
 
-        // Bottleneck of the located path, walking back via reverse arcs. `<` and
-        // `<=` pick the same minimum (an equivalent mutant, skipped in
-        // .cargo/mutants.toml).
+        // Bottleneck of the located path, walking back via reverse arcs. `<`
+        // and `<=` pick the same minimum (an equivalent mutant, skipped
+        // in .cargo/mutants.toml).
         let mut bottleneck = V::max_value();
         let mut node = sink;
         while node != source {

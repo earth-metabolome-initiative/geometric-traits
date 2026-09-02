@@ -26,8 +26,8 @@ where
         let source: SquareCSR2D<M> = SquareCSR2D::arbitrary(u)?;
         let n: usize = source.number_of_rows().as_();
 
-        // Collect canonical edges: for each (r, c) with r != c, keep (min, max).
-        // Also keep diagonal entries (r, r).
+        // Collect canonical edges: for each (r, c) with r != c, keep (min,
+        // max). Also keep diagonal entries (r, r).
         let mut edges: alloc::vec::Vec<(usize, usize)> = alloc::vec::Vec::new();
         for (r, c) in crate::traits::SparseMatrix::sparse_coordinates(&source) {
             let ri: usize = r.as_();

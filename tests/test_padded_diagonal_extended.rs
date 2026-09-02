@@ -102,7 +102,8 @@ fn test_padded_sparse_coordinates_forward() {
 fn test_padded_sparse_values() {
     let padded = build_padded(vec![(0, 1, 1.0)], 2, 2);
     let vals: Vec<f64> = padded.sparse_values().collect();
-    // Row 0: imputed diagonal=10.0, then col 1=1.0. Row 1: imputed diagonal=20.0
+    // Row 0: imputed diagonal=10.0, then col 1=1.0. Row 1: imputed
+    // diagonal=20.0
     assert_eq!(vals, vec![10.0, 1.0, 20.0]);
 }
 

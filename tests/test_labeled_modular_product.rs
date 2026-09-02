@@ -90,8 +90,8 @@ fn test_mixed_labels_filters() {
 
 #[test]
 fn test_none_none_compatibility() {
-    // When neither graph has the edge, the labels are None == None -> compatible.
-    // G1: empty graph on 3 nodes
+    // When neither graph has the edge, the labels are None == None ->
+    // compatible. G1: empty graph on 3 nodes
     // G2: empty graph on 3 nodes
     let g1 = build_valued(3, &[]);
     let g2 = build_valued(3, &[]);
@@ -117,7 +117,8 @@ fn test_some_none_incompatibility() {
     let pairs = vec![(0usize, 0usize), (1, 1)];
     let mp = g1.labeled_modular_product(&g2, &pairs, |a, b| a == b);
 
-    // (0,0)-(1,1): G1 has edge (0,1)=Some(1), G2 has no edge (0,1)=None -> no match
+    // (0,0)-(1,1): G1 has edge (0,1)=Some(1), G2 has no edge (0,1)=None -> no
+    // match
     assert!(!mp.has_entry(0, 1));
 }
 
