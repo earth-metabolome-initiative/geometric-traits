@@ -134,7 +134,8 @@ mod tests {
     fn lighter_edge_ranks_higher_for_the_max_heap() {
         let light = entry(1.0, 0, 1);
         let heavy = entry(2.0, 0, 1);
-        // The weight order is reversed so a `BinaryHeap` pops the lightest edge.
+        // The weight order is reversed so a `BinaryHeap` pops the lightest
+        // edge.
         assert_eq!(light.cmp(&heavy), Ordering::Greater);
         assert_eq!(heavy.cmp(&light), Ordering::Less);
         assert_eq!(light.partial_cmp(&heavy), Some(Ordering::Greater));

@@ -380,7 +380,8 @@ where
             max_row_abs = max_row_abs.max(adjacency_abs[local] + rank);
         }
 
-        // The factor two covers the diagonal correction term |f_i| <= row_abs_i.
+        // The factor two covers the diagonal correction term |f_i| <=
+        // row_abs_i.
         2.0 * max_row_abs * (1.0 + 1.0e-9) + 1.0e-12
     }
 
@@ -407,8 +408,8 @@ where
         let mut current: Vec<f64> = (0..length).map(|_| rng.random::<f64>() * 2.0 - 1.0).collect();
         subtract_mean(&mut current);
         if !normalize(&mut current) {
-            // Fall back to a deterministic non-uniform vector if the random draw
-            // collapsed onto the null space.
+            // Fall back to a deterministic non-uniform vector if the random
+            // draw collapsed onto the null space.
             for (index, value) in current.iter_mut().enumerate() {
                 *value = if index % 2 == 0 { 1.0 } else { -1.0 };
             }

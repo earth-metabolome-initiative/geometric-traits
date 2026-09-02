@@ -213,8 +213,8 @@ fn test_johnson_both_empty() {
 
 #[test]
 fn test_johnson_one_empty() {
-    // First graph empty, second non-empty → denom_first=0 → denominator=0 → 1.0?
-    // Actually: (0+0)^2 / (0 * (5+3)) = 0/0 → 1.0
+    // First graph empty, second non-empty → denom_first=0 → denominator=0 →
+    // 1.0? Actually: (0+0)^2 / (0 * (5+3)) = 0/0 → 1.0
     // This is a degenerate case: comparing an empty graph with a non-empty one.
     // denominator = (0+0) * (5+3) = 0 → returns 1.0 by our convention.
     assert!(approx_eq(johnson_similarity(0, 0, 0, 0, 5, 3), 1.0));
@@ -459,7 +459,8 @@ fn test_unit_range_metrics() {
 
 #[test]
 fn test_symmetry() {
-    // All symmetric metrics should produce the same result when swapping a and b.
+    // All symmetric metrics should produce the same result when swapping a and
+    // b.
     let cases: &[(usize, usize, usize)] = &[(3, 5, 4), (0, 3, 7), (1, 1, 10), (2, 8, 2), (0, 0, 0)];
     for &(i, a, b) in cases {
         for (name, v1, v2) in [

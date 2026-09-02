@@ -609,8 +609,8 @@ fn test_partition_three_groups_triangle() {
 #[test]
 fn test_partition_uneven_groups() {
     // K5 with partition: {0,1,2} → group 0, {3} → group 1, {4} → group 2.
-    // Large group severely constrains: max 1 from group 0 + 1 from group 1 + 1 from
-    // group 2 = 3. Regular max clique = 5.
+    // Large group severely constrains: max 1 from group 0 + 1 from group 1 + 1
+    // from group 2 = 3. Regular max clique = 5.
     let k5 = BitSquareMatrix::from_symmetric_edges(
         5,
         vec![(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)],
@@ -622,7 +622,8 @@ fn test_partition_uneven_groups() {
     verify_partition_respected(&all, &partition);
     verify_all_same_size(&all);
     assert_eq!(all[0].len(), 3);
-    // Cliques: pick 1 from {0,1,2}, 1 from {3}, 1 from {4} → 3 * 1 * 1 = 3 cliques.
+    // Cliques: pick 1 from {0,1,2}, 1 from {3}, 1 from {4} → 3 * 1 * 1 = 3
+    // cliques.
     assert_eq!(all.len(), 3);
 }
 
@@ -670,9 +671,10 @@ fn test_partition_dense_graph_many_groups() {
 #[test]
 fn test_partition_sparse_graph_constraint_is_deciding() {
     // Path 0-1-2-3-4: regular max clique = 2 (any edge).
-    // Partition {0,1}→g0, {2,3}→g1, {4}→g2: still max 2 (partition allows up to 3).
-    // Partition {0,1}→g0, {2}→g0, {3,4}→g1: edges (0,1) and (1,2) have same-group
-    // conflicts. Edge (2,3) crosses groups, so clique {2,3} is valid. Max = 2.
+    // Partition {0,1}→g0, {2,3}→g1, {4}→g2: still max 2 (partition allows up to
+    // 3). Partition {0,1}→g0, {2}→g0, {3,4}→g1: edges (0,1) and (1,2) have
+    // same-group conflicts. Edge (2,3) crosses groups, so clique {2,3} is
+    // valid. Max = 2.
     let path = BitSquareMatrix::from_symmetric_edges(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
     let partition = vec![(0, 0), (0, 1), (0, 2), (1, 3), (1, 4)];
 
@@ -680,7 +682,8 @@ fn test_partition_sparse_graph_constraint_is_deciding() {
     verify_cliques(&path, &all);
     verify_partition_respected(&all, &partition);
     // Only cross-group edges: (2,3). Edges (0,1) and (1,2) have both endpoints
-    // in group 0. Edge (3,4) has both in group 1. So only {2,3} is valid size 2.
+    // in group 0. Edge (3,4) has both in group 1. So only {2,3} is valid size
+    // 2.
     assert_eq!(all[0].len(), 2);
     assert_eq!(all.len(), 1);
     assert_eq!(all[0], vec![2, 3]);

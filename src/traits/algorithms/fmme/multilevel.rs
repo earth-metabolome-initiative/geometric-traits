@@ -186,7 +186,8 @@ fn coarsen_one_level(fine: &LevelGraph, rng: &mut XorShift64) -> Option<(LevelGr
         let neighbors: Vec<usize> = adj[child].iter().copied().collect();
         merges.push((child, neighbors));
 
-        // Contract: move the child's edges onto the parent, collapsing parallels.
+        // Contract: move the child's edges onto the parent, collapsing
+        // parallels.
         let child_adj: Vec<usize> = adj[child].iter().copied().collect();
         for w in child_adj {
             adj[w].remove(&child);
@@ -206,7 +207,8 @@ fn coarsen_one_level(fine: &LevelGraph, rng: &mut XorShift64) -> Option<(LevelGr
         return None;
     }
 
-    // Relabel the survivors to `0..active_count` and build the coarse edge list.
+    // Relabel the survivors to `0..active_count` and build the coarse edge
+    // list.
     let mut fine_to_coarse = vec![usize::MAX; nf];
     let mut survivor: Vec<usize> = Vec::with_capacity(active_count);
     for (idx, is_active) in active.iter().enumerate() {

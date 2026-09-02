@@ -461,8 +461,9 @@ where
             self.number_of_defined_values()
         );
 
-        // Rows are half-open intervals in `offsets`: [offsets[r], offsets[r + 1]).
-        // We therefore need the last row start <= sparse_index, i.e. upper_bound - 1.
+        // Rows are half-open intervals in `offsets`: [offsets[r], offsets[r +
+        // 1]). We therefore need the last row start <= sparse_index,
+        // i.e. upper_bound - 1.
         let row = self.offsets.partition_point(|&offset| offset <= sparse_index) - 1;
         Self::RowIndex::try_from_usize(row).unwrap_or_else(|_| {
             unreachable!(
@@ -563,8 +564,8 @@ where
                 unreachable!()
             }
 
-            // If the row is the last row, we can add the entry at the end of the column
-            // indices.
+            // If the row is the last row, we can add the entry at the end of
+            // the column indices.
             self.column_indices.push(column);
             self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::one());
 
@@ -589,8 +590,8 @@ where
             if last_offset == SparseIndex::max_value() {
                 return Err(MutabilityError::MaxedOutSparseIndex);
             }
-            // If the row is the next row, we can add the entry at the end of the column
-            // indices.
+            // If the row is the next row, we can add the entry at the end of
+            // the column indices.
             self.offsets.extend(repeat_n(
                 self.number_of_defined_values(),
                 (row.as_() + 1) - self.offsets.len(),
@@ -657,8 +658,8 @@ where
         // Then, we compute the prefix sum of the degrees to get the offsets.
         let mut prefix_sum = SparseIndex::zero();
         for (row_degree_index, offset) in transposed.offsets.iter_mut().enumerate() {
-            // Before prefix summation, offsets[1..] store row degrees in the transposed
-            // matrix.
+            // Before prefix summation, offsets[1..] store row degrees in the
+            // transposed matrix.
             if row_degree_index > 0 && *offset > SparseIndex::zero() {
                 transposed.number_of_non_empty_rows += ColumnIndex::one();
             }

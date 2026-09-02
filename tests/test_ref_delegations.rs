@@ -155,7 +155,8 @@ fn test_ref_vocabulary_destinations() {
 fn test_ref_bidirectional_vocabulary() {
     let vocab: usize = 5;
     let r = &vocab;
-    // usize implements BidirectionalVocabulary where invert returns the same value
+    // usize implements BidirectionalVocabulary where invert returns the same
+    // value
     assert_eq!(BidirectionalVocabulary::invert(r, &3), Some(3_usize));
 }
 

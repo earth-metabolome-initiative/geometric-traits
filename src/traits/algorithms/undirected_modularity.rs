@@ -167,7 +167,8 @@ mod tests {
     #[test]
     fn test_resolution_scales_expected_term() {
         let matrix = build_undirected(4, &[(0, 1, 1.0), (2, 3, 1.0)]);
-        // With gamma=2 each community contributes 0.25 - 2*0.0625 ... = 0 -> total 0.
+        // With gamma=2 each community contributes 0.25 - 2*0.0625 ... = 0 ->
+        // total 0.
         assert!(view_modularity(&matrix, &[0, 0, 1, 1], 2.0).abs() < TOLERANCE);
     }
 

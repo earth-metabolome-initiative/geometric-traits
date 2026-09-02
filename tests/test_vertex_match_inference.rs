@@ -128,8 +128,8 @@ fn test_infer_triangle_to_triangle() {
         infer_vertex_matches(&clique, &vertex_pairs, &edge_map1, &edge_map2, |_, _, _, _| {
             panic!("should not be called for fully connected clique")
         });
-    // Phase 1 resolves all: 0↔10 (shared between edges 0&1), 1↔11 (shared between
-    // 0&2), 2↔12 (shared between 1&2)
+    // Phase 1 resolves all: 0↔10 (shared between edges 0&1), 1↔11 (shared
+    // between 0&2), 2↔12 (shared between 1&2)
     assert_eq!(result.len(), 3);
     assert_eq!(result, vec![(0, 10), (1, 11), (2, 12)]);
 }
@@ -217,7 +217,8 @@ fn test_infer_disambiguate_called_only_for_isolated() {
 #[test]
 fn test_infer_result_is_injective() {
     // For any valid MCES, the vertex mapping should be injective:
-    // no two N1 values map to the same N2, and no two N2 values have the same N1.
+    // no two N1 values map to the same N2, and no two N2 values have the same
+    // N1.
     let clique = [0, 1, 2];
     let vertex_pairs = [(0_usize, 0_usize), (1, 1), (2, 2)];
     let edge_map1 = [(0_u32, 1_u32), (0, 2), (1, 2)];
@@ -262,7 +263,8 @@ fn test_infer_conflicting_symmetric_does_not_panic() {
     let result =
         infer_vertex_matches(&clique, &vertex_pairs, &edge_map1, &edge_map2, |_, _, _, _| true);
 
-    // The result should still be a valid (partial) mapping — no duplicate N1 keys.
+    // The result should still be a valid (partial) mapping — no duplicate N1
+    // keys.
     for i in 0..result.len() {
         for j in (i + 1)..result.len() {
             assert_ne!(result[i].0, result[j].0, "duplicate N1 in result");

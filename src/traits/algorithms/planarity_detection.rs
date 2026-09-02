@@ -4331,7 +4331,8 @@ pub(crate) mod embedding {
 
         fn restore_all_reduced_paths(&mut self) {
             // Reduced paths can nest. Restoring newest-first rebuilds the
-            // original face structure before older synthetic edges are expanded.
+            // original face structure before older synthetic edges are
+            // expanded.
             while let Some(reduction_arc) =
                 self.arcs.iter().rposition(|arc| arc.reduction_endpoint_arc.is_some())
             {
@@ -5451,8 +5452,9 @@ pub(crate) mod embedding {
                 if cut_vertex_entry_side == frame.root_side {
                     root_side = 1 ^ cut_vertex_entry_side;
                     if !self.is_singleton_slot(root_copy_slot) {
-                        // Boyer skips the root-copy inversion only for singleton
-                        // bicomps, but it still xors the DFS-child sign below.
+                        // Boyer skips the root-copy inversion only for
+                        // singleton bicomps, but it
+                        // still xors the DFS-child sign below.
                         self.invert_vertex(root_copy_slot);
                     }
                     if let Some(child_arc) = self.root_copy_child_arc(root_copy_slot) {

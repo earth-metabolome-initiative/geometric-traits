@@ -177,16 +177,19 @@ pub trait ConnectedComponents<Marker: AsPrimitive<usize> + PositiveInteger = usi
             if component_identifiers[node.as_()] != Marker::max_value() {
                 continue;
             }
-            // Otherwise, we have found a new component and need to mark all nodes in it.
+            // Otherwise, we have found a new component and need to mark all
+            // nodes in it.
             let mut current_component_size = Self::NodeId::zero();
 
             // Add the current node to the frontier.
             frontier.push(node);
 
             while !frontier.is_empty() {
-                // For each node in the frontier, mark it and add its neighbors to the frontier.
+                // For each node in the frontier, mark it and add its neighbors
+                // to the frontier.
                 for neighbour in frontier.drain(..) {
-                    // If the neighbour is already marked as part of a component, skip it.
+                    // If the neighbour is already marked as part of a
+                    // component, skip it.
                     if component_identifiers[neighbour.as_()] != Marker::max_value() {
                         continue;
                     }
@@ -201,8 +204,8 @@ pub trait ConnectedComponents<Marker: AsPrimitive<usize> + PositiveInteger = usi
                     temporary_frontier.extend(self.neighbors(neighbour));
                 }
 
-                // We swap the temporary frontier with the frontier to avoid allocating a new
-                // vector.
+                // We swap the temporary frontier with the frontier to avoid
+                // allocating a new vector.
                 core::mem::swap(&mut frontier, &mut temporary_frontier);
             }
 

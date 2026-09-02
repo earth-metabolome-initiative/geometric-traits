@@ -1,7 +1,6 @@
 //! Implementation for the 'Wu Palmer' trait based on the algorithm
 //! implementation
 use alloc::vec::Vec;
-use core::f64;
 
 use crate::traits::{
     Edges, Kahn, KahnError, MonoplexMonopartiteGraph, ScalarSimilarity,

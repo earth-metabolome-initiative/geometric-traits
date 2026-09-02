@@ -289,7 +289,8 @@ fn test_jaqaman_empty_matrix_invalid_max_cost_still_errors() {
 
 #[test]
 fn test_lapjv_4x4_conflict_resolution() {
-    // Matrix where rows 0 and 1 both prefer column 0 — column reduction conflict
+    // Matrix where rows 0 and 1 both prefer column 0 — column reduction
+    // conflict
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::try_from([
         [1.0, 50.0, 50.0, 50.0],
         [1.0, 50.0, 50.0, 50.0],

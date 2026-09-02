@@ -57,7 +57,8 @@ pub fn watts_strogatz(
             let v = (u + j) % n;
             let uniform = (rng.next().unwrap() as f64) / (u64::MAX as f64);
             if uniform < beta {
-                // Rewire (u, v) to (u, w) where w != u and not already connected.
+                // Rewire (u, v) to (u, w) where w != u and not already
+                // connected.
                 let mut w = (rng.next().unwrap() as usize) % n;
                 let mut attempts = 0;
                 while w == u || has_edge(&adj, u, w) {

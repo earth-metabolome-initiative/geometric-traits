@@ -48,9 +48,11 @@ fn test_singleton_nodes_all_singletons() {
 
 #[test]
 fn test_singleton_nodes_self_loop_not_singleton() {
-    // A self-loop means the node has both a successor and a predecessor (itself).
+    // A self-loop means the node has both a successor and a predecessor
+    // (itself).
     let graph = build_digraph(vec![0, 1, 2], vec![(0, 0)]);
-    // Node 0 has a self-loop so it's not a singleton; nodes 1, 2 are singletons.
+    // Node 0 has a self-loop so it's not a singleton; nodes 1, 2 are
+    // singletons.
     assert_eq!(graph.singleton_nodes(), vec![1, 2]);
 }
 
@@ -83,8 +85,8 @@ fn test_singleton_nodes_mixed() {
 
 #[test]
 fn test_no_singleton_nodes() {
-    // Fully connected cycle graph: 0->1->2->3->0, all nodes have both incoming and
-    // outgoing edges.
+    // Fully connected cycle graph: 0->1->2->3->0, all nodes have both incoming
+    // and outgoing edges.
     let graph = build_digraph(vec![0, 1, 2, 3], vec![(0, 1), (1, 2), (2, 3), (3, 0)]);
     assert_eq!(graph.number_of_nodes(), 4);
     assert_eq!(graph.number_of_edges(), 4);
@@ -111,7 +113,8 @@ fn test_some_singleton_nodes() {
 
 #[test]
 fn test_single_node_no_edges() {
-    // Edge case: a single-node graph with no edges. The lone node is a singleton.
+    // Edge case: a single-node graph with no edges. The lone node is a
+    // singleton.
     let graph = build_digraph(vec![0], vec![]);
     assert_eq!(graph.number_of_nodes(), 1);
     assert_eq!(graph.number_of_edges(), 0);

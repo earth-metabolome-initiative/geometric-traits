@@ -25,7 +25,8 @@ where
         // or equal to the threshold index. Therefore, we can use a method that
         // returns the last sparse entry in the matrix, which is necessarily the
         // value at the last defined row and column. If any of the indices of
-        // this entry is less than the threshold index, then the matrix is empty.
+        // this entry is less than the threshold index, then the matrix is
+        // empty.
         self.last_sparse_coordinates().is_none()
     }
 

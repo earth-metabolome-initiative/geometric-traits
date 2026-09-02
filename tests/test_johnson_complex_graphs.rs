@@ -129,9 +129,10 @@ fn test_johnson_self_loops_with_multi_node_cycle() {
         ],
     );
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    // The self-loops form their own SCCs. The triangle 0->1->2->0 also forms one.
-    // With self-loops included in the SCC (since (0,0) and (1,1) are within
-    // the same strongly connected component), we get additional cycles.
+    // The self-loops form their own SCCs. The triangle 0->1->2->0 also forms
+    // one. With self-loops included in the SCC (since (0,0) and (1,1) are
+    // within the same strongly connected component), we get additional
+    // cycles.
     assert!(!cycles.is_empty());
 }
 

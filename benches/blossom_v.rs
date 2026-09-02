@@ -47,7 +47,7 @@ fn make_case(name: &str, seed: u64, n: usize, extra_edges: usize) -> WeightedCas
     let mut edges_set: BTreeSet<(usize, usize)> = BTreeSet::new();
     let mut weighted_edges = Vec::new();
 
-    for pair in perm.chunks_exact(2) {
+    for pair in perm.as_chunks::<2>().0 {
         let u = pair[0].min(pair[1]);
         let v = pair[0].max(pair[1]);
         edges_set.insert((u, v));

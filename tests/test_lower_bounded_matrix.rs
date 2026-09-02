@@ -151,8 +151,8 @@ fn test_lower_bounded_sparse_columns_forward() {
     let lb = LowerBoundedSquareMatrix::new(m, 0).unwrap();
 
     let cols: Vec<usize> = lb.sparse_columns().collect();
-    // next_row=0: [1, 2], next_row=1 < back_row=2: [0, 2], next_row=2 → back(row
-    // 2): []
+    // next_row=0: [1, 2], next_row=1 < back_row=2: [0, 2], next_row=2 →
+    // back(row 2): []
     assert_eq!(cols, vec![1, 2, 0, 2]);
 }
 
@@ -163,13 +163,15 @@ fn test_lower_bounded_sparse_columns_all_rows_filled() {
     let lb = LowerBoundedSquareMatrix::new(m, 0).unwrap();
 
     let cols: Vec<usize> = lb.sparse_columns().collect();
-    // next_row=0: [1], next_row=1 < back_row=2: [2], next_row=2 → back(row 2): [0]
+    // next_row=0: [1], next_row=1 < back_row=2: [2], next_row=2 → back(row 2):
+    // [0]
     assert_eq!(cols, vec![1, 2, 0]);
 }
 
 #[test]
 fn test_lower_bounded_sparse_columns_rev_partial() {
-    // 3x3 with entries at back row (2) and row 1. Use .take() to avoid overflow.
+    // 3x3 with entries at back row (2) and row 1. Use .take() to avoid
+    // overflow.
     let m = build_square(3, vec![(0, 1), (1, 2), (2, 0), (2, 1)]);
     let lb = LowerBoundedSquareMatrix::new(m, 0).unwrap();
 
@@ -220,8 +222,8 @@ fn test_lower_bounded_sparse_rows_rev_partial() {
 
     // Take exactly the number of entries (4) from reverse
     let rows_rev: Vec<usize> = lb.sparse_rows().rev().take(4).collect();
-    // back(row 2) has 2 entries → [2, 2], then row 1: [1], then falls to next row
-    // 0: [0]
+    // back(row 2) has 2 entries → [2, 2], then row 1: [1], then falls to next
+    // row 0: [0]
     assert_eq!(rows_rev, vec![2, 2, 1, 0]);
 }
 

@@ -344,10 +344,10 @@ where
     #[inline]
     fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
         self.matrix.add((row, column))?;
-        // Since the matrix is square, the number of columns is equal to the number of
-        // row, and if the user happens to provide a row that is greater than
-        // the number of columns, we need to update the number of columns so as
-        // to keep the matrix square.
+        // Since the matrix is square, the number of columns is equal to the
+        // number of row, and if the user happens to provide a row that
+        // is greater than the number of columns, we need to update the
+        // number of columns so as to keep the matrix square.
         let side = self
             .matrix
             .number_of_rows()

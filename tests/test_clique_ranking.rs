@@ -174,8 +174,8 @@ fn test_chained_ranker_tiebreak() {
 
 #[test]
 fn test_chained_ranker_first_decides() {
-    // a has 1 fragment, b has 2 → FragmentCountRanker decides, MoreVerticesRanker
-    // never consulted.
+    // a has 1 fragment, b has 2 → FragmentCountRanker decides,
+    // MoreVerticesRanker never consulted.
     let a = EagerCliqueInfo::new(
         vec![0, 1],
         &[(0_usize, 0_usize), (1, 1)],

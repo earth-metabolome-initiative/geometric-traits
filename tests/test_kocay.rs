@@ -656,8 +656,8 @@ fn test_k33_cap2_budget3() {
 
 #[test]
 fn test_budget_exceeds_degree_times_cap() {
-    // Budget far exceeds what's possible. Should not panic or produce extra flow.
-    // Star: center 0, leaves 1..4. Cap 1 per edge, center budget 100.
+    // Budget far exceeds what's possible. Should not panic or produce extra
+    // flow. Star: center 0, leaves 1..4. Cap 1 per edge, center budget 100.
     let edges = [(0, 1, 1), (0, 2, 1), (0, 3, 1), (0, 4, 1)];
     let vcsr = build_valued_graph(5, &edges);
     let budgets = [100, 1, 1, 1, 1];
@@ -794,7 +794,8 @@ fn test_wheel6_cap2_budget3() {
 
 #[test]
 fn test_empty_initial_flow_equals_kocay() {
-    // Verify that kocay_with_initial_flow(b, &[]) == kocay(b) on several graphs.
+    // Verify that kocay_with_initial_flow(b, &[]) == kocay(b) on several
+    // graphs.
     let cases = vec![
         (2, vec![(0, 1, 1)], vec![1, 1]),
         (3, vec![(0, 1, 1), (0, 2, 1), (1, 2, 1)], vec![1, 1, 1]),

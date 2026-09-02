@@ -149,8 +149,9 @@ fn test_wu_palmer_randomized_dag_invariants_fixed_seeds() {
 
 #[test]
 fn test_wu_palmer_root_query_monotonicity_on_chains() {
-    // For chain 0 -> 1 -> ... -> n-1 with canonical Wu-Palmer and depth(root)=1:
-    // sim(0, k) = 2 / (k + 2), therefore it strictly decreases with k.
+    // For chain 0 -> 1 -> ... -> n-1 with canonical Wu-Palmer and
+    // depth(root)=1: sim(0, k) = 2 / (k + 2), therefore it strictly
+    // decreases with k.
     for number_of_nodes in 3..=10usize {
         let mut edges = Vec::with_capacity(number_of_nodes - 1);
         for src in 0..(number_of_nodes - 1) {

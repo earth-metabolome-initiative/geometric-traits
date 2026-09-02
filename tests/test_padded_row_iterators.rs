@@ -158,8 +158,8 @@ fn test_sparse_row_values_forward_extra_padded_row() {
 #[test]
 fn test_sparse_row_values_backward_all_before_diagonal() {
     // Row 1 has (1,0)=2.0 only. Diagonal=1 imputed.
-    // Backward: next_back gets col 0, val 2.0 (col 0 < diag 1, no special handling
-    // in current code). Then diagonal returned at end.
+    // Backward: next_back gets col 0, val 2.0 (col 0 < diag 1, no special
+    // handling in current code). Then diagonal returned at end.
     let padded = build_padded_diagonal(vec![(0, 0, 1.0), (1, 0, 2.0)], 2, 2);
     let vals_rev: Vec<f64> = padded.sparse_row_values(1).rev().collect();
     // Both values present

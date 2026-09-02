@@ -90,8 +90,8 @@ fn display_node(
 impl Display for DirectoryTree {
     #[inline]
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // We display the directory tree in a simple text format, with indentation
-        // representing depth.
+        // We display the directory tree in a simple text format, with
+        // indentation representing depth.
         let base_path = &self.graph.nodes_vocabulary()[0];
         writeln!(f, "{}", base_path.display())?;
         display_node(f, &self.graph, 0, 1)

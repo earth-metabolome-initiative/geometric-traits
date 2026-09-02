@@ -3680,8 +3680,9 @@ where
                 let tp_sib = self.nodes[tp as usize].blossom_sibling_arc;
 
                 if tp_match != NONE && tp_match == tp_sib {
-                    // Forward: tp → match_partner(PLUS) → sib → MINUS → match → PLUS → ...→ k
-                    // Build chain: j_top = first PLUS. Each PLUS links to next via
+                    // Forward: tp → match_partner(PLUS) → sib → MINUS → match →
+                    // PLUS → ...→ k Build chain: j_top =
+                    // first PLUS. Each PLUS links to next via
                     // first_tree_child. Last PLUS.first_tree_child =
                     // child_plus.
                     let mut cur = self.edges[arc_edge(tp_match) as usize].head[arc_dir(tp_match)];
@@ -3728,8 +3729,9 @@ where
                         cur = self.arc_head_raw(nm);
                     }
                 } else if tp_match != NONE {
-                    // Backward: k → sib → PLUS → match → MINUS → sib → PLUS → ... → tp
-                    // Build chain bottom-up: start with j = child_plus, walk up.
+                    // Backward: k → sib → PLUS → match → MINUS → sib → PLUS →
+                    // ... → tp Build chain bottom-up: start
+                    // with j = child_plus, walk up.
                     let mut j = child_plus;
                     let mut cur = k;
                     let mut limit = self.nodes.len();
@@ -3769,7 +3771,8 @@ where
                 }
             }
 
-            // Replace child_plus with j_top in grandparent's child list (C++ lines 151-162)
+            // Replace child_plus with j_top in grandparent's child list (C++
+            // lines 151-162)
             if j_top != NONE && child_plus != NONE && j_top != child_plus && grandparent != NONE {
                 let cp_prev = self.nodes[child_plus as usize].tree_sibling_prev;
                 let cp_next = self.nodes[child_plus as usize].tree_sibling_next;

@@ -129,7 +129,8 @@ fn test_sparse_row_includes_diagonal() {
     let inner = build_valued_csr(vec![(0, 1, 1.0), (1, 0, 2.0)], 2, 2);
     let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: usize| 0.0).unwrap();
 
-    // Row 0 should contain both column 0 (padded diagonal) and column 1 (original)
+    // Row 0 should contain both column 0 (padded diagonal) and column 1
+    // (original)
     let row0: Vec<usize> = padded.sparse_row(0).collect();
     assert!(row0.contains(&0), "Diagonal column 0 should be in row 0");
     assert!(row0.contains(&1), "Original column 1 should be in row 0");

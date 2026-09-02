@@ -122,7 +122,8 @@ fn test_add_duplicate_entry() {
 fn test_add_non_consecutive_in_row() {
     let mut csr: TestRangedCSR = RangedCSR2D::default();
     MatrixMut::add(&mut csr, (0, 0)).unwrap();
-    // SimpleRange requires consecutive entries; skipping to column 5 should fail
+    // SimpleRange requires consecutive entries; skipping to column 5 should
+    // fail
     let result = MatrixMut::add(&mut csr, (0, 5));
     assert!(result.is_err());
 }
