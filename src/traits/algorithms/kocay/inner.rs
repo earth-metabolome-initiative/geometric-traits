@@ -372,12 +372,8 @@ where
 
     /// Clear path marks.
     fn clear_path_marks(&mut self) {
-        for m in &mut self.edge_on_path {
-            *m = false;
-        }
-        for m in &mut self.st_on_path {
-            *m = false;
-        }
+        self.edge_on_path.fill(false);
+        self.st_on_path.fill(false);
     }
 
     /// Iterative `FindPathCap`: traverse the augmenting path from x to y using

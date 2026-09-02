@@ -520,7 +520,7 @@ fn overlay_perfect_matching_backbone(
         let j = rng.next_usize(i + 1);
         vertices.swap(i, j);
     }
-    for pair in vertices.chunks_exact(2) {
+    for pair in vertices.as_chunks::<2>().0 {
         let u = pair[0].min(pair[1]);
         let v = pair[0].max(pair[1]);
         edges.entry((u, v)).or_insert_with(|| structured_weight(weight_mode, rng, true));

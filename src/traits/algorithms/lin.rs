@@ -1,7 +1,5 @@
 //! Implementation for the 'Lin' trait based on the algorithm implementation
 
-use core::f64;
-
 use crate::{
     prelude::{information_content::InformationContentError, resnik::ResnikResult},
     traits::{
