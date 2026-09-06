@@ -18,11 +18,12 @@ jobs:
     name: SonarQube scan
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # A pull request from a fork cannot read SONAR_TOKEN, so the scan runs only
-    # for same-repo branches and pushes to main.
+    # Neither a fork's pull request nor a Dependabot run can read SONAR_TOKEN,
+    # so the scan runs for same-repo human branches and pushes to main only.
     if: >-
       github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
