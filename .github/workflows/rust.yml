@@ -23,7 +23,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
         rust: [stable, beta, nightly]
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@master
       with:
@@ -37,7 +37,7 @@ jobs:
     name: Feature Combinations
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Check with no default features
@@ -55,7 +55,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@nightly
       with:
@@ -67,7 +67,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -79,7 +79,7 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Check documentation
@@ -92,7 +92,7 @@ jobs:
     name: Code Coverage
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     - name: Install tarpaulin
@@ -115,7 +115,7 @@ jobs:
     - name: Generate coverage
       run: cargo +nightly tarpaulin --engine=llvm --out xml --workspace --all-features --run-types AllTargets --run-types Doctests
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
+      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
@@ -124,7 +124,7 @@ jobs:
     name: No Python
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Reject committed Python files
       run: |
         set -euo pipefail
@@ -140,9 +140,9 @@ jobs:
     name: MSRV (1.88)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust 1.88
-      uses: dtolnay/rust-toolchain@1.88
+      uses: dtolnay/rust-toolchain@1.120
     - name: Check (all features)
       run: cargo check --all-features
     - name: Check (no_std + alloc)
@@ -152,7 +152,7 @@ jobs:
     name: Miri (unsafe)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install nightly with Miri
       uses: dtolnay/rust-toolchain@nightly
       with:
@@ -168,7 +168,7 @@ jobs:
     name: no_std target build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust with a bare-metal target
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -187,7 +187,7 @@ jobs:
     # against the crates.io baseline once the crate is published.
     continue-on-error: true
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         fetch-depth: 0
     - name: Install Rust
