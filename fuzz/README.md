@@ -4,6 +4,14 @@ libFuzzer-based fuzzing for graph data structures, through `cargo-fuzz`. Cluster
 
 If you have not installed cargo-fuzz, run `cargo install cargo-fuzz`. It needs a nightly toolchain.
 
+## Seed Corpus
+
+Every target has a seed corpus in `fuzz/seeds/<target>/`, one input per file, and the ClusterFuzzLite build fails for a target without one. Every target decodes raw bytes, through `arbitrary` or its own byte layout, so the seeds are fuzzer-grown inputs reduced by libFuzzer's `-set_cover_merge=1` to the smallest set that keeps the same coverage. Pass the seeds as a second corpus directory to start a local run from them:
+
+```bash
+cargo +nightly fuzz run root_nodes fuzz/corpus/root_nodes fuzz/seeds/root_nodes
+```
+
 ## Harnesses
 
 ### RootNodes
