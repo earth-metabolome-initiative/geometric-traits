@@ -1,12 +1,15 @@
 //! Submodule for fuzzing the execution of Kahn's algorithm.
 
-use geometric_traits::{prelude::*, test_utils::check_kahn_ordering};
-use honggfuzz::fuzz;
+#![no_main]
 
-fn main() {
-    loop {
-        fuzz!(|matrix: SquareCSR2D<CSR2D<u16, u8, u8>>| {
-            check_kahn_ordering(&matrix, 5);
-        });
-    }
-}
+use arbitrary::Unstructured;
+use geometric_traits::{prelude::*, test_utils::check_kahn_ordering};
+use libfuzzer_sys::fuzz_target;
+
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(matrix) = Unstructured::new(bytes).arbitrary::<SquareCSR2D<CSR2D<u16, u8, u8>>>() else {
+        return;
+    };
+    check_kahn_ordering(&matrix, 5);
+});

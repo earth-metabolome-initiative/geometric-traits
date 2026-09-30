@@ -1,62 +1,66 @@
 //! Submodule for fuzzing the Kocay-Stone BNS balanced flow algorithm.
 
+#![no_main]
+
+use arbitrary::Unstructured;
 use geometric_traits::prelude::*;
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
-fn main() {
-    loop {
-        fuzz!(|data: (ValuedCSR2D<u16, u8, u8, u8>, Vec<u8>)| {
-            let (vcsr, raw_budgets) = data;
-            let n_rows = vcsr.number_of_rows() as usize;
-            let n_cols = vcsr.number_of_columns() as usize;
-            if n_rows != n_cols || n_rows > 64 || n_rows == 0 {
-                return;
-            }
-            let n = n_rows;
-
-            // Build budgets: use raw_budgets values, clamp to n elements.
-            if raw_budgets.len() < n {
-                return;
-            }
-            let budgets: Vec<u8> = raw_budgets[..n].to_vec();
-
-            let flow = vcsr.kocay(&budgets);
-
-            // Validate: capacity respect and flow conservation.
-            let mut vertex_flow = vec![0u16; n];
-            for &(i, j, f) in &flow {
-                assert!(i < j, "flow triple ordering violated");
-                assert!(f > 0, "zero flow in output");
-
-                // Check edge exists and capacity respected.
-                let mut found_cap = None;
-                for (col, val) in vcsr.sparse_row(i).zip(vcsr.sparse_row_values(i)) {
-                    if col == j {
-                        found_cap = Some(val);
-                        break;
-                    }
-                }
-                if let Some(cap) = found_cap {
-                    assert!(f <= cap, "flow {f} exceeds capacity {cap} on edge ({i}, {j})");
-                }
-
-                vertex_flow[i as usize] += f as u16;
-                vertex_flow[j as usize] += f as u16;
-            }
-
-            for v in 0..n {
-                assert!(
-                    vertex_flow[v] <= budgets[v] as u16,
-                    "vertex {v} flow {} exceeds budget {}",
-                    vertex_flow[v],
-                    budgets[v]
-                );
-            }
-
-            // Fixed-point check: optimal flow fed back as initial flow must
-            // produce the identical result.
-            let flow2 = vcsr.kocay_with_initial_flow(&budgets, &flow);
-            assert_eq!(flow, flow2, "optimal flow must be a fixed point");
-        });
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(data) = Unstructured::new(bytes).arbitrary::<(ValuedCSR2D<u16, u8, u8, u8>, Vec<u8>)>()
+    else {
+        return;
+    };
+    let (vcsr, raw_budgets) = data;
+    let n_rows = vcsr.number_of_rows() as usize;
+    let n_cols = vcsr.number_of_columns() as usize;
+    if n_rows != n_cols || n_rows > 64 || n_rows == 0 {
+        return;
     }
-}
+    let n = n_rows;
+
+    // Build budgets: use raw_budgets values, clamp to n elements.
+    if raw_budgets.len() < n {
+        return;
+    }
+    let budgets: Vec<u8> = raw_budgets[..n].to_vec();
+
+    let flow = vcsr.kocay(&budgets);
+
+    // Validate: capacity respect and flow conservation.
+    let mut vertex_flow = vec![0u16; n];
+    for &(i, j, f) in &flow {
+        assert!(i < j, "flow triple ordering violated");
+        assert!(f > 0, "zero flow in output");
+
+        // Check edge exists and capacity respected.
+        let mut found_cap = None;
+        for (col, val) in vcsr.sparse_row(i).zip(vcsr.sparse_row_values(i)) {
+            if col == j {
+                found_cap = Some(val);
+                break;
+            }
+        }
+        if let Some(cap) = found_cap {
+            assert!(f <= cap, "flow {f} exceeds capacity {cap} on edge ({i}, {j})");
+        }
+
+        vertex_flow[i as usize] += f as u16;
+        vertex_flow[j as usize] += f as u16;
+    }
+
+    for v in 0..n {
+        assert!(
+            vertex_flow[v] <= budgets[v] as u16,
+            "vertex {v} flow {} exceeds budget {}",
+            vertex_flow[v],
+            budgets[v]
+        );
+    }
+
+    // Fixed-point check: optimal flow fed back as initial flow must
+    // produce the identical result.
+    let flow2 = vcsr.kocay_with_initial_flow(&budgets, &flow);
+    assert_eq!(flow, flow2, "optimal flow must be a fixed point");
+});

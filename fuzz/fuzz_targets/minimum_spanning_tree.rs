@@ -3,15 +3,17 @@
 //! an independent brute-force minimum over every spanning forest, and that each
 //! result is a valid acyclic forest with the right edge and component counts.
 
+#![no_main]
+
 use geometric_traits::{
     impls::{ValuedCSR2D, WeightedForest},
     naive_structs::GenericEdgesBuilder,
     traits::{
-        EdgesBuilder,
         algorithms::minimum_spanning_tree::{Boruvka, Kruskal, Prim},
+        EdgesBuilder,
     },
 };
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
 type WeightedMatrix = ValuedCSR2D<usize, usize, usize, f64>;
 
@@ -114,10 +116,8 @@ fn validate_forest(
     assert_eq!(forest.number_of_components(), components);
     assert_eq!(forest.len(), node_count - components);
 
-    let available: std::collections::HashSet<(usize, usize)> = edges
-        .iter()
-        .map(|&(s, d, _)| if s < d { (s, d) } else { (d, s) })
-        .collect();
+    let available: std::collections::HashSet<(usize, usize)> =
+        edges.iter().map(|&(s, d, _)| if s < d { (s, d) } else { (d, s) }).collect();
 
     let mut disjoint = DisjointSet::new(node_count);
     let mut weight = 0u64;
@@ -133,47 +133,43 @@ fn validate_forest(
     weight
 }
 
-fn main() {
-    loop {
-        fuzz!(|data: &[u8]| {
-            if data.is_empty() {
-                return;
-            }
-            let node_count = (data[0] as usize % MAX_NODES) + 1;
-            let slots = node_count * (node_count - 1) / 2;
-            if data.len() < 1 + slots {
-                return;
-            }
-
-            let mut edges = Vec::new();
-            let mut offset = 1;
-            for source in 0..node_count {
-                for destination in (source + 1)..node_count {
-                    let byte = data[offset];
-                    offset += 1;
-                    if byte & 1 != 0 {
-                        let weight = u32::from((byte >> 1) % 6) + 1;
-                        edges.push((source, destination, weight));
-                    }
-                }
-            }
-
-            let mut full = DisjointSet::new(node_count);
-            for &(source, destination, _) in &edges {
-                full.union(source, destination);
-            }
-            let components = full.components(node_count);
-
-            let matrix = build_matrix(node_count, &edges);
-            let kruskal = matrix.minimum_spanning_tree_kruskal().unwrap();
-            let prim = matrix.minimum_spanning_tree_prim().unwrap();
-            let boruvka = matrix.minimum_spanning_tree_boruvka().unwrap();
-
-            let expected = brute_force_weight(node_count, &edges, components);
-            for forest in [&kruskal, &prim, &boruvka] {
-                let weight = validate_forest(node_count, &edges, components, forest);
-                assert_eq!(weight, expected, "result is not a minimum spanning forest");
-            }
-        });
+fuzz_target!(|data: &[u8]| {
+    if data.is_empty() {
+        return;
     }
-}
+    let node_count = (data[0] as usize % MAX_NODES) + 1;
+    let slots = node_count * (node_count - 1) / 2;
+    if data.len() < 1 + slots {
+        return;
+    }
+
+    let mut edges = Vec::new();
+    let mut offset = 1;
+    for source in 0..node_count {
+        for destination in (source + 1)..node_count {
+            let byte = data[offset];
+            offset += 1;
+            if byte & 1 != 0 {
+                let weight = u32::from((byte >> 1) % 6) + 1;
+                edges.push((source, destination, weight));
+            }
+        }
+    }
+
+    let mut full = DisjointSet::new(node_count);
+    for &(source, destination, _) in &edges {
+        full.union(source, destination);
+    }
+    let components = full.components(node_count);
+
+    let matrix = build_matrix(node_count, &edges);
+    let kruskal = matrix.minimum_spanning_tree_kruskal().unwrap();
+    let prim = matrix.minimum_spanning_tree_prim().unwrap();
+    let boruvka = matrix.minimum_spanning_tree_boruvka().unwrap();
+
+    let expected = brute_force_weight(node_count, &edges, components);
+    for forest in [&kruskal, &prim, &boruvka] {
+        let weight = validate_forest(node_count, &edges, components, forest);
+        assert_eq!(weight, expected, "result is not a minimum spanning forest");
+    }
+});

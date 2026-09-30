@@ -1,12 +1,15 @@
 //! Fuzzing submodule on the `ValuedCSR2D` struct.
 
-use geometric_traits::{prelude::*, test_utils::check_valued_matrix_invariants};
-use honggfuzz::fuzz;
+#![no_main]
 
-fn main() {
-    loop {
-        fuzz!(|csr: ValuedCSR2D<u16, u8, u8, f64>| {
-            check_valued_matrix_invariants(&csr);
-        });
-    }
-}
+use arbitrary::Unstructured;
+use geometric_traits::{prelude::*, test_utils::check_valued_matrix_invariants};
+use libfuzzer_sys::fuzz_target;
+
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(csr) = Unstructured::new(bytes).arbitrary::<ValuedCSR2D<u16, u8, u8, f64>>() else {
+        return;
+    };
+    check_valued_matrix_invariants(&csr);
+});

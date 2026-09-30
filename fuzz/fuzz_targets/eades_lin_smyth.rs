@@ -20,10 +20,13 @@
 //! sanitized graph is always square with valid weights and its `Err` arm is
 //! unreachable; it is asserted as such.
 
+#![no_main]
+
 use std::collections::HashSet;
 
+use arbitrary::Unstructured;
 use geometric_traits::prelude::*;
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
 /// Arbitrary input matrix type, mirroring the other valued-graph fuzz targets.
 type Input = ValuedCSR2D<u16, u8, u8, f64>;
@@ -42,8 +45,8 @@ const TOLERANCE: f64 = 1e-9;
 /// Float comparison robust to legitimate overflow. Both the heuristic and this
 /// oracle accumulate positive weights, so near-`f64::MAX` inputs can overflow
 /// both sums to the *same* infinity; `==` makes `inf == inf` pass (a naive
-/// `(inf - inf).abs()` is `NaN`, which would spuriously fail), and the tolerance
-/// covers the finite case.
+/// `(inf - inf).abs()` is `NaN`, which would spuriously fail), and the
+/// tolerance covers the finite case.
 fn close(a: f64, b: f64) -> bool {
     a == b || (a - b).abs() <= TOLERANCE
 }
@@ -129,7 +132,8 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
     let order = result.order();
     let positions = result.positions();
 
-    // `order` must be a permutation of `0..n` and `positions` its exact inverse.
+    // `order` must be a permutation of `0..n` and `positions` its exact
+    // inverse.
     assert_eq!(order.len(), nodes, "order length must equal node count");
     assert_eq!(positions.len(), nodes, "positions length must equal node count");
     let mut seen = vec![false; nodes];
@@ -160,10 +164,10 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
         }
     }
 
-    // `feedback_edges` must be exactly the backward edges. Both sides are sorted
-    // before comparison because the algorithm emits them in row-major order,
-    // which already matches our edge iteration, but sorting makes the oracle
-    // independent of that emission order.
+    // `feedback_edges` must be exactly the backward edges. Both sides are
+    // sorted before comparison because the algorithm emits them in
+    // row-major order, which already matches our edge iteration, but
+    // sorting makes the oracle independent of that emission order.
     let mut actual_feedback: Vec<(usize, usize)> = result.feedback_edges().to_vec();
     actual_feedback.sort_unstable();
     expected_feedback.sort_unstable();
@@ -190,11 +194,11 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
         feedback_weight <= total_weight + TOLERANCE,
         "feedback weight {feedback_weight} must not exceed total weight {total_weight}"
     );
-    // The tangle fraction is only well-defined in [0, 1] when the total weight is
-    // finite. With near-`f64::MAX` weights the sums can overflow to infinity, so
-    // the fraction becomes inf/inf = NaN; that is an inherent f64 accumulation
-    // limit on pathological input, not an algorithm defect, so the bound is only
-    // asserted for finite totals.
+    // The tangle fraction is only well-defined in [0, 1] when the total weight
+    // is finite. With near-`f64::MAX` weights the sums can overflow to
+    // infinity, so the fraction becomes inf/inf = NaN; that is an inherent
+    // f64 accumulation limit on pathological input, not an algorithm
+    // defect, so the bound is only asserted for finite totals.
     if total_weight.is_finite() {
         let fraction = result.tangle_fraction();
         assert!(
@@ -210,10 +214,11 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
         "is_acyclic must agree with an empty feedback set"
     );
 
-    // Cross-check that removing the algorithm's OWN reported feedback edges leaves
-    // an acyclic graph -- the defining property of a feedback arc set. The residual
-    // is built from `result.feedback_edges()` (not from `positions`), so this can
-    // genuinely fail on a cut that does not break every cycle.
+    // Cross-check that removing the algorithm's OWN reported feedback edges
+    // leaves an acyclic graph -- the defining property of a feedback arc
+    // set. The residual is built from `result.feedback_edges()` (not from
+    // `positions`), so this can genuinely fail on a cut that does not break
+    // every cycle.
     let cut: HashSet<(usize, usize)> = result.feedback_edges().iter().copied().collect();
     let mut residual_pairs: Vec<(usize, usize)> =
         full_pairs.iter().copied().filter(|pair| !cut.contains(pair)).collect();
@@ -238,7 +243,8 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
         "is_acyclic must agree with Kahn on the full graph"
     );
 
-    // Determinism: a second run must reproduce the arrangement and feedback set.
+    // Determinism: a second run must reproduce the arrangement and feedback
+    // set.
     let second = matrix
         .eades_lin_smyth()
         .expect("eades_lin_smyth must remain successful on the second call");
@@ -254,15 +260,15 @@ fn check(n: u8, edges: &[(u8, u8, f64)]) {
     );
 }
 
-fn main() {
-    loop {
-        fuzz!(|csr: Input| {
-            // The heuristic consumes a square bidirectional valued matrix, which
-            // the raw arbitrary input is not, so it is sanitized into one first.
-            // Running the full oracle to completion (no panic) is the baseline.
-            if let Some((n, edges)) = positive_square_graph(&csr) {
-                check(n, &edges);
-            }
-        });
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(csr) = Unstructured::new(bytes).arbitrary::<Input>() else {
+        return;
+    };
+    // The heuristic consumes a square bidirectional valued matrix, which
+    // the raw arbitrary input is not, so it is sanitized into one first.
+    // Running the full oracle to completion (no panic) is the baseline.
+    if let Some((n, edges)) = positive_square_graph(&csr) {
+        check(n, &edges);
     }
-}
+});

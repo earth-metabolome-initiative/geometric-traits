@@ -3,19 +3,21 @@
 //! The harness uses a small exact oracle on simple graphs and also exercises
 //! the explicit self-loop rejection path.
 
+#![no_main]
+
 use std::collections::BTreeSet;
 
-use arbitrary::Arbitrary;
+use arbitrary::{Arbitrary, Unstructured};
 use geometric_traits::{
-    errors::{MonopartiteError, monopartite_graph_error::algorithms::MonopartiteAlgorithmError},
-    impls::{CSR2D, SymmetricCSR2D, UpperTriangularCSR2D},
+    errors::{monopartite_graph_error::algorithms::MonopartiteAlgorithmError, MonopartiteError},
+    impls::{SymmetricCSR2D, UpperTriangularCSR2D, CSR2D},
     naive_structs::{GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
     traits::{
         BiconnectedComponents, BiconnectedComponentsError, EdgesBuilder, MonopartiteGraph,
         MonoplexGraph, MonoplexMonopartiteGraph,
     },
 };
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
 type UndirectedGraph = GenericGraph<Vec<u8>, SymmetricCSR2D<CSR2D<usize, usize, usize>>>;
 type Edge = [usize; 2];
@@ -32,85 +34,78 @@ struct OracleBlock {
     vertices: Vec<usize>,
 }
 
-fn main() {
-    loop {
-        fuzz!(|case: FuzzBiconnectedCase| {
-            let graph = build_graph(&case);
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(case) = Unstructured::new(bytes).arbitrary::<FuzzBiconnectedCase>() else {
+        return;
+    };
+    let graph = build_graph(&case);
 
-            if graph.has_self_loops() {
-                assert!(matches!(
-                    graph.biconnected_components(),
-                    Err(MonopartiteError::AlgorithmError(
-                        MonopartiteAlgorithmError::BiconnectedComponentsError(
-                            BiconnectedComponentsError::SelfLoopsUnsupported
-                        )
-                    ))
-                ));
-                assert!(matches!(
-                    graph.is_biconnected(),
-                    Err(MonopartiteError::AlgorithmError(
-                        MonopartiteAlgorithmError::BiconnectedComponentsError(
-                            BiconnectedComponentsError::SelfLoopsUnsupported
-                        )
-                    ))
-                ));
-                return;
-            }
-
-            let decomposition = graph.biconnected_components().unwrap();
-            let order = graph.number_of_nodes();
-            let expected_edges = logical_simple_edges(&graph);
-            let expected_blocks = maximal_biconnected_blocks(order, &expected_edges);
-            let expected_edge_components: Vec<Vec<Edge>> =
-                expected_blocks.iter().map(|block| block.edges.clone()).collect();
-            let expected_vertex_components: Vec<Vec<usize>> =
-                expected_blocks.iter().map(|block| block.vertices.clone()).collect();
-            let expected_articulation_points = articulation_points(order, &expected_edges);
-            let expected_bridges = bridges(order, &expected_edges);
-            let expected_connected_components =
-                connected_components(&(0..order).collect::<Vec<_>>(), &expected_edges);
-            let expected_omitted_vertices = omitted_vertices(order, &expected_vertex_components);
-            let expected_cyclic_component_ids = cyclic_component_ids(
-                &expected_edge_components,
-                &expected_vertex_components,
-            );
-            let expected_is_biconnected =
-                order >= 2 && expected_connected_components.len() == 1 && expected_articulation_points.is_empty();
-
-            assert_eq!(
-                decomposition.edge_biconnected_components().cloned().collect::<Vec<_>>(),
-                expected_edge_components
-            );
-            assert_eq!(
-                decomposition.vertex_biconnected_components().cloned().collect::<Vec<_>>(),
-                expected_vertex_components
-            );
-            assert_eq!(
-                decomposition.articulation_points().collect::<Vec<_>>(),
-                expected_articulation_points
-            );
-            assert_eq!(decomposition.bridges().collect::<Vec<_>>(), expected_bridges);
-            assert_eq!(
-                decomposition.vertices_without_biconnected_component().collect::<Vec<_>>(),
-                expected_omitted_vertices
-            );
-            assert_eq!(
-                decomposition.cyclic_biconnected_component_ids().collect::<Vec<_>>(),
-                expected_cyclic_component_ids
-            );
-            assert_eq!(
-                decomposition.number_of_biconnected_components(),
-                expected_edge_components.len()
-            );
-            assert_eq!(
-                decomposition.number_of_connected_components(),
-                expected_connected_components.len()
-            );
-            assert_eq!(decomposition.is_biconnected(), expected_is_biconnected);
-            assert_eq!(graph.is_biconnected().unwrap(), expected_is_biconnected);
-        });
+    if graph.has_self_loops() {
+        assert!(matches!(
+            graph.biconnected_components(),
+            Err(MonopartiteError::AlgorithmError(
+                MonopartiteAlgorithmError::BiconnectedComponentsError(
+                    BiconnectedComponentsError::SelfLoopsUnsupported
+                )
+            ))
+        ));
+        assert!(matches!(
+            graph.is_biconnected(),
+            Err(MonopartiteError::AlgorithmError(
+                MonopartiteAlgorithmError::BiconnectedComponentsError(
+                    BiconnectedComponentsError::SelfLoopsUnsupported
+                )
+            ))
+        ));
+        return;
     }
-}
+
+    let decomposition = graph.biconnected_components().unwrap();
+    let order = graph.number_of_nodes();
+    let expected_edges = logical_simple_edges(&graph);
+    let expected_blocks = maximal_biconnected_blocks(order, &expected_edges);
+    let expected_edge_components: Vec<Vec<Edge>> =
+        expected_blocks.iter().map(|block| block.edges.clone()).collect();
+    let expected_vertex_components: Vec<Vec<usize>> =
+        expected_blocks.iter().map(|block| block.vertices.clone()).collect();
+    let expected_articulation_points = articulation_points(order, &expected_edges);
+    let expected_bridges = bridges(order, &expected_edges);
+    let expected_connected_components =
+        connected_components(&(0..order).collect::<Vec<_>>(), &expected_edges);
+    let expected_omitted_vertices = omitted_vertices(order, &expected_vertex_components);
+    let expected_cyclic_component_ids =
+        cyclic_component_ids(&expected_edge_components, &expected_vertex_components);
+    let expected_is_biconnected = order >= 2
+        && expected_connected_components.len() == 1
+        && expected_articulation_points.is_empty();
+
+    assert_eq!(
+        decomposition.edge_biconnected_components().cloned().collect::<Vec<_>>(),
+        expected_edge_components
+    );
+    assert_eq!(
+        decomposition.vertex_biconnected_components().cloned().collect::<Vec<_>>(),
+        expected_vertex_components
+    );
+    assert_eq!(
+        decomposition.articulation_points().collect::<Vec<_>>(),
+        expected_articulation_points
+    );
+    assert_eq!(decomposition.bridges().collect::<Vec<_>>(), expected_bridges);
+    assert_eq!(
+        decomposition.vertices_without_biconnected_component().collect::<Vec<_>>(),
+        expected_omitted_vertices
+    );
+    assert_eq!(
+        decomposition.cyclic_biconnected_component_ids().collect::<Vec<_>>(),
+        expected_cyclic_component_ids
+    );
+    assert_eq!(decomposition.number_of_biconnected_components(), expected_edge_components.len());
+    assert_eq!(decomposition.number_of_connected_components(), expected_connected_components.len());
+    assert_eq!(decomposition.is_biconnected(), expected_is_biconnected);
+    assert_eq!(graph.is_biconnected().unwrap(), expected_is_biconnected);
+});
 
 fn build_graph(case: &FuzzBiconnectedCase) -> UndirectedGraph {
     // Keep the oracle cheap enough for fuzzing while still exploring
@@ -199,7 +194,11 @@ fn connected_components(vertices: &[usize], edges: &BTreeSet<Edge>) -> Vec<Vec<u
     components
 }
 
-fn neighbors_in_subset(vertex: usize, active: &BTreeSet<usize>, edges: &BTreeSet<Edge>) -> Vec<usize> {
+fn neighbors_in_subset(
+    vertex: usize,
+    active: &BTreeSet<usize>,
+    edges: &BTreeSet<Edge>,
+) -> Vec<usize> {
     let mut neighbors = Vec::new();
     for &[left, right] in edges {
         if left == vertex && active.contains(&right) {
@@ -275,11 +274,8 @@ fn is_biconnected_block(vertices: &[usize], graph_edges: &BTreeSet<Edge>) -> boo
     }
 
     for &removed in vertices {
-        let remainder = vertices
-            .iter()
-            .copied()
-            .filter(|&vertex| vertex != removed)
-            .collect::<Vec<_>>();
+        let remainder =
+            vertices.iter().copied().filter(|&vertex| vertex != removed).collect::<Vec<_>>();
         if !is_connected(&remainder, &induced_edges(&remainder, &block_edges)) {
             return false;
         }
@@ -304,9 +300,11 @@ fn maximal_biconnected_blocks(order: usize, edges: &BTreeSet<Edge>) -> Vec<Oracl
     let mut maximal_blocks = valid_blocks
         .iter()
         .filter(|vertices| !valid_blocks.iter().any(|other| is_strict_subset(vertices, other)))
-        .map(|vertices| OracleBlock {
-            edges: induced_edges(vertices, edges).into_iter().collect(),
-            vertices: vertices.clone(),
+        .map(|vertices| {
+            OracleBlock {
+                edges: induced_edges(vertices, edges).into_iter().collect(),
+                vertices: vertices.clone(),
+            }
         })
         .collect::<Vec<_>>();
     maximal_blocks.sort();
