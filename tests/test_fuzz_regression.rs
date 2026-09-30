@@ -2,7 +2,7 @@
 //!
 //! These tests construct instances via the `Arbitrary` trait from fixed byte
 //! patterns and from stable checked-in hex fixtures, then run the same
-//! invariant checks that the corresponding honggfuzz targets use (via shared
+//! invariant checks that the corresponding fuzz targets use (via shared
 //! functions in `test_utils`).
 #![cfg(feature = "arbitrary")]
 
@@ -342,7 +342,7 @@ fn test_arbitrary_blossom_v_invariants() {
 
 #[test]
 fn test_replay_blossom_v_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/blossom_v/input");
+    let corpus_dir = Path::new("fuzz/corpus/blossom_v");
     for instance in replay_dir::<FuzzBlossomVCase>(corpus_dir) {
         check_blossom_v_invariants(&instance);
     }
@@ -379,7 +379,7 @@ fn test_arbitrary_blossom_v_structured_invariants() {
 
 #[test]
 fn test_replay_blossom_v_structured_corpus() {
-    let corpus_dir = Path::new("fuzz/hfuzz_workspace/blossom_v_structured/input");
+    let corpus_dir = Path::new("fuzz/corpus/blossom_v_structured");
     for instance in replay_dir::<FuzzStructuredBlossomVCase>(corpus_dir) {
         check_structured_blossom_v_invariants(&instance);
     }
