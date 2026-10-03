@@ -94,29 +94,21 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-    - name: Install tarpaulin
-      run: cargo install cargo-tarpaulin
-    - name: Install nightly toolchain for doctest coverage
-      run: |
-        set -euo pipefail
-        rustup set profile minimal
-        for attempt in 1 2 3; do
-          if rustup toolchain install nightly --component cargo; then
-            exit 0
-          fi
-          if [ "$attempt" -eq 3 ]; then
-            echo "Failed to install nightly toolchain after 3 attempts" >&2
-            exit 1
-          fi
-          echo "Retrying nightly toolchain install (${attempt}/3)"
-          sleep 5
-        done
-    - name: Generate coverage
-      run: cargo +nightly tarpaulin --engine=llvm --out xml --workspace --all-features --run-types AllTargets --run-types Doctests
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: llvm-tools-preview
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+      with:
+        tool: cargo-llvm-cov
+    - name: Collect test coverage
+      run: cargo llvm-cov --workspace --all-features --all-targets --no-report
+    - name: Generate coverage with doctests
+      run: cargo llvm-cov --workspace --all-features --doc --no-clean --lcov --output-path target/coverage.lcov
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
+        files: target/coverage.lcov
         token: ${{ secrets.CODECOV_TOKEN }}
         fail_ci_if_error: false
 
