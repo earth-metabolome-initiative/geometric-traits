@@ -124,7 +124,7 @@ mod tests {
         let data: [i32; 0] = [];
         let slice: &[i32] = &data;
         assert_eq!(Vector::len(slice), 0);
-        assert!(slice.is_empty());
+        assert_eq!(slice, []);
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
     fn test_vec_vector_empty() {
         let v: Vec<i32> = Vec::new();
         assert_eq!(Vector::len(&v), 0);
-        assert!(v.is_empty());
+        assert_eq!(v, [] as [i32; 0]);
     }
 
     #[test]
@@ -178,6 +178,6 @@ mod tests {
     fn test_array_vector_empty() {
         let arr: [i32; 0] = [];
         assert_eq!(Vector::len(&arr), 0);
-        assert!(arr.is_empty());
+        assert_eq!(arr.as_slice(), []);
     }
 }

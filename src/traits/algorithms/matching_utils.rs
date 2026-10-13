@@ -21,7 +21,7 @@ mod tests {
     #[test]
     fn test_empty_mate() {
         let pairs: Vec<(usize, usize)> = mate_to_pairs(&[], &[] as &[usize]);
-        assert!(pairs.is_empty());
+        assert_eq!(pairs, [] as [(usize, usize); 0]);
     }
 
     #[test]
@@ -29,7 +29,7 @@ mod tests {
         let mate = [None, None, None, None];
         let indices = [0usize, 1, 2, 3];
         let pairs = mate_to_pairs(&mate, &indices);
-        assert!(pairs.is_empty());
+        assert_eq!(pairs, [] as [(usize, usize); 0]);
     }
 
     #[test]

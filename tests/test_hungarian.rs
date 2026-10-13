@@ -108,7 +108,7 @@ fn test_hungarian_zero_rows() {
 fn test_dense_hungarian_empty_matrix() {
     let matrix = DenseTestMatrix::new(0, 0, vec![]);
     let assignment = matrix.hungarian(1000.0).expect("Dense Hungarian failed");
-    assert!(assignment.is_empty());
+    assert_eq!(assignment, [] as [(u8, u8); 0]);
 }
 
 #[test]

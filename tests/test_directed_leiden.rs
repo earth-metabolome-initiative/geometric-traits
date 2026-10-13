@@ -148,7 +148,7 @@ fn test_modularity_is_non_decreasing_across_levels() {
         DirectedLeiden::<usize>::directed_leiden(&graph, &LeidenConfig::default()).unwrap();
 
     let levels = result.levels();
-    assert!(!levels.is_empty());
+    assert_ne!(levels, []);
     for window in levels.windows(2) {
         assert!(window[1].modularity() >= window[0].modularity() - 1.0e-9);
     }

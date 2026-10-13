@@ -41,7 +41,7 @@ fn test_johnson_disconnected_dag() {
     let m = build_square_csr(3, vec![(0, 1)]);
 
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    assert!(cycles.is_empty());
+    assert_eq!(cycles, [] as [Vec<usize>; 0]);
 }
 
 // ============================================================================
@@ -153,7 +153,7 @@ fn test_johnson_self_loops_do_not_appear_alongside_multi_node_cycles() {
     let m = build_square_csr(4, vec![(0, 0), (0, 1), (1, 1), (1, 2), (2, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
 
-    assert!(!cycles.is_empty());
+    assert_ne!(cycles, [] as [Vec<usize>; 0]);
     assert!(cycles.iter().all(|cycle| cycle.len() > 1));
 }
 
@@ -196,7 +196,7 @@ fn test_johnson_no_edges() {
     let m = build_square_csr(3, vec![]);
 
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    assert!(cycles.is_empty());
+    assert_eq!(cycles, [] as [Vec<usize>; 0]);
 }
 
 #[test]

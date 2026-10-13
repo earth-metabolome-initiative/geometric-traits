@@ -117,7 +117,7 @@ fn test_sink_nodes_no_edges() {
     // No edges: no node has predecessors, so no sinks
     let graph = build_digraph(3, vec![]);
     let sinks = graph.sink_nodes();
-    assert!(sinks.is_empty());
+    assert_eq!(sinks, [] as [usize; 0]);
 }
 
 #[test]
@@ -125,7 +125,7 @@ fn test_sink_nodes_single_node_no_edges() {
     let graph = build_digraph(1, vec![]);
     let sinks = graph.sink_nodes();
     // No predecessors, so no sinks
-    assert!(sinks.is_empty());
+    assert_eq!(sinks, [] as [usize; 0]);
 }
 
 #[test]
@@ -182,6 +182,6 @@ fn test_mutual_edge_no_sinks() {
     let roots = graph.root_nodes();
     let sinks = graph.sink_nodes();
 
-    assert!(roots.is_empty());
-    assert!(sinks.is_empty());
+    assert_eq!(roots, [] as [usize; 0]);
+    assert_eq!(sinks, [] as [usize; 0]);
 }

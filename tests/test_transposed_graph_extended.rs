@@ -45,7 +45,7 @@ fn test_predecessors_chain() {
     let graph = build_transposed_graph(4, vec![(0, 1), (1, 2), (2, 3)]);
 
     let preds: Vec<usize> = graph.predecessors(0).collect();
-    assert!(preds.is_empty());
+    assert_eq!(preds, [] as [usize; 0]);
 
     let preds: Vec<usize> = graph.predecessors(1).collect();
     assert_eq!(preds, vec![0]);
@@ -71,7 +71,7 @@ fn test_predecessors_diamond() {
     assert_eq!(preds, vec![1, 2]);
 
     let preds: Vec<usize> = graph.predecessors(0).collect();
-    assert!(preds.is_empty());
+    assert_eq!(preds, [] as [usize; 0]);
 }
 
 #[test]

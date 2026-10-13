@@ -2197,7 +2197,7 @@ mod tests {
     fn test_dense_rank_assigns_compact_ranks_by_sorted_value() {
         // Ranks are 0-based by sorted distinct value: 5 -> 0, 10 -> 1, 20 -> 2.
         assert_eq!(dense_rank(&[10u32, 10, 5, 20, 5]), vec![1, 1, 0, 2, 0]);
-        assert!(dense_rank::<u32>(&[]).is_empty());
+        assert_eq!(dense_rank::<u32>(&[]), [] as [usize; 0]);
         assert_eq!(dense_rank(&[7u32, 7, 7]), vec![0, 0, 0]);
     }
 

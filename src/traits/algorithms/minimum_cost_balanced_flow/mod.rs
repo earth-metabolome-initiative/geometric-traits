@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn test_private_tree_helper_handles_empty_input() {
-        assert!(tree_minimum_cost_balanced_flow(0, &[], &[]).is_empty());
+        assert_eq!(tree_minimum_cost_balanced_flow(0, &[], &[]), [] as [(usize, usize, usize); 0]);
     }
 
     #[test]

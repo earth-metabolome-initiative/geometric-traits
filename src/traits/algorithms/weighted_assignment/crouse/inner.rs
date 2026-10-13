@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_empty() {
         let result = crouse_inner(&[], 0, 0, 100.0).unwrap();
-        assert!(result.is_empty());
+        assert_eq!(result, [] as [(usize, usize); 0]);
     }
 
     #[test]

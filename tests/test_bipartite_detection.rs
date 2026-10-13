@@ -49,7 +49,7 @@ fn test_empty_graph_is_bipartite() {
     let coloring = graph.bipartite_coloring().unwrap();
 
     assert!(graph.is_bipartite());
-    assert!(coloring.is_empty());
+    assert_eq!(coloring, [] as [u8; 0]);
 }
 
 #[test]

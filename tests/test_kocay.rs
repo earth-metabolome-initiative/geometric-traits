@@ -74,21 +74,21 @@ fn validate_flow(
 fn test_empty_graph() {
     let vcsr: Vcsr = SparseMatrixMut::with_sparse_shape((0, 0));
     let flow = vcsr.kocay(&[]);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 #[test]
 fn test_single_vertex() {
     let vcsr: Vcsr = SparseMatrixMut::with_sparse_shape((1, 1));
     let flow = vcsr.kocay(&[1]);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 #[test]
 fn test_isolated_vertices() {
     let vcsr: Vcsr = SparseMatrixMut::with_sparse_shape((4, 4));
     let flow = vcsr.kocay(&[1, 1, 1, 1]);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 // ============================================================================
@@ -387,7 +387,7 @@ fn test_zero_budget() {
     let vcsr = build_valued_graph(2, &edges);
     let budgets = [0, 0];
     let flow = vcsr.kocay(&budgets);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 #[test]
@@ -397,7 +397,7 @@ fn test_zero_capacity() {
     let vcsr = build_valued_graph(2, &edges);
     let budgets = [1, 1];
     let flow = vcsr.kocay(&budgets);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 #[test]

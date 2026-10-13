@@ -436,7 +436,7 @@ mod tests {
         assert!((column_costs[0] - 8.0).abs() < f64::EPSILON);
         assert_eq!(assigned_rows[0], AssignmentState::Assigned(0u8));
         assert_eq!(assigned_columns[0], AssignmentState::Assigned(0u8));
-        assert!(unassigned_rows.is_empty());
+        assert_eq!(unassigned_rows, [] as [u8; 0]);
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
 
         assert_eq!(assigned_rows[1], AssignmentState::Assigned(0u8));
         assert_eq!(assigned_columns[0], AssignmentState::Assigned(1u8));
-        assert!(unassigned_rows.is_empty());
+        assert_eq!(unassigned_rows, [] as [u8; 0]);
     }
 
     #[test]

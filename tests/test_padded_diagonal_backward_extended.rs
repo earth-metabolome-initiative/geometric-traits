@@ -120,7 +120,7 @@ fn test_padded_sparse_rows_full_backward() {
     let padded = build_padded(vec![(0, 0, 1.0), (1, 1, 2.0), (2, 2, 3.0)], 3, 3);
     // Full backward iteration
     let rows_rev: Vec<usize> = padded.sparse_rows().rev().collect();
-    assert!(!rows_rev.is_empty());
+    assert_ne!(rows_rev, [] as [usize; 0]);
     // First element from back should be row 2
     assert_eq!(rows_rev[0], 2);
 }

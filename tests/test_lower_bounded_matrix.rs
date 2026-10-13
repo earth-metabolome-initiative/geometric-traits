@@ -77,7 +77,7 @@ fn test_lower_bounded_sparse_row() {
     assert_eq!(row2, vec![3]);
 
     let row0: Vec<usize> = lb.sparse_row(0).collect();
-    assert!(row0.is_empty());
+    assert_eq!(row0, [] as [usize; 0]);
 }
 
 #[test]

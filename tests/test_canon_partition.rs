@@ -26,7 +26,7 @@ fn test_partition_initializes_empty_and_unit_partitions() {
     assert!(empty.is_discrete());
     assert_eq!(empty.number_of_cells(), 0);
     assert_eq!(empty.signature(), Vec::<usize>::new());
-    assert!(collect_cells(&empty).is_empty());
+    assert_eq!(collect_cells(&empty), [] as [Vec<usize>; 0]);
 
     let unit = BacktrackableOrderedPartition::new(4);
     assert_eq!(unit.order(), 4);

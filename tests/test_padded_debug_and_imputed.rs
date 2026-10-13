@@ -40,7 +40,7 @@ fn test_padded_debug_no_imputed() {
     let padded = PaddedMatrix2D::new(inner, |_: (usize, usize)| 0.0).unwrap();
 
     let debug = format!("{padded:?}");
-    assert!(!debug.is_empty());
+    assert_ne!(debug, "");
 }
 
 // ============================================================================

@@ -154,7 +154,7 @@ mod tests {
         let iter1 = core::iter::empty::<i32>();
         let iter2 = core::iter::empty::<i32>();
         let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
-        assert!(result.is_empty());
+        assert_eq!(result, [] as [i32; 0]);
     }
 
     #[test]
@@ -162,7 +162,7 @@ mod tests {
         let iter1 = core::iter::empty::<i32>();
         let iter2 = [1, 2, 3].into_iter();
         let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
-        assert!(result.is_empty());
+        assert_eq!(result, [] as [i32; 0]);
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
         let iter1 = [1, 2, 3].into_iter();
         let iter2 = core::iter::empty::<i32>();
         let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
-        assert!(result.is_empty());
+        assert_eq!(result, [] as [i32; 0]);
     }
 
     #[test]
@@ -178,7 +178,7 @@ mod tests {
         let iter1 = [1, 3, 5].into_iter();
         let iter2 = [2, 4, 6].into_iter();
         let result: Vec<i32> = Intersection::new(iter1, iter2).collect();
-        assert!(result.is_empty());
+        assert_eq!(result, [] as [i32; 0]);
     }
 
     #[test]

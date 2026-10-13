@@ -137,7 +137,7 @@ fn test_padded_empty_row_indices() {
     let padded = build_padded(vec![(0, 0, 1.0)], 2, 3);
     // Padded: no empty rows
     let empty: Vec<usize> = padded.empty_row_indices().collect();
-    assert!(empty.is_empty());
+    assert_eq!(empty, [] as [usize; 0]);
 }
 
 #[test]

@@ -982,7 +982,7 @@ fn enqueue_split_result_like_bliss(
             }
         }
         SplitQueueMode::General => {
-            debug_assert!(!produced.is_empty());
+            debug_assert_ne!(produced, []);
             let mut largest_cell = produced[0];
 
             for &cell in produced.iter().take(produced.len().saturating_sub(1)).skip(1) {
@@ -1268,7 +1268,7 @@ mod tests {
         );
 
         assert!(changed);
-        assert!(!pop_sequence.is_empty());
+        assert_ne!(pop_sequence, [] as [(usize, usize); 0]);
         assert_eq!(sorted_partition_classes(&partition), vec![vec![0], vec![1, 4], vec![2, 3]]);
         match trace.storage {
             RefinementTraceStorage::Events(events) => {

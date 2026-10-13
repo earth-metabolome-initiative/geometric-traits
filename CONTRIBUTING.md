@@ -14,6 +14,8 @@ The crate is `no_std` compatible. The core traits and several implementations wo
 
 Before opening a pull request, please run the same gates the CI enforces: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and `cargo doc --no-deps --document-private-items` with `RUSTDOCFLAGS=-D warnings`.
 
+Use comparison assertions for string emptiness checks and for slices, arrays or vectors with `Debug` and `PartialEq` elements, so failures show the value.
+
 ## Coverage
 
 Coverage includes all targets and doctests, using nightly Rust with `llvm-tools-preview` and `cargo-llvm-cov`.

@@ -25,7 +25,7 @@ fn test_johnson_dag_tree() {
     // Tree: 0→1, 0→2, 1→3, 1→4
     let m = build_square_csr(5, vec![(0, 1), (0, 2), (1, 3), (1, 4)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    assert!(cycles.is_empty());
+    assert_eq!(cycles, [] as [Vec<usize>; 0]);
 }
 
 // ============================================================================
@@ -47,7 +47,7 @@ fn test_johnson_single_self_loop() {
     // 2+ nodes, so this is intentionally ignored.
     let m = build_square_csr(1, vec![(0, 0)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    assert!(cycles.is_empty());
+    assert_eq!(cycles, [] as [Vec<usize>; 0]);
 }
 
 // ============================================================================
