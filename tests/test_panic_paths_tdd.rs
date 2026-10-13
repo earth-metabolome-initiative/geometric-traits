@@ -34,8 +34,8 @@ fn test_padded_diagonal_sparse_row_when_row_cannot_convert_to_column_returns_emp
     let padded = GenericMatrix2DWithPaddedDiagonal::new(inner, |_: u16| 0.0)
         .expect("construction should succeed");
 
-    assert!(padded.sparse_row(300u16).collect::<Vec<u8>>().is_empty());
-    assert!(padded.sparse_row_values(300u16).collect::<Vec<f64>>().is_empty());
+    assert_eq!(padded.sparse_row(300u16).collect::<Vec<u8>>(), [] as [u8; 0]);
+    assert_eq!(padded.sparse_row_values(300u16).collect::<Vec<f64>>(), [] as [f64; 0]);
 }
 
 struct DuplicateEdgeSparseValuedMatrix;

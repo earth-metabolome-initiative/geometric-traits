@@ -289,13 +289,13 @@ mod tests {
     #[test]
     fn test_vec_growable_vocabulary_new() {
         let v: Vec<i32> = GrowableVocabulary::new();
-        assert!(v.is_empty());
+        assert_eq!(v, [] as [i32; 0]);
     }
 
     #[test]
     fn test_vec_growable_vocabulary_with_capacity() {
         let v: Vec<i32> = GrowableVocabulary::with_capacity(10);
-        assert!(v.is_empty());
+        assert_eq!(v, [] as [i32; 0]);
     }
 
     #[test]

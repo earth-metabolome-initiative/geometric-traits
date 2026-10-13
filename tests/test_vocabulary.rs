@@ -40,7 +40,7 @@ pub fn test_vec_vocabulary() {
 
     // Test Vocabulary methods
     assert_eq!(vocab.len(), 3);
-    assert!(!vocab.is_empty());
+    assert_ne!(vocab, [] as [&str; 0]);
     assert_eq!(vocab.convert(&0), Some("apple"));
     assert_eq!(vocab.convert(&1), Some("banana"));
     assert_eq!(vocab.convert(&2), Some("cherry"));
@@ -74,7 +74,7 @@ pub fn test_empty_vocabulary() {
     use geometric_traits::traits::Vocabulary;
 
     let empty: Vec<i32> = vec![];
-    assert!(empty.is_empty());
+    assert_eq!(empty, [] as [i32; 0]);
     assert_eq!(empty.len(), 0);
     assert_eq!(empty.convert(&0), None);
 }

@@ -909,7 +909,7 @@ fn test_mces_screening_zero_threshold_passes_all() {
     // Similarity threshold 0 → everything passes.
     let result = McesBuilder::new(&g1, &g2).with_similarity_threshold(0.0).compute_unlabeled();
 
-    assert!(!result.matched_edges().is_empty());
+    assert_ne!(result.matched_edges(), []);
 }
 
 #[test]

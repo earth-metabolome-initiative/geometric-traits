@@ -206,7 +206,7 @@ fn test_sparse_columns_empty() {
     let csr = build_csr(vec![], 2, 3);
 
     let cols: Vec<usize> = csr.sparse_columns().collect();
-    assert!(cols.is_empty());
+    assert_eq!(cols, [] as [usize; 0]);
 }
 
 #[test]
@@ -214,7 +214,7 @@ fn test_sparse_rows_empty() {
     let csr = build_csr(vec![], 2, 3);
 
     let rows: Vec<usize> = csr.sparse_rows().collect();
-    assert!(rows.is_empty());
+    assert_eq!(rows, [] as [usize; 0]);
 }
 
 // ============================================================================

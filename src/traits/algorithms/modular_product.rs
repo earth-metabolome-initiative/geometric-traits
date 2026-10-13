@@ -743,7 +743,7 @@ mod tests {
         assert_eq!(graph.matrix().order(), 0);
         assert_eq!(graph.vertex_pairs(), &[]);
         assert_eq!(graph.vertex_pair(0), None);
-        assert!(MonopartiteGraph::nodes_vocabulary(&graph).is_empty());
+        assert_eq!(MonopartiteGraph::nodes_vocabulary(&graph).as_slice(), []);
         assert!(SparseMatrix::is_empty(MonoplexGraph::edges(&graph)));
     }
 

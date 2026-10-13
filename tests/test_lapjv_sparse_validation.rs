@@ -171,7 +171,7 @@ fn test_sparse_lapjv_max_cost_not_positive() {
 fn test_sparse_lapjv_empty_matrix() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
     let result = csr.sparse_lapjv(900.0, 1000.0).unwrap();
-    assert!(result.is_empty());
+    assert_eq!(result, [] as [(u8, u8); 0]);
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn test_lapmod_non_square() {
 fn test_lapmod_empty_matrix() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((0, 0), 0);
     let result = csr.lapmod(1000.0).unwrap();
-    assert!(result.is_empty());
+    assert_eq!(result, [] as [(u8, u8); 0]);
 }
 
 // ============================================================================

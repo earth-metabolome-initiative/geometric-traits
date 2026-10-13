@@ -121,7 +121,7 @@ fn test_unique_paths_from() {
 
     // From node 0, there should be multiple unique paths
     let paths = graph.unique_paths_from(0);
-    assert!(!paths.is_empty());
+    assert_ne!(paths, [] as [Vec<usize>; 0]);
 
     // From node 4 (sink), there should be only one path (just node 4)
     let paths_from_sink = graph.unique_paths_from(4);
@@ -182,7 +182,7 @@ fn test_successors_set() {
 
     // Node 4 (sink) has no successors
     let successors_4 = graph.successors_set(4);
-    assert!(successors_4.is_empty());
+    assert_eq!(successors_4, [] as [usize; 0]);
 
     // Node 3's successors set should only contain 4
     let successors_3 = graph.successors_set(3);

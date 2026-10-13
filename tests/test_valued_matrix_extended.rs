@@ -41,7 +41,7 @@ fn test_sparse_values_all() {
 fn test_sparse_values_empty_matrix() {
     let m = create_valued_csr(vec![], 3, 3);
     let values: Vec<f64> = m.sparse_values().collect();
-    assert!(values.is_empty());
+    assert_eq!(values, [] as [f64; 0]);
 }
 
 #[test]

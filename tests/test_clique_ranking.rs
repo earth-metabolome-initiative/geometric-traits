@@ -243,7 +243,7 @@ fn test_integration_modular_product_to_ranking() {
 
     // All maximum cliques.
     let cliques = mp.matrix().all_maximum_cliques();
-    assert!(!cliques.is_empty());
+    assert_ne!(cliques, [] as [Vec<usize>; 0]);
 
     // Build EagerCliqueInfo for each clique.
     let infos: Vec<_> = cliques
@@ -261,8 +261,8 @@ fn test_integration_modular_product_to_ranking() {
 
     // Verify all infos have valid data.
     for info in &infos {
-        assert!(!info.clique().is_empty());
-        assert!(!info.matched_edges().is_empty());
+        assert_ne!(info.clique(), []);
+        assert_ne!(info.matched_edges(), []);
         assert!(info.fragment_count() >= 1);
         assert!(info.largest_fragment_size() >= 1);
     }

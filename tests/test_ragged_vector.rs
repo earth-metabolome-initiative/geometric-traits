@@ -92,7 +92,7 @@ fn test_sparse_row() {
 
     // Row beyond stored data
     let row5: Vec<usize> = rv.sparse_row(5).collect();
-    assert!(row5.is_empty());
+    assert_eq!(row5, [] as [usize; 0]);
 }
 
 #[test]

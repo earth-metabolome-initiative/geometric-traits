@@ -133,7 +133,7 @@ fn test_johnson_self_loops_with_multi_node_cycle() {
     // one. With self-loops included in the SCC (since (0,0) and (1,1) are
     // within the same strongly connected component), we get additional
     // cycles.
-    assert!(!cycles.is_empty());
+    assert_ne!(cycles, [] as [Vec<usize>; 0]);
 }
 
 #[test]
@@ -141,5 +141,5 @@ fn test_johnson_linear_chain_no_cycles() {
     // 0 -> 1 -> 2 -> 3 -> 4 (no cycles)
     let m = build_square_csr(5, vec![(0, 1), (1, 2), (2, 3), (3, 4)]);
     let cycles: Vec<Vec<usize>> = m.johnson().collect();
-    assert!(cycles.is_empty());
+    assert_eq!(cycles, [] as [Vec<usize>; 0]);
 }

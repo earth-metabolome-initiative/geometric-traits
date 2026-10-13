@@ -98,7 +98,7 @@ fn test_end_to_end_line_graph_delta_y() {
     let mp = lg1.graph().modular_product(lg2.graph(), &pairs);
     let cliques = mp.all_maximum_cliques();
 
-    assert!(!cliques.is_empty());
+    assert_ne!(cliques, [] as [Vec<usize>; 0]);
     assert_eq!(cliques[0].len(), 3);
 
     // For each clique, map back to original edges and check Delta-Y.

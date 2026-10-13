@@ -978,8 +978,8 @@ fn test_traversal_sorters_handle_empty_graph() {
         .unwrap();
     let graph = wrap_di(directed_edges);
 
-    assert!(BfsTraversalSorter::default().sort_nodes(&graph).is_empty());
-    assert!(DfsTraversalSorter::default().sort_nodes(&graph).is_empty());
+    assert_eq!(BfsTraversalSorter::default().sort_nodes(&graph), [] as [usize; 0]);
+    assert_eq!(DfsTraversalSorter::default().sort_nodes(&graph), [] as [usize; 0]);
 }
 
 #[test]
@@ -1056,7 +1056,7 @@ fn test_apply_node_order_to_graph_reorders_directed_symbols_and_edges() {
     assert_eq!(symbols, vec![2, 0, 1, 3]);
     assert_eq!(reordered.successors(0).collect::<Vec<_>>(), vec![2]);
     assert_eq!(reordered.successors(1).collect::<Vec<_>>(), vec![0]);
-    assert!(reordered.successors(2).collect::<Vec<_>>().is_empty());
+    assert_eq!(reordered.successors(2).collect::<Vec<_>>(), [] as [usize; 0]);
     assert_eq!(reordered.successors(3).collect::<Vec<_>>(), vec![3]);
 }
 
@@ -1081,7 +1081,7 @@ fn test_apply_node_order_to_graph_preserves_weighted_edge_labels() {
     assert_eq!(reordered.successor_weights(0).collect::<Vec<_>>(), vec![2.5]);
     assert_eq!(reordered.successors(1).collect::<Vec<_>>(), vec![2]);
     assert_eq!(reordered.successor_weights(1).collect::<Vec<_>>(), vec![1.5]);
-    assert!(reordered.successors(2).collect::<Vec<_>>().is_empty());
+    assert_eq!(reordered.successors(2).collect::<Vec<_>>(), [] as [usize; 0]);
 }
 
 #[test]
@@ -1487,7 +1487,7 @@ fn test_node_ordering_ground_truth_metadata() {
     assert_eq!(fixture.schema_version, 11);
     assert_eq!(fixture.generator, "networkx");
     assert_eq!(fixture.networkx_version, "3.3");
-    assert!(!fixture.python_version.is_empty());
+    assert_ne!(fixture.python_version, "");
     assert_eq!(fixture.pagerank_rounding_decimals, 12);
     assert_eq!(fixture.katz_rounding_decimals, 12);
     assert_eq!(fixture.betweenness_rounding_decimals, 12);

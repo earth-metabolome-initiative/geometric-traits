@@ -118,7 +118,7 @@ fn test_no_matching_preferred() {
 fn test_empty() {
     let csr: ValuedCSR2D<u8, u8, u8, f64> = ValuedCSR2D::with_sparse_shaped_capacity((10, 0), 0);
     let result = csr.crouse(900.0, 1000.0).unwrap();
-    assert!(result.is_empty());
+    assert_eq!(result, [] as [(u8, u8); 0]);
 }
 
 #[test]

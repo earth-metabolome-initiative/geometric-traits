@@ -75,7 +75,7 @@ fn test_padded_empty_rows() {
     assert_eq!(padded.number_of_empty_rows(), 0);
     assert_eq!(padded.number_of_non_empty_rows(), 2);
     let empty: Vec<usize> = padded.empty_row_indices().collect();
-    assert!(empty.is_empty());
+    assert_eq!(empty, [] as [usize; 0]);
     let non_empty: Vec<usize> = padded.non_empty_row_indices().collect();
     assert_eq!(non_empty, vec![0, 1]);
 }

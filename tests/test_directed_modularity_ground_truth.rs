@@ -83,7 +83,7 @@ fn test_fixture_metadata() {
     assert_eq!(fixture.schema_version, 1);
     assert!(approx_equal(fixture.parameters.resolution, 1.0, 1.0e-12));
     assert_eq!(fixture.parameters.seed, 42);
-    assert!(!fixture.networkx_version.is_empty());
+    assert_ne!(fixture.networkx_version, "");
     assert!(fixture.cases.len() >= 10, "expected a non-trivial suite");
     for case in &fixture.cases {
         assert!(!case.edges.is_empty(), "case `{}` must have edges", case.id);

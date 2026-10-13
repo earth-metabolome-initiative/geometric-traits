@@ -17,7 +17,7 @@ fn test_directory_tree_from_path() {
     // The tree should be created successfully - we just verify it doesn't panic
     // and produces some output
     let display = format!("{tree}");
-    assert!(!display.is_empty());
+    assert_ne!(display, "");
     assert!(display.contains("tests"));
 }
 
@@ -42,5 +42,5 @@ fn test_directory_tree_single_file_dir() {
 
     let display = format!("{tree}");
     // Should contain the root directory
-    assert!(!display.is_empty());
+    assert_ne!(display, "");
 }

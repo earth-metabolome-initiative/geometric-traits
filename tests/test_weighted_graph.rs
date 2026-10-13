@@ -59,7 +59,7 @@ fn test_successor_weights() {
 
     // Node 3 has no successors
     let weights_3: Vec<f64> = graph.successor_weights(3).collect();
-    assert!(weights_3.is_empty());
+    assert_eq!(weights_3, [] as [f64; 0]);
 }
 
 #[test]

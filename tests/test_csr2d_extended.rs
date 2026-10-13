@@ -63,7 +63,7 @@ fn test_csr2d_sparse_row_empty() {
     csr.add((0, 1)).unwrap();
     // Row 1 exists but has no entries
     let row1: Vec<usize> = csr.sparse_row(1).collect();
-    assert!(row1.is_empty());
+    assert_eq!(row1, [] as [usize; 0]);
 }
 
 #[test]

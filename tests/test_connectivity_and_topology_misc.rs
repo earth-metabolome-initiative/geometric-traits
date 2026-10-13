@@ -35,10 +35,10 @@ fn test_connected_components_error_conversion() {
     use geometric_traits::traits::algorithms::connected_components::ConnectedComponentsError;
 
     let err = ConnectedComponentsError::TooManyComponents;
-    assert!(!format!("{err}").is_empty());
+    assert_ne!(format!("{err}"), "");
 
     let algo_err: geometric_traits::errors::monopartite_graph_error::algorithms::MonopartiteAlgorithmError = err.into();
-    assert!(!format!("{algo_err}").is_empty());
+    assert_ne!(format!("{algo_err}"), "");
 }
 
 #[test]

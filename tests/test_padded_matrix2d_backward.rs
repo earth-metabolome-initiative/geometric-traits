@@ -70,7 +70,7 @@ fn test_padded_coordinates_forward() {
     let padded = build_padded_matrix(vec![(0, 0, 1.0)], 2, 2);
     let coords: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(&padded).collect();
     // PaddedCoordinates yields all dense (row, col) pairs; verify non-empty
-    assert!(!coords.is_empty());
+    assert_ne!(coords, [] as [(usize, usize); 0]);
 }
 
 #[test]

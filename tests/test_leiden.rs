@@ -174,7 +174,7 @@ fn test_leiden_returns_hierarchy_levels() {
 
     let result = Leiden::<usize>::leiden(&graph, &LeidenConfig::default()).unwrap();
 
-    assert!(!result.levels().is_empty());
+    assert_ne!(result.levels(), []);
     assert_eq!(result.levels().last().unwrap().partition(), result.final_partition());
     assert!(
         (result.levels().last().unwrap().modularity() - result.final_modularity()).abs() <= 1.0e-12
@@ -225,7 +225,7 @@ fn test_leiden_marker_overflow_returns_error() {
 fn test_leiden_empty_graph() {
     let graph = build_weighted_graph(0, Vec::new());
     let result = Leiden::<usize>::leiden(&graph, &LeidenConfig::default()).unwrap();
-    assert!(result.final_partition().is_empty());
+    assert_eq!(result.final_partition(), []);
     assert!(result.final_modularity().abs() <= 1.0e-12);
 }
 
@@ -280,7 +280,7 @@ fn test_leiden_progress_reports_every_level() {
 
     let expected: Vec<usize> = (1..=result.levels().len()).collect();
     assert_eq!(observed, expected);
-    assert!(!observed.is_empty());
+    assert_ne!(observed, [] as [usize; 0]);
 }
 
 /// `leiden_with_progress` returns exactly what `leiden` returns.

@@ -188,8 +188,8 @@ fn test_disconnected_source_and_sink_have_zero_flow() {
     assert_eq!(max_flow(5, &edges, 0, 4), 0);
     let matrix = build(5, edges.to_vec());
     let result = matrix.dinic(0, 4).unwrap();
-    assert!(result.flows().is_empty());
-    assert!(result.min_cut().is_empty());
+    assert_eq!(result.flows(), []);
+    assert_eq!(result.min_cut(), []);
 }
 
 #[test]
@@ -288,8 +288,8 @@ fn test_float_capacities_are_supported() {
     // 0 -> 1 -> 3 carries 1.0, 0 -> 2 -> 3 carries 2.5, total 3.5.
     let result = matrix.dinic(0, 3).unwrap();
     assert!((result.max_flow() - 3.5).abs() < 1e-12);
-    assert!(!result.flows().is_empty());
-    assert!(!result.min_cut().is_empty());
+    assert_ne!(result.flows(), []);
+    assert_ne!(result.min_cut(), []);
     assert_eq!(result.source_side().len(), 4);
     assert!((matrix.edmonds_karp(0, 3).unwrap().max_flow() - 3.5).abs() < 1e-12);
 }
@@ -308,8 +308,8 @@ fn test_signed_integer_capacities() {
     let result = matrix.dinic(0, 3).unwrap();
     assert_eq!(result.max_flow(), 4);
     assert_eq!(result.source_side().len(), 4);
-    assert!(!result.flows().is_empty());
-    assert!(!result.min_cut().is_empty());
+    assert_ne!(result.flows(), []);
+    assert_ne!(result.min_cut(), []);
     assert_eq!(matrix.edmonds_karp(0, 3).unwrap().max_flow(), 4);
 }
 
@@ -439,7 +439,7 @@ fn fixture() -> Fixture {
 fn test_fixture_metadata() {
     let fixture = fixture();
     assert_eq!(fixture.schema_version, 2);
-    assert!(!fixture.networkx_version.is_empty());
+    assert_ne!(fixture.networkx_version, "");
     assert!(fixture.cases.len() >= 10, "expected a non-trivial suite");
     for case in &fixture.cases {
         assert!(case.node_count >= 2, "case `{}` must have at least two nodes", case.id);

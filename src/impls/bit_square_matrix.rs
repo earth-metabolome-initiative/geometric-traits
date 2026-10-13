@@ -619,7 +619,7 @@ mod tests {
         let row1: Vec<usize> = m.sparse_row(1).collect();
         assert_eq!(row1, vec![2]);
         let row2: Vec<usize> = m.sparse_row(2).collect();
-        assert!(row2.is_empty());
+        assert_eq!(row2, [] as [usize; 0]);
     }
 
     #[test]
@@ -687,7 +687,7 @@ mod tests {
     fn test_sparse_rows_empty() {
         let m = BitSquareMatrix::new(3);
         let rows: Vec<usize> = m.sparse_rows().collect();
-        assert!(rows.is_empty());
+        assert_eq!(rows, [] as [usize; 0]);
     }
 
     #[test]
@@ -828,9 +828,9 @@ mod tests {
         assert!(m.is_empty());
         assert_eq!(m.last_sparse_coordinates(), None);
         let coords: Vec<(usize, usize)> = SparseMatrix::sparse_coordinates(&m).collect();
-        assert!(coords.is_empty());
+        assert_eq!(coords, [] as [(usize, usize); 0]);
         let rows: Vec<usize> = m.sparse_rows().collect();
-        assert!(rows.is_empty());
+        assert_eq!(rows, [] as [usize; 0]);
     }
 
     #[test]
