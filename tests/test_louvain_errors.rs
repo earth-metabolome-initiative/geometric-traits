@@ -194,7 +194,7 @@ fn test_louvain_successful_run() {
     let result = Louvain::<usize>::louvain(&m, &config);
     assert!(result.is_ok());
     let res = result.unwrap();
-    assert!(!res.levels().is_empty());
+    assert_ne!(res.levels(), []);
     let level = &res.levels()[0];
     assert_eq!(level.partition().len(), 2);
     assert!(level.modularity().is_finite());

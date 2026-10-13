@@ -140,7 +140,7 @@ fn test_empty_row_indices_rev_take() {
 fn test_empty_row_indices_none() {
     let csr = build_csr(vec![(0, 0), (1, 1)]);
     let empty: Vec<usize> = csr.empty_row_indices().collect();
-    assert!(empty.is_empty());
+    assert_eq!(empty, [] as [usize; 0]);
 }
 
 // ============================================================================

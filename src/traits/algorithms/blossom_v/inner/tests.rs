@@ -5536,8 +5536,8 @@ fn test_prepare_tree_for_augment_uses_scheduler_root_queues_when_shadow_is_stale
     state.prepare_tree_for_augment(0, &[0]);
 
     assert_eq!(state.edge_queue_owner(e_idx), GenericQueueState::None);
-    assert!(state.scheduler_trees[0].pq0.is_empty());
-    assert!(state.test_generic_tree(0).unwrap().pq0.is_empty());
+    assert_eq!(state.scheduler_trees[0].pq0, [] as [u32; 0]);
+    assert_eq!(state.test_generic_tree(0).unwrap().pq0, [] as [u32; 0]);
     assert_eq!(state.edges[e_idx as usize].slack, 3);
 }
 
@@ -5850,9 +5850,9 @@ fn test_replace_generic_queue_root_moves_all_root_owned_queues_and_topology() {
     assert!(state.test_generic_tree(new_root as usize).unwrap().pq0.contains(&0));
     assert!(state.test_generic_tree(new_root as usize).unwrap().pq00_local.contains(&1));
     assert!(state.test_generic_tree(new_root as usize).unwrap().pq_blossoms.contains(&2));
-    assert!(state.test_generic_tree(old_root as usize).unwrap().pq0.is_empty());
-    assert!(state.test_generic_tree(old_root as usize).unwrap().pq00_local.is_empty());
-    assert!(state.test_generic_tree(old_root as usize).unwrap().pq_blossoms.is_empty());
+    assert_eq!(state.test_generic_tree(old_root as usize).unwrap().pq0, [] as [u32; 0]);
+    assert_eq!(state.test_generic_tree(old_root as usize).unwrap().pq00_local, [] as [u32; 0]);
+    assert_eq!(state.test_generic_tree(old_root as usize).unwrap().pq_blossoms, [] as [u32; 0]);
     assert_eq!(state.scheduler_tree_edges[pair_idx].head, [other_root, new_root]);
     assert_eq!(state.scheduler_tree_edge_other(pair_idx, new_root), Some(other_root));
     assert_eq!(state.scheduler_tree_edge_dir(pair_idx, old_root), None);
@@ -5895,9 +5895,9 @@ fn test_detach_generic_root_after_augment_clears_root_owned_queues_and_topology(
     assert_eq!(state.edge_queue_owner(0), GenericQueueState::None);
     assert_eq!(state.edge_queue_owner(1), GenericQueueState::None);
     assert_eq!(state.edge_queue_owner(2), GenericQueueState::None);
-    assert!(state.test_generic_tree(root as usize).unwrap().pq0.is_empty());
-    assert!(state.test_generic_tree(root as usize).unwrap().pq00_local.is_empty());
-    assert!(state.test_generic_tree(root as usize).unwrap().pq_blossoms.is_empty());
+    assert_eq!(state.test_generic_tree(root as usize).unwrap().pq0, [] as [u32; 0]);
+    assert_eq!(state.test_generic_tree(root as usize).unwrap().pq00_local, [] as [u32; 0]);
+    assert_eq!(state.test_generic_tree(root as usize).unwrap().pq_blossoms, [] as [u32; 0]);
     assert_eq!(state.scheduler_tree_edge_dir(pair_idx, root), None);
     assert_eq!(state.scheduler_tree_edge_other(pair_idx, other_root), None);
     assert_eq!(state.scheduler_trees[root as usize].current, SchedulerCurrent::None);

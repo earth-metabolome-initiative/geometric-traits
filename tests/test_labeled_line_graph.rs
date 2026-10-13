@@ -247,5 +247,5 @@ fn test_end_to_end_labeled_lg_to_labeled_modular_product_to_max_clique() {
     // Run max clique on it.
     let clique = mp.maximum_clique();
     // The max clique size should be >= 1 (at least one compatible edge pair).
-    assert!(!clique.is_empty());
+    assert_ne!(clique, [] as [usize; 0]);
 }

@@ -48,7 +48,7 @@ fn test_predecessors() {
 
     // Node 0 has no predecessors (it's a root)
     let preds_0: Vec<usize> = graph.predecessors(0).collect();
-    assert!(preds_0.is_empty());
+    assert_eq!(preds_0, [] as [usize; 0]);
 
     // Node 1 has predecessor 0
     let preds_1: Vec<usize> = graph.predecessors(1).collect();
@@ -195,7 +195,7 @@ fn test_single_node_no_edges() {
     assert!(!graph.has_predecessors(0));
     assert_eq!(graph.in_degree(0), 0);
     let preds: Vec<usize> = graph.predecessors(0).collect();
-    assert!(preds.is_empty());
+    assert_eq!(preds, [] as [usize; 0]);
 }
 
 #[test]

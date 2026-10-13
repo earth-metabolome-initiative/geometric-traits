@@ -3830,7 +3830,7 @@ pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]
     if let Some(last) = m.last_sparse_coordinates() {
         assert_eq!(all_coords.last().copied(), Some(last));
     } else {
-        assert!(all_coords.is_empty());
+        assert_eq!(all_coords, [] as [(usize, usize); 0]);
     }
 
     // ── sparse_columns consistency ───────────────────────────────────────
@@ -4327,7 +4327,7 @@ mod tests {
         let dir = TempDir::new("replay_missing");
         let missing = dir.path().join("does_not_exist");
         let decoded: Vec<u8> = replay_dir(&missing);
-        assert!(decoded.is_empty());
+        assert_eq!(decoded, [] as [u8; 0]);
     }
 
     #[test]
@@ -4646,7 +4646,7 @@ mod tests {
     fn test_build_blossom_v_graph_empty_case() {
         let case = FuzzBlossomVCase { order: 0, edges: vec![] };
         let (graph, edges) = build_blossom_v_graph(&case);
-        assert!(edges.is_empty());
+        assert_eq!(edges, [] as [(usize, usize, i32); 0]);
         assert_eq!(graph.number_of_rows(), 0);
         assert_eq!(graph.number_of_columns(), 0);
         assert_eq!(graph.number_of_defined_values(), 0);

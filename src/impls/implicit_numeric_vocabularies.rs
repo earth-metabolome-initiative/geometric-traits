@@ -313,6 +313,6 @@ mod tests {
         let v: usize = 0;
         assert_eq!(Vocabulary::len(&v), 0);
         let sources: Vec<usize> = v.sources().collect();
-        assert!(sources.is_empty());
+        assert_eq!(sources, [] as [usize; 0]);
     }
 }

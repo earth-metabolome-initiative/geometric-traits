@@ -472,7 +472,7 @@ mod tests {
 
         // Empty row
         let row2: Vec<usize> = rv.sparse_row(2).collect();
-        assert!(row2.is_empty());
+        assert_eq!(row2, [] as [usize; 0]);
     }
 
     #[test]

@@ -102,7 +102,7 @@ fn test_zero_maximum_flow_returns_empty() {
     let budgets = [0, 0];
 
     let flow = solve_weighted_flow(2, &edges, &budgets);
-    assert!(flow.is_empty());
+    assert_eq!(flow, [] as [(usize, usize, usize); 0]);
 }
 
 #[test]

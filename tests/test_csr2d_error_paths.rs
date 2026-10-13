@@ -278,7 +278,7 @@ fn test_empty_csr_sparse_coordinates() {
     let csr: SmallCSR = SparseMatrixMut::with_sparse_shape((3, 3));
     assert!(csr.is_empty());
     let coords: Vec<(u8, u8)> = SparseMatrix::sparse_coordinates(&csr).collect();
-    assert!(coords.is_empty());
+    assert_eq!(coords, [] as [(u8, u8); 0]);
 }
 
 #[test]

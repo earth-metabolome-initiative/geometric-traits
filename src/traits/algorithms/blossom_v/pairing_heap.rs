@@ -687,7 +687,7 @@ mod tests {
 
         heap.drain(&mut keys, &mut nodes, |i, k| drained.push((i, k)));
 
-        assert!(drained.is_empty());
+        assert_eq!(drained, [] as [(u32, i64); 0]);
         assert!(heap.is_empty());
         assert_eq!(keys, vec![1]);
         assert!(nodes.iter().all(|n| !n.is_in_heap()));

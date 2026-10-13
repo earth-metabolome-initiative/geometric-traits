@@ -130,6 +130,6 @@ mod tests {
         let data: [i32; 0] = [];
         let slice: &[i32] = &data;
         assert_eq!(Vocabulary::len(slice), 0);
-        assert!(slice.is_empty());
+        assert_eq!(slice, []);
     }
 }

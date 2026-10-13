@@ -61,7 +61,7 @@ fn test_shared_endpoint_self_loop_shared() {
 #[test]
 fn test_infer_empty_clique() {
     let result = infer_vertex_matches::<u32, _>(&[], &[], &[], &[], |_, _, _, _| true);
-    assert!(result.is_empty());
+    assert_eq!(result, [] as [(u32, u32); 0]);
 }
 
 #[test]

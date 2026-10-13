@@ -525,7 +525,7 @@ fn update_labels<G>(
 
 #[inline]
 fn compose_final_order(gamma_runs: &[GammaRun], start_rank: Option<&[usize]>) -> Vec<usize> {
-    debug_assert!(!gamma_runs.is_empty());
+    debug_assert_ne!(gamma_runs, []);
 
     let mut ordered_gamma_indices: Vec<usize> = (0..gamma_runs.len()).collect();
     ordered_gamma_indices.sort_unstable_by(|left, right| {

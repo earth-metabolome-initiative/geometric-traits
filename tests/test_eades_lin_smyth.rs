@@ -42,7 +42,7 @@ fn test_dag_has_no_feedback() {
     // backward edges and recover a topological order.
     let result = arrange(4, vec![(0, 1, 1.0), (1, 2, 1.0), (2, 3, 1.0)]);
 
-    assert!(result.feedback_edges().is_empty());
+    assert_eq!(result.feedback_edges(), []);
     assert!(result.feedback_weight().abs() < TOLERANCE);
     assert!((result.total_weight() - 3.0).abs() < TOLERANCE);
     assert!(result.tangle_fraction().abs() < TOLERANCE);
@@ -104,7 +104,7 @@ fn test_pure_sink_is_free() {
     let result = arrange(4, vec![(1, 0, 5.0), (2, 0, 3.0), (3, 0, 2.0)]);
 
     assert!(result.is_acyclic());
-    assert!(result.feedback_edges().is_empty());
+    assert_eq!(result.feedback_edges(), []);
     assert!((result.total_weight() - 10.0).abs() < TOLERANCE);
 }
 
@@ -115,7 +115,7 @@ fn test_self_loops_are_ignored() {
     let result = arrange(2, vec![(0, 0, 5.0), (0, 1, 1.0)]);
 
     assert!(result.is_acyclic());
-    assert!(result.feedback_edges().is_empty());
+    assert_eq!(result.feedback_edges(), []);
     assert!((result.total_weight() - 1.0).abs() < TOLERANCE);
 }
 
@@ -138,7 +138,7 @@ fn test_single_node_graph_is_vacuously_acyclic() {
     let result = arrange(1, Vec::new());
 
     assert_eq!(result.order(), &[0]);
-    assert!(result.feedback_edges().is_empty());
+    assert_eq!(result.feedback_edges(), []);
     assert!(result.total_weight().abs() < TOLERANCE);
     assert!(result.tangle_fraction().abs() < TOLERANCE);
     assert!(result.is_acyclic());
@@ -515,7 +515,7 @@ fn test_larger_dag_is_exactly_acyclic() {
     );
 
     assert!(result.is_acyclic());
-    assert!(result.feedback_edges().is_empty());
+    assert_eq!(result.feedback_edges(), []);
     let positions = result.positions();
     assert!(positions[0] < positions[1]);
     assert!(positions[1] < positions[2]);

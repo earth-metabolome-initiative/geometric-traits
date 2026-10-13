@@ -96,7 +96,7 @@ fn test_bimatrix_sparse_row() {
     assert_eq!(row1, vec![2]);
 
     let row2: Vec<usize> = bi.sparse_row(2).collect();
-    assert!(row2.is_empty());
+    assert_eq!(row2, [] as [usize; 0]);
 }
 
 #[test]

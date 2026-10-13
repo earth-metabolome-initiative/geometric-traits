@@ -119,7 +119,7 @@ fn test_louvain_error_display_all_variants() {
         ModularityError::TooManyCommunities,
     ];
     for err in &variants {
-        assert!(!format!("{err}").is_empty());
-        assert!(!format!("{err:?}").is_empty());
+        assert_ne!(format!("{err}"), "");
+        assert_ne!(format!("{err:?}"), "");
     }
 }

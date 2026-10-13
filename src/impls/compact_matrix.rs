@@ -136,8 +136,8 @@ mod tests {
             SparseMatrixMut::with_sparse_shaped_capacity((3, 3), 0);
 
         let compact = compactify(&csr);
-        assert!(compact.row_map.is_empty());
-        assert!(compact.col_map.is_empty());
+        assert_eq!(compact.row_map, [] as [u8; 0]);
+        assert_eq!(compact.col_map, [] as [u8; 0]);
         assert!(compact.matrix.is_empty());
     }
 

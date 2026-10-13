@@ -3276,7 +3276,7 @@ mod tests {
         restore_state(&prepared, &prepared, &mut state, 1, 1);
         restore_state(&prepared, &prepared, &mut state, 0, 0);
 
-        assert!(state.mapping.is_empty());
+        assert_eq!(state.mapping, [] as [(usize, usize); 0]);
         assert_eq!(state.query_in_frontier, Vec::<usize>::new());
         assert_eq!(state.query_out_frontier, Vec::<usize>::new());
         assert_eq!(state.target_in_frontier, Vec::<usize>::new());

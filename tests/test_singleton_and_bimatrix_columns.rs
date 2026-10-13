@@ -123,7 +123,7 @@ fn test_sparse_column_basic() {
 
     // Column 0: no entries in column 0
     let col0: Vec<usize> = bm.sparse_column(0).collect();
-    assert!(col0.is_empty());
+    assert_eq!(col0, [] as [usize; 0]);
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn test_sparse_column_empty_matrix() {
     let bm = build_bimatrix(3, vec![]);
 
     let col0: Vec<usize> = bm.sparse_column(0).collect();
-    assert!(col0.is_empty());
+    assert_eq!(col0, [] as [usize; 0]);
 }
 
 #[test]

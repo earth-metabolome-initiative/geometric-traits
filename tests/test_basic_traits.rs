@@ -120,7 +120,7 @@ fn test_vector_vec() {
     let v: Vec<i32> = vec![10, 20, 30, 40];
 
     assert_eq!(v.len(), 4);
-    assert!(!v.is_empty());
+    assert_ne!(v, [] as [i32; 0]);
 
     let items: Vec<&i32> = v.iter().collect();
     assert_eq!(items, vec![&10, &20, &30, &40]);
@@ -138,13 +138,13 @@ fn test_vector_empty_vec() {
     let v: Vec<i32> = vec![];
 
     assert_eq!(v.len(), 0);
-    assert!(v.is_empty());
+    assert_eq!(v, [] as [i32; 0]);
 
     let items: Vec<&i32> = v.iter().collect();
-    assert!(items.is_empty());
+    assert_eq!(items, [] as [&i32; 0]);
 
     let indices: Vec<usize> = v.indices().collect();
-    assert!(indices.is_empty());
+    assert_eq!(indices, [] as [usize; 0]);
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn test_vector_slice() {
     let slice: &[i32] = &data[1..4];
 
     assert_eq!(slice.len(), 3);
-    assert!(!slice.is_empty());
+    assert_ne!(slice, []);
 
     let items: Vec<&i32> = slice.iter().collect();
     assert_eq!(items, vec![&2, &3, &4]);

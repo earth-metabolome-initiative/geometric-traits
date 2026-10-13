@@ -32,7 +32,7 @@ fn test_chordal_fixture_suite_header() {
     assert_eq!(suite.generator, "networkx");
     assert_eq!(suite.networkx_version, "3.3");
     assert_eq!(suite.seed, 42);
-    assert!(!suite.python_version.is_empty());
+    assert_ne!(suite.python_version, "");
     assert!(suite.cases.len() >= 3000);
     assert!(suite.cases.iter().any(|case| case.is_chordal));
     assert!(suite.cases.iter().any(|case| !case.is_chordal));

@@ -66,7 +66,7 @@ fn test_neighbors_isolated_node() {
     let graph = create_undirected_graph(3, vec![(0, 1)]);
 
     let neighbors: Vec<usize> = graph.neighbors(2).collect();
-    assert!(neighbors.is_empty());
+    assert_eq!(neighbors, [] as [usize; 0]);
 }
 
 #[test]

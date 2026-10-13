@@ -29,7 +29,7 @@ fn test_padded_coordinates_next_back() {
         back_items.push(item);
     }
 
-    assert!(!back_items.is_empty());
+    assert_ne!(back_items, [] as [(usize, usize); 0]);
 }
 
 #[test]
@@ -82,13 +82,13 @@ fn test_m2d_values_forward_crossing() {
 
     let padded = GenericMatrix2DWithPaddedDiagonal::new(m, |_: u8| 1.0).unwrap();
     let values: Vec<f64> = padded.sparse_values().collect();
-    assert!(!values.is_empty());
+    assert_ne!(values, [] as [f64; 0]);
 
     let m2: ValuedCSR2D<usize, u8, u8, f64> =
         ValuedCSR2D::try_from([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]]).unwrap();
     let padded2 = PaddedMatrix2D::new(m2, |_: (u8, u8)| 99.0).unwrap();
     let values2: Vec<f64> = padded2.sparse_values().collect();
-    assert!(!values2.is_empty());
+    assert_ne!(values2, [] as [f64; 0]);
 }
 
 #[test]

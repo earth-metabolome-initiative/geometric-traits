@@ -387,8 +387,8 @@ mod tests {
         search.unblock(0);
 
         assert_eq!(search.data.blocked, vec![false, false, false]);
-        assert!(search.data.block_map[0].is_empty());
-        assert!(search.data.block_map[1].is_empty());
-        assert!(search.data.block_map[2].is_empty());
+        assert_eq!(search.data.block_map[0], [] as [usize; 0]);
+        assert_eq!(search.data.block_map[1], [] as [usize; 0]);
+        assert_eq!(search.data.block_map[2], [] as [usize; 0]);
     }
 }

@@ -111,7 +111,7 @@ fn test_padded_sparse_coordinates_nonempty() {
 
     let coords: Vec<(u8, u8)> = padded.sparse_coordinates().collect();
     // Padded matrix always has entries (it fills all cells)
-    assert!(!coords.is_empty());
+    assert_ne!(coords, [] as [(u8, u8); 0]);
     // Must include the originally defined entries
     assert!(coords.contains(&(0, 0)));
     assert!(coords.contains(&(1, 1)));

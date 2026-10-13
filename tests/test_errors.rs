@@ -268,7 +268,7 @@ fn test_information_content_error_display_and_conversions() {
     assert!(format!("{sink}").contains("Sink"));
 
     let dyn_error: Box<dyn std::error::Error> = Box::new(InformationContentError::NotDag);
-    assert!(!dyn_error.to_string().is_empty());
+    assert_ne!(dyn_error.to_string(), "");
 }
 
 #[test]
