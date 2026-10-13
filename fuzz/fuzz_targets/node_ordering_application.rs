@@ -6,19 +6,21 @@
 //! - adjacency / weights are preserved under renaming
 //! - applying the inverse permutation round-trips to the original graph
 
+#![no_main]
+
 use std::collections::{BTreeMap, BTreeSet};
 
-use arbitrary::Arbitrary;
+use arbitrary::{Arbitrary, Unstructured};
 use geometric_traits::{
-    impls::{BitSquareMatrix, CSR2D, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
+    impls::{BitSquareMatrix, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D, CSR2D},
     naive_structs::{GenericEdgesBuilder, GenericGraph, GenericUndirectedMonopartiteEdgesBuilder},
     prelude::*,
     traits::{
-        Edges, MonopartiteGraph, MonoplexGraph, SparseMatrix2D,
-        algorithms::apply_node_order_to_graph,
+        algorithms::apply_node_order_to_graph, Edges, MonopartiteGraph, MonoplexGraph,
+        SparseMatrix2D,
     },
 };
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
 type DirectedGraph = SquareCSR2D<CSR2D<usize, usize, usize>>;
 type UndirectedGraph = SymmetricCSR2D<CSR2D<usize, usize, usize>>;
@@ -35,19 +37,19 @@ struct FuzzNodeOrderCase {
     permutation_data: Vec<u8>,
 }
 
-fn main() {
-    loop {
-        fuzz!(|case: FuzzNodeOrderCase| {
-            match case.kind % 5 {
-                0 => fuzz_directed_unweighted(&case),
-                1 => fuzz_undirected_unweighted(&case),
-                2 => fuzz_directed_weighted(&case),
-                3 => fuzz_undirected_weighted(&case),
-                _ => fuzz_modular_product(&case),
-            }
-        });
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(case) = Unstructured::new(bytes).arbitrary::<FuzzNodeOrderCase>() else {
+        return;
+    };
+    match case.kind % 5 {
+        0 => fuzz_directed_unweighted(&case),
+        1 => fuzz_undirected_unweighted(&case),
+        2 => fuzz_directed_weighted(&case),
+        3 => fuzz_undirected_weighted(&case),
+        _ => fuzz_modular_product(&case),
     }
-}
+});
 
 fn fuzz_directed_unweighted(case: &FuzzNodeOrderCase) {
     let order = usize::from(case.left_order % 8);
@@ -150,7 +152,10 @@ fn build_undirected_edges(order: usize, raw_edges: &[(u8, u8, u8)]) -> Undirecte
     .unwrap()
 }
 
-fn build_directed_weighted_edges(order: usize, raw_edges: &[(u8, u8, u8)]) -> DirectedWeightedGraph {
+fn build_directed_weighted_edges(
+    order: usize,
+    raw_edges: &[(u8, u8, u8)],
+) -> DirectedWeightedGraph {
     let mut edges = BTreeMap::new();
     for &(source, destination, weight) in raw_edges {
         if order == 0 {
@@ -162,7 +167,9 @@ fn build_directed_weighted_edges(order: usize, raw_edges: &[(u8, u8, u8)]) -> Di
     GenericEdgesBuilder::<_, DirectedWeightedGraph>::default()
         .expected_number_of_edges(edges.len())
         .expected_shape((order, order))
-        .edges(edges.into_iter().map(|((source, destination), weight)| (source, destination, weight)))
+        .edges(
+            edges.into_iter().map(|((source, destination), weight)| (source, destination, weight)),
+        )
         .build()
         .unwrap()
 }
@@ -213,7 +220,8 @@ fn assert_directed_unweighted_reorder(
     reordered: &GenericGraph<Vec<u8>, DirectedGraph>,
     order: &[usize],
 ) {
-    let expected_nodes: Vec<_> = order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
+    let expected_nodes: Vec<_> =
+        order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
     assert_eq!(reordered.nodes().collect::<Vec<_>>(), expected_nodes);
 
     let inverse = inverse(order);
@@ -246,7 +254,8 @@ fn assert_undirected_unweighted_reorder(
     reordered: &GenericGraph<Vec<u8>, UndirectedGraph>,
     order: &[usize],
 ) {
-    let expected_nodes: Vec<_> = order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
+    let expected_nodes: Vec<_> =
+        order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
     assert_eq!(reordered.nodes().collect::<Vec<_>>(), expected_nodes);
 
     let inverse = inverse(order);
@@ -270,7 +279,8 @@ fn assert_directed_weighted_reorder(
     reordered: &GenericGraph<Vec<u8>, DirectedWeightedGraph>,
     order: &[usize],
 ) {
-    let expected_nodes: Vec<_> = order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
+    let expected_nodes: Vec<_> =
+        order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
     assert_eq!(reordered.nodes().collect::<Vec<_>>(), expected_nodes);
 
     let inverse = inverse(order);
@@ -294,7 +304,8 @@ fn assert_undirected_weighted_reorder(
     reordered: &GenericGraph<Vec<u8>, UndirectedWeightedGraph>,
     order: &[usize],
 ) {
-    let expected_nodes: Vec<_> = order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
+    let expected_nodes: Vec<_> =
+        order.iter().map(|&index| original.nodes_vocabulary()[index]).collect();
     assert_eq!(reordered.nodes().collect::<Vec<_>>(), expected_nodes);
 
     let inverse = inverse(order);
@@ -321,7 +332,8 @@ fn assert_modular_product_reorder<I1, I2>(
     I1: geometric_traits::traits::Symbol,
     I2: geometric_traits::traits::Symbol,
 {
-    let expected_nodes: Vec<_> = order.iter().map(|&index| original.nodes_vocabulary()[index].clone()).collect();
+    let expected_nodes: Vec<_> =
+        order.iter().map(|&index| original.nodes_vocabulary()[index].clone()).collect();
     assert_eq!(reordered.nodes().collect::<Vec<_>>(), expected_nodes);
 
     let inverse = inverse(order);

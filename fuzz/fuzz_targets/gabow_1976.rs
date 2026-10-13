@@ -1,20 +1,23 @@
 //! Submodule for fuzzing Gabow's 1976 maximum matching algorithm.
 
+#![no_main]
+
+use arbitrary::Unstructured;
 use geometric_traits::{
-    impls::{CSR2D, SymmetricCSR2D},
+    impls::{SymmetricCSR2D, CSR2D},
     test_utils::check_gabow_1976_invariants,
     traits::SquareMatrix,
 };
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
-fn main() {
-    loop {
-        fuzz!(|csr: SymmetricCSR2D<CSR2D<u16, u8, u8>>| {
-            let n = csr.order() as usize;
-            if n > 128 {
-                return;
-            }
-            check_gabow_1976_invariants(&csr);
-        });
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(csr) = Unstructured::new(bytes).arbitrary::<SymmetricCSR2D<CSR2D<u16, u8, u8>>>() else {
+        return;
+    };
+    let n = csr.order() as usize;
+    if n > 128 {
+        return;
     }
-}
+    check_gabow_1976_invariants(&csr);
+});

@@ -195,7 +195,7 @@ pub struct FuzzStructuredBlossomVCase {
 impl<'a> Arbitrary<'a> for FuzzStructuredBlossomVCase {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         // Keep structured cases smaller than the raw edge-bag target so
-        // honggfuzz spends its budget on diverse families rather than
+        // the fuzzer spends its budget on diverse families rather than
         // very large dense graphs.
         let pair_count: u8 = u.int_in_range(1..=10)?;
         let order = pair_count.saturating_mul(2);
@@ -687,7 +687,7 @@ pub fn check_blossom_v_invariants(case: &FuzzBlossomVCase) {
 /// Fuzz-oriented Blossom V invariant checker.
 ///
 /// This keeps the raw crash-replay-compatible byte encoding unchanged, but it
-/// avoids spending honggfuzz's 1-second per-input budget on oversized dense raw
+/// avoids spending the fuzzer's per-input time budget on oversized dense raw
 /// edge bags that are not useful for crash discovery.
 #[inline]
 pub fn check_blossom_v_invariants_fuzz(case: &FuzzBlossomVCase) {

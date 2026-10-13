@@ -11,20 +11,23 @@
 //!   Hopcroft-Karp matcher.
 //!
 //! Running both checkers to completion (no panic) is the baseline oracle.
+
+#![no_main]
+use arbitrary::Unstructured;
 use geometric_traits::{
     impls::ValuedCSR2D,
     test_utils::{check_max_flow_invariants, check_max_flow_matches_hopcroft_karp},
 };
-use honggfuzz::fuzz;
+use libfuzzer_sys::fuzz_target;
 
 /// Arbitrary input matrix type, mirroring the other valued-graph fuzz targets.
 type Csr = ValuedCSR2D<u16, u8, u8, u32>;
 
-fn main() {
-    loop {
-        fuzz!(|csr: Csr| {
-            check_max_flow_invariants(&csr);
-            check_max_flow_matches_hopcroft_karp(&csr);
-        });
-    }
-}
+// `arbitrary`, not `arbitrary_take_rest`, so crash files replay in tests
+fuzz_target!(|bytes: &[u8]| {
+    let Ok(csr) = Unstructured::new(bytes).arbitrary::<Csr>() else {
+        return;
+    };
+    check_max_flow_invariants(&csr);
+    check_max_flow_matches_hopcroft_karp(&csr);
+});

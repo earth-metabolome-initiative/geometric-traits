@@ -8,7 +8,7 @@ edition = "2021"
 cargo-fuzz = true
 
 [dependencies]
-honggfuzz = "0.5.58"
+libfuzzer-sys = "0.4"
 geometric-traits = { path = "../", features = ["arbitrary"] }
 arbitrary = { version = "1", features = ["derive"] }
 bitvec = { version = "1", default-features = false, features = ["alloc"] }
