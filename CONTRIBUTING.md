@@ -13,3 +13,14 @@ The crate is `no_std` compatible. The core traits and several implementations wo
 ## Checks
 
 Before opening a pull request, please run the same gates the CI enforces: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and `cargo doc --no-deps --document-private-items` with `RUSTDOCFLAGS=-D warnings`.
+
+## Coverage
+
+Coverage includes all targets and doctests, using nightly Rust with `llvm-tools-preview` and `cargo-llvm-cov`.
+
+```bash
+rustup component add --toolchain nightly llvm-tools-preview
+cargo install cargo-llvm-cov
+cargo +nightly llvm-cov --workspace --all-features --all-targets --no-report
+cargo +nightly llvm-cov --workspace --all-features --doc --no-clean --lcov --output-path target/coverage.lcov
+```
