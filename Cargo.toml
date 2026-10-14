@@ -85,6 +85,10 @@ hashbrown = ["dep:hashbrown"]
 mem_size = ["alloc", "dep:mem_dbg_crate", "mem_dbg_crate/derive"]
 mem_dbg = ["std", "mem_size", "mem_dbg_crate/std"]
 
+[profile.mutants]
+inherits = "test"
+debug = "none"
+
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 arbitrary = { version = "1" }
