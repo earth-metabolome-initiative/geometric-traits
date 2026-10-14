@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{NodeScorer, PAGERANK_SCORE_SCALE, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -149,7 +147,7 @@ where
                 .sum();
             if error < usize_to_f64(n) * self.tolerance {
                 for score in &mut scores {
-                    *score = (*score * PAGERANK_SCORE_SCALE).round() / PAGERANK_SCORE_SCALE;
+                    *score = Float::round(*score * PAGERANK_SCORE_SCALE) / PAGERANK_SCORE_SCALE;
                 }
                 return scores;
             }

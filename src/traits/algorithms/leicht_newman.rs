@@ -18,9 +18,7 @@
 
 use alloc::vec::Vec;
 
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Float, ToPrimitive};
 use rand::{RngExt, SeedableRng, rngs::SmallRng};
 
 use super::{
@@ -517,11 +515,11 @@ fn subtract_mean(vector: &mut [f64]) {
 
 fn normalize(vector: &mut [f64]) -> bool {
     let norm_squared =
-        vector.iter().fold(0.0, |accumulator, value| value.mul_add(*value, accumulator));
+        vector.iter().fold(0.0, |accumulator, value| Float::mul_add(*value, *value, accumulator));
     if norm_squared <= 0.0 {
         return false;
     }
-    let inverse_norm = norm_squared.sqrt().recip();
+    let inverse_norm = Float::sqrt(norm_squared).recip();
     for value in vector.iter_mut() {
         *value *= inverse_norm;
     }

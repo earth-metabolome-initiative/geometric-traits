@@ -66,6 +66,15 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flags:
+          - --all-features --all-targets
+          - --all-targets
+          - --no-default-features --lib --tests
+          - --no-default-features --features alloc --lib --tests
+          - --no-default-features --features "alloc hashbrown" --lib --tests
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
@@ -73,7 +82,7 @@ jobs:
       with:
         components: clippy
     - name: Run clippy
-      run: cargo clippy --all-targets -- -D warnings
+      run: cargo clippy ${{ matrix.flags }} -- -D warnings
 
   doc:
     name: Documentation

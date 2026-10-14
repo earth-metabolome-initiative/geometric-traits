@@ -1,8 +1,6 @@
 use alloc::{vec, vec::Vec};
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{NodeScorer, SQUARE_CLUSTERING_SCORE_SCALE, usize_to_f64};
 use crate::{impls::SortedIterator, traits::UndirectedMonopartiteMonoplexGraph};
@@ -104,11 +102,10 @@ where
                 continue;
             }
 
-            scores[root_index] = (usize_to_f64(actual_squares)
-                / usize_to_f64(actual_plus_possible)
-                * SQUARE_CLUSTERING_SCORE_SCALE)
-                .round()
-                / SQUARE_CLUSTERING_SCORE_SCALE;
+            scores[root_index] = Float::round(
+                usize_to_f64(actual_squares) / usize_to_f64(actual_plus_possible)
+                    * SQUARE_CLUSTERING_SCORE_SCALE,
+            ) / SQUARE_CLUSTERING_SCORE_SCALE;
         }
 
         scores

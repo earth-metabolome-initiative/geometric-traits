@@ -6,9 +6,7 @@ mod error;
 use core::ops::Index;
 
 pub use error::InformationContentError;
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use crate::traits::{
     Kahn, MonoplexMonopartiteGraph, RootNodes, SingletonNodes, SinkNodes, edges::Edges,
@@ -144,7 +142,7 @@ pub trait InformationContent: MonoplexMonopartiteGraph {
             .map(|propagated_occurrence| {
                 #[allow(clippy::cast_precision_loss)]
                 let information_content =
-                    -(propagated_occurrence as f64 / total_occurrences as f64).ln();
+                    -Float::ln(propagated_occurrence as f64 / total_occurrences as f64);
                 if information_content > max_information_content {
                     max_information_content = information_content;
                 }

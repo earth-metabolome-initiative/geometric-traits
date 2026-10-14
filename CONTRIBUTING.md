@@ -12,7 +12,18 @@ The crate is `no_std` compatible. The core traits and several implementations wo
 
 ## Checks
 
-Before opening a pull request, please run the same gates the CI enforces: `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and `cargo doc --no-deps --document-private-items` with `RUSTDOCFLAGS=-D warnings`.
+Run formatting, linting, tests and documentation before opening a pull request.
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-features --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings
+cargo clippy --no-default-features --lib --tests -- -D warnings
+cargo clippy --no-default-features --features alloc --lib --tests -- -D warnings
+cargo clippy --no-default-features --features "alloc hashbrown" --lib --tests -- -D warnings
+cargo test --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items
+```
 
 Use comparison assertions for string emptiness checks and for slices, arrays or vectors with `Debug` and `PartialEq` elements, so failures show the value.
 

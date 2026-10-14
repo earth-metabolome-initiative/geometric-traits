@@ -24,9 +24,7 @@
 
 use alloc::vec::Vec;
 
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Float, ToPrimitive};
 
 use super::jacobi::{JacobiConfig, JacobiError, jacobi_decompose, sort_eigen, validate_config};
 use crate::traits::{DenseValuedMatrix2D, Finite, Number};
@@ -372,7 +370,7 @@ where
         let top_eigenvalues: Vec<f64> = eigenvalues[..k].to_vec();
         let mut coordinates = vec![0.0; n * k];
         for d in 0..k {
-            let sqrt_lambda = eigenvalues[d].max(0.0).sqrt();
+            let sqrt_lambda = Float::sqrt(eigenvalues[d].max(0.0));
             for i in 0..n {
                 coordinates[i * k + d] = sqrt_lambda * evecs[d * n + i];
             }
@@ -443,12 +441,12 @@ fn compute_stress(orig_dist: &[f64], coordinates: &[f64], n: usize, k: usize) ->
                 let diff = coordinates[i * k + d] - coordinates[j * k + d];
                 d_embed_sq += diff * diff;
             }
-            let d_embed = d_embed_sq.sqrt();
+            let d_embed = Float::sqrt(d_embed_sq);
             let residual = d_orig - d_embed;
             numerator += residual * residual;
             denominator += d_orig * d_orig;
         }
     }
 
-    if denominator == 0.0 { 0.0 } else { (numerator / denominator).sqrt() }
+    if denominator == 0.0 { 0.0 } else { Float::sqrt(numerator / denominator) }
 }

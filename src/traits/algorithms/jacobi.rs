@@ -20,9 +20,7 @@
 
 use alloc::vec::Vec;
 
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Float, ToPrimitive};
 
 use crate::traits::{DenseValuedMatrix2D, Finite, Number};
 
@@ -280,11 +278,11 @@ pub(crate) fn jacobi_decompose(
                     - matrix[pivot_row * order + pivot_row])
                     / (2.0 * off_diag);
                 let tan_theta = if tau >= 0.0 {
-                    1.0 / (tau + (1.0 + tau * tau).sqrt())
+                    1.0 / (tau + Float::sqrt(1.0 + tau * tau))
                 } else {
-                    -1.0 / (-tau + (1.0 + tau * tau).sqrt())
+                    -1.0 / (-tau + Float::sqrt(1.0 + tau * tau))
                 };
-                let cos_theta = 1.0 / (1.0 + tan_theta * tan_theta).sqrt();
+                let cos_theta = 1.0 / Float::sqrt(1.0 + tan_theta * tan_theta);
                 let sin_theta = tan_theta * cos_theta;
 
                 // Update matrix: rotate rows/columns pivot_row and pivot_col.
