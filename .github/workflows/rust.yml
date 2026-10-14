@@ -25,7 +25,7 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
       with:
         toolchain: ${{ matrix.rust }}
     - name: Build
@@ -39,7 +39,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: stable
     - name: Check with no default features
       run: cargo check --no-default-features
     - name: Test with no default features
@@ -57,8 +59,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@nightly
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
       with:
+        toolchain: nightly
         components: rustfmt
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -69,8 +72,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
       with:
+        toolchain: stable
         components: clippy
     - name: Run clippy
       run: cargo clippy --all-targets -- -D warnings
@@ -81,7 +85,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: stable
     - name: Check documentation
       run: cargo doc --no-deps --document-private-items
       env:
@@ -135,7 +141,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust 1.88
-      uses: dtolnay/rust-toolchain@1.88
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: 1.88
     - name: Check (all features)
       run: cargo check --all-features
     - name: Check (no_std + alloc)
@@ -147,8 +155,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install nightly with Miri
-      uses: dtolnay/rust-toolchain@nightly
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
       with:
+        toolchain: nightly
         components: miri
     # Scoped to the modules that contain `unsafe`, where Miri adds value over
     # the rest of the suite. Strict provenance is not enabled because a
@@ -163,8 +172,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust with a bare-metal target
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
       with:
+        toolchain: stable
         targets: thumbv7em-none-eabi
     - name: Check core-only on a bare-metal target
       run: cargo check --no-default-features --target thumbv7em-none-eabi
@@ -184,7 +194,9 @@ jobs:
       with:
         fetch-depth: 0
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: stable
     - name: Check semver
       uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
       with:

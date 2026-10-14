@@ -20,7 +20,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: stable
     - name: Install cargo-audit
       run: cargo install cargo-audit
     - name: Run security audit
