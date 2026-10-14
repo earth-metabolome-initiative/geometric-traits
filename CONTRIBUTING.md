@@ -26,3 +26,20 @@ cargo install cargo-llvm-cov
 cargo +nightly llvm-cov --workspace --all-features --all-targets --no-report
 cargo +nightly llvm-cov --workspace --all-features --doc --no-clean --lcov --output-path target/coverage.lcov
 ```
+
+## Mutation audits
+
+The `Mutation audit` workflow runs weekly and on manual dispatch, outside pull-request and release gates. Scheduled runs rotate through algorithm files and their shards. Each batch tests at most 20 candidates against all unit and integration targets with `--all-features`, with one worker, at most eight CPUs and a 45-minute audit budget.
+
+Run a specific file and shard locally with `cargo-mutants 27.1.0`.
+
+```bash
+SOURCE_FILE=src/impls/sorted_array.rs SHARD_INDEX=2 BATCH_SIZE=1 \
+  bash .github/scripts/mutation_audit.sh
+```
+
+`SHARD_INDEX` is one-based. `BATCH_SIZE` accepts 1 through 20. `WALL_CLOCK_LIMIT`, `MUTANTS_BUILD_TIMEOUT` and `MUTANTS_TEST_TIMEOUT` set limits in seconds. The helper disables compiler wrappers so affinity and priority limits also constrain compiler processes.
+
+Each invocation writes `mutation-audit-summary.md` and uses its own `mutation-audit.*/` report directory.
+
+The job summary and artifact retain scope, completed candidates, logs, diffs and outcomes. Surviving candidates and per-mutant timeouts are advisory and require classification. Baseline, infrastructure and exhausted-budget failures fail the audit. Partial results carry an incomplete status and no mutation-score threshold applies.
