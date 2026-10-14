@@ -1,8 +1,6 @@
 use alloc::{collections::VecDeque, vec::Vec};
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{CLOSENESS_SCORE_SCALE, NodeScorer, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -132,7 +130,7 @@ where
                     score *= usize_to_f64(reachable_minus_source) / usize_to_f64(n - 1);
                 }
                 scores[source_index] =
-                    (score * CLOSENESS_SCORE_SCALE).round() / CLOSENESS_SCORE_SCALE;
+                    Float::round(score * CLOSENESS_SCORE_SCALE) / CLOSENESS_SCORE_SCALE;
             }
         }
 

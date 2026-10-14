@@ -229,6 +229,7 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_init_global_grow(&mut self, e_idx: u32, plus: u32, free: u32) {
         self.init_grow(e_idx, plus, free);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("GROW_AFTER");
     }
 
@@ -297,6 +298,7 @@ where
         let u_dir = if self.edges[e_idx as usize].head[0] != right { 1 } else { 0 };
         self.nodes[left as usize].match_arc = make_arc(e_idx, u_dir);
         self.nodes[right as usize].match_arc = make_arc(e_idx, 1 - u_dir);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("AUGMENT_AFTER");
     }
 
@@ -325,6 +327,7 @@ where
         root: u32,
     ) {
         self.init_shrink(e_idx, root);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("SHRINK_AFTER");
     }
 }

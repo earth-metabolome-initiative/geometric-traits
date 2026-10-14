@@ -488,16 +488,6 @@ where
         }
     }
 
-    #[cfg(not(feature = "std"))]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_queue_summary(&self, _label: &str) {}
-
-    #[cfg(not(feature = "std"))]
-    #[cold]
-    #[inline(never)]
-    fn maybe_write_debug_trace_snapshot(&self, _op: &str) {}
-
     pub(super) fn new(matrix: &M) -> Self {
         let n: usize = matrix.number_of_rows().as_();
 
@@ -2142,9 +2132,11 @@ where
             return Ok(Vec::new());
         }
         self.init_global();
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("INIT_GLOBAL_AFTER");
 
         if self.tree_num == 0 {
+            #[cfg(feature = "std")]
             self.maybe_write_debug_trace_snapshot("FINISH_BEFORE");
             return self.into_pairs_checked();
         }
@@ -2188,16 +2180,20 @@ where
             }
 
             if self.tree_num == 0 {
+                #[cfg(feature = "std")]
                 self.maybe_write_debug_trace_snapshot("FINISH_BEFORE");
                 return self.into_pairs_checked();
             }
 
             // No progress via tight edges — do a dual update
+            #[cfg(feature = "std")]
             self.maybe_write_debug_trace_snapshot("DUAL_UPDATE_BEFORE");
             if !self.update_duals() {
                 return Err(BlossomVError::NoPerfectMatching);
             }
+            #[cfg(feature = "std")]
             self.maybe_write_debug_trace_snapshot("DUAL_UPDATE_AFTER");
+            #[cfg(feature = "std")]
             self.maybe_write_debug_queue_summary("after DUAL_UPDATE_AFTER");
         }
     }
@@ -2253,6 +2249,7 @@ where
         self.nodes[root as usize].is_processed = true;
     }
 
+    #[cfg(any(feature = "std", test))]
     fn current_root_list(&self) -> Vec<u32> {
         let mut roots = Vec::new();
         let mut seen = Vec::new();

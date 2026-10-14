@@ -38,6 +38,7 @@ where
         if let Some((augment_edge, left, right)) = self.grow_tree_after_absorb(plus, free) {
             self.augment(augment_edge, left, right);
         } else {
+            #[cfg(feature = "std")]
             self.maybe_write_debug_trace_snapshot("GROW_AFTER");
         }
     }
@@ -58,6 +59,7 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_shrink(&mut self, e_idx: u32, left: u32, right: u32) {
         self.shrink(e_idx, left, right);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("SHRINK_AFTER");
     }
 
@@ -77,7 +79,9 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_augment(&mut self, e_idx: u32, left: u32, right: u32) {
         self.augment(e_idx, left, right);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("AUGMENT_AFTER");
+        #[cfg(feature = "std")]
         self.maybe_write_debug_queue_summary("after AUGMENT_AFTER");
     }
 
@@ -102,6 +106,7 @@ where
     #[cfg(not(test))]
     pub(super) fn apply_generic_expand(&mut self, b: u32) {
         self.perform_generic_expand(b);
+        #[cfg(feature = "std")]
         self.maybe_write_debug_trace_snapshot("EXPAND_AFTER");
     }
 

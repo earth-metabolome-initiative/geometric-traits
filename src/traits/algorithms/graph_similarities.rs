@@ -9,7 +9,6 @@
 //! matched edge/vertex counts and original graph sizes gets all similarity
 //! methods via default implementations.
 
-#[cfg(not(feature = "std"))]
 use num_traits::Float;
 
 /// Tanimoto (Jaccard) similarity coefficient.
@@ -169,7 +168,7 @@ pub fn cosine_similarity(intersection: usize, size_a: usize, size_b: usize) -> f
     }
     #[allow(clippy::cast_precision_loss)]
     {
-        intersection as f64 / (product as f64).sqrt()
+        intersection as f64 / Float::sqrt(product as f64)
     }
 }
 

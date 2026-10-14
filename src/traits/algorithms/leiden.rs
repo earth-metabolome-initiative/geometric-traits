@@ -3,9 +3,7 @@
 
 use alloc::vec::Vec;
 
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
-use num_traits::{AsPrimitive, ToPrimitive};
+use num_traits::{AsPrimitive, Float, ToPrimitive};
 use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 
 use super::modularity::{
@@ -445,7 +443,7 @@ pub(super) fn sample_softmax_destination(
     let mut cumulative_weights: Vec<f64> = Vec::with_capacity(candidate_moves.len());
     let mut total_weight = 0.0;
     for (_, score) in candidate_moves {
-        let scaled = ((*score - max_score) / theta).exp();
+        let scaled = Float::exp((*score - max_score) / theta);
         if !scaled.is_finite() || scaled <= 0.0 {
             cumulative_weights.push(total_weight);
             continue;

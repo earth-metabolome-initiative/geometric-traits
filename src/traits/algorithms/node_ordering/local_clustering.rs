@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{LOCAL_CLUSTERING_SCORE_SCALE, NodeScorer, triangles::triangle_counts, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -43,8 +41,9 @@ where
 
             let numerator = 2.0 * usize_to_f64(triangles);
             let denominator = usize_to_f64(degree * (degree - 1));
-            scores[node_index] = (numerator / denominator * LOCAL_CLUSTERING_SCORE_SCALE).round()
-                / LOCAL_CLUSTERING_SCORE_SCALE;
+            scores[node_index] =
+                Float::round(numerator / denominator * LOCAL_CLUSTERING_SCORE_SCALE)
+                    / LOCAL_CLUSTERING_SCORE_SCALE;
         }
 
         scores

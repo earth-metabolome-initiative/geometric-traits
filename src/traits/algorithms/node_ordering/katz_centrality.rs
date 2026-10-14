@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{KATZ_SCORE_SCALE, NodeScorer, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -222,7 +220,7 @@ where
                 .sum();
             if error < usize_to_f64(n) * self.tolerance {
                 let scale = if self.normalized {
-                    let norm = scores.iter().map(|score| score * score).sum::<f64>().sqrt();
+                    let norm = Float::sqrt(scores.iter().map(|score| score * score).sum::<f64>());
                     if norm == 0.0 { 1.0 } else { 1.0 / norm }
                 } else {
                     1.0
@@ -230,7 +228,7 @@ where
 
                 for score in &mut scores {
                     *score *= scale;
-                    *score = (*score * KATZ_SCORE_SCALE).round() / KATZ_SCORE_SCALE;
+                    *score = Float::round(*score * KATZ_SCORE_SCALE) / KATZ_SCORE_SCALE;
                 }
 
                 return scores;

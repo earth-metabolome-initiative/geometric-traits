@@ -1,8 +1,6 @@
 use alloc::vec::Vec;
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{NodeScorer, POWER_ITERATION_EIGENVECTOR_SCORE_SCALE, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -125,8 +123,8 @@ where
             let inverse_norm = {
                 let norm_squared = scores
                     .iter()
-                    .fold(0.0, |accumulator, score| (*score).mul_add(*score, accumulator));
-                if norm_squared == 0.0 { 1.0 } else { norm_squared.sqrt().recip() }
+                    .fold(0.0, |accumulator, score| Float::mul_add(*score, *score, accumulator));
+                if norm_squared == 0.0 { 1.0 } else { Float::sqrt(norm_squared).recip() }
             };
 
             let mut error = 0.0;
@@ -136,7 +134,7 @@ where
             }
             if error < convergence_threshold {
                 for score in &mut scores {
-                    *score = (*score * POWER_ITERATION_EIGENVECTOR_SCORE_SCALE).round()
+                    *score = Float::round(*score * POWER_ITERATION_EIGENVECTOR_SCORE_SCALE)
                         / POWER_ITERATION_EIGENVECTOR_SCORE_SCALE;
                 }
                 return scores;

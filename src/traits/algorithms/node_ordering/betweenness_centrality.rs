@@ -1,8 +1,6 @@
 use alloc::{collections::VecDeque, vec::Vec};
 
-use num_traits::AsPrimitive;
-#[cfg(not(feature = "std"))]
-use num_traits::Float;
+use num_traits::{AsPrimitive, Float};
 
 use super::{BETWEENNESS_SCORE_SCALE, NodeScorer, usize_to_f64};
 use crate::traits::UndirectedMonopartiteMonoplexGraph;
@@ -177,11 +175,11 @@ where
         if let Some(scale) = scale {
             for score in &mut scores {
                 *score *= scale;
-                *score = (*score * BETWEENNESS_SCORE_SCALE).round() / BETWEENNESS_SCORE_SCALE;
+                *score = Float::round(*score * BETWEENNESS_SCORE_SCALE) / BETWEENNESS_SCORE_SCALE;
             }
         } else {
             for score in &mut scores {
-                *score = (*score * BETWEENNESS_SCORE_SCALE).round() / BETWEENNESS_SCORE_SCALE;
+                *score = Float::round(*score * BETWEENNESS_SCORE_SCALE) / BETWEENNESS_SCORE_SCALE;
             }
         }
 
