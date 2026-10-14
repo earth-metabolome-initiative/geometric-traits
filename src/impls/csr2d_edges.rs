@@ -1,0 +1,132 @@
+//! Submodule implementing Edges for CSR2D.
+
+use multi_ranged::Step;
+use num_traits::AsPrimitive;
+
+use crate::{
+    errors::builder::edges::EdgesBuilderError,
+    impls::csr::CSR2D,
+    traits::{
+        BidirectionalVocabulary, BipartiteGraph, Edges, Graph, GrowableEdges, Matrix, Matrix2D,
+        Matrix2DRef, MonoplexGraph, PositiveInteger, SizedSparseMatrix, SparseMatrixMut,
+        TryFromUsize,
+    },
+};
+
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+> Edges for CSR2D<SparseIndex, RowIndex, ColumnIndex>
+{
+    type Edge = <Self as Matrix>::Coordinates;
+    type SourceNodeId = RowIndex;
+    type DestinationNodeId = ColumnIndex;
+    type EdgeId = SparseIndex;
+    type Matrix = Self;
+
+    #[inline]
+    fn matrix(&self) -> &Self::Matrix {
+        self
+    }
+}
+
+impl<
+    SparseIndex: PositiveInteger + 'static,
+    RowIndex: Step + PositiveInteger,
+    ColumnIndex: Step + PositiveInteger + TryFrom<SparseIndex>,
+> GrowableEdges for CSR2D<SparseIndex, RowIndex, ColumnIndex>
+{
+    type GrowableMatrix = Self;
+    type Error = EdgesBuilderError<Self>;
+
+    #[inline]
+    fn matrix_mut(&mut self) -> &mut Self::GrowableMatrix {
+        self
+    }
+
+    #[inline]
+    fn with_capacity(number_of_edges: Self::EdgeId) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_capacity(number_of_edges)
+    }
+
+    #[inline]
+    fn with_shape(shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_shape(shape)
+    }
+
+    #[inline]
+    fn with_shaped_capacity(
+        shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape,
+        number_of_edges: Self::EdgeId,
+    ) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_shaped_capacity(shape, number_of_edges)
+    }
+}
+
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex> + TryFromUsize,
+> Graph for CSR2D<SparseIndex, RowIndex, ColumnIndex>
+{
+    #[inline]
+    fn has_nodes(&self) -> bool {
+        self.number_of_rows() > RowIndex::zero() && self.number_of_columns() > ColumnIndex::zero()
+    }
+
+    #[inline]
+    fn has_edges(&self) -> bool {
+        self.number_of_defined_values() > SparseIndex::zero()
+    }
+}
+
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step + PositiveInteger + TryFromUsize + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFrom<SparseIndex> + TryFromUsize,
+> MonoplexGraph for CSR2D<SparseIndex, RowIndex, ColumnIndex>
+{
+    type Edge = <Self as Matrix>::Coordinates;
+    type Edges = Self;
+
+    #[inline]
+    fn edges(&self) -> &Self::Edges {
+        self
+    }
+}
+
+impl<
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RowIndex: Step
+        + PositiveInteger
+        + TryFromUsize
+        + AsPrimitive<usize>
+        + BidirectionalVocabulary<SourceSymbol = RowIndex, DestinationSymbol = RowIndex>,
+    ColumnIndex: Step
+        + PositiveInteger
+        + AsPrimitive<usize>
+        + TryFrom<SparseIndex>
+        + TryFromUsize
+        + BidirectionalVocabulary<SourceSymbol = ColumnIndex, DestinationSymbol = ColumnIndex>,
+> BipartiteGraph for CSR2D<SparseIndex, RowIndex, ColumnIndex>
+where
+    Self: Matrix2DRef<RowIndex = RowIndex, ColumnIndex = ColumnIndex>,
+{
+    type LeftNodeId = RowIndex;
+    type RightNodeId = ColumnIndex;
+    type LeftNodeSymbol = RowIndex;
+    type RightNodeSymbol = ColumnIndex;
+    type LeftNodes = RowIndex;
+    type RightNodes = ColumnIndex;
+
+    #[inline]
+    fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
+        self.number_of_rows_ref()
+    }
+
+    #[inline]
+    fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
+        self.number_of_columns_ref()
+    }
+}

@@ -1,0 +1,77 @@
+//! Submodule for the transposed graph traits.
+
+use num_traits::Zero;
+
+use super::Edges;
+use crate::traits::{
+    BiMatrix2D, SizedRowsSparseMatrix2D, SizedSparseBiMatrix2D, SparseBiMatrix2D, SparseMatrix2D,
+};
+
+/// Trait defining the properties of a transposed graph.
+pub trait TransposedEdges: Edges<Matrix = <Self as TransposedEdges>::BiMatrix> {
+    /// The type of matrix required to store the transposed edges.
+    type BiMatrix: SizedSparseBiMatrix2D<RowIndex = Self::SourceNodeId, ColumnIndex = Self::DestinationNodeId>;
+
+    /// Returns the predecessors of the node with the given identifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
+    fn predecessors(
+        &self,
+        destination_node_id: Self::DestinationNodeId,
+    ) -> <<Self::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SparseMatrix2D>::SparseRow<'_>
+{
+        self.matrix().sparse_column(destination_node_id)
+    }
+
+    /// Returns whether the given destination has that predecessor.
+    ///
+    /// # Arguments
+    ///
+    /// * `destination_node_id` - The identifier of the destination node.
+    /// * `source_node_id` - The identifier of the source node.
+    #[inline]
+    fn has_predecessor(
+        &self,
+        destination_node_id: Self::DestinationNodeId,
+        source_node_id: Self::SourceNodeId,
+    ) -> bool {
+        self.matrix().transposed().has_entry(destination_node_id, source_node_id)
+    }
+
+    /// Returns whether the given destination has any predecessor.
+    ///
+    /// # Arguments
+    ///
+    /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
+    fn has_predecessors(&self, destination_node_id: Self::DestinationNodeId) -> bool {
+        self.in_degree(destination_node_id) > Self::SourceNodeId::zero()
+    }
+
+    /// Returns the inbound degree of the node with the given identifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `destination_node_id` - The identifier of the destination node.
+    #[inline]
+    fn in_degree(&self, destination_node_id: Self::DestinationNodeId) -> Self::SourceNodeId {
+        self.matrix().number_of_defined_values_in_column(destination_node_id)
+    }
+
+    /// Returns an iterator over the in-bound degrees of the nodes.
+    #[inline]
+    fn in_degrees(&self) -> <<Self::BiMatrix as SparseBiMatrix2D>::SparseTransposedMatrix as SizedRowsSparseMatrix2D>::SparseRowSizes<'_>{
+        self.matrix().sparse_column_sizes()
+    }
+}
+
+impl<E: Edges> TransposedEdges for E
+where
+    E::Matrix:
+        SizedSparseBiMatrix2D<RowIndex = E::SourceNodeId, ColumnIndex = E::DestinationNodeId>,
+{
+    type BiMatrix = E::Matrix;
+}

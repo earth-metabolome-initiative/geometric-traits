@@ -1,0 +1,128 @@
+//! Simple test for directed edges.
+#![cfg(feature = "std")]
+
+use ::geometric_traits::prelude::*;
+use geometric_traits::{
+    impls::{CSR2D, SquareCSR2D, UpperTriangularCSR2D},
+    traits::Edges,
+};
+
+#[test]
+/// First simple test for directed edges.
+#[inline]
+pub fn test_square_directed_edges() {
+    let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 2), (2, 3), (3, 4), (4, 5)];
+    let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .edges(edges.into_iter())
+        .build()
+        .unwrap();
+
+    assert_eq!(Edges::number_of_edges(&edges), 6);
+    assert_eq!(edges.number_of_self_loops(), 1);
+
+    assert_eq!(Edges::out_degree(&edges, 0), 0, "The node 0 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 1), 2, "The node 1 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 2), 2, "The node 2 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 3), 1, "The node 3 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 4), 1, "The node 4 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 5), 0, "The node 5 should have no successors.");
+
+    assert_eq!(Edges::out_degrees(&edges).collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
+
+    assert_eq!(
+        Edges::successors(&edges, 0).collect::<Vec<_>>(),
+        vec![],
+        "The node 0 should have no successors."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 1).collect::<Vec<_>>(),
+        vec![2, 3],
+        "The node 1 should have successors 2 and 3."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 2).collect::<Vec<_>>(),
+        vec![2, 3],
+        "The node 2 should have successors 1, 2, and 3."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 3).collect::<Vec<_>>(),
+        vec![4],
+        "The node 3 should have successors 1, 2, and 4."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 4).collect::<Vec<_>>(),
+        vec![5],
+        "The node 4 should have successors 3 and 5."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 5).collect::<Vec<_>>(),
+        vec![],
+        "The node 5 should have successor 4."
+    );
+    assert_eq!(
+        geometric_traits::traits::SparseMatrix::sparse_coordinates(&edges).collect::<Vec<_>>(),
+        vec![(1, 2), (1, 3), (2, 2), (2, 3), (3, 4), (4, 5),],
+        "The edges are not correctly stored."
+    );
+}
+
+#[test]
+/// First simple test for triangular edges.
+#[inline]
+pub fn test_triangular_directed_edges() {
+    let edges: Vec<(usize, usize)> = vec![(1, 2), (1, 3), (2, 2), (2, 3), (3, 4), (4, 5)];
+    let edges: UpperTriangularCSR2D<CSR2D<usize, usize, usize>> = GenericEdgesBuilder::default()
+        .expected_number_of_edges(edges.len())
+        .edges(edges.into_iter())
+        .build()
+        .unwrap();
+
+    assert_eq!(Edges::number_of_edges(&edges), 6);
+    assert_eq!(edges.number_of_self_loops(), 1);
+
+    assert_eq!(Edges::out_degree(&edges, 0), 0, "The node 0 should have no successors.");
+    assert_eq!(Edges::out_degree(&edges, 1), 2, "The node 1 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 2), 2, "The node 2 should have 2 successors.");
+    assert_eq!(Edges::out_degree(&edges, 3), 1, "The node 3 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 4), 1, "The node 4 should have 1 successors.");
+    assert_eq!(Edges::out_degree(&edges, 5), 0, "The node 5 should have no successors.");
+
+    assert_eq!(Edges::out_degrees(&edges).collect::<Vec<_>>(), vec![0, 2, 2, 1, 1, 0]);
+
+    assert_eq!(
+        Edges::successors(&edges, 0).collect::<Vec<_>>(),
+        vec![],
+        "The node 0 should have no successors."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 1).collect::<Vec<_>>(),
+        vec![2, 3],
+        "The node 1 should have successors 2 and 3."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 2).collect::<Vec<_>>(),
+        vec![2, 3],
+        "The node 2 should have successors 1, 2, and 3."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 3).collect::<Vec<_>>(),
+        vec![4],
+        "The node 3 should have successors 1, 2, and 4."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 4).collect::<Vec<_>>(),
+        vec![5],
+        "The node 4 should have successors 3 and 5."
+    );
+    assert_eq!(
+        Edges::successors(&edges, 5).collect::<Vec<_>>(),
+        vec![],
+        "The node 5 should have successor 4."
+    );
+    assert_eq!(
+        geometric_traits::traits::SparseMatrix::sparse_coordinates(&edges).collect::<Vec<_>>(),
+        vec![(1, 2), (1, 3), (2, 2), (2, 3), (3, 4), (4, 5),],
+        "The edges are not correctly stored."
+    );
+}

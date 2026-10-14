@@ -1,0 +1,115 @@
+//! Implementation for the 'Lin' trait based on the algorithm implementation
+
+use crate::{
+    prelude::{information_content::InformationContentError, resnik::ResnikResult},
+    traits::{
+        MonoplexMonopartiteGraph, Resnik, ScalarSimilarity,
+        information_content::InformationContentResult,
+    },
+};
+
+/// Struct for the Lin similarity trait
+#[derive(Debug, PartialEq)]
+pub struct LinResult<'graph, G: ?Sized + MonoplexMonopartiteGraph>(ResnikResult<'graph, G>);
+
+impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> From<ResnikResult<'graph, G>>
+    for LinResult<'graph, G>
+{
+    #[inline]
+    fn from(value: ResnikResult<'graph, G>) -> Self {
+        Self(value)
+    }
+}
+
+/// Trait providing the `Lin` method
+///
+/// # Reference
+/// The implementation of the Lin similarity score as described in [An Information-Theoretic Definition of Similarity](https://www.cs.swarthmore.edu/~richardw/classes/cs65/f08/litreview/phyo.pdf)
+pub trait Lin: Resnik {
+    /// The method for applying the Lin
+    ///
+    /// # Arguments
+    /// - `occurrences`: the number of times each node has been observed
+    ///
+    /// # Errors
+    /// - If the graph is not a dag
+    /// - If the occurrences are not equal
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::{
+    ///     impls::{SortedVec, SquareCSR2D},
+    ///     prelude::*,
+    ///     traits::{EdgesBuilder, ScalarSimilarity, VocabularyBuilder},
+    /// };
+    ///
+    /// let nodes: Vec<usize> = vec![0, 1, 2];
+    /// let edges: Vec<(usize, usize)> = vec![(0, 1), (0, 2), (1, 2)];
+    /// let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+    ///     .expected_number_of_symbols(nodes.len())
+    ///     .symbols(nodes.into_iter().enumerate())
+    ///     .build()
+    ///     .unwrap();
+    /// let edges: SquareCSR2D<_> = DiEdgesBuilder::default()
+    ///     .expected_number_of_edges(edges.len())
+    ///     .expected_shape(nodes.len())
+    ///     .edges(edges.into_iter())
+    ///     .build()
+    ///     .unwrap();
+    /// let graph: DiGraph<usize> = DiGraph::from((nodes, edges));
+    ///
+    /// let lin = graph.lin(&[1, 1, 1]).unwrap();
+    /// assert!(lin.similarity(&0, &0) > 0.99);
+    /// assert!(lin.similarity(&0, &1) < 0.99);
+    /// ```
+    #[inline]
+    fn lin(&self, occurrences: &[usize]) -> Result<LinResult<'_, Self>, InformationContentError> {
+        Ok(self.resnik(occurrences)?.into())
+    }
+}
+
+impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<ResnikResult<'graph, G>>
+    for LinResult<'graph, G>
+{
+    #[inline]
+    fn as_ref(&self) -> &ResnikResult<'graph, G> {
+        &self.0
+    }
+}
+
+impl<'graph, G: ?Sized + MonoplexMonopartiteGraph> AsRef<InformationContentResult<'graph, G>>
+    for LinResult<'graph, G>
+{
+    #[inline]
+    fn as_ref(&self) -> &InformationContentResult<'graph, G> {
+        self.0.as_ref()
+    }
+}
+
+impl<G> ScalarSimilarity<G::NodeId, G::NodeId> for LinResult<'_, G>
+where
+    G: MonoplexMonopartiteGraph,
+{
+    type Similarity = f64;
+    #[inline]
+    fn similarity(&self, left: &G::NodeId, right: &G::NodeId) -> Self::Similarity {
+        if left == right {
+            return 1.0;
+        }
+        let ic: &InformationContentResult<G> = self.as_ref();
+        let resnik: &ResnikResult<G> = self.as_ref();
+        let left_ic = ic[*left];
+        let right_ic = ic[*right];
+        let resnik_score = resnik.similarity(left, right);
+        // reminder: resnik score needs to always be less than max of
+        // left_ic/right_ic
+        let mut denominator = left_ic + right_ic;
+        if denominator < f64::EPSILON {
+            denominator = f64::EPSILON;
+        }
+        (2.0 * resnik_score) / denominator
+    }
+}
+
+impl<G> Lin for G where G: MonoplexMonopartiteGraph {}

@@ -1,0 +1,422 @@
+//! Module implementing traits for the Vec type.
+
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::{
+    iter::Cloned,
+    ops::{Index, Range},
+};
+
+use crate::{errors::SortedError, prelude::*, traits::Symbol};
+
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Struct defining a sorted vector and its primary methods.
+pub struct SortedVec<V> {
+    vec: Vec<V>,
+}
+
+impl<V> Default for SortedVec<V> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<V> TryFrom<Vec<V>> for SortedVec<V>
+where
+    V: Ord + Clone,
+{
+    type Error = SortedError<V>;
+
+    #[inline]
+    fn try_from(vec: Vec<V>) -> Result<Self, Self::Error> {
+        if vec.is_sorted() {
+            Ok(Self { vec })
+        } else {
+            // We identify the offending entry by returning the first unsorted
+            // entry.
+            let unsorted_entry = vec.windows(2).find_map(|window| {
+                if window[0] > window[1] { Some(window[1].clone()) } else { None }
+            });
+            if let Some(entry) = unsorted_entry {
+                Err(SortedError::UnsortedEntry(entry))
+            } else {
+                unreachable!("The source vector is not sorted.");
+            }
+        }
+    }
+}
+
+impl<V: Ord> TransmuteFrom<Vec<V>> for SortedVec<V> {
+    #[inline]
+    unsafe fn transmute_from(source: Vec<V>) -> Self {
+        debug_assert!(source.is_sorted(), "The source vector is not sorted.");
+        Self { vec: source }
+    }
+}
+
+impl<V, Idx> Index<Idx> for SortedVec<V>
+where
+    Vec<V>: Index<Idx>,
+{
+    type Output = <Vec<V> as Index<Idx>>::Output;
+
+    #[inline]
+    fn index(&self, index: Idx) -> &Self::Output {
+        &self.vec[index]
+    }
+}
+
+impl<V> SortedVec<V> {
+    #[must_use]
+    /// Returns a new instance of the struct.
+    #[inline]
+    pub fn new() -> Self {
+        Self { vec: Vec::new() }
+    }
+
+    #[must_use]
+    /// Returns a new instance of the struct with the provided capacity.
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { vec: Vec::with_capacity(capacity) }
+    }
+
+    #[must_use]
+    /// Returns the entry at the provided index.
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&V> {
+        self.vec.get(index)
+    }
+
+    #[must_use]
+    /// Returns the length of the vector.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.vec.len()
+    }
+
+    #[must_use]
+    /// Returns whether the vector is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+
+    /// Returns an iterator over the vector.
+    #[inline]
+    pub fn iter(&self) -> core::slice::Iter<'_, V> {
+        self.into_iter()
+    }
+
+    #[must_use]
+    /// Returns a reference to the last node in the vector, if any.
+    #[inline]
+    pub fn last(&self) -> Option<&V> {
+        self.vec.last()
+    }
+
+    #[must_use]
+    /// Returns a reference to the first node in the vector, if any.
+    #[inline]
+    pub fn first(&self) -> Option<&V> {
+        self.vec.first()
+    }
+
+    /// Binary searches this slice for a given element.
+    /// If the slice is not sorted, the returned result is unspecified and
+    /// meaningless.
+    ///
+    /// # Errors
+    ///
+    /// * `Err(usize)` if the value is not found, containing the index where it
+    ///   could be inserted to maintain sorted order.
+    /// * `Ok(usize)` if the value is found, containing the index of the value.
+    #[inline]
+    pub fn binary_search(&self, value: &V) -> Result<usize, usize>
+    where
+        V: Ord,
+    {
+        self.vec.binary_search(value)
+    }
+
+    /// Binary searches this slice with a comparator function.
+    /// If the slice is not sorted, the returned result is unspecified and
+    /// meaningless.
+    ///
+    /// # Errors
+    ///
+    /// * `Err(usize)` if the value is not found, containing the index where it
+    ///   could be inserted to maintain sorted order.
+    /// * `Ok(usize)` if the value is found, containing the index of the value.
+    #[inline]
+    pub fn binary_search_by<F>(&self, f: F) -> Result<usize, usize>
+    where
+        F: FnMut(&V) -> core::cmp::Ordering,
+    {
+        self.vec.binary_search_by(f)
+    }
+}
+
+impl<V: PartialOrd> SortedVec<V> {
+    #[must_use]
+    /// Returns whether the vector is sorted.
+    #[inline]
+    pub fn is_sorted(&self) -> bool {
+        true
+    }
+
+    /// Attempts to push a value to the vector.
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: The value to push.
+    ///
+    /// # Errors
+    ///
+    /// * `Error::UnsortedPush(v)` if the value is not sorted.
+    #[inline]
+    pub fn push(&mut self, value: V) -> Result<(), SortedError<V>> {
+        if self.last().is_some_and(|last| last >= &value) {
+            Err(SortedError::UnsortedEntry(value))
+        } else {
+            self.vec.push(value);
+            Ok(())
+        }
+    }
+}
+
+impl<'a, V> IntoIterator for &'a SortedVec<V> {
+    type Item = &'a V;
+    type IntoIter = core::slice::Iter<'a, V>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.iter()
+    }
+}
+
+impl<V> AsRef<[V]> for SortedVec<V> {
+    #[inline]
+    fn as_ref(&self) -> &[V] {
+        &self.vec
+    }
+}
+
+impl<V: Symbol> Vocabulary for SortedVec<V> {
+    type SourceSymbol = usize;
+    type DestinationSymbol = V;
+    type Sources<'a>
+        = Range<usize>
+    where
+        Self: 'a;
+    type Destinations<'a>
+        = Cloned<core::slice::Iter<'a, Self::DestinationSymbol>>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn convert(&self, source: &Self::SourceSymbol) -> Option<Self::DestinationSymbol> {
+        self.get(*source).cloned()
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn sources(&self) -> Self::Sources<'_> {
+        0..self.len()
+    }
+
+    #[inline]
+    fn destinations(&self) -> Self::Destinations<'_> {
+        self.iter().cloned()
+    }
+}
+
+impl<V: Symbol> VocabularyRef for SortedVec<V> {
+    type DestinationRefs<'a>
+        = core::slice::Iter<'a, Self::DestinationSymbol>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn convert_ref(&self, source: &Self::SourceSymbol) -> Option<&Self::DestinationSymbol> {
+        self.get(*source)
+    }
+
+    #[inline]
+    fn destination_refs(&self) -> Self::DestinationRefs<'_> {
+        self.iter()
+    }
+}
+
+impl<V: Symbol + Ord> BidirectionalVocabulary for SortedVec<V> {
+    #[inline]
+    fn invert(&self, destination: &Self::DestinationSymbol) -> Option<Self::SourceSymbol> {
+        self.as_ref().binary_search(destination).ok()
+    }
+}
+
+impl<V: Symbol + Ord> GrowableVocabulary for SortedVec<V> {
+    #[inline]
+    fn new() -> Self {
+        SortedVec::new()
+    }
+
+    #[inline]
+    fn with_capacity(capacity: usize) -> Self {
+        SortedVec::with_capacity(capacity)
+    }
+
+    #[inline]
+    fn add(
+        &mut self,
+        source: Self::SourceSymbol,
+        destination: Self::DestinationSymbol,
+    ) -> Result<(), crate::errors::builder::vocabulary::VocabularyBuilderError<Self>> {
+        if source != self.len() {
+            return Err(
+                crate::errors::builder::vocabulary::VocabularyBuilderError::SparseSourceNode(
+                    source,
+                ),
+            );
+        }
+
+        self.push(destination).map_err(|err| {
+            match err {
+                SortedError::UnsortedEntry(destination) => {
+                    crate::errors::builder::vocabulary::VocabularyBuilderError::UnorderedDestinationNode(destination)
+                }
+            }
+        })?;
+
+        Ok(())
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec;
+
+    use super::*;
+
+    #[test]
+    fn test_sorted_vec_new() {
+        let sv: SortedVec<i32> = SortedVec::new();
+        assert!(sv.is_empty());
+        assert_eq!(sv.len(), 0);
+    }
+
+    #[test]
+    fn test_sorted_vec_with_capacity() {
+        let sv: SortedVec<i32> = SortedVec::with_capacity(10);
+        assert!(sv.is_empty());
+    }
+
+    #[test]
+    fn test_sorted_vec_try_from_sorted() {
+        let vec = vec![1, 2, 3, 4, 5];
+        let sv: SortedVec<i32> = SortedVec::try_from(vec).unwrap();
+        assert_eq!(sv.len(), 5);
+    }
+
+    #[test]
+    fn test_sorted_vec_try_from_unsorted() {
+        let vec = vec![1, 3, 2, 4];
+        let result: Result<SortedVec<i32>, _> = SortedVec::try_from(vec);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sorted_vec_get() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv.get(0), Some(&10));
+        assert_eq!(sv.get(1), Some(&20));
+        assert_eq!(sv.get(2), Some(&30));
+        assert_eq!(sv.get(3), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_first_last() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        assert_eq!(sv.first(), Some(&1));
+        assert_eq!(sv.last(), Some(&3));
+    }
+
+    #[test]
+    fn test_sorted_vec_push() {
+        let mut sv: SortedVec<i32> = SortedVec::new();
+        assert!(sv.push(1).is_ok());
+        assert!(sv.push(2).is_ok());
+        assert!(sv.push(3).is_ok());
+        assert_eq!(sv.len(), 3);
+    }
+
+    #[test]
+    fn test_sorted_vec_push_unsorted() {
+        let mut sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        assert!(sv.push(2).is_err());
+    }
+
+    #[test]
+    fn test_sorted_vec_binary_search() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 3, 5, 7, 9]).unwrap();
+        assert_eq!(sv.binary_search(&5), Ok(2));
+        assert_eq!(sv.binary_search(&4), Err(2));
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_convert() {
+        let sv: SortedVec<&str> = SortedVec::try_from(vec!["a", "b", "c"]).unwrap();
+        assert_eq!(Vocabulary::convert(&sv, &0), Some("a"));
+        assert_eq!(Vocabulary::convert(&sv, &1), Some("b"));
+        assert_eq!(Vocabulary::convert(&sv, &2), Some("c"));
+        assert_eq!(Vocabulary::convert(&sv, &3), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_sources() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        let sources: Vec<usize> = sv.sources().collect();
+        assert_eq!(sources, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_sorted_vec_vocabulary_destinations() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        let destinations: Vec<i32> = sv.destinations().collect();
+        assert_eq!(destinations, vec![10, 20, 30]);
+    }
+
+    #[test]
+    fn test_sorted_vec_bidirectional_vocabulary_invert() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv.invert(&10), Some(0));
+        assert_eq!(sv.invert(&20), Some(1));
+        assert_eq!(sv.invert(&30), Some(2));
+        assert_eq!(sv.invert(&25), None);
+    }
+
+    #[test]
+    fn test_sorted_vec_iter() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![1, 2, 3]).unwrap();
+        let items: Vec<&i32> = sv.iter().collect();
+        assert_eq!(items, vec![&1, &2, &3]);
+    }
+
+    #[test]
+    fn test_sorted_vec_index() {
+        let sv: SortedVec<i32> = SortedVec::try_from(vec![10, 20, 30]).unwrap();
+        assert_eq!(sv[0], 10);
+        assert_eq!(sv[1], 20);
+        assert_eq!(sv[2], 30);
+    }
+}

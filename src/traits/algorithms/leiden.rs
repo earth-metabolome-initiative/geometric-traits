@@ -1,0 +1,561 @@
+//! Submodule providing the `Leiden` trait and its blanket implementation for
+//! weighted monopartite graphs.
+
+use alloc::vec::Vec;
+
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+use num_traits::{AsPrimitive, ToPrimitive};
+use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
+
+use super::modularity::{
+    CoarsenableGraph, LocalMovingConfig, ModularityError, RefineConfig, UndirectedView,
+    WorkingGraph, approx_eq, build_working_graph, marker_partition, mix_seed, project_partition,
+    regroup_members, renumber_partition, validate_common_config, validate_leiden_config,
+};
+use crate::traits::{Finite, Matrix2D, Number, PositiveInteger, SparseValuedMatrix2D};
+
+#[derive(Debug, Clone, PartialEq)]
+/// Configuration options for the Leiden community detection algorithm.
+pub struct LeidenConfig {
+    /// Resolution parameter (`gamma`) used in modularity optimization.
+    ///
+    /// Larger values tend to produce more communities.
+    pub resolution: f64,
+    /// Minimal modularity improvement required to continue to the next level.
+    pub modularity_threshold: f64,
+    /// Maximum number of coarsening levels.
+    pub max_levels: usize,
+    /// Maximum local-moving passes per level.
+    pub max_local_passes: usize,
+    /// Maximum refinement passes per level.
+    pub max_refinement_passes: usize,
+    /// Randomness parameter for refinement community selection.
+    ///
+    /// Lower values make refinement more greedy.
+    pub theta: f64,
+    /// Random seed used for node-order shuffling.
+    pub seed: u64,
+}
+
+impl Default for LeidenConfig {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            resolution: 1.0,
+            modularity_threshold: 1.0e-7,
+            max_levels: 100,
+            max_local_passes: 100,
+            max_refinement_passes: 100,
+            theta: 0.01,
+            seed: 42,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// Partition information captured at one Leiden level.
+pub struct LeidenLevel<Marker> {
+    /// Community identifier for each original node.
+    partition: Vec<Marker>,
+    /// Modularity value at this level.
+    modularity: f64,
+    /// Number of node moves performed at this level.
+    moved_nodes: usize,
+    /// Number of refinement moves performed at this level.
+    refinement_moves: usize,
+}
+
+impl<Marker> LeidenLevel<Marker> {
+    /// Returns the partition of the original nodes at this level.
+    #[must_use]
+    #[inline]
+    pub fn partition(&self) -> &[Marker] {
+        &self.partition
+    }
+
+    /// Returns the modularity value at this level.
+    #[must_use]
+    #[inline]
+    pub fn modularity(&self) -> f64 {
+        self.modularity
+    }
+
+    /// Returns the number of node moves performed at this level.
+    #[must_use]
+    #[inline]
+    pub fn moved_nodes(&self) -> usize {
+        self.moved_nodes
+    }
+
+    /// Returns the number of refinement moves performed at this level.
+    #[must_use]
+    #[inline]
+    pub fn refinement_moves(&self) -> usize {
+        self.refinement_moves
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// Result of the Leiden community detection algorithm.
+pub struct LeidenResult<Marker> {
+    levels: Vec<LeidenLevel<Marker>>,
+}
+
+impl<Marker> LeidenResult<Marker> {
+    /// Returns the final partition of original nodes.
+    #[must_use]
+    #[inline]
+    pub fn final_partition(&self) -> &[Marker] {
+        self.levels.last().map_or(&[], LeidenLevel::partition)
+    }
+
+    /// Returns the final modularity value.
+    #[must_use]
+    #[inline]
+    pub fn final_modularity(&self) -> f64 {
+        self.levels.last().map_or(0.0, |l| l.modularity)
+    }
+
+    /// Returns all hierarchy levels computed by Leiden.
+    #[must_use]
+    #[inline]
+    pub fn levels(&self) -> &[LeidenLevel<Marker>] {
+        &self.levels
+    }
+}
+
+/// Trait providing the Leiden community detection algorithm.
+///
+/// The graph is expected to be represented by a weighted, square matrix with
+/// symmetric entries (undirected weighted graph).
+pub trait Leiden<Marker: AsPrimitive<usize> + PositiveInteger = usize>:
+    SparseValuedMatrix2D + Sized
+where
+    Self::RowIndex: AsPrimitive<usize>,
+    Self::ColumnIndex: AsPrimitive<usize>,
+    Self::Value: Number + ToPrimitive + Finite,
+{
+    /// Executes the Leiden algorithm with the provided configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when:
+    /// - the configuration is invalid;
+    /// - the matrix is not square or not symmetric;
+    /// - at least one weight is non-finite or non-positive;
+    /// - the resulting number of communities cannot fit into `Marker`.
+    #[inline]
+    fn leiden(&self, config: &LeidenConfig) -> Result<LeidenResult<Marker>, ModularityError> {
+        self.leiden_with_progress(config, &mut |_| {})
+    }
+
+    /// Like [`leiden`](Self::leiden), but calls `on_progress(level)` after
+    /// each coarsening level, with `level` counting up from `1`. The loop runs
+    /// to convergence (`config.max_levels` is a rarely-reached ceiling), so
+    /// this is a heartbeat, not a fraction of a known total.
+    ///
+    /// # Errors
+    ///
+    /// As [`leiden`](Self::leiden).
+    #[inline]
+    fn leiden_with_progress(
+        &self,
+        config: &LeidenConfig,
+        on_progress: &mut dyn FnMut(usize),
+    ) -> Result<LeidenResult<Marker>, ModularityError> {
+        validate_common_config(
+            config.resolution,
+            config.modularity_threshold,
+            config.max_levels,
+            config.max_local_passes,
+        )?;
+        validate_leiden_config(config.max_refinement_passes, config.theta)?;
+
+        let graph = build_working_graph(self)?;
+        let original_number_of_nodes = self.number_of_rows().as_();
+        leiden_levels(graph, config, original_number_of_nodes, on_progress)
+    }
+}
+
+impl<G, Marker> Leiden<Marker> for G
+where
+    G: SparseValuedMatrix2D + Sized,
+    Marker: AsPrimitive<usize> + PositiveInteger,
+    G::RowIndex: AsPrimitive<usize>,
+    G::ColumnIndex: AsPrimitive<usize>,
+    G::Value: Number + ToPrimitive + Finite,
+{
+}
+
+/// The undirected working graph satisfies [`CoarsenableGraph`] through a
+/// transient [`UndirectedView`] (which caches the per-node degree), so the
+/// shared Leiden and Louvain drivers run over it unchanged.
+impl CoarsenableGraph for WorkingGraph {
+    #[inline]
+    fn number_of_nodes(&self) -> usize {
+        self.number_of_rows()
+    }
+
+    #[inline]
+    fn modularity(&self, partition: &[usize], resolution: f64) -> f64 {
+        UndirectedView::from_working_graph(self).modularity(partition, resolution)
+    }
+
+    #[inline]
+    fn local_moving(&self, config: LocalMovingConfig, level_index: usize) -> (Vec<usize>, usize) {
+        UndirectedView::from_working_graph(self).local_moving(config, level_index)
+    }
+
+    #[inline]
+    fn induce(
+        &self,
+        partition: &[usize],
+        number_of_communities: usize,
+    ) -> Result<Self, ModularityError> {
+        UndirectedView::from_working_graph(self).induce(partition, number_of_communities)
+    }
+
+    #[inline]
+    fn refine(
+        &self,
+        parent_partition: &[usize],
+        config: RefineConfig,
+        level_index: usize,
+    ) -> (Vec<usize>, usize) {
+        refine_partition(
+            &UndirectedView::from_working_graph(self),
+            parent_partition,
+            config,
+            level_index,
+        )
+    }
+
+    #[inline]
+    fn split_disconnected_communities(&self, partition: &mut [usize]) {
+        UndirectedView::from_working_graph(self).split_disconnected_communities(partition);
+    }
+}
+
+/// Shared multi-level driver for Leiden and directed Leiden: runs local moving,
+/// refinement, and well-connectedness splitting per level until the modularity
+/// gain falls below the threshold or every node sits in its own community.
+pub(crate) fn leiden_levels<G, Marker>(
+    mut graph: G,
+    config: &LeidenConfig,
+    original_number_of_nodes: usize,
+    on_progress: &mut dyn FnMut(usize),
+) -> Result<LeidenResult<Marker>, ModularityError>
+where
+    G: CoarsenableGraph,
+    Marker: PositiveInteger,
+{
+    let mut current_members: Vec<Vec<usize>> =
+        (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
+
+    let mut levels: Vec<LeidenLevel<Marker>> = Vec::new();
+    let mut previous_modularity: Option<f64> = None;
+
+    for level_index in 0..config.max_levels {
+        let (mut local_partition, moved_nodes) = graph.local_moving(
+            LocalMovingConfig {
+                resolution: config.resolution,
+                max_local_passes: config.max_local_passes,
+                seed: config.seed,
+            },
+            level_index,
+        );
+        renumber_partition(&mut local_partition);
+
+        let (mut refined_partition, refinement_moves) = graph.refine(
+            &local_partition,
+            RefineConfig {
+                resolution: config.resolution,
+                theta: config.theta,
+                max_refinement_passes: config.max_refinement_passes,
+                seed: config.seed,
+            },
+            level_index,
+        );
+        graph.split_disconnected_communities(&mut refined_partition);
+        let number_of_communities = renumber_partition(&mut refined_partition);
+
+        let level_modularity = graph.modularity(&refined_partition, config.resolution);
+        let original_partition =
+            project_partition(&current_members, &refined_partition, original_number_of_nodes);
+        let marker_level_partition = marker_partition::<Marker>(&original_partition)?;
+
+        levels.push(LeidenLevel {
+            partition: marker_level_partition,
+            modularity: level_modularity,
+            moved_nodes: moved_nodes + refinement_moves,
+            refinement_moves,
+        });
+
+        on_progress(level_index + 1);
+
+        if let Some(previous) = previous_modularity
+            && level_modularity - previous < config.modularity_threshold
+        {
+            break;
+        }
+        previous_modularity = Some(level_modularity);
+
+        if number_of_communities == graph.number_of_nodes() {
+            break;
+        }
+
+        graph = graph.induce(&refined_partition, number_of_communities)?;
+        current_members =
+            regroup_members(current_members, &refined_partition, number_of_communities);
+    }
+
+    Ok(LeidenResult { levels })
+}
+
+fn refine_partition(
+    view: &UndirectedView,
+    parent_partition: &[usize],
+    config: RefineConfig,
+    level_index: usize,
+) -> (Vec<usize>, usize) {
+    let number_of_nodes = view.number_of_nodes();
+    let mut refined_partition: Vec<usize> = (0..number_of_nodes).collect();
+
+    let total_weight = view.total_weight();
+    if number_of_nodes == 0 || total_weight <= 0.0 || !total_weight.is_normal() {
+        return (refined_partition, 0);
+    }
+
+    let number_of_parent_communities =
+        parent_partition.iter().copied().max().map_or(0usize, |max| max.saturating_add(1));
+    if number_of_parent_communities == 0 {
+        return (refined_partition, 0);
+    }
+
+    let mut nodes_per_parent: Vec<Vec<usize>> = vec![Vec::new(); number_of_parent_communities];
+    for (node, parent_community) in parent_partition.iter().copied().enumerate() {
+        nodes_per_parent[parent_community].push(node);
+    }
+
+    let degree = view.degree();
+    let mut community_totals = degree.to_vec();
+    let mut weights_to_communities = vec![0.0; number_of_nodes];
+    let mut touched_communities: Vec<usize> = Vec::new();
+    let mut candidate_moves: Vec<(usize, f64)> = Vec::new();
+    let mut moved_nodes = 0usize;
+
+    for pass_index in 0..config.max_refinement_passes {
+        let mut moved_in_pass = 0usize;
+
+        for (parent_community, nodes) in nodes_per_parent.iter().enumerate() {
+            if nodes.len() <= 1 {
+                continue;
+            }
+
+            let mut order = nodes.clone();
+            let mut rng = SmallRng::seed_from_u64(mix_seed(
+                config.seed,
+                level_index.wrapping_add(parent_community),
+                pass_index,
+            ));
+            order.shuffle(&mut rng);
+
+            for node in &order {
+                let node = *node;
+                let node_degree = degree[node];
+                if node_degree <= 0.0 {
+                    continue;
+                }
+
+                let source_community = refined_partition[node];
+                touched_communities.clear();
+
+                view.for_each_neighbor(node, |neighbor, weight| {
+                    if parent_partition[neighbor] != parent_community {
+                        return;
+                    }
+                    let neighbor_community = refined_partition[neighbor];
+                    if weights_to_communities[neighbor_community] == 0.0 {
+                        touched_communities.push(neighbor_community);
+                    }
+                    weights_to_communities[neighbor_community] += weight;
+                });
+
+                community_totals[source_community] -= node_degree;
+
+                let current_gain = weights_to_communities[source_community]
+                    - config.resolution * node_degree * community_totals[source_community]
+                        / total_weight;
+
+                candidate_moves.clear();
+                for community in &touched_communities {
+                    let community = *community;
+                    if community == source_community {
+                        continue;
+                    }
+                    let gain = weights_to_communities[community]
+                        - config.resolution * node_degree * community_totals[community]
+                            / total_weight;
+                    let delta = gain - current_gain;
+                    if delta > f64::EPSILON {
+                        candidate_moves.push((community, delta));
+                    }
+                }
+
+                candidate_moves.sort_unstable_by_key(|(community, _)| *community);
+
+                let destination = if candidate_moves.is_empty() {
+                    source_community
+                } else {
+                    sample_softmax_destination(&candidate_moves, config.theta, &mut rng)
+                };
+
+                refined_partition[node] = destination;
+                community_totals[destination] += node_degree;
+
+                if destination != source_community {
+                    moved_in_pass += 1;
+                    moved_nodes += 1;
+                }
+
+                for community in &touched_communities {
+                    weights_to_communities[*community] = 0.0;
+                }
+                weights_to_communities[source_community] = 0.0;
+            }
+        }
+
+        if moved_in_pass == 0 {
+            break;
+        }
+    }
+
+    (refined_partition, moved_nodes)
+}
+
+pub(super) fn sample_softmax_destination(
+    candidate_moves: &[(usize, f64)],
+    theta: f64,
+    rng: &mut SmallRng,
+) -> usize {
+    let max_score =
+        candidate_moves.iter().map(|(_, score)| *score).fold(f64::NEG_INFINITY, f64::max);
+
+    let mut cumulative_weights: Vec<f64> = Vec::with_capacity(candidate_moves.len());
+    let mut total_weight = 0.0;
+    for (_, score) in candidate_moves {
+        let scaled = ((*score - max_score) / theta).exp();
+        if !scaled.is_finite() || scaled <= 0.0 {
+            cumulative_weights.push(total_weight);
+            continue;
+        }
+        total_weight += scaled;
+        cumulative_weights.push(total_weight);
+    }
+
+    if !total_weight.is_finite() || total_weight <= 0.0 {
+        return best_candidate(candidate_moves);
+    }
+
+    let draw = rng.random_range(0.0..total_weight);
+    for idx in 0..candidate_moves.len().saturating_sub(1) {
+        if draw <= cumulative_weights[idx] {
+            return candidate_moves[idx].0;
+        }
+    }
+
+    candidate_moves.last().map_or(0, |(community, _)| *community)
+}
+
+fn best_candidate(candidate_moves: &[(usize, f64)]) -> usize {
+    let mut best = candidate_moves[0];
+    for candidate in candidate_moves.iter().copied().skip(1) {
+        if candidate.1 > best.1 + f64::EPSILON
+            || (approx_eq(candidate.1, best.1) && candidate.0 < best.0)
+        {
+            best = candidate;
+        }
+    }
+    best.0
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec::Vec;
+
+    use rand::{SeedableRng, rngs::SmallRng};
+
+    use super::{
+        LeidenLevel, RefineConfig, UndirectedView, best_candidate, refine_partition,
+        sample_softmax_destination,
+    };
+    use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
+
+    type WorkingGraph = ValuedCSR2D<usize, usize, usize, f64>;
+
+    fn working(node_count: usize, edges: Vec<(usize, usize, f64)>) -> WorkingGraph {
+        let mut edges = edges;
+        edges.sort_unstable_by(|(ls, ld, _), (rs, rd, _)| (ls, ld).cmp(&(rs, rd)));
+        GenericEdgesBuilder::<_, WorkingGraph>::default()
+            .expected_number_of_edges(edges.len())
+            .expected_shape((node_count, node_count))
+            .edges(edges.into_iter())
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn test_leiden_level_move_getters() {
+        let level = LeidenLevel {
+            partition: vec![0usize, 1usize],
+            modularity: 0.25,
+            moved_nodes: 11,
+            refinement_moves: 3,
+        };
+        assert_eq!(level.moved_nodes(), 11);
+        assert_eq!(level.refinement_moves(), 3);
+    }
+
+    #[test]
+    fn test_refine_partition_returns_when_parent_partition_is_empty() {
+        let graph = working(1, vec![(0, 0, 1.0)]);
+        let view = UndirectedView::from_working_graph(&graph);
+        let config =
+            RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 100, seed: 42 };
+
+        let (partition, moved_nodes) = refine_partition(&view, &[], config, 0);
+
+        assert_eq!(partition, vec![0]);
+        assert_eq!(moved_nodes, 0);
+    }
+
+    #[test]
+    fn test_refine_partition_skips_zero_degree_nodes() {
+        let graph = working(2, vec![(1, 1, 1.0)]);
+        let view = UndirectedView::from_working_graph(&graph);
+        let config =
+            RefineConfig { resolution: 1.0, theta: 0.5, max_refinement_passes: 1, seed: 42 };
+
+        let (partition, moved_nodes) = refine_partition(&view, &[0, 0], config, 0);
+
+        assert_eq!(partition.len(), 2);
+        assert_eq!(moved_nodes, 0);
+    }
+
+    #[test]
+    fn test_sample_softmax_destination_falls_back_to_best_candidate_on_non_finite_scores() {
+        let candidates = vec![(5usize, f64::NAN), (3usize, f64::NAN)];
+        let mut rng = SmallRng::seed_from_u64(42);
+
+        let chosen = sample_softmax_destination(&candidates, 0.1, &mut rng);
+
+        assert_eq!(chosen, 5);
+    }
+
+    #[test]
+    fn test_best_candidate_prefers_larger_gain_and_smaller_id_on_tie() {
+        let candidates = vec![(5usize, 1.0), (4usize, 2.0), (3usize, 2.0)];
+        assert_eq!(best_candidate(&candidates), 3);
+    }
+}

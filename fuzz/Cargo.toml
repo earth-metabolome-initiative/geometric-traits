@@ -1,0 +1,281 @@
+[package]
+name = "graph-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+geometric-traits = { path = "../", features = ["arbitrary"] }
+arbitrary = { version = "1", features = ["derive"] }
+bitvec = { version = "1", default-features = false, features = ["alloc"] }
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "root_nodes"
+path = "fuzz_targets/root_nodes.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "sink_nodes"
+path = "fuzz_targets/sink_nodes.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "simple_path"
+path = "fuzz_targets/simple_path.rs"
+test = false
+doc = false
+
+
+[[bin]]
+name = "lin"
+path = "fuzz_targets/lin.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "wu_palmer"
+path = "fuzz_targets/wu_palmer.rs"
+test = false
+doc = false
+
+
+[[bin]]
+name = "csr2d"
+path = "fuzz_targets/csr2d.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "valued_csr2d"
+path = "fuzz_targets/valued_csr2d.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "padded_matrix2d"
+path = "fuzz_targets/padded_matrix2d.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "hopcroft_karp"
+path = "fuzz_targets/hopcroft_karp.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "kahn"
+path = "fuzz_targets/kahn.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "tarjan"
+path = "fuzz_targets/tarjan.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "biconnected_components"
+path = "fuzz_targets/biconnected_components.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "johnson_cycle"
+path = "fuzz_targets/johnson_cycle.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "floyd_warshall"
+path = "fuzz_targets/floyd_warshall.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pairwise_bfs"
+path = "fuzz_targets/pairwise_bfs.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "diameter"
+path = "fuzz_targets/diameter.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pairwise_dijkstra"
+path = "fuzz_targets/pairwise_dijkstra.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "generic_matrix2d_with_padded_diagonal"
+path = "fuzz_targets/generic_matrix2d_with_padded_diagonal.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "lap"
+path = "fuzz_targets/lap.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "louvain"
+path = "fuzz_targets/louvain.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "leiden"
+path = "fuzz_targets/leiden.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "leicht_newman"
+path = "fuzz_targets/leicht_newman.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "jacobi"
+path = "fuzz_targets/jacobi.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "mds"
+path = "fuzz_targets/mds.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "gth"
+path = "fuzz_targets/gth.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "blossom"
+path = "fuzz_targets/blossom.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "blossom_v"
+path = "fuzz_targets/blossom_v.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "blossom_v_structured"
+path = "fuzz_targets/blossom_v_structured.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "micali_vazirani"
+path = "fuzz_targets/micali_vazirani.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "gabow_1976"
+path = "fuzz_targets/gabow_1976.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "kocay"
+path = "fuzz_targets/kocay.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "line_graph"
+path = "fuzz_targets/line_graph.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "bit_square_matrix"
+path = "fuzz_targets/bit_square_matrix.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "modular_product"
+path = "fuzz_targets/modular_product.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "maximum_clique"
+path = "fuzz_targets/maximum_clique.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "delta_y_exchange"
+path = "fuzz_targets/delta_y_exchange.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "labeled_modular_product"
+path = "fuzz_targets/labeled_modular_product.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "vf2"
+path = "fuzz_targets/vf2.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "node_ordering_application"
+path = "fuzz_targets/node_ordering_application.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "forceatlas2"
+path = "fuzz_targets/forceatlas2.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "eades_lin_smyth"
+path = "fuzz_targets/eades_lin_smyth.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "max_flow"
+path = "fuzz_targets/max_flow.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "minimum_spanning_tree"
+path = "fuzz_targets/minimum_spanning_tree.rs"
+test = false
+doc = false

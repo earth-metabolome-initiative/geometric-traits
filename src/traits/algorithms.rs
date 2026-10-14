@@ -1,0 +1,325 @@
+//! Submodule providing crates that define algorithms for graphs.
+
+#[cfg(feature = "alloc")]
+pub mod connected_components;
+#[cfg(feature = "alloc")]
+pub mod fmme;
+#[cfg(feature = "alloc")]
+pub use fmme::{Fmme, FmmeResult, MixerConfig};
+#[cfg(feature = "alloc")]
+pub(crate) mod union_find;
+#[cfg(feature = "alloc")]
+pub use connected_components::ConnectedComponents;
+#[cfg(feature = "alloc")]
+pub mod diameter;
+#[cfg(feature = "alloc")]
+pub use diameter::{Diameter, DiameterError};
+#[cfg(feature = "alloc")]
+pub mod biconnected_components;
+#[cfg(feature = "alloc")]
+pub use biconnected_components::{
+    BiconnectedComponents, BiconnectedComponentsError, BiconnectedComponentsResult, BiconnectedEdge,
+};
+#[cfg(feature = "alloc")]
+pub mod minimum_cycle_basis;
+#[cfg(feature = "alloc")]
+pub use minimum_cycle_basis::{MinimumCycleBasis, MinimumCycleBasisError, MinimumCycleBasisResult};
+#[cfg(feature = "alloc")]
+mod initial_cycle_families;
+#[cfg(feature = "alloc")]
+pub mod relevant_cycles;
+#[cfg(feature = "alloc")]
+pub use relevant_cycles::{RelevantCycles, RelevantCyclesError, RelevantCyclesResult};
+#[cfg(feature = "alloc")]
+pub mod essential_cycles;
+#[cfg(feature = "alloc")]
+pub use essential_cycles::{EssentialCycles, EssentialCyclesError, EssentialCyclesResult};
+#[cfg(feature = "alloc")]
+pub mod cactus_detection;
+#[cfg(feature = "alloc")]
+pub use cactus_detection::CactusDetection;
+#[cfg(feature = "alloc")]
+pub mod cycle_detection;
+#[cfg(feature = "alloc")]
+pub use cycle_detection::CycleDetection;
+#[cfg(feature = "alloc")]
+pub mod chordal_detection;
+#[cfg(feature = "alloc")]
+pub use chordal_detection::ChordalDetection;
+#[cfg(feature = "alloc")]
+pub mod bipartite_detection;
+#[cfg(feature = "alloc")]
+pub use bipartite_detection::BipartiteDetection;
+#[cfg(feature = "alloc")]
+pub mod tree_detection;
+#[cfg(feature = "alloc")]
+pub use tree_detection::TreeDetection;
+#[cfg(feature = "alloc")]
+pub mod planarity_detection;
+#[cfg(feature = "alloc")]
+pub use planarity_detection::{PlanarityDetection, PlanarityError};
+#[cfg(feature = "alloc")]
+pub mod outerplanarity_detection;
+#[cfg(feature = "alloc")]
+mod topology_wrapper_macros;
+#[cfg(feature = "alloc")]
+pub use outerplanarity_detection::{OuterplanarityDetection, OuterplanarityError};
+#[cfg(feature = "alloc")]
+pub mod k23_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k23_homeomorph_detection::{K23HomeomorphDetection, K23HomeomorphError};
+#[cfg(feature = "alloc")]
+pub mod k33_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k33_homeomorph_detection::{K33HomeomorphDetection, K33HomeomorphError};
+#[cfg(feature = "alloc")]
+pub mod k4_homeomorph_detection;
+#[cfg(feature = "alloc")]
+pub use k4_homeomorph_detection::{K4HomeomorphDetection, K4HomeomorphError};
+#[cfg(feature = "alloc")]
+pub mod canon;
+#[cfg(feature = "alloc")]
+mod node_classification;
+#[cfg(feature = "alloc")]
+pub mod root_nodes;
+#[cfg(feature = "alloc")]
+mod weisfeiler_lehman;
+#[cfg(feature = "alloc")]
+pub use root_nodes::RootNodes;
+#[cfg(feature = "alloc")]
+pub mod sink_nodes;
+#[cfg(feature = "alloc")]
+pub use sink_nodes::SinkNodes;
+#[cfg(feature = "alloc")]
+pub mod simple_path;
+#[cfg(feature = "alloc")]
+pub use simple_path::SimplePath;
+#[cfg(feature = "alloc")]
+pub mod resnik;
+#[cfg(feature = "alloc")]
+pub use resnik::{Resnik, ResnikResult};
+#[cfg(feature = "alloc")]
+pub mod information_content;
+#[cfg(feature = "alloc")]
+pub use information_content::{
+    InformationContent, InformationContentError, InformationContentResult,
+};
+#[cfg(feature = "alloc")]
+pub mod lin;
+#[cfg(feature = "alloc")]
+pub use lin::{Lin, LinResult};
+#[cfg(feature = "alloc")]
+pub mod singleton_nodes;
+#[cfg(feature = "alloc")]
+pub use singleton_nodes::SingletonNodes;
+#[cfg(feature = "alloc")]
+pub mod wu_palmer;
+#[cfg(feature = "alloc")]
+pub use wu_palmer::{WuPalmer, WuPalmerResult};
+pub mod randomized_graphs;
+#[cfg(all(feature = "alloc", any(feature = "std", feature = "hashbrown")))]
+pub use randomized_graphs::RandomizedDAG;
+mod assignment;
+pub use assignment::*;
+#[cfg(feature = "alloc")]
+mod weighted_assignment;
+#[cfg(feature = "alloc")]
+pub use weighted_assignment::*;
+#[cfg(feature = "alloc")]
+mod kahn;
+#[cfg(feature = "alloc")]
+pub use kahn::*;
+#[cfg(feature = "alloc")]
+mod johnson;
+#[cfg(feature = "alloc")]
+pub use johnson::*;
+#[cfg(feature = "alloc")]
+mod floyd_warshall;
+#[cfg(feature = "alloc")]
+pub use floyd_warshall::*;
+#[cfg(feature = "alloc")]
+pub mod minimum_spanning_tree;
+#[cfg(feature = "alloc")]
+pub use minimum_spanning_tree::{Boruvka, Kruskal, MinimumSpanningTreeError, Prim};
+#[cfg(feature = "alloc")]
+mod pairwise_bfs;
+#[cfg(feature = "alloc")]
+pub use pairwise_bfs::*;
+#[cfg(feature = "alloc")]
+mod pairwise_dijkstra;
+#[cfg(feature = "alloc")]
+pub use pairwise_dijkstra::*;
+#[cfg(feature = "alloc")]
+mod tarjan;
+#[cfg(feature = "alloc")]
+pub use tarjan::*;
+#[cfg(feature = "alloc")]
+pub mod eades_lin_smyth;
+#[cfg(feature = "alloc")]
+pub use eades_lin_smyth::{EadesLinSmyth, EadesLinSmythError, EadesLinSmythResult};
+#[cfg(feature = "alloc")]
+mod modularity;
+#[cfg(feature = "alloc")]
+pub use modularity::ModularityError;
+#[cfg(feature = "alloc")]
+mod directed_modularity;
+#[cfg(feature = "alloc")]
+pub use directed_modularity::*;
+#[cfg(feature = "alloc")]
+mod undirected_modularity;
+#[cfg(feature = "alloc")]
+pub use undirected_modularity::*;
+#[cfg(feature = "alloc")]
+mod louvain;
+#[cfg(feature = "alloc")]
+pub use louvain::*;
+#[cfg(feature = "alloc")]
+mod leiden;
+#[cfg(feature = "alloc")]
+pub use leiden::*;
+#[cfg(feature = "alloc")]
+mod directed_community;
+#[cfg(feature = "alloc")]
+mod directed_louvain;
+#[cfg(feature = "alloc")]
+pub use directed_louvain::*;
+#[cfg(feature = "alloc")]
+mod directed_leiden;
+#[cfg(feature = "alloc")]
+pub use directed_leiden::*;
+#[cfg(feature = "alloc")]
+mod leicht_newman;
+#[cfg(feature = "alloc")]
+pub use leicht_newman::*;
+#[cfg(feature = "alloc")]
+mod jacobi;
+#[cfg(feature = "alloc")]
+pub use jacobi::*;
+#[cfg(feature = "alloc")]
+mod gth;
+#[cfg(feature = "alloc")]
+pub use gth::*;
+#[cfg(feature = "alloc")]
+mod mds;
+#[cfg(feature = "alloc")]
+pub use mds::*;
+#[cfg(feature = "alloc")]
+mod forceatlas2;
+#[cfg(feature = "alloc")]
+pub use forceatlas2::*;
+#[cfg(feature = "alloc")]
+mod blossom;
+#[cfg(feature = "alloc")]
+mod matching_utils;
+#[cfg(feature = "alloc")]
+pub use blossom::*;
+#[cfg(feature = "alloc")]
+mod gabow_1976;
+#[cfg(feature = "alloc")]
+pub use gabow_1976::*;
+#[cfg(feature = "alloc")]
+mod micali_vazirani;
+#[cfg(feature = "alloc")]
+pub use micali_vazirani::*;
+#[cfg(feature = "alloc")]
+mod kocay;
+#[cfg(feature = "alloc")]
+pub use kocay::*;
+#[cfg(feature = "alloc")]
+mod max_flow;
+#[cfg(feature = "alloc")]
+pub use max_flow::{MaxFlowError, MaxFlowResult};
+#[cfg(feature = "alloc")]
+pub mod dinic;
+#[cfg(feature = "alloc")]
+pub use dinic::Dinic;
+#[cfg(feature = "alloc")]
+pub mod edmonds_karp;
+#[cfg(feature = "alloc")]
+pub use edmonds_karp::EdmondsKarp;
+#[cfg(feature = "alloc")]
+mod minimum_cost_balanced_flow;
+#[cfg(feature = "alloc")]
+pub use minimum_cost_balanced_flow::*;
+#[cfg(feature = "alloc")]
+mod blossom_v;
+#[cfg(feature = "alloc")]
+pub use blossom_v::*;
+#[cfg(feature = "alloc")]
+pub mod line_graph;
+#[cfg(feature = "alloc")]
+pub use line_graph::{LineGraph, LineGraphResult};
+#[cfg(feature = "alloc")]
+pub mod modular_product;
+#[cfg(feature = "alloc")]
+pub use modular_product::{
+    ModularProduct, ModularProductGraph, ModularProductGraphEdges, ModularProductResult,
+};
+#[cfg(feature = "alloc")]
+pub mod maximum_clique;
+#[cfg(feature = "alloc")]
+pub use maximum_clique::{
+    MaximumClique, OwnedPartitionLabels, PartitionInfo, PartitionedMaximumClique,
+};
+#[cfg(feature = "alloc")]
+pub mod delta_y_exchange;
+#[cfg(feature = "alloc")]
+pub use delta_y_exchange::DeltaYExchange;
+#[cfg(feature = "alloc")]
+mod labeled_line_graph;
+#[cfg(feature = "alloc")]
+pub use labeled_line_graph::LabeledLineGraph;
+#[cfg(feature = "alloc")]
+mod vertex_match_inference;
+#[cfg(feature = "alloc")]
+pub use vertex_match_inference::{infer_vertex_matches, shared_endpoint};
+pub mod graph_similarities;
+#[cfg(feature = "alloc")]
+pub mod vf2;
+pub use graph_similarities::{
+    GraphSimilarities, braun_blanquet_similarity, cosine_similarity, dice_similarity,
+    johnson_similarity, kulczynski_similarity, mcconnaughey_similarity, overlap_similarity,
+    sokal_sneath_similarity, tanimoto_similarity, tversky_similarity,
+};
+#[cfg(feature = "alloc")]
+pub use vf2::{
+    AcceptAllEdgeMatcher, AcceptAllFinalMatcher, AcceptAllNodeMatcher, PrepareVf2,
+    PreparedVf2Builder, PreparedVf2Graph, Vf2, Vf2Builder, Vf2Match, Vf2Mode,
+};
+#[cfg(feature = "alloc")]
+pub mod clique_ranking;
+#[cfg(feature = "alloc")]
+pub mod mces;
+#[cfg(feature = "alloc")]
+pub mod node_ordering;
+#[cfg(feature = "alloc")]
+pub use canon::{
+    BacktrackableOrderedPartition, CanonSplittingHeuristic, CanonicalLabeling,
+    CanonicalLabelingOptions, CanonicalLabelingResult, CanonicalSearchStats,
+    LabeledSimpleGraphCertificate, OrderedPartitionCells, PartitionBacktrackPoint, PartitionCellId,
+    PartitionCellView, refine_partition_to_labeled_equitable,
+};
+#[cfg(feature = "alloc")]
+pub use clique_ranking::{
+    ChainedRanker, CliqueInfo, CliqueRanker, CliqueRankerExt, EagerCliqueInfo, FnRanker,
+    FragmentCountRanker, LargestFragmentMetric, LargestFragmentMetricRanker, LargestFragmentRanker,
+    MatchedEdgePair,
+};
+#[cfg(feature = "alloc")]
+pub use mces::{InitialProductVertexOrdering, McesBuilder, McesResult, McesSearchMode};
+#[cfg(feature = "alloc")]
+pub use node_ordering::{
+    AscendingScoreSorter, BetweennessCentralityScorer, BetweennessCentralityScorerBuilder,
+    BfsTraversalSorter, ClosenessCentralityScorer, ClosenessCentralityScorerBuilder,
+    CoreNumberScorer, DegeneracySorter, DegreeScorer, DescendingLexicographicScoreSorter,
+    DescendingScoreSorter, DfsTraversalSorter, DsaturSorter, KatzCentralityScorer,
+    KatzCentralityScorerBuilder, LAYERED_LABEL_PROPAGATION_DEFAULT_GAMMAS,
+    LayeredLabelPropagationError, LayeredLabelPropagationSorter, LocalClusteringCoefficientScorer,
+    MotifCountOrdering, NodeOrderApplicableGraph, NodeScorer, NodeSorter, PageRankScorer,
+    PageRankScorerBuilder, PermutableVocabulary, PowerIterationEigenvectorCentralityScorer,
+    PowerIterationEigenvectorCentralityScorerBuilder, SecondOrderDegreeScorer,
+    SquareClusteringCoefficientScorer, SquareCountScorer, TraversalNeighborOrder,
+    TraversalSeedStrategy, TriangleCountScorer, apply_node_order_to_graph,
+};
+#[cfg(feature = "alloc")]
+pub use weisfeiler_lehman::WeisfeilerLehmanColoring;

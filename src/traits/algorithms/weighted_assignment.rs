@@ -1,0 +1,26 @@
+//! Submodule providing algorithms for solving the Weighted Assignment Problem.
+
+#[cfg(feature = "alloc")]
+mod lapjv;
+#[cfg(feature = "alloc")]
+pub use lapjv::{LAPJV, SparseLAPJV};
+
+#[cfg(feature = "alloc")]
+mod lapmod;
+#[cfg(feature = "alloc")]
+pub use lapmod::{Jaqaman, LAPMOD};
+
+#[cfg(feature = "alloc")]
+pub mod crouse;
+#[cfg(feature = "alloc")]
+pub use crouse::{Crouse, CrouseError};
+
+#[cfg(feature = "alloc")]
+mod hungarian;
+#[cfg(feature = "alloc")]
+pub use hungarian::{Hungarian, SparseHungarian};
+
+#[cfg(feature = "alloc")]
+mod lap_error;
+#[cfg(feature = "alloc")]
+pub use lap_error::LAPError;

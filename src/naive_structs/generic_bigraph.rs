@@ -1,0 +1,129 @@
+//! Submodule providing a naively implemented `GenericBiGraph`.
+
+#[cfg(feature = "mem_dbg")]
+use alloc::{string::String, vec::Vec};
+
+use num_traits::AsPrimitive;
+
+use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;
+use crate::traits::{
+    BidirectionalVocabulary, BipartiteGraph, Edges, Graph, MonoplexGraph, PositiveInteger,
+    TryFromUsize, Vocabulary,
+};
+
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
+#[derive(Clone, PartialEq, Eq, Hash)]
+/// Struct representing a generic bigraph.
+pub struct GenericBiGraph<LeftNodes, RightNodes, Edges> {
+    /// The left nodes of the graph.
+    left_nodes: LeftNodes,
+    /// The right nodes of the graph.
+    right_nodes: RightNodes,
+    /// The edges of the graph.
+    edges: Edges,
+}
+
+impl<LeftNodes, RightNodes, Edges> core::fmt::Debug for GenericBiGraph<LeftNodes, RightNodes, Edges>
+where
+    LeftNodes: core::fmt::Debug,
+    RightNodes: core::fmt::Debug,
+    Edges: core::fmt::Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("GenericBiGraph")
+            .field("left_nodes", &self.left_nodes)
+            .field("right_nodes", &self.right_nodes)
+            .field("edges", &self.edges)
+            .finish()
+    }
+}
+
+impl<LeftNodes, RightNodes, Edges> TryFrom<(LeftNodes, RightNodes, Edges)>
+    for GenericBiGraph<LeftNodes, RightNodes, Edges>
+{
+    type Error = MonoplexBipartiteGraphBuilderError;
+
+    #[inline]
+    fn try_from(
+        (left_nodes, right_nodes, edges): (LeftNodes, RightNodes, Edges),
+    ) -> Result<Self, Self::Error> {
+        Ok(Self { left_nodes, right_nodes, edges })
+    }
+}
+
+impl<LeftNodes, RightNodes, Edges> Default for GenericBiGraph<LeftNodes, RightNodes, Edges>
+where
+    LeftNodes: Default,
+    RightNodes: Default,
+    Edges: Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self {
+            left_nodes: LeftNodes::default(),
+            right_nodes: RightNodes::default(),
+            edges: Edges::default(),
+        }
+    }
+}
+
+impl<LeftNodes, RightNodes, E> Graph for GenericBiGraph<LeftNodes, RightNodes, E>
+where
+    LeftNodes: Vocabulary,
+    RightNodes: Vocabulary,
+    E: Edges<SourceNodeId = LeftNodes::SourceSymbol, DestinationNodeId = RightNodes::SourceSymbol>,
+{
+    #[inline]
+    fn has_edges(&self) -> bool {
+        self.edges.has_edges()
+    }
+
+    #[inline]
+    fn has_nodes(&self) -> bool {
+        !self.left_nodes.is_empty() && !self.right_nodes.is_empty()
+    }
+}
+
+impl<LeftNodes, RightNodes, E> BipartiteGraph for GenericBiGraph<LeftNodes, RightNodes, E>
+where
+    LeftNodes: Vocabulary + BidirectionalVocabulary,
+    RightNodes: Vocabulary + BidirectionalVocabulary,
+    LeftNodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    RightNodes::SourceSymbol: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    E: Edges<SourceNodeId = LeftNodes::SourceSymbol, DestinationNodeId = RightNodes::SourceSymbol>,
+{
+    type LeftNodeId = LeftNodes::SourceSymbol;
+    type RightNodeId = RightNodes::SourceSymbol;
+    type LeftNodeSymbol = LeftNodes::DestinationSymbol;
+    type RightNodeSymbol = RightNodes::DestinationSymbol;
+    type LeftNodes = LeftNodes;
+    type RightNodes = RightNodes;
+
+    #[inline]
+    fn left_nodes_vocabulary(&self) -> &Self::LeftNodes {
+        &self.left_nodes
+    }
+
+    #[inline]
+    fn right_nodes_vocabulary(&self) -> &Self::RightNodes {
+        &self.right_nodes
+    }
+}
+
+impl<LeftNodes, RightNodes, E> MonoplexGraph for GenericBiGraph<LeftNodes, RightNodes, E>
+where
+    E: Edges<SourceNodeId = LeftNodes::SourceSymbol, DestinationNodeId = RightNodes::SourceSymbol>,
+    LeftNodes: Vocabulary,
+    RightNodes: Vocabulary,
+{
+    type Edge = E::Edge;
+    type Edges = E;
+
+    #[inline]
+    fn edges(&self) -> &Self::Edges {
+        &self.edges
+    }
+}

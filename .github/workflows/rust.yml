@@ -1,0 +1,191 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # Allow the release workflow to reuse these checks as a publish gate.
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta, nightly]
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.rust }}
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  features:
+    name: Feature Combinations
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Check with no default features
+      run: cargo check --no-default-features
+    - name: Test with no default features
+      run: cargo test --no-default-features
+    - name: Test no_std + alloc
+      run: cargo test --no-default-features --features alloc
+    - name: Test no_std + alloc + hashbrown
+      run: cargo test --no-default-features --features "alloc hashbrown"
+    - name: Test all features
+      run: cargo test --all-features
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rustfmt
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+    - name: Run clippy
+      run: cargo clippy --all-targets -- -D warnings
+
+  doc:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Check documentation
+      run: cargo doc --no-deps --document-private-items
+      env:
+        RUSTDOCFLAGS: -D warnings
+
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3
+      with:
+        toolchain: nightly
+        components: llvm-tools-preview
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+      with:
+        tool: cargo-llvm-cov
+    - name: Collect test coverage
+      run: cargo llvm-cov --workspace --all-features --all-targets --no-report
+    - name: Generate coverage with doctests
+      run: cargo llvm-cov --workspace --all-features --doc --no-clean --lcov --output-path target/coverage.lcov
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+      with:
+        files: target/coverage.lcov
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false
+
+  no-python:
+    name: No Python
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Reject committed Python files
+      run: |
+        set -euo pipefail
+        matches="$(git ls-files '*.py' '*.pyw' '*.pyi' '*.ipynb')"
+        if [ -n "$matches" ]; then
+          echo "::error::Python files are not allowed in this repository:"
+          echo "$matches"
+          exit 1
+        fi
+        echo "No Python files found."
+
+  msrv:
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust 1.88
+      uses: dtolnay/rust-toolchain@1.88
+    - name: Check (all features)
+      run: cargo check --all-features
+    - name: Check (no_std + alloc)
+      run: cargo check --no-default-features --features alloc
+
+  miri:
+    name: Miri (unsafe)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install nightly with Miri
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: miri
+    # Scoped to the modules that contain `unsafe`, where Miri adds value over
+    # the rest of the suite. Strict provenance is not enabled because a
+    # dependency performs integer-to-pointer casts; default Miri still detects
+    # genuine undefined behavior.
+    - name: Run Miri on the unsafe-bearing modules
+      run: cargo miri test --lib -- transmute_from sorted_array sorted_vec partitioned johnson
+
+  no-std:
+    name: no_std target build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - name: Install Rust with a bare-metal target
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: thumbv7em-none-eabi
+    - name: Check core-only on a bare-metal target
+      run: cargo check --no-default-features --target thumbv7em-none-eabi
+    - name: Check alloc on a bare-metal target
+      run: cargo check --no-default-features --features alloc --target thumbv7em-none-eabi
+
+  semver:
+    name: SemVer (API compatibility)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    # Advisory while the crate is pre-1.0 and unpublished: reports API breaks
+    # against the base branch without blocking. Promote to a required check
+    # against the crates.io baseline once the crate is published.
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Check semver
+      uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
+      with:
+        baseline-rev: ${{ github.event.pull_request.base.sha }}

@@ -1,0 +1,110 @@
+//! Submodule implementing Edges for `GenericBiMatrix2D`.
+
+use num_traits::Zero;
+
+use crate::{
+    impls::GenericBiMatrix2D,
+    traits::{
+        Edges, Graph, Matrix, Matrix2D, MonoplexGraph, SizedRowsSparseMatrix2D, SizedSparseMatrix,
+        SparseMatrix, TransposableMatrix2D, TryFromUsize,
+    },
+};
+
+impl<M, T> Edges for GenericBiMatrix2D<M, T>
+where
+    M: Matrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>
+        + Edges<
+            Edge = <M as Matrix>::Coordinates,
+            SourceNodeId = <M as Matrix2D>::RowIndex,
+            DestinationNodeId = <M as Matrix2D>::RowIndex,
+            EdgeId = <M as SparseMatrix>::SparseIndex,
+            Matrix = M,
+        > + SizedRowsSparseMatrix2D,
+    T: Matrix2D<RowIndex = <M as Matrix2D>::RowIndex, ColumnIndex = <M as Matrix2D>::ColumnIndex>
+        + Edges<
+            Edge = <M as Edges>::Edge,
+            SourceNodeId = <M as Edges>::SourceNodeId,
+            DestinationNodeId = <M as Edges>::DestinationNodeId,
+            EdgeId = <M as Edges>::EdgeId,
+            Matrix = T,
+        > + SizedRowsSparseMatrix2D,
+    M: TransposableMatrix2D<T>,
+    <M as Matrix2D>::RowIndex: TryFromUsize,
+    <M as SparseMatrix>::SparseIndex: TryFromUsize,
+{
+    type Edge = <M as Edges>::Edge;
+    type SourceNodeId = <M as Edges>::SourceNodeId;
+    type DestinationNodeId = <M as Edges>::DestinationNodeId;
+    type EdgeId = <M as Edges>::EdgeId;
+    type Matrix = Self;
+
+    #[inline]
+    fn matrix(&self) -> &Self::Matrix {
+        self
+    }
+}
+
+impl<M, T> Graph for GenericBiMatrix2D<M, T>
+where
+    M: Matrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>
+        + Edges<
+            Edge = <M as Matrix>::Coordinates,
+            SourceNodeId = <M as Matrix2D>::RowIndex,
+            DestinationNodeId = <M as Matrix2D>::RowIndex,
+            EdgeId = <M as SparseMatrix>::SparseIndex,
+            Matrix = M,
+        > + SizedRowsSparseMatrix2D,
+    T: Matrix2D<RowIndex = <M as Matrix2D>::RowIndex, ColumnIndex = <M as Matrix2D>::ColumnIndex>
+        + Edges<
+            Edge = <M as Edges>::Edge,
+            SourceNodeId = <M as Edges>::SourceNodeId,
+            DestinationNodeId = <M as Edges>::DestinationNodeId,
+            EdgeId = <M as Edges>::EdgeId,
+            Matrix = T,
+        > + SizedRowsSparseMatrix2D,
+    M: TransposableMatrix2D<T>,
+    <M as Matrix2D>::RowIndex: TryFromUsize,
+    <M as SparseMatrix>::SparseIndex: TryFromUsize,
+{
+    #[inline]
+    fn has_nodes(&self) -> bool {
+        self.number_of_rows() > <M as Matrix2D>::RowIndex::zero()
+            && self.number_of_columns() > <M as Matrix2D>::RowIndex::zero()
+    }
+
+    #[inline]
+    fn has_edges(&self) -> bool {
+        self.number_of_defined_values() > <M as SparseMatrix>::SparseIndex::zero()
+    }
+}
+
+impl<M, T> MonoplexGraph for GenericBiMatrix2D<M, T>
+where
+    M: Matrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>
+        + Edges<
+            Edge = <M as Matrix>::Coordinates,
+            SourceNodeId = <M as Matrix2D>::RowIndex,
+            DestinationNodeId = <M as Matrix2D>::RowIndex,
+            EdgeId = <M as SparseMatrix>::SparseIndex,
+            Matrix = M,
+        > + SizedRowsSparseMatrix2D,
+    T: Matrix2D<RowIndex = <M as Matrix2D>::RowIndex, ColumnIndex = <M as Matrix2D>::ColumnIndex>
+        + Edges<
+            Edge = <M as Edges>::Edge,
+            SourceNodeId = <M as Edges>::SourceNodeId,
+            DestinationNodeId = <M as Edges>::DestinationNodeId,
+            EdgeId = <M as Edges>::EdgeId,
+            Matrix = T,
+        > + SizedRowsSparseMatrix2D,
+    M: TransposableMatrix2D<T>,
+    <M as Matrix2D>::RowIndex: TryFromUsize,
+    <M as SparseMatrix>::SparseIndex: TryFromUsize,
+{
+    type Edge = <Self as Matrix>::Coordinates;
+    type Edges = Self;
+
+    #[inline]
+    fn edges(&self) -> &Self::Edges {
+        self
+    }
+}

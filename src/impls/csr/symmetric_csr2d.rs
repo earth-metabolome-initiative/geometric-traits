@@ -1,0 +1,615 @@
+//! Submodule providing a definition of a CSR matrix.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt::Debug;
+
+use multi_ranged::Step;
+use num_traits::AsPrimitive;
+
+use crate::{
+    impls::{CSR2D, SquareCSR2D, ValuedCSR2D},
+    prelude::*,
+    traits::{PositiveInteger, TryFromUsize},
+};
+
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impl;
+
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
+#[derive(Clone, PartialEq, Eq, Hash)]
+/// A symmetric compressed sparse row matrix.
+pub struct SymmetricCSR2D<M: Matrix2D> {
+    /// The underlying matrix.
+    pub(super) matrix: SquareCSR2D<M>,
+}
+
+impl<M: Matrix2D + Debug> Debug for SymmetricCSR2D<M> {
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("SymmetricCSR2D").field("matrix", &self.matrix).finish()
+    }
+}
+
+impl<M> Matrix for SymmetricCSR2D<M>
+where
+    M: Matrix2D,
+{
+    type Coordinates = (M::RowIndex, M::ColumnIndex);
+
+    #[inline]
+    fn shape(&self) -> Vec<usize> {
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
+    }
+}
+
+impl<M> Matrix2D for SymmetricCSR2D<M>
+where
+    M: Matrix2D,
+{
+    type RowIndex = M::RowIndex;
+    type ColumnIndex = M::ColumnIndex;
+
+    #[inline]
+    fn number_of_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_rows()
+    }
+
+    #[inline]
+    fn number_of_columns(&self) -> Self::ColumnIndex {
+        self.matrix.number_of_columns()
+    }
+}
+
+impl<M> SquareMatrix for SymmetricCSR2D<M>
+where
+    M: Matrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type Index = M::RowIndex;
+
+    #[inline]
+    fn order(&self) -> Self::Index {
+        self.matrix.order()
+    }
+}
+
+impl<M> SparseSquareMatrix for SymmetricCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn number_of_defined_diagonal_values(&self) -> Self::Index {
+        self.matrix.number_of_defined_diagonal_values()
+    }
+
+    #[inline]
+    fn is_symmetric(&self) -> bool {
+        true
+    }
+}
+
+impl<M> AsRef<SquareCSR2D<M>> for SymmetricCSR2D<M>
+where
+    M: Matrix2D,
+{
+    #[inline]
+    fn as_ref(&self) -> &SquareCSR2D<M> {
+        &self.matrix
+    }
+}
+
+impl<M> Default for SymmetricCSR2D<M>
+where
+    M: Matrix2D + Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self { matrix: SquareCSR2D::default() }
+    }
+}
+
+impl<M> SparseMatrix for SymmetricCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseIndex = M::SparseIndex;
+    type SparseCoordinates<'a>
+        = <SquareCSR2D<M> as SparseMatrix>::SparseCoordinates<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
+        self.as_ref().sparse_coordinates()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.matrix.is_empty()
+    }
+
+    #[inline]
+    fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
+        self.matrix.last_sparse_coordinates()
+    }
+}
+
+impl<M> SizedSparseMatrix for SymmetricCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn number_of_defined_values(&self) -> Self::SparseIndex {
+        self.matrix.number_of_defined_values()
+    }
+}
+
+impl<M> RankSelectSparseMatrix for SymmetricCSR2D<M>
+where
+    SquareCSR2D<M>:
+        RankSelectSparseMatrix<Coordinates = Self::Coordinates, SparseIndex = Self::SparseIndex>,
+    M: SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
+        self.matrix.rank(coordinates)
+    }
+
+    #[inline]
+    fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
+        self.matrix.select(sparse_index)
+    }
+}
+
+impl<M> SparseMatrix2D for SymmetricCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseRow<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseRow<'a>
+    where
+        Self: 'a;
+    type SparseColumns<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseColumns<'a>
+    where
+        Self: 'a;
+    type SparseRows<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseRows<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
+        self.matrix.sparse_row(row)
+    }
+
+    #[inline]
+    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
+        self.matrix.has_entry(row, column)
+    }
+
+    #[inline]
+    fn sparse_columns(&self) -> Self::SparseColumns<'_> {
+        self.matrix.sparse_columns()
+    }
+
+    #[inline]
+    fn sparse_rows(&self) -> Self::SparseRows<'_> {
+        self.matrix.sparse_rows()
+    }
+}
+
+impl<M> EmptyRows for SymmetricCSR2D<M>
+where
+    M: EmptyRows<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type EmptyRowIndices<'a>
+        = <SquareCSR2D<M> as EmptyRows>::EmptyRowIndices<'a>
+    where
+        Self: 'a;
+    type NonEmptyRowIndices<'a>
+        = <SquareCSR2D<M> as EmptyRows>::NonEmptyRowIndices<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
+        self.matrix.empty_row_indices()
+    }
+
+    #[inline]
+    fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
+        self.matrix.non_empty_row_indices()
+    }
+
+    #[inline]
+    fn number_of_empty_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_empty_rows()
+    }
+
+    #[inline]
+    fn number_of_non_empty_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_non_empty_rows()
+    }
+}
+
+impl<M> SizedRowsSparseMatrix2D for SymmetricCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseRowSizes<'a>
+        = <SquareCSR2D<M> as SizedRowsSparseMatrix2D>::SparseRowSizes<'a>
+    where
+        Self: 'a;
+    #[inline]
+    fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
+        self.matrix.number_of_defined_values_in_row(row)
+    }
+
+    #[inline]
+    fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
+        self.matrix.sparse_row_sizes()
+    }
+}
+
+impl<M> SizedSparseMatrix2D for SymmetricCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn rank_row(&self, row: M::RowIndex) -> Self::SparseIndex {
+        self.matrix.rank_row(row)
+    }
+
+    #[inline]
+    fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
+        self.matrix.select_column(sparse_index)
+    }
+
+    #[inline]
+    fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
+        self.matrix.select_row(sparse_index)
+    }
+
+    #[inline]
+    fn try_rank(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> Option<Self::SparseIndex>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.try_rank(row, column)
+    }
+}
+
+impl<M: Matrix2D> SymmetricCSR2D<M> {
+    /// Creates a new `SymmetricCSR2D` from a `SquareCSR2D`.
+    ///
+    /// # Safety (logical)
+    /// The caller must guarantee that `matrix` stores a symmetric adjacency
+    /// (i.e. for every `(r, c)` stored there is a matching `(c, r)`).
+    #[inline]
+    pub fn from_parts(matrix: SquareCSR2D<M>) -> Self {
+        Self { matrix }
+    }
+}
+
+impl<SparseIndex, Idx, Value> SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, Value>>
+where
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    Value: Clone,
+{
+    /// Builds a symmetric valued CSR matrix from sorted upper-triangular
+    /// `(row, column, value)` entries.
+    ///
+    /// The input must be sorted in lexicographic `(row, column)` order,
+    /// deduplicated, and satisfy `row <= column < order`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MutabilityError`] when the input is unsorted, duplicated, out
+    /// of bounds, or not upper triangular.
+    #[inline]
+    pub fn from_sorted_upper_triangular_entries<I>(
+        order: Idx,
+        entries: I,
+    ) -> Result<Self, MutabilityError<Self>>
+    where
+        I: IntoIterator<Item = (Idx, Idx, Value)>,
+    {
+        let order_usize = order.as_();
+        let entries: Vec<(Idx, Idx, Value)> = entries.into_iter().collect();
+        let mut row_degrees = vec![SparseIndex::zero(); order_usize];
+        let mut number_of_diagonal_values = Idx::zero();
+        let mut previous_coordinates: Option<(Idx, Idx)> = None;
+
+        for &(row, column, _) in &entries {
+            if row >= order || column >= order {
+                return Err(MutabilityError::OutOfBounds(
+                    (row, column),
+                    (order, order),
+                    "Entries must fit within the requested square shape.",
+                ));
+            }
+            if row > column {
+                return Err(MutabilityError::OutOfBounds(
+                    (row, column),
+                    (order, order),
+                    "In an upper triangular matrix, row indices must be less than or equal to column indices.",
+                ));
+            }
+            if let Some((previous_row, previous_column)) = previous_coordinates {
+                if previous_row == row && previous_column == column {
+                    return Err(MutabilityError::DuplicatedEntry((row, column)));
+                }
+                if previous_row > row || (previous_row == row && previous_column > column) {
+                    return Err(MutabilityError::UnorderedCoordinate((row, column)));
+                }
+            }
+            previous_coordinates = Some((row, column));
+
+            row_degrees[row.as_()] += SparseIndex::one();
+            if row == column {
+                number_of_diagonal_values += Idx::one();
+            } else {
+                row_degrees[column.as_()] += SparseIndex::one();
+            }
+        }
+
+        let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
+        let mut number_of_non_empty_rows = Idx::zero();
+        for row in 0..order_usize {
+            offsets[row + 1] = offsets[row] + row_degrees[row];
+            if row_degrees[row] > SparseIndex::zero() {
+                number_of_non_empty_rows += Idx::one();
+            }
+        }
+
+        let mut rows: Vec<Vec<(Idx, Value)>> =
+            row_degrees.iter().map(|degree| Vec::with_capacity(degree.as_())).collect();
+
+        for (row, column, value) in entries {
+            if row == column {
+                rows[row.as_()].push((column, value));
+                continue;
+            }
+
+            rows[row.as_()].push((column, value.clone()));
+            rows[column.as_()].push((row, value));
+        }
+
+        let number_of_expected_values = offsets[order_usize].as_();
+        let mut column_indices = Vec::with_capacity(number_of_expected_values);
+        let mut values = Vec::with_capacity(number_of_expected_values);
+
+        for row_entries in rows {
+            for (column, value) in row_entries {
+                column_indices.push(column);
+                values.push(value);
+            }
+        }
+
+        debug_assert_eq!(
+            column_indices.len(),
+            number_of_expected_values,
+            "Constructed symmetric topology must match the computed row degrees",
+        );
+        debug_assert_eq!(
+            values.len(),
+            number_of_expected_values,
+            "Constructed values must match the computed row degrees",
+        );
+
+        let matrix = ValuedCSR2D::from_parts(
+            CSR2D {
+                offsets,
+                number_of_columns: order,
+                number_of_rows: order,
+                column_indices,
+                number_of_non_empty_rows,
+            },
+            values,
+        )
+        .unwrap_or_else(|_| unreachable!("constructed values must match the CSR topology"));
+
+        Ok(SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(matrix, number_of_diagonal_values)))
+    }
+}
+
+impl<M> ValuedMatrix for SymmetricCSR2D<M>
+where
+    M: ValuedMatrix + Matrix2D,
+{
+    type Value = M::Value;
+}
+
+impl<M> ValuedMatrix2D for SymmetricCSR2D<M> where M: ValuedMatrix2D {}
+
+impl<M> SparseValuedMatrix for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValues<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix>::SparseValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_values(&self) -> Self::SparseValues<'_> {
+        self.matrix.sparse_values()
+    }
+}
+
+impl<M> SparseValuedMatrix2D for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValues<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2D>::SparseRowValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row_values(&self, row: Self::RowIndex) -> Self::SparseRowValues<'_> {
+        self.matrix.sparse_row_values(row)
+    }
+}
+
+impl<M> SizedSparseValuedMatrix for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrix + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
+        self.matrix.select_value(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrixRef for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrixRef + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesRef<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrixRef>::SparseValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        self.matrix.sparse_values_ref()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixRef for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrixRef + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        self.matrix.select_value_ref(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DRef for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2DRef<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesRef<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2DRef>::SparseRowValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_ref(&self, row: Self::RowIndex) -> Self::SparseRowValuesRef<'_> {
+        self.matrix.sparse_row_values_ref(row)
+    }
+}
+
+impl<M> SparseValuedMatrixMut for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrixMut + SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseValuesMut<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrixMut>::SparseValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_> {
+        self.matrix.sparse_values_mut()
+    }
+
+    #[inline]
+    fn sparse_entries_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)> {
+        self.matrix.sparse_entries_mut()
+    }
+}
+
+impl<M> SizedSparseValuedMatrixMut for SymmetricCSR2D<M>
+where
+    M: SizedSparseValuedMatrixMut + SizedSparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value {
+        self.matrix.select_value_mut(sparse_index)
+    }
+}
+
+impl<M> SparseValuedMatrix2DMut for SymmetricCSR2D<M>
+where
+    M: SparseValuedMatrix2DMut<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type SparseRowValuesMut<'a>
+        = <SquareCSR2D<M> as SparseValuedMatrix2DMut>::SparseRowValuesMut<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_row_values_mut(&mut self, row: Self::RowIndex) -> Self::SparseRowValuesMut<'_> {
+        self.matrix.sparse_row_values_mut(row)
+    }
+
+    fn sparse_value_at_mut(
+        &mut self,
+        row: Self::RowIndex,
+        column: Self::ColumnIndex,
+    ) -> Option<&mut <Self as ValuedMatrix>::Value>
+    where
+        Self::ColumnIndex: PartialEq,
+    {
+        self.matrix.sparse_value_at_mut(row, column)
+    }
+
+    #[inline]
+    fn sparse_row_entries_mut(
+        &mut self,
+        row: Self::RowIndex,
+    ) -> impl Iterator<Item = (Self::ColumnIndex, &mut <Self as ValuedMatrix>::Value)> {
+        self.matrix.sparse_row_entries_mut(row)
+    }
+}
+
+impl<M> TransposableMatrix2D<Self> for SymmetricCSR2D<M>
+where
+    M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + Clone,
+{
+    #[inline]
+    fn transpose(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl<M> Symmetrize<Self> for SymmetricCSR2D<M>
+where
+    M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + Clone,
+{
+    #[inline]
+    fn symmetrize(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl<M> BiMatrix2D for SymmetricCSR2D<M>
+where
+    M: Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type Matrix = SquareCSR2D<M>;
+    type TransposedMatrix = SquareCSR2D<M>;
+
+    #[inline]
+    fn matrix(&self) -> &Self::Matrix {
+        &self.matrix
+    }
+
+    #[inline]
+    fn transposed(&self) -> &Self::TransposedMatrix {
+        &self.matrix
+    }
+}

@@ -1,0 +1,556 @@
+//! Submodule providing an implementation of the `RaggedVector` struct.
+
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+use core::{fmt::Debug, iter::repeat_n};
+
+use multi_ranged::Step;
+use num_traits::{AsPrimitive, Zero};
+
+use super::MutabilityError;
+use crate::traits::{
+    EmptyRows, Matrix, Matrix2D, Matrix2DRef, MatrixMut, PositiveInteger, SizedRowsSparseMatrix2D,
+    SizedSparseMatrix, SparseMatrix, SparseMatrix2D, SparseMatrixMut, TransposableMatrix2D,
+    TryFromUsize,
+};
+
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
+#[derive(Clone, PartialEq, Eq, Hash)]
+/// Struct representing a ragged vector sparse matrix.
+pub struct RaggedVector<SparseIndex, RowIndex, ColumnIndex> {
+    /// The data of the vector.
+    data: Vec<Vec<ColumnIndex>>,
+    /// The number of elements in the matrix.
+    pub(super) number_of_defined_values: SparseIndex,
+    /// The number of columns.
+    pub(super) number_of_columns: ColumnIndex,
+    /// The number of rows.
+    pub(super) number_of_rows: RowIndex,
+    /// The number of non-empty rows.
+    pub(super) number_of_non_empty_rows: RowIndex,
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> Debug for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    SparseIndex: Debug,
+    RowIndex: Debug,
+    ColumnIndex: Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("RaggedVector")
+            .field("number_of_defined_values", &self.number_of_defined_values)
+            .field("number_of_columns", &self.number_of_columns)
+            .field("number_of_rows", &self.number_of_rows)
+            .field("data", &self.data)
+            .field("number_of_non_empty_rows", &self.number_of_non_empty_rows)
+            .finish()
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> Default
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    SparseIndex: Zero,
+    RowIndex: Zero,
+    ColumnIndex: Zero,
+{
+    #[inline]
+    fn default() -> Self {
+        Self {
+            data: Vec::new(),
+            number_of_defined_values: SparseIndex::zero(),
+            number_of_columns: ColumnIndex::zero(),
+            number_of_rows: RowIndex::zero(),
+            number_of_non_empty_rows: RowIndex::zero(),
+        }
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> Matrix for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
+{
+    type Coordinates = (RowIndex, ColumnIndex);
+
+    #[inline]
+    fn shape(&self) -> Vec<usize> {
+        vec![self.number_of_rows.as_(), self.number_of_columns.as_()]
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> Matrix2D
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
+{
+    type RowIndex = RowIndex;
+    type ColumnIndex = ColumnIndex;
+
+    #[inline]
+    fn number_of_rows(&self) -> Self::RowIndex {
+        self.number_of_rows
+    }
+
+    #[inline]
+    fn number_of_columns(&self) -> Self::ColumnIndex {
+        self.number_of_columns
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> Matrix2DRef
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize>,
+{
+    #[inline]
+    fn number_of_columns_ref(&self) -> &Self::ColumnIndex {
+        &self.number_of_columns
+    }
+
+    #[inline]
+    fn number_of_rows_ref(&self) -> &Self::RowIndex {
+        &self.number_of_rows
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrix
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+{
+    type SparseIndex = SparseIndex;
+    type SparseCoordinates<'a>
+        = crate::impls::CSR2DView<'a, Self>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
+        self.into()
+    }
+
+    #[inline]
+    fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
+        if self.is_empty() {
+            return None;
+        }
+        let last_row_index =
+            RowIndex::try_from_usize(self.data.len() - 1).expect("The matrix is in a valid state.");
+        let last_row_with_values: &Vec<ColumnIndex> =
+            self.data.last().expect("The matrix should not be empty.");
+        let last_column =
+            last_row_with_values.iter().last().copied().expect("The last row should not be empty.");
+        Some((last_row_index, last_column))
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.number_of_defined_values == SparseIndex::zero()
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> SizedSparseMatrix
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+{
+    #[inline]
+    fn number_of_defined_values(&self) -> Self::SparseIndex {
+        self.number_of_defined_values
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrix2D
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+{
+    type SparseRow<'a>
+        = core::iter::Copied<core::slice::Iter<'a, ColumnIndex>>
+    where
+        Self: 'a;
+    type SparseColumns<'a>
+        = crate::impls::CSR2DColumns<'a, Self>
+    where
+        Self: 'a;
+    type SparseRows<'a>
+        = crate::impls::CSR2DSizedRows<'a, Self>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
+        let slice =
+            if row.as_() >= self.data.len() { &[] } else { self.data[row.as_()].as_slice() };
+        slice.iter().copied()
+    }
+
+    #[inline]
+    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
+        if row.as_() >= self.data.len() {
+            return false;
+        }
+
+        let columns_in_row = &self.data[row.as_()];
+        columns_in_row.binary_search(&column).is_ok()
+    }
+
+    #[inline]
+    fn sparse_columns(&self) -> Self::SparseColumns<'_> {
+        self.into()
+    }
+
+    #[inline]
+    fn sparse_rows(&self) -> Self::SparseRows<'_> {
+        self.into()
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> EmptyRows
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+{
+    type EmptyRowIndices<'a>
+        = crate::impls::CSR2DEmptyRowIndices<'a, Self>
+    where
+        Self: 'a;
+    type NonEmptyRowIndices<'a>
+        = crate::impls::CSR2DNonEmptyRowIndices<'a, Self>
+    where
+        Self: 'a;
+    #[inline]
+    fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
+        self.into()
+    }
+
+    #[inline]
+    fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
+        self.into()
+    }
+
+    #[inline]
+    fn number_of_empty_rows(&self) -> Self::RowIndex {
+        self.number_of_rows() - self.number_of_non_empty_rows()
+    }
+
+    #[inline]
+    fn number_of_non_empty_rows(&self) -> Self::RowIndex {
+        self.number_of_non_empty_rows
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> SizedRowsSparseMatrix2D
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+{
+    type SparseRowSizes<'a>
+        = crate::impls::CSR2DSizedRowsizes<'a, Self>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
+        self.into()
+    }
+
+    #[inline]
+    fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
+        ColumnIndex::try_from_usize(self.data[row.as_()].len()).expect(
+            "The number of defined values in a row must be less than the number of columns.",
+        )
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> MatrixMut
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + Debug,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + Debug,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+{
+    type Entry = Self::Coordinates;
+    type Error = MutabilityError<Self>;
+
+    #[inline]
+    fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
+        if row.as_() >= self.data.len() {
+            self.data.extend(repeat_n(Vec::default(), row.as_() - self.data.len() + 1));
+        }
+
+        let columns_in_row = &mut self.data[row.as_()];
+
+        if let Some(last_column) = columns_in_row.last() {
+            if *last_column == column {
+                return Err(MutabilityError::DuplicatedEntry((row, column)));
+            }
+            if *last_column > column {
+                return Err(MutabilityError::UnorderedCoordinate((row, column)));
+            }
+        }
+
+        columns_in_row.push(column);
+
+        self.number_of_defined_values += SparseIndex::one();
+        self.number_of_columns = self.number_of_columns.max(column + ColumnIndex::one());
+        self.number_of_rows = self.number_of_rows.max(row + RowIndex::one());
+
+        if columns_in_row.len() == 1 {
+            self.number_of_non_empty_rows += RowIndex::one();
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
+        if shape.0 < self.number_of_rows {
+            return Err(MutabilityError::IncompatibleShape);
+        }
+
+        if shape.1 < self.number_of_columns {
+            return Err(MutabilityError::IncompatibleShape);
+        }
+
+        self.number_of_rows = shape.0;
+        self.number_of_columns = shape.1;
+
+        Ok(())
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex>
+    TransposableMatrix2D<RaggedVector<SparseIndex, ColumnIndex, RowIndex>>
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    <RowIndex as TryFrom<usize>>::Error: Debug,
+    <ColumnIndex as TryFrom<usize>>::Error: Debug,
+{
+    #[inline]
+    fn transpose(&self) -> RaggedVector<SparseIndex, ColumnIndex, RowIndex> {
+        let mut transposed: RaggedVector<SparseIndex, ColumnIndex, RowIndex> =
+            RaggedVector::with_sparse_shape((self.number_of_columns, self.number_of_rows));
+
+        // We iterate over the rows of the matrix.
+        for (row, column) in self.sparse_coordinates() {
+            transposed.add((column, row)).expect("The addition should not fail.");
+        }
+
+        transposed
+    }
+}
+
+impl<SparseIndex, RowIndex, ColumnIndex> SparseMatrixMut
+    for RaggedVector<SparseIndex, RowIndex, ColumnIndex>
+where
+    Self: SparseMatrix2D<RowIndex = RowIndex, ColumnIndex = ColumnIndex, SparseIndex = SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize>,
+    RowIndex: Step + PositiveInteger + AsPrimitive<usize>,
+    ColumnIndex: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+{
+    type MinimalShape = Self::Coordinates;
+
+    #[inline]
+    fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
+        Self::with_sparse_shaped_capacity((RowIndex::zero(), ColumnIndex::zero()), number_of_values)
+    }
+
+    #[inline]
+    fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
+        Self::with_sparse_shaped_capacity(shape, SparseIndex::zero())
+    }
+
+    #[inline]
+    fn with_sparse_shaped_capacity(
+        (number_of_rows, number_of_columns): Self::MinimalShape,
+        _number_of_values: Self::SparseIndex,
+    ) -> Self {
+        Self {
+            data: vec![Vec::new(); number_of_rows.as_()],
+            number_of_defined_values: SparseIndex::zero(),
+            number_of_columns,
+            number_of_rows,
+            number_of_non_empty_rows: RowIndex::zero(),
+        }
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+
+    type TestRaggedVector = RaggedVector<usize, usize, usize>;
+
+    #[test]
+    fn test_ragged_vector_default() {
+        let rv: TestRaggedVector = RaggedVector::default();
+        assert_eq!(rv.number_of_rows(), 0);
+        assert_eq!(rv.number_of_columns(), 0);
+        assert_eq!(rv.number_of_defined_values(), 0);
+        assert!(rv.is_empty());
+    }
+
+    #[test]
+    fn test_ragged_vector_with_sparse_shape() {
+        let rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 4));
+        assert_eq!(rv.number_of_rows(), 3);
+        assert_eq!(rv.number_of_columns(), 4);
+        assert!(rv.is_empty());
+    }
+
+    #[test]
+    fn test_ragged_vector_add_entries() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 0)).is_ok());
+        assert!(rv.add((0, 1)).is_ok());
+        assert!(rv.add((1, 2)).is_ok());
+        assert_eq!(rv.number_of_defined_values(), 3);
+        assert_eq!(rv.number_of_rows(), 2);
+        assert_eq!(rv.number_of_columns(), 3);
+    }
+
+    #[test]
+    fn test_ragged_vector_add_duplicate_error() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 1)).is_ok());
+        assert!(rv.add((0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_add_unordered_error() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert!(rv.add((0, 2)).is_ok());
+        assert!(rv.add((0, 1)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_sparse_row() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 3)).unwrap();
+        rv.add((1, 2)).unwrap();
+
+        let row0: Vec<usize> = rv.sparse_row(0).collect();
+        assert_eq!(row0, vec![1, 3]);
+
+        let row1: Vec<usize> = rv.sparse_row(1).collect();
+        assert_eq!(row1, vec![2]);
+
+        // Empty row
+        let row2: Vec<usize> = rv.sparse_row(2).collect();
+        assert_eq!(row2, [] as [usize; 0]);
+    }
+
+    #[test]
+    fn test_ragged_vector_has_entry() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 3)).unwrap();
+
+        assert!(!rv.has_entry(0, 0));
+        assert!(rv.has_entry(0, 1));
+        assert!(!rv.has_entry(0, 2));
+        assert!(rv.has_entry(0, 3));
+        assert!(!rv.has_entry(1, 0));
+    }
+
+    #[test]
+    fn test_ragged_vector_shape() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((2, 5)).unwrap();
+        assert_eq!(rv.shape(), vec![3, 6]);
+    }
+
+    #[test]
+    fn test_ragged_vector_empty_rows() {
+        let mut rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 3));
+        rv.add((0, 1)).unwrap();
+        rv.add((2, 0)).unwrap();
+
+        assert_eq!(rv.number_of_non_empty_rows(), 2);
+        assert_eq!(rv.number_of_empty_rows(), 1);
+    }
+
+    #[test]
+    fn test_ragged_vector_increase_shape() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 0)).unwrap();
+        assert!(rv.increase_shape((5, 5)).is_ok());
+        assert_eq!(rv.number_of_rows(), 5);
+        assert_eq!(rv.number_of_columns(), 5);
+    }
+
+    #[test]
+    fn test_ragged_vector_increase_shape_error() {
+        let mut rv: TestRaggedVector = SparseMatrixMut::with_sparse_shape((3, 3));
+        assert!(rv.increase_shape((2, 3)).is_err());
+        assert!(rv.increase_shape((3, 2)).is_err());
+    }
+
+    #[test]
+    fn test_ragged_vector_transpose() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 2)).unwrap();
+        rv.add((1, 0)).unwrap();
+
+        let transposed: TestRaggedVector = rv.transpose();
+        assert!(transposed.has_entry(1, 0));
+        assert!(transposed.has_entry(2, 0));
+        assert!(transposed.has_entry(0, 1));
+    }
+
+    #[test]
+    fn test_ragged_vector_last_sparse_coordinates() {
+        let mut rv: TestRaggedVector = RaggedVector::default();
+        assert_eq!(rv.last_sparse_coordinates(), None);
+
+        rv.add((0, 1)).unwrap();
+        rv.add((0, 2)).unwrap();
+        assert_eq!(rv.last_sparse_coordinates(), Some((0, 2)));
+
+        rv.add((1, 3)).unwrap();
+        assert_eq!(rv.last_sparse_coordinates(), Some((1, 3)));
+    }
+
+    #[test]
+    fn test_ragged_vector_debug() {
+        let rv: TestRaggedVector = RaggedVector::default();
+        let debug = alloc::format!("{rv:?}");
+        assert!(debug.contains("RaggedVector"));
+    }
+}

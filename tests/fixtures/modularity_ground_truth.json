@@ -1,0 +1,764 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-03-07T10:34:25+00:00",
+  "references": {
+    "python": "3.12.7",
+    "python_igraph": "1.0.0",
+    "leidenalg": "0.11.0"
+  },
+  "parameters": {
+    "resolution": 1.0,
+    "seed": 42,
+    "leiden_iterations": -1
+  },
+  "cases": [
+    {
+      "id": "two_triangles_weak_bridge",
+      "node_count": 6,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 10.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 10.0
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 10.0
+        },
+        {
+          "source": 2,
+          "target": 3,
+          "weight": 0.1
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 10.0
+        },
+        {
+          "source": 3,
+          "target": 5,
+          "weight": 10.0
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 10.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.4983361064891847
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.4983361064891847
+      }
+    },
+    {
+      "id": "three_quads_chain",
+      "node_count": 12,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 8.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 8.0
+        },
+        {
+          "source": 0,
+          "target": 3,
+          "weight": 8.0
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 8.0
+        },
+        {
+          "source": 1,
+          "target": 3,
+          "weight": 8.0
+        },
+        {
+          "source": 2,
+          "target": 3,
+          "weight": 8.0
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 0.05
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 8.0
+        },
+        {
+          "source": 4,
+          "target": 6,
+          "weight": 8.0
+        },
+        {
+          "source": 4,
+          "target": 7,
+          "weight": 8.0
+        },
+        {
+          "source": 5,
+          "target": 6,
+          "weight": 8.0
+        },
+        {
+          "source": 5,
+          "target": 7,
+          "weight": 8.0
+        },
+        {
+          "source": 6,
+          "target": 7,
+          "weight": 8.0
+        },
+        {
+          "source": 7,
+          "target": 8,
+          "weight": 0.05
+        },
+        {
+          "source": 8,
+          "target": 9,
+          "weight": 8.0
+        },
+        {
+          "source": 8,
+          "target": 10,
+          "weight": 8.0
+        },
+        {
+          "source": 8,
+          "target": 11,
+          "weight": 8.0
+        },
+        {
+          "source": 9,
+          "target": 10,
+          "weight": 8.0
+        },
+        {
+          "source": 9,
+          "target": 11,
+          "weight": 8.0
+        },
+        {
+          "source": 10,
+          "target": 11,
+          "weight": 8.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2
+        ],
+        "modularity": 0.6659726840746435
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          2
+        ],
+        "modularity": 0.6659726840746436
+      }
+    },
+    {
+      "id": "ring_of_five_triads",
+      "node_count": 15,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 14,
+          "weight": 0.03
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 6.0
+        },
+        {
+          "source": 2,
+          "target": 3,
+          "weight": 0.03
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 6.0
+        },
+        {
+          "source": 3,
+          "target": 5,
+          "weight": 6.0
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 6.0
+        },
+        {
+          "source": 5,
+          "target": 6,
+          "weight": 0.03
+        },
+        {
+          "source": 6,
+          "target": 7,
+          "weight": 6.0
+        },
+        {
+          "source": 6,
+          "target": 8,
+          "weight": 6.0
+        },
+        {
+          "source": 7,
+          "target": 8,
+          "weight": 6.0
+        },
+        {
+          "source": 8,
+          "target": 9,
+          "weight": 0.03
+        },
+        {
+          "source": 9,
+          "target": 10,
+          "weight": 6.0
+        },
+        {
+          "source": 9,
+          "target": 11,
+          "weight": 6.0
+        },
+        {
+          "source": 10,
+          "target": 11,
+          "weight": 6.0
+        },
+        {
+          "source": 11,
+          "target": 12,
+          "weight": 0.03
+        },
+        {
+          "source": 12,
+          "target": 13,
+          "weight": 6.0
+        },
+        {
+          "source": 12,
+          "target": 14,
+          "weight": 6.0
+        },
+        {
+          "source": 13,
+          "target": 14,
+          "weight": 6.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "modularity": 0.7983361064891844
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2,
+          2,
+          3,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "modularity": 0.7983361064891846
+      }
+    },
+    {
+      "id": "mixed_disconnected_components",
+      "node_count": 10,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 7.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 7.0
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 7.0
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 7.0
+        },
+        {
+          "source": 3,
+          "target": 5,
+          "weight": 7.0
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 7.0
+        },
+        {
+          "source": 6,
+          "target": 7,
+          "weight": 7.0
+        },
+        {
+          "source": 8,
+          "target": 9,
+          "weight": 7.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3
+        ],
+        "modularity": 0.6875
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3
+        ],
+        "modularity": 0.6875
+      }
+    },
+    {
+      "id": "two_dense_blocks_with_uniform_noise",
+      "node_count": 8,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 5.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 5.0
+        },
+        {
+          "source": 0,
+          "target": 3,
+          "weight": 5.0
+        },
+        {
+          "source": 0,
+          "target": 4,
+          "weight": 0.01
+        },
+        {
+          "source": 0,
+          "target": 5,
+          "weight": 0.01
+        },
+        {
+          "source": 0,
+          "target": 6,
+          "weight": 0.01
+        },
+        {
+          "source": 0,
+          "target": 7,
+          "weight": 0.01
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 5.0
+        },
+        {
+          "source": 1,
+          "target": 3,
+          "weight": 5.0
+        },
+        {
+          "source": 1,
+          "target": 4,
+          "weight": 0.01
+        },
+        {
+          "source": 1,
+          "target": 5,
+          "weight": 0.01
+        },
+        {
+          "source": 1,
+          "target": 6,
+          "weight": 0.01
+        },
+        {
+          "source": 1,
+          "target": 7,
+          "weight": 0.01
+        },
+        {
+          "source": 2,
+          "target": 3,
+          "weight": 5.0
+        },
+        {
+          "source": 2,
+          "target": 4,
+          "weight": 0.01
+        },
+        {
+          "source": 2,
+          "target": 5,
+          "weight": 0.01
+        },
+        {
+          "source": 2,
+          "target": 6,
+          "weight": 0.01
+        },
+        {
+          "source": 2,
+          "target": 7,
+          "weight": 0.01
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 0.01
+        },
+        {
+          "source": 3,
+          "target": 5,
+          "weight": 0.01
+        },
+        {
+          "source": 3,
+          "target": 6,
+          "weight": 0.01
+        },
+        {
+          "source": 3,
+          "target": 7,
+          "weight": 0.01
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 5.0
+        },
+        {
+          "source": 4,
+          "target": 6,
+          "weight": 5.0
+        },
+        {
+          "source": 4,
+          "target": 7,
+          "weight": 5.0
+        },
+        {
+          "source": 5,
+          "target": 6,
+          "weight": 5.0
+        },
+        {
+          "source": 5,
+          "target": 7,
+          "weight": 5.0
+        },
+        {
+          "source": 6,
+          "target": 7,
+          "weight": 5.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.49734042553191476
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.49734042553191504
+      }
+    },
+    {
+      "id": "two_pentads_with_sparse_bridges",
+      "node_count": 10,
+      "undirected_edges": [
+        {
+          "source": 0,
+          "target": 1,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 2,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 3,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 4,
+          "weight": 6.0
+        },
+        {
+          "source": 0,
+          "target": 9,
+          "weight": 0.05
+        },
+        {
+          "source": 1,
+          "target": 2,
+          "weight": 6.0
+        },
+        {
+          "source": 1,
+          "target": 3,
+          "weight": 6.0
+        },
+        {
+          "source": 1,
+          "target": 4,
+          "weight": 6.0
+        },
+        {
+          "source": 2,
+          "target": 3,
+          "weight": 6.0
+        },
+        {
+          "source": 2,
+          "target": 4,
+          "weight": 6.0
+        },
+        {
+          "source": 2,
+          "target": 7,
+          "weight": 0.05
+        },
+        {
+          "source": 3,
+          "target": 4,
+          "weight": 6.0
+        },
+        {
+          "source": 4,
+          "target": 5,
+          "weight": 0.2
+        },
+        {
+          "source": 5,
+          "target": 6,
+          "weight": 6.0
+        },
+        {
+          "source": 5,
+          "target": 7,
+          "weight": 6.0
+        },
+        {
+          "source": 5,
+          "target": 8,
+          "weight": 6.0
+        },
+        {
+          "source": 5,
+          "target": 9,
+          "weight": 6.0
+        },
+        {
+          "source": 6,
+          "target": 7,
+          "weight": 6.0
+        },
+        {
+          "source": 6,
+          "target": 8,
+          "weight": 6.0
+        },
+        {
+          "source": 6,
+          "target": 9,
+          "weight": 6.0
+        },
+        {
+          "source": 7,
+          "target": 8,
+          "weight": 6.0
+        },
+        {
+          "source": 7,
+          "target": 9,
+          "weight": 6.0
+        },
+        {
+          "source": 8,
+          "target": 9,
+          "weight": 6.0
+        }
+      ],
+      "louvain": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.49750623441396513
+      },
+      "leiden": {
+        "partition": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "modularity": 0.49750623441396513
+      }
+    }
+  ]
+}

@@ -1,0 +1,486 @@
+//! Trait defining a matrix.
+
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
+
+mod dense_matrix;
+mod dense_matrix2d;
+mod matrix2d;
+mod matrix_mut;
+mod sparse_matrix2d;
+mod square_matrix;
+mod transposed_valued_matrix2d;
+mod triangular_matrix;
+mod valued_matrix2d;
+
+pub use dense_matrix::*;
+pub use dense_matrix2d::*;
+pub use matrix_mut::*;
+pub use matrix2d::*;
+use num_traits::AsPrimitive;
+pub use sparse_matrix2d::*;
+pub use square_matrix::*;
+pub use transposed_valued_matrix2d::*;
+pub use triangular_matrix::*;
+pub use valued_matrix2d::*;
+
+use super::Coordinates;
+use crate::{
+    impls::ImplicitValuedSparseIterator,
+    traits::{PositiveInteger, TotalOrd},
+};
+
+/// Trait defining a matrix.
+pub trait Matrix {
+    /// Type of the coordinate for this matrix.
+    type Coordinates: Coordinates;
+
+    #[must_use]
+    /// Returns the number of dimensions of this matrix.
+    #[inline]
+    fn dimensions() -> usize {
+        Self::Coordinates::dimensions()
+    }
+
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    /// Returns the shape of the matrix.
+    fn shape(&self) -> alloc::vec::Vec<usize>;
+
+    #[must_use]
+    #[cfg(feature = "alloc")]
+    /// Returns the total number of values in the matrix.
+    #[inline]
+    fn total_values(&self) -> usize {
+        self.shape().iter().product()
+    }
+}
+
+impl<M: Matrix> Matrix for &M {
+    type Coordinates = M::Coordinates;
+
+    #[inline]
+    fn dimensions() -> usize {
+        M::dimensions()
+    }
+
+    #[cfg(feature = "alloc")]
+    #[inline]
+    fn shape(&self) -> Vec<usize> {
+        (*self).shape()
+    }
+
+    #[cfg(feature = "alloc")]
+    #[inline]
+    fn total_values(&self) -> usize {
+        (*self).total_values()
+    }
+}
+
+/// Trait defining a matrix with values.
+pub trait ValuedMatrix: Matrix {
+    /// Type of the values of the matrix.
+    type Value;
+}
+
+impl<M: ValuedMatrix> ValuedMatrix for &M {
+    type Value = M::Value;
+}
+
+/// Trait defining a matrix with values that can be computed on the fly.
+pub trait ImplicitValuedMatrix: ValuedMatrix {
+    /// Returns the implicit value at the given coordinates.
+    ///
+    /// # Arguments
+    ///
+    /// * `coordinates` - Coordinates of the value to get.
+    ///
+    /// # Returns
+    ///
+    /// The value at the given coordinates.
+    fn implicit_value(&self, coordinates: &Self::Coordinates) -> Self::Value;
+}
+
+/// Trait defining a sparse matrix.
+pub trait SparseMatrix: Matrix {
+    /// Type defining the numeric index for the sparse values in the matrix.
+    type SparseIndex: PositiveInteger + AsPrimitive<usize>;
+
+    /// Iterator of the sparse coordinates of the matrix.
+    type SparseCoordinates<'a>: Iterator<Item = Self::Coordinates>
+        + DoubleEndedIterator<Item = Self::Coordinates>
+    where
+        Self: 'a;
+
+    /// Returns an iterator of the sparse coordinates of the matrix.
+    fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_>;
+
+    /// Returns the last sparse entry in the matrix.
+    fn last_sparse_coordinates(&self) -> Option<Self::Coordinates>;
+
+    /// Returns whether the matrix is empty.
+    fn is_empty(&self) -> bool;
+}
+
+impl<M: SparseMatrix> SparseMatrix for &M {
+    type SparseIndex = M::SparseIndex;
+    type SparseCoordinates<'a>
+        = M::SparseCoordinates<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
+        (*self).sparse_coordinates()
+    }
+
+    #[inline]
+    fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
+        (*self).last_sparse_coordinates()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        (*self).is_empty()
+    }
+}
+
+/// Trait defining a sized sparse matrix.
+pub trait SizedSparseMatrix: SparseMatrix {
+    #[allow(clippy::cast_precision_loss)]
+    #[cfg(feature = "alloc")]
+    /// Returns the density of the matrix.
+    #[inline]
+    fn density(&self) -> f64 {
+        let defined_values = self.number_of_defined_values().as_();
+        let total_values = self.total_values();
+        if total_values == 0 {
+            return 0.0;
+        }
+        defined_values as f64 / total_values as f64
+    }
+
+    /// Returns the number of defined elements in the matrix.
+    fn number_of_defined_values(&self) -> Self::SparseIndex;
+}
+
+impl<M: SizedSparseMatrix> SizedSparseMatrix for &M {
+    #[inline]
+    fn number_of_defined_values(&self) -> Self::SparseIndex {
+        (*self).number_of_defined_values()
+    }
+}
+
+/// Trait defining a sized sparse matrix.
+pub trait RankSelectSparseMatrix: SizedSparseMatrix {
+    /// Returns the rank of the provided coordinates.
+    ///
+    /// # Arguments
+    ///
+    /// * `coordinates`: The coordinates of the rank to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the coordinates are out of bounds.
+    fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex;
+
+    /// Returns the coordinates associated to the provided sparse index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the coordinates to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates;
+}
+
+impl<M: RankSelectSparseMatrix> RankSelectSparseMatrix for &M {
+    #[inline]
+    fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
+        (*self).rank(coordinates)
+    }
+
+    #[inline]
+    fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
+        (*self).select(sparse_index)
+    }
+}
+
+/// Trait defining a dense valued matrix.
+pub trait DenseValuedMatrix: DenseMatrix + ValuedMatrix {
+    /// Iterator over the dense values of the matrix.
+    type Values<'a>: Iterator<Item = Self::Value> + DoubleEndedIterator<Item = Self::Value>
+    where
+        Self: 'a;
+
+    /// Returns the largest value in the matrix.
+    #[inline]
+    fn max_value(&self) -> Option<Self::Value>
+    where
+        Self::Value: TotalOrd,
+    {
+        self.values().max_by(TotalOrd::total_cmp)
+    }
+
+    /// Returns the smallest value in the matrix.
+    #[inline]
+    fn min_value(&self) -> Option<Self::Value>
+    where
+        Self::Value: TotalOrd,
+    {
+        self.values().min_by(TotalOrd::total_cmp)
+    }
+
+    /// Returns the value associated to the provided coordinates.
+    fn value(&self, coordinates: Self::Coordinates) -> Self::Value;
+
+    /// Returns an iterator of the values of the matrix.
+    fn values(&self) -> Self::Values<'_>;
+}
+
+impl<M: DenseValuedMatrix> DenseValuedMatrix for &M {
+    type Values<'a>
+        = M::Values<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn value(&self, coordinates: Self::Coordinates) -> Self::Value {
+        (*self).value(coordinates)
+    }
+
+    #[inline]
+    fn values(&self) -> Self::Values<'_> {
+        (*self).values()
+    }
+}
+
+/// Trait defining a sparse valued matrix.
+pub trait SparseValuedMatrix: SparseMatrix + ValuedMatrix {
+    /// Iterator over the sparse values of the matrix.
+    type SparseValues<'a>: Iterator<Item = Self::Value> + DoubleEndedIterator<Item = Self::Value>
+    where
+        Self: 'a;
+
+    /// Returns the largest value in the matrix.
+    #[inline]
+    fn max_sparse_value(&self) -> Option<Self::Value>
+    where
+        Self::Value: TotalOrd,
+    {
+        self.sparse_values().max_by(TotalOrd::total_cmp)
+    }
+
+    /// Returns the smallest value in the matrix.
+    #[inline]
+    fn min_sparse_value(&self) -> Option<Self::Value>
+    where
+        Self::Value: TotalOrd,
+    {
+        self.sparse_values().min_by(TotalOrd::total_cmp)
+    }
+
+    /// Returns an iterator of the sparse values of the matrix.
+    fn sparse_values(&self) -> Self::SparseValues<'_>;
+}
+
+impl<M: SparseValuedMatrix> SparseValuedMatrix for &M {
+    type SparseValues<'a>
+        = M::SparseValues<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_values(&self) -> Self::SparseValues<'_> {
+        (*self).sparse_values()
+    }
+}
+
+/// Trait defining a sparse valued matrix.
+pub trait SizedSparseValuedMatrix: SizedSparseMatrix + SparseValuedMatrix {
+    /// Returns the value associated to the provided sparse index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the value to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value;
+}
+
+impl<M: SizedSparseValuedMatrix> SizedSparseValuedMatrix for &M {
+    #[inline]
+    fn select_value(&self, sparse_index: Self::SparseIndex) -> Self::Value {
+        (*self).select_value(sparse_index)
+    }
+}
+
+/// Trait defining a sparse valued matrix with reference access to values.
+///
+/// Unlike [`SparseValuedMatrix`] which returns cloned values, this trait
+/// provides direct references to the stored values, avoiding copies for
+/// non-`Copy` types.
+pub trait SparseValuedMatrixRef: SparseValuedMatrix {
+    /// Iterator over references to the sparse values of the matrix.
+    type SparseValuesRef<'a>: Iterator<Item = &'a Self::Value>
+        + DoubleEndedIterator<Item = &'a Self::Value>
+    where
+        Self: 'a,
+        Self::Value: 'a;
+
+    /// Returns an iterator of references to the sparse values of the matrix.
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_>;
+
+    /// Returns an iterator over the sparse entries (coordinates and value
+    /// references) of the matrix.
+    #[inline]
+    fn sparse_entries(&self) -> impl Iterator<Item = (Self::Coordinates, &Self::Value)> {
+        self.sparse_coordinates().zip(self.sparse_values_ref())
+    }
+}
+
+impl<M: SparseValuedMatrixRef> SparseValuedMatrixRef for &M {
+    type SparseValuesRef<'a>
+        = M::SparseValuesRef<'a>
+    where
+        Self: 'a,
+        M::Value: 'a;
+
+    #[inline]
+    fn sparse_values_ref(&self) -> Self::SparseValuesRef<'_> {
+        (*self).sparse_values_ref()
+    }
+}
+
+/// Trait defining a sized sparse valued matrix with reference access to values.
+pub trait SizedSparseValuedMatrixRef: SizedSparseValuedMatrix + SparseValuedMatrixRef {
+    /// Returns a reference to the value associated to the provided sparse
+    /// index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the value to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value;
+
+    /// Returns a reference to the value at the provided sparse index, or
+    /// `None` if the index is out of bounds.
+    #[inline]
+    fn try_select_value(&self, sparse_index: Self::SparseIndex) -> Option<&Self::Value> {
+        if sparse_index < self.number_of_defined_values() {
+            Some(self.select_value_ref(sparse_index))
+        } else {
+            None
+        }
+    }
+}
+
+impl<M: SizedSparseValuedMatrixRef> SizedSparseValuedMatrixRef for &M {
+    #[inline]
+    fn select_value_ref(&self, sparse_index: Self::SparseIndex) -> &Self::Value {
+        (*self).select_value_ref(sparse_index)
+    }
+}
+
+/// Trait defining a sparse valued matrix with mutable access to values.
+///
+/// This trait allows modifying stored values in-place without changing the
+/// sparse structure (row offsets and column indices) of the matrix.
+pub trait SparseValuedMatrixMut: SparseValuedMatrixRef {
+    /// Iterator over mutable references to the sparse values of the matrix.
+    type SparseValuesMut<'a>: Iterator<Item = &'a mut Self::Value>
+        + DoubleEndedIterator<Item = &'a mut Self::Value>
+    where
+        Self: 'a,
+        Self::Value: 'a;
+
+    /// Returns an iterator of mutable references to the sparse values of the
+    /// matrix.
+    fn sparse_values_mut(&mut self) -> Self::SparseValuesMut<'_>;
+
+    /// Returns an iterator over the sparse entries (coordinates and mutable
+    /// value references) of the matrix.
+    ///
+    /// This is a required method because the default implementation would
+    /// create conflicting borrows between `sparse_coordinates` and
+    /// `sparse_values_mut`. Concrete types implement this via split borrows.
+    fn sparse_entries_mut(&mut self)
+    -> impl Iterator<Item = (Self::Coordinates, &mut Self::Value)>;
+}
+
+/// Trait defining a sized sparse valued matrix with mutable access to values.
+pub trait SizedSparseValuedMatrixMut: SizedSparseValuedMatrixRef + SparseValuedMatrixMut {
+    /// Returns a mutable reference to the value associated to the provided
+    /// sparse index.
+    ///
+    /// # Arguments
+    ///
+    /// * `sparse_index`: The sparse index of the value to get.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    fn select_value_mut(&mut self, sparse_index: Self::SparseIndex) -> &mut Self::Value;
+
+    /// Returns a mutable reference to the value at the provided sparse index,
+    /// or `None` if the index is out of bounds.
+    #[inline]
+    fn try_select_value_mut(
+        &mut self,
+        sparse_index: Self::SparseIndex,
+    ) -> Option<&mut Self::Value> {
+        if sparse_index < self.number_of_defined_values() {
+            Some(self.select_value_mut(sparse_index))
+        } else {
+            None
+        }
+    }
+
+    /// Applies a function to the value at the provided sparse index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the sparse index is out of bounds.
+    #[inline]
+    fn update_value_at(
+        &mut self,
+        sparse_index: Self::SparseIndex,
+        f: impl FnOnce(&mut Self::Value),
+    ) {
+        f(self.select_value_mut(sparse_index));
+    }
+}
+
+/// Trait defining a bi-dimensional matrix.
+pub trait ImplicitValuedSparseMatrix: SparseValuedMatrix + ImplicitValuedMatrix {
+    /// Iterator over the sparse columns of a row.
+    type SparseImplicitValues<'a>: Iterator<Item = Self::Value>
+        + DoubleEndedIterator<Item = Self::Value>
+    where
+        Self: 'a;
+
+    /// Returns an iterator over the values of the matrix.
+    fn sparse_implicit_values(&self) -> Self::SparseImplicitValues<'_>;
+}
+
+impl<M> ImplicitValuedSparseMatrix for M
+where
+    M: SparseValuedMatrix + ImplicitValuedMatrix,
+{
+    type SparseImplicitValues<'a>
+        = ImplicitValuedSparseIterator<'a, M>
+    where
+        M: 'a;
+
+    #[inline]
+    fn sparse_implicit_values(&self) -> Self::SparseImplicitValues<'_> {
+        self.into()
+    }
+}

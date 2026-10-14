@@ -1,0 +1,397 @@
+# Graph fuzzing
+
+libFuzzer-based fuzzing for graph data structures, through `cargo-fuzz`. ClusterFuzzLite runs every target on pull requests and daily on `main`.
+
+If you have not installed cargo-fuzz, run `cargo install cargo-fuzz`. It needs a nightly toolchain.
+
+## Seed Corpus
+
+Every target has a seed corpus in `fuzz/seeds/<target>/`, one input per file, and the ClusterFuzzLite build fails for a target without one. Every target decodes raw bytes, through `arbitrary` or its own byte layout, so the seeds are fuzzer-grown inputs reduced by libFuzzer's `-set_cover_merge=1` to the smallest set that keeps the same coverage. Pass the seeds as a second corpus directory to start a local run from them:
+
+```bash
+cargo +nightly fuzz run root_nodes fuzz/corpus/root_nodes fuzz/seeds/root_nodes
+```
+
+## Harnesses
+
+### RootNodes
+
+```bash
+cargo +nightly fuzz run root_nodes
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run root_nodes fuzz/artifacts/root_nodes/crash-<hash>
+```
+
+### SinkNodes
+
+```bash
+cargo +nightly fuzz run sink_nodes
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run sink_nodes fuzz/artifacts/sink_nodes/crash-<hash>
+```
+
+### SimplePath
+
+```bash
+cargo +nightly fuzz run sink_nodes
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run sink_nodes fuzz/artifacts/sink_nodes/crash-<hash>
+```
+
+### Lin
+
+```bash
+cargo +nightly fuzz run lin
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run lin fuzz/artifacts/lin/crash-<hash>
+```
+
+### Wu-Palmer
+
+```bash
+cargo +nightly fuzz run wu_palmer
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run wu_palmer fuzz/artifacts/wu_palmer/crash-<hash>
+```
+
+### CSR2D
+
+The CSR2D struct is one of the most commonly used sparse matrix representations. As such, it is worth fuzzing extensively.
+
+```bash
+cargo +nightly fuzz run csr2d
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run csr2d fuzz/artifacts/csr2d/crash-<hash>
+```
+
+### Valued CSR2D
+
+The Valued CSR2D struct is a variant of the CSR2D struct that allows for storing values in the sparse matrix. This is useful for applications where the values of the non-zero elements are important.
+
+```bash
+cargo +nightly fuzz run valued_csr2d
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run valued_csr2d fuzz/artifacts/valued_csr2d/crash-<hash>
+```
+
+### Padded Matrix2d
+
+The Padded Matrix2d struct is wrapper struct which fills in all missing values in the underlying matrix with a provided lambda function.
+
+```bash
+cargo +nightly fuzz run padded_matrix2d
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run padded_matrix2d fuzz/artifacts/padded_matrix2d/crash-<hash>
+```
+
+### Generic Matrix2D with padded diagonal
+
+The `GenericMatrix2DWithPaddedDiagonal` struct is a generic matrix representation that allows implicitly squaring and padding the diagonal. This is useful for applications where the underlying matrix is not squared or may not have a fully populated diagonal, but some algorithms require a square matrix with a fully populated diagonal.
+
+```bash
+cargo +nightly fuzz run generic_matrix2d_with_padded_diagonal
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run generic_matrix2d_with_padded_diagonal fuzz/artifacts/generic_matrix2d_with_padded_diagonal/crash-<hash>
+```
+
+### Hopcroft-Karp
+
+The Hopcroft-Karp algorithm is a combinatorial algorithm for finding maximum cardinality matchings in bipartite graphs. It is implemented for all structs implementing `SparseMatrix2D`.
+
+```bash
+cargo +nightly fuzz run hopcroft_karp
+```
+
+### Gabow 1976
+
+The Gabow 1976 harness validates the new paper-structured exact matcher against `blossom()` and checks the returned matching for structural validity.
+
+```bash
+cargo +nightly fuzz run gabow_1976
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run gabow_1976 fuzz/artifacts/gabow_1976/crash-<hash>
+```
+
+### LAP
+
+Unified LAP harness validating sparse wrappers and core LAPMOD invariants.
+
+```bash
+cargo +nightly fuzz run lap
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run lap fuzz/artifacts/lap/crash-<hash>
+```
+
+### Kahn's Algorithm
+
+The Kahn algorithm is a topological sorting algorithm for directed acyclic graphs (DAGs).
+
+```bash
+cargo +nightly fuzz run kahn
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run kahn fuzz/artifacts/kahn/crash-<hash>
+```
+
+### Tarjan's Algorithm
+
+The Tarjan algorithm is a strongly connected components algorithm for directed graphs.
+
+```bash
+cargo +nightly fuzz run tarjan
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run tarjan fuzz/artifacts/tarjan/crash-<hash>
+```
+
+### Johnson's Algorithm for simple circuits
+
+The Johnson algorithm is an algorithm for finding all simple circuits in a directed graph.
+
+```bash
+cargo +nightly fuzz run johnson_cycle
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run johnson_cycle fuzz/artifacts/johnson_cycle/crash-<hash>
+```
+
+### Blossom V
+
+The Blossom V harness fuzzes minimum-cost perfect matching on valid even-order undirected weighted graphs and checks that the solver never panics and any successful result is a valid perfect matching. For small graphs it also cross-checks the optimum against a brute-force oracle.
+
+There are now two Blossom V targets:
+- `blossom_v`: raw edge-bag mutations, which preserves compatibility with the
+  saved crash corpus
+- `blossom_v_structured`: seeded structured graph families plus richer weight
+  regimes, which is better for coverage growth when the raw target plateaus
+
+```bash
+cargo +nightly fuzz run blossom_v
+cargo +nightly fuzz run blossom_v_structured
+```
+
+### VF2
+
+The VF2 harness fuzzes the generic matcher against the shared brute-force oracle in `src/test_utils.rs`. It covers:
+
+- directed and undirected graphs
+- labeled and unlabeled cases
+- self-loops
+- `isomorphism`, `induced_subgraph_isomorphism`,
+  `subgraph_isomorphism`, and `monomorphism`
+- both the direct builder path and the prepared-graph path
+
+```bash
+cargo +nightly fuzz run vf2
+```
+
+For deterministic replay in the test suite, use:
+
+```bash
+cargo test --features arbitrary --test test_fuzz_regression vf2
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run blossom_v fuzz/artifacts/blossom_v/crash-<hash>
+```
+
+### Floyd-Warshall
+
+The Floyd-Warshall algorithm computes all-pairs shortest-path distances for a weighted adjacency matrix.
+
+```bash
+cargo +nightly fuzz run floyd_warshall
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run floyd_warshall fuzz/artifacts/floyd_warshall/crash-<hash>
+```
+
+### Pairwise BFS
+
+The PairwiseBFS harness computes all-pairs unweighted shortest-path distances via repeated BFS and cross-checks them against Floyd-Warshall on the same graph with implicit unit weights.
+
+```bash
+cargo +nightly fuzz run pairwise_bfs
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run pairwise_bfs fuzz/artifacts/pairwise_bfs/crash-<hash>
+```
+
+### Diameter
+
+The Diameter harness fuzzes exact undirected diameter computation on arbitrary undirected graphs. It checks:
+
+- deterministic results on repeated runs
+- `0` on empty and singleton graphs
+- explicit `DisconnectedGraph` errors on disconnected inputs
+- exact agreement with a brute-force BFS oracle on small graphs
+
+```bash
+cargo +nightly fuzz run diameter
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run diameter fuzz/artifacts/diameter/crash-<hash>
+```
+
+### Pairwise Dijkstra
+
+The PairwiseDijkstra harness computes all-pairs non-negative weighted shortest-path distances via repeated Dijkstra and cross-checks them against Floyd-Warshall on the subset of finite square inputs where the two algorithms must agree.
+
+```bash
+cargo +nightly fuzz run pairwise_dijkstra
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run pairwise_dijkstra fuzz/artifacts/pairwise_dijkstra/crash-<hash>
+```
+
+### VF2
+
+The VF2 harness fuzzes small directed and undirected graph pairs against an exact brute-force oracle. It checks:
+
+- `has_match()`
+- `first_match()`
+- borrowed `for_each_mapping(...)`
+- exhaustive `for_each_match(...)` enumeration
+- `final_match` filtering
+- all four match modes
+- optional node/edge equality labels through the semantic hooks
+
+```bash
+cargo +nightly fuzz run vf2
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run vf2 fuzz/artifacts/vf2/crash-<hash>
+```
+
+### GTH
+
+The GTH harness fuzzes the dense stationary-distribution solver. It checks that `gth()` never panics on arbitrary dense matrices, then projects square inputs to finite nonnegative row-stochastic matrices and validates the resulting stationary distribution:
+
+- entries are finite and nonnegative
+- entries sum to one
+- the residual `||πP - π||₁` is small
+- the solver is deterministic on identical input
+
+```bash
+cargo +nightly fuzz run gth
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run gth fuzz/artifacts/gth/crash-<hash>
+```
+
+### EadesLinSmyth
+
+The Eades-Lin-Smyth harness fuzzes the GR greedy feedback-arc-set heuristic. It first feeds the raw arbitrary matrix to `eades_lin_smyth()` to confirm the call never panics (the error paths for non-square or invalid weights are exercised here). It then sanitizes the input into a square directed graph with finite, positive, numerically-normal weights and asserts the invariants that must hold for any such graph:
+
+- `order` is a permutation of `0..n` and `positions` is its exact inverse
+- `feedback_edges` are exactly the non-self-loop edges `(u, v)` with `positions[u] > positions[v]`, and `feedback_weight` is their summed weight
+- `0 <= feedback_weight <= total_weight` and `tangle_fraction` lies in `[0, 1]`
+- the residual graph (input edges minus feedback edges) is acyclic, cross-checked with `Kahn`
+- `is_acyclic()` agrees with whether `Kahn` succeeds on the full non-self-loop graph
+- the result is deterministic across two consecutive calls
+
+```bash
+cargo +nightly fuzz run eades_lin_smyth
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run eades_lin_smyth fuzz/artifacts/eades_lin_smyth/crash-<hash>
+```
+
+### Maximum flow (Dinic and Edmonds-Karp)
+
+The max-flow harness fuzzes both the `Dinic` and `EdmondsKarp` algorithms. It sanitizes the arbitrary matrix into a square directed capacity graph and, for each algorithm, checks:
+
+- the call never panics and returns `Ok` on a valid square non-negative graph
+- per-arc flows are feasible (`0 < flow <= capacity`) and lie on real arcs
+- flow is conserved at every node other than the source and the sink
+- the net flow out of the source and into the sink equals `max_flow`
+- the minimum cut has capacity equal to `max_flow`, with the source on the source side, the sink off it, and every crossing arc saturated (a self-contained optimality certificate)
+- the result is deterministic across two consecutive calls
+
+It then requires the two structurally different algorithms to agree on the flow value, and it also reads the same input as a bipartite graph and checks that each algorithm's unit-capacity flow value equals the `HopcroftKarp` maximum matching.
+
+```bash
+cargo +nightly fuzz run max_flow
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run max_flow fuzz/artifacts/max_flow/crash-<hash>
+```

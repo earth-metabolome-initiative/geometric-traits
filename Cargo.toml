@@ -1,0 +1,219 @@
+[package]
+name = "geometric-traits"
+version = "0.1.0"
+edition = "2024"
+authors = ["The Earth Metabolome Initiative"]
+description = "Trait-based algebraic and graph algorithms for Rust, supporting no_std environments"
+license = "MIT"
+repository = "https://github.com/earth-metabolome-initiative/geometric-traits"
+documentation = "https://docs.rs/geometric-traits"
+readme = "README.md"
+keywords = ["graph", "algorithms", "traits", "no_std", "bipartite"]
+categories = ["algorithms", "data-structures", "no-std"]
+rust-version = "1.88"
+# Publish only the library and its docs. The tests, fuzz harnesses, benches, and
+# their multi-megabyte ground-truth fixtures are not needed by downstream users
+# and would push the package far past the crates.io size limit.
+include = [
+    "src/**/*",
+    "/README.md",
+    "/CONTRIBUTING.md",
+    "/LICENSE",
+]
+
+[package.metadata.docs.rs]
+# Document the feature-gated APIs (hashbrown, arbitrary, mem_dbg, ...) on docs.rs.
+all-features = true
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"], default-features = false, optional = true }
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
+multi_ranged = { version = "0.1.2", default-features = false }
+thiserror = { version = "2.0", default-features = false }
+lender = { version = "0.6", default-features = false }
+hashbrown = { version = "0.17", optional = true }
+bitvec = { version = "1", default-features = false, features = ["alloc"] }
+rand = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
+mem_dbg_crate = { package = "mem_dbg", version = "0.4.1", default-features = false, optional = true }
+barnes_hut_tree = { package = "barnes-hut-tree", version = "0.1.1", default-features = false, optional = true }
+
+[lints.rust]
+missing_docs = "forbid"
+unused_macro_rules = "forbid"
+unconditional_recursion = "forbid"
+unreachable_patterns = "forbid"
+unused_import_braces = "forbid"
+unused_must_use = "forbid"
+deprecated = "deny"
+
+[lints.rustdoc]
+broken_intra_doc_links = "forbid"
+bare_urls = "forbid"
+invalid_codeblock_attributes = "forbid"
+invalid_html_tags = "forbid"
+missing_crate_level_docs = "forbid"
+unescaped_backticks = "forbid"
+redundant_explicit_links = "forbid"
+invalid_rust_codeblocks = "forbid"
+
+[lints.clippy]
+unreadable_literal = "allow"
+missing_panics_doc = "allow"
+new_ret_no_self = "allow"
+struct_excessive_bools = "allow"
+should_panic_without_expect = "allow"
+doc_markdown = "allow"
+duplicated_attributes = "forbid"
+clone_on_copy = "forbid"
+pedantic = { level = "deny", priority = -1 }
+
+[features]
+default = ["std"]
+std = [
+    "alloc",
+    "num-traits/std",
+    "barnes_hut_tree/std",
+    "barnes_hut_tree/parallel",
+]
+alloc = [
+    "hashbrown?/alloc",
+    "dep:rand",
+    "dep:barnes_hut_tree",
+]
+arbitrary = ["dep:arbitrary", "std"]
+hashbrown = ["dep:hashbrown"]
+mem_size = ["alloc", "dep:mem_dbg_crate", "mem_dbg_crate/derive"]
+mem_dbg = ["std", "mem_size", "mem_dbg_crate/std"]
+
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+arbitrary = { version = "1" }
+serde = { version = "1.0.225", features = ["derive"] }
+serde_json = "1.0"
+flate2 = "1"
+rayon = "1"
+indicatif = { version = "0.18", features = ["rayon"] }
+
+[[bench]]
+name = "minimum_spanning_tree"
+harness = false
+
+[[bench]]
+name = "wu_palmer"
+harness = false
+
+[[bench]]
+name = "lin"
+harness = false
+
+[[bench]]
+name = "lapmod"
+harness = false
+
+[[bench]]
+name = "hungarian"
+harness = false
+
+[[bench]]
+name = "matching"
+harness = false
+
+[[bench]]
+name = "mces_ground_truth"
+harness = false
+
+[[bench]]
+name = "gth"
+harness = false
+
+[[bench]]
+name = "blossom_v"
+harness = false
+
+[[bench]]
+name = "kocay"
+harness = false
+
+[[bench]]
+name = "minimum_cost_balanced_flow"
+harness = false
+
+[[bench]]
+name = "vf2"
+harness = false
+
+[[bench]]
+name = "valued_symmetric_builder"
+harness = false
+
+[[bench]]
+name = "node_ordering"
+harness = false
+
+[[bench]]
+name = "motif_counting"
+harness = false
+
+[[bench]]
+name = "eades_lin_smyth"
+harness = false
+
+[[bench]]
+name = "biconnected_components"
+harness = false
+
+[[bench]]
+name = "minimum_cycle_basis"
+harness = false
+
+[[bench]]
+name = "minimum_cycle_basis_variants"
+harness = false
+
+[[bench]]
+name = "relevant_essential_cycles"
+harness = false
+
+[[bench]]
+name = "chordal_detection"
+harness = false
+
+[[bench]]
+name = "cactus_detection"
+harness = false
+
+[[bench]]
+name = "planarity"
+harness = false
+
+[[bench]]
+name = "k23_homeomorph"
+harness = false
+
+[[bench]]
+name = "k33_homeomorph"
+harness = false
+
+[[bench]]
+name = "k4_homeomorph"
+harness = false
+
+[[bench]]
+name = "canon"
+harness = false
+
+[[bench]]
+name = "diameter"
+harness = false
+
+[[bench]]
+name = "forceatlas2"
+harness = false
+
+[[bench]]
+name = "leicht_newman"
+harness = false
+
+[[bench]]
+name = "max_flow"
+harness = false

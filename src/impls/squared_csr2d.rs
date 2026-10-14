@@ -1,0 +1,104 @@
+//! Submodule implementing Edges-related traits for [`SquareCSR2D`].
+
+use core::fmt::Debug;
+
+use num_traits::Zero;
+
+use crate::{
+    errors::builder::edges::EdgesBuilderError,
+    impls::{MutabilityError, SquareCSR2D},
+    traits::{
+        Edges, Graph, GrowableEdges, Matrix, Matrix2D, MonoplexGraph, SizedRowsSparseMatrix2D,
+        SizedSparseMatrix, SparseMatrix, SparseMatrixMut, TryFromUsize,
+    },
+};
+
+impl<M> Edges for SquareCSR2D<M>
+where
+    M: SizedRowsSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+    M::RowIndex: TryFromUsize,
+    M::SparseIndex: TryFromUsize,
+{
+    type Edge = <Self as Matrix>::Coordinates;
+    type SourceNodeId = <Self as Matrix2D>::RowIndex;
+    type DestinationNodeId = <Self as Matrix2D>::ColumnIndex;
+    type EdgeId = <Self as SparseMatrix>::SparseIndex;
+    type Matrix = Self;
+
+    #[inline]
+    fn matrix(&self) -> &Self::Matrix {
+        self
+    }
+}
+
+impl<M> GrowableEdges for SquareCSR2D<M>
+where
+    M: Debug
+        + SparseMatrixMut<
+            MinimalShape = <Self as Matrix>::Coordinates,
+            Entry = <Self as Matrix>::Coordinates,
+            Error = MutabilityError<M>,
+        > + SizedRowsSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>
+        + 'static,
+    M::RowIndex: TryFromUsize,
+    M::SparseIndex: TryFromUsize,
+{
+    type GrowableMatrix = Self;
+    type Error = EdgesBuilderError<Self>;
+
+    #[inline]
+    fn matrix_mut(&mut self) -> &mut Self::GrowableMatrix {
+        self
+    }
+
+    #[inline]
+    fn with_capacity(number_of_edges: Self::EdgeId) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_capacity(number_of_edges)
+    }
+
+    #[inline]
+    fn with_shape(shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_shape(shape)
+    }
+
+    #[inline]
+    fn with_shaped_capacity(
+        shape: <Self::GrowableMatrix as SparseMatrixMut>::MinimalShape,
+        number_of_edges: Self::EdgeId,
+    ) -> Self {
+        <Self as SparseMatrixMut>::with_sparse_shaped_capacity(shape, number_of_edges)
+    }
+}
+
+impl<M> Graph for SquareCSR2D<M>
+where
+    M: SizedRowsSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+    M::RowIndex: TryFromUsize,
+    M::SparseIndex: TryFromUsize,
+{
+    #[inline]
+    fn has_nodes(&self) -> bool {
+        self.number_of_rows() > <Self as Matrix2D>::RowIndex::zero()
+            && self.number_of_columns() > <Self as Matrix2D>::ColumnIndex::zero()
+    }
+
+    #[inline]
+    fn has_edges(&self) -> bool {
+        self.number_of_defined_values() > <Self as SparseMatrix>::SparseIndex::zero()
+    }
+}
+
+impl<M> MonoplexGraph for SquareCSR2D<M>
+where
+    M: SizedRowsSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+    M::RowIndex: TryFromUsize,
+    M::SparseIndex: TryFromUsize,
+{
+    type Edge = <Self as Matrix>::Coordinates;
+    type Edges = Self;
+
+    #[inline]
+    fn edges(&self) -> &Self::Edges {
+        self
+    }
+}

@@ -1,0 +1,581 @@
+//! Submodule providing a definition of a CSR matrix.
+#[cfg(feature = "mem_dbg")]
+use alloc::string::String;
+use alloc::vec::Vec;
+
+use multi_ranged::Step;
+use num_traits::{AsPrimitive, Zero};
+
+use crate::{
+    impls::{CSR2D, MutabilityError, SquareCSR2D, SymmetricCSR2D, ValuedCSR2D},
+    prelude::*,
+    traits::{PositiveInteger, TryFromUsize},
+};
+
+#[cfg_attr(feature = "mem_size", derive(mem_dbg::MemSize))]
+#[cfg_attr(feature = "mem_size", mem_size(rec))]
+#[cfg_attr(feature = "mem_dbg", derive(mem_dbg::MemDbg))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// A compressed sparse row matrix.
+pub struct UpperTriangularCSR2D<M: Matrix2D> {
+    /// The underlying matrix.
+    matrix: SquareCSR2D<M>,
+}
+
+impl<M> Matrix for UpperTriangularCSR2D<M>
+where
+    M: Matrix2D,
+{
+    type Coordinates = (M::RowIndex, M::ColumnIndex);
+
+    #[inline]
+    fn shape(&self) -> Vec<usize> {
+        vec![self.number_of_rows().as_(), self.number_of_columns().as_()]
+    }
+}
+
+impl<M> Matrix2D for UpperTriangularCSR2D<M>
+where
+    M: Matrix2D,
+{
+    type RowIndex = M::RowIndex;
+    type ColumnIndex = M::ColumnIndex;
+
+    #[inline]
+    fn number_of_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_rows()
+    }
+
+    #[inline]
+    fn number_of_columns(&self) -> Self::ColumnIndex {
+        self.matrix.number_of_columns()
+    }
+}
+
+impl<M> SquareMatrix for UpperTriangularCSR2D<M>
+where
+    M: Matrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    type Index = M::RowIndex;
+
+    #[inline]
+    fn order(&self) -> Self::Index {
+        self.matrix.order()
+    }
+}
+
+impl<M> SparseSquareMatrix for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <M as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn number_of_defined_diagonal_values(&self) -> Self::Index {
+        self.matrix.number_of_defined_diagonal_values()
+    }
+}
+
+impl<M> AsRef<M> for UpperTriangularCSR2D<M>
+where
+    M: Matrix2D,
+{
+    #[inline]
+    fn as_ref(&self) -> &M {
+        self.matrix.as_ref()
+    }
+}
+
+impl<M> Default for UpperTriangularCSR2D<M>
+where
+    M: Matrix2D + Default,
+{
+    #[inline]
+    fn default() -> Self {
+        Self { matrix: SquareCSR2D::default() }
+    }
+}
+
+impl<M: Matrix2D> UpperTriangularCSR2D<M> {
+    /// Creates a new `UpperTriangularCSR2D` from a `SquareCSR2D`.
+    ///
+    /// # Safety (logical)
+    /// The caller must guarantee that `matrix` stores only upper-triangular
+    /// entries, i.e. every stored coordinate `(row, column)` satisfies
+    /// `row <= column`.
+    #[inline]
+    pub fn from_parts(matrix: SquareCSR2D<M>) -> Self {
+        Self { matrix }
+    }
+}
+
+impl<M> SparseMatrixMut for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrixMut<
+            MinimalShape = Self::Coordinates,
+            Entry = Self::Coordinates,
+            Error = MutabilityError<M>,
+        > + SparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type MinimalShape = M::RowIndex;
+
+    #[inline]
+    fn with_sparse_capacity(number_of_values: Self::SparseIndex) -> Self {
+        Self { matrix: SquareCSR2D::with_sparse_capacity(number_of_values) }
+    }
+
+    #[inline]
+    fn with_sparse_shape(shape: Self::MinimalShape) -> Self {
+        Self::with_sparse_shaped_capacity(shape, M::SparseIndex::zero())
+    }
+
+    #[inline]
+    fn with_sparse_shaped_capacity(
+        shape: Self::MinimalShape,
+        number_of_values: Self::SparseIndex,
+    ) -> Self {
+        Self { matrix: SquareCSR2D::with_sparse_shaped_capacity(shape, number_of_values) }
+    }
+}
+
+impl<M> SparseMatrix for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseIndex = <SquareCSR2D<M> as SparseMatrix>::SparseIndex;
+    type SparseCoordinates<'a>
+        = <SquareCSR2D<M> as SparseMatrix>::SparseCoordinates<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_coordinates(&self) -> Self::SparseCoordinates<'_> {
+        self.matrix.sparse_coordinates()
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.matrix.is_empty()
+    }
+
+    #[inline]
+    fn last_sparse_coordinates(&self) -> Option<Self::Coordinates> {
+        self.matrix.last_sparse_coordinates()
+    }
+}
+
+impl<M> SizedSparseMatrix for UpperTriangularCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn number_of_defined_values(&self) -> Self::SparseIndex {
+        self.matrix.number_of_defined_values()
+    }
+}
+
+impl<M> RankSelectSparseMatrix for UpperTriangularCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex> + RankSelectSparseMatrix,
+{
+    #[inline]
+    fn rank(&self, coordinates: &Self::Coordinates) -> Self::SparseIndex {
+        self.matrix.rank(coordinates)
+    }
+
+    #[inline]
+    fn select(&self, sparse_index: Self::SparseIndex) -> Self::Coordinates {
+        self.matrix.select(sparse_index)
+    }
+}
+
+impl<M> SparseMatrix2D for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseRow<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseRow<'a>
+    where
+        Self: 'a;
+    type SparseColumns<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseColumns<'a>
+    where
+        Self: 'a;
+    type SparseRows<'a>
+        = <SquareCSR2D<M> as SparseMatrix2D>::SparseRows<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn sparse_row(&self, row: Self::RowIndex) -> Self::SparseRow<'_> {
+        self.matrix.sparse_row(row)
+    }
+
+    #[inline]
+    fn has_entry(&self, row: Self::RowIndex, column: Self::ColumnIndex) -> bool {
+        self.matrix.has_entry(row, column)
+    }
+
+    #[inline]
+    fn sparse_columns(&self) -> Self::SparseColumns<'_> {
+        self.matrix.sparse_columns()
+    }
+
+    #[inline]
+    fn sparse_rows(&self) -> Self::SparseRows<'_> {
+        self.matrix.sparse_rows()
+    }
+}
+
+impl<M> EmptyRows for UpperTriangularCSR2D<M>
+where
+    M: EmptyRows<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type EmptyRowIndices<'a>
+        = <SquareCSR2D<M> as EmptyRows>::EmptyRowIndices<'a>
+    where
+        Self: 'a;
+    type NonEmptyRowIndices<'a>
+        = <SquareCSR2D<M> as EmptyRows>::NonEmptyRowIndices<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn empty_row_indices(&self) -> Self::EmptyRowIndices<'_> {
+        self.matrix.empty_row_indices()
+    }
+
+    #[inline]
+    fn non_empty_row_indices(&self) -> Self::NonEmptyRowIndices<'_> {
+        self.matrix.non_empty_row_indices()
+    }
+
+    #[inline]
+    fn number_of_empty_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_empty_rows()
+    }
+
+    #[inline]
+    fn number_of_non_empty_rows(&self) -> Self::RowIndex {
+        self.matrix.number_of_non_empty_rows()
+    }
+}
+
+impl<M> SizedRowsSparseMatrix2D for UpperTriangularCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    type SparseRowSizes<'a>
+        = <SquareCSR2D<M> as SizedRowsSparseMatrix2D>::SparseRowSizes<'a>
+    where
+        Self: 'a;
+
+    #[inline]
+    fn number_of_defined_values_in_row(&self, row: Self::RowIndex) -> Self::ColumnIndex {
+        self.matrix.number_of_defined_values_in_row(row)
+    }
+
+    #[inline]
+    fn sparse_row_sizes(&self) -> Self::SparseRowSizes<'_> {
+        self.matrix.sparse_row_sizes()
+    }
+}
+
+impl<M> SizedSparseMatrix2D for UpperTriangularCSR2D<M>
+where
+    M: SizedSparseMatrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn rank_row(&self, row: M::RowIndex) -> Self::SparseIndex {
+        self.matrix.rank_row(row)
+    }
+
+    #[inline]
+    fn select_column(&self, sparse_index: Self::SparseIndex) -> Self::ColumnIndex {
+        self.matrix.select_column(sparse_index)
+    }
+
+    #[inline]
+    fn select_row(&self, sparse_index: Self::SparseIndex) -> Self::RowIndex {
+        self.matrix.select_row(sparse_index)
+    }
+}
+
+impl<M> MatrixMut for UpperTriangularCSR2D<M>
+where
+    M: MatrixMut<Entry = Self::Coordinates, Error = MutabilityError<M>>
+        + Matrix2D<ColumnIndex = <Self as Matrix2D>::RowIndex>,
+    M::RowIndex: core::fmt::Debug,
+{
+    type Entry = Self::Coordinates;
+    type Error = crate::impls::MutabilityError<Self>;
+
+    #[inline]
+    fn add(&mut self, (row, column): Self::Entry) -> Result<(), Self::Error> {
+        if row > column {
+            return Err(MutabilityError::OutOfBounds(
+                (row, column),
+                (self.order(), self.order()),
+                "In an upper triangular matrix, row indices must be less than or equal to column indices.",
+            ));
+        }
+        self.matrix.add((row, column))?;
+
+        Ok(())
+    }
+
+    #[inline]
+    fn increase_shape(&mut self, shape: Self::Coordinates) -> Result<(), Self::Error> {
+        Ok(self.matrix.increase_shape(shape)?)
+    }
+}
+
+impl<M> TransposableMatrix2D<SquareCSR2D<M>> for UpperTriangularCSR2D<M>
+where
+    M: TransposableMatrix2D<M, ColumnIndex = <Self as Matrix2D>::RowIndex>,
+{
+    #[inline]
+    fn transpose(&self) -> SquareCSR2D<M> {
+        self.matrix.transpose()
+    }
+}
+
+fn symmetrize_sparse_coordinates<M, SparseIndex, Idx>(
+    matrix: &UpperTriangularCSR2D<M>,
+) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>
+where
+    M: SparseMatrix2D<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+{
+    let order = matrix.order();
+    let order_usize = order.as_();
+
+    // Pass 1: compute output row degrees for the symmetric matrix.
+    let mut row_degrees = vec![SparseIndex::zero(); order_usize];
+    for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(matrix) {
+        row_degrees[row.as_()] += SparseIndex::one();
+        if row != column {
+            row_degrees[column.as_()] += SparseIndex::one();
+        }
+    }
+
+    // Prefix-sum degrees to build offsets.
+    let mut offsets = vec![SparseIndex::zero(); order_usize + 1];
+    let mut number_of_non_empty_rows = Idx::zero();
+    for row in 0..order_usize {
+        offsets[row + 1] = offsets[row] + row_degrees[row];
+        if row_degrees[row] > SparseIndex::zero() {
+            number_of_non_empty_rows += Idx::one();
+        }
+    }
+    let number_of_expected_column_indices = offsets[order_usize].as_();
+
+    let mut symmetric: CSR2D<SparseIndex, Idx, Idx> = CSR2D {
+        offsets,
+        number_of_columns: order,
+        number_of_rows: order,
+        column_indices: vec![Idx::zero(); number_of_expected_column_indices],
+        number_of_non_empty_rows,
+    };
+
+    // Pass 2: fill rows in-place using per-row write cursors.
+    let mut write_offsets = symmetric.offsets[..order_usize].to_vec();
+    for (row, column) in crate::traits::SparseMatrix::sparse_coordinates(matrix) {
+        let row_index = row.as_();
+        let row_write_offset = write_offsets[row_index].as_();
+        symmetric.column_indices[row_write_offset] = column;
+        write_offsets[row_index] += SparseIndex::one();
+
+        if row != column {
+            let column_index = column.as_();
+            let column_write_offset = write_offsets[column_index].as_();
+            symmetric.column_indices[column_write_offset] = row;
+            write_offsets[column_index] += SparseIndex::one();
+        }
+    }
+
+    debug_assert!(
+        (0..order_usize).all(|row| write_offsets[row] == symmetric.offsets[row + 1]),
+        "Write cursors must end exactly at the row boundaries after symmetrization"
+    );
+
+    debug_assert_eq!(
+        symmetric.number_of_defined_values().as_(),
+        number_of_expected_column_indices,
+        "The number of inserted values is not the expected one. Diagonals: {}",
+        matrix.number_of_defined_diagonal_values()
+    );
+
+    SymmetricCSR2D::from_parts(SquareCSR2D::from_parts(
+        symmetric,
+        matrix.number_of_defined_diagonal_values(),
+    ))
+}
+
+impl<M, SparseIndex, Idx> Symmetrize<SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>>>
+    for UpperTriangularCSR2D<M>
+where
+    M: SparseMatrix2D<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+{
+    #[inline]
+    fn symmetrize(&self) -> SymmetricCSR2D<CSR2D<SparseIndex, Idx, Idx>> {
+        symmetrize_sparse_coordinates(self)
+    }
+}
+
+impl<M, SparseIndex, Idx>
+    Symmetrize<SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, <M as ValuedMatrix>::Value>>>
+    for UpperTriangularCSR2D<M>
+where
+    M: SparseValuedMatrix2DRef<RowIndex = Idx, ColumnIndex = Idx, SparseIndex = SparseIndex>,
+    Idx: Step + PositiveInteger + AsPrimitive<usize> + TryFromUsize + TryFrom<SparseIndex>,
+    SparseIndex: PositiveInteger + AsPrimitive<usize> + TryFromUsize,
+    <M as ValuedMatrix>::Value: Clone,
+{
+    #[inline]
+    fn symmetrize(
+        &self,
+    ) -> SymmetricCSR2D<ValuedCSR2D<SparseIndex, Idx, Idx, <M as ValuedMatrix>::Value>> {
+        SymmetricCSR2D::from_sorted_upper_triangular_entries(
+            self.order(),
+            crate::traits::SparseMatrix::sparse_coordinates(self)
+                .zip(self.as_ref().sparse_values_ref())
+                .map(|((row, column), value)| (row, column, value.clone())),
+        )
+        .unwrap_or_else(|_| {
+            unreachable!("Upper triangular matrices already store sorted in-bounds entries")
+        })
+    }
+}
+
+#[cfg(all(test, feature = "alloc"))]
+mod tests {
+    use alloc::vec::Vec;
+
+    use super::*;
+    use crate::{
+        impls::{CSR2D, ValuedCSR2D},
+        traits::MatrixMut,
+    };
+
+    type TestCSR2D = CSR2D<usize, usize, usize>;
+    type TestUpperTriangular = UpperTriangularCSR2D<TestCSR2D>;
+    type TestValuedCSR2D = ValuedCSR2D<usize, usize, usize, i32>;
+    type TestValuedUpperTriangular = UpperTriangularCSR2D<TestValuedCSR2D>;
+
+    #[test]
+    fn test_upper_triangular_default() {
+        let ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        assert_eq!(ut.number_of_rows(), 0);
+        assert_eq!(ut.number_of_columns(), 0);
+        assert!(ut.is_empty());
+    }
+
+    #[test]
+    fn test_upper_triangular_with_sparse_shape() {
+        let ut: TestUpperTriangular = SparseMatrixMut::with_sparse_shape(3);
+        assert_eq!(ut.order(), 3);
+    }
+
+    #[test]
+    fn test_upper_triangular_add_valid_entries() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        // Diagonal entry
+        assert!(MatrixMut::add(&mut ut, (0, 0)).is_ok());
+        // Upper triangular entry (row < column)
+        assert!(MatrixMut::add(&mut ut, (0, 1)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (0, 2)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (1, 1)).is_ok());
+        assert!(MatrixMut::add(&mut ut, (1, 2)).is_ok());
+        assert_eq!(ut.number_of_defined_values(), 5);
+    }
+
+    #[test]
+    fn test_upper_triangular_add_lower_triangular_error() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        // Lower triangular entry (row > column) should fail
+        assert!(MatrixMut::add(&mut ut, (1, 0)).is_err());
+        assert!(MatrixMut::add(&mut ut, (2, 0)).is_err());
+        assert!(MatrixMut::add(&mut ut, (2, 1)).is_err());
+    }
+
+    #[test]
+    fn test_upper_triangular_diagonal_values() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 1)).unwrap();
+        assert_eq!(ut.number_of_defined_diagonal_values(), 2);
+    }
+
+    #[test]
+    fn test_upper_triangular_sparse_row() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (0, 2)).unwrap();
+
+        let row0: Vec<usize> = ut.sparse_row(0).collect();
+        assert_eq!(row0, vec![0, 1, 2]);
+    }
+
+    #[test]
+    fn test_upper_triangular_has_entry() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 2)).unwrap();
+
+        assert!(!ut.has_entry(0, 0));
+        assert!(ut.has_entry(0, 1));
+        assert!(!ut.has_entry(1, 0));
+        assert!(ut.has_entry(1, 2));
+    }
+
+    #[test]
+    fn test_upper_triangular_shape() {
+        let ut: TestUpperTriangular = SparseMatrixMut::with_sparse_shape(4);
+        assert_eq!(ut.shape(), vec![4, 4]);
+    }
+
+    #[test]
+    fn test_upper_triangular_symmetrize() {
+        let mut ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        MatrixMut::add(&mut ut, (0, 0)).unwrap();
+        MatrixMut::add(&mut ut, (0, 1)).unwrap();
+        MatrixMut::add(&mut ut, (1, 1)).unwrap();
+
+        let sym = ut.symmetrize();
+        // After symmetrization, (1, 0) should exist
+        assert!(sym.has_entry(0, 0));
+        assert!(sym.has_entry(0, 1));
+        assert!(sym.has_entry(1, 0)); // Added by symmetrization
+        assert!(sym.has_entry(1, 1));
+    }
+
+    #[test]
+    fn test_upper_triangular_valued_symmetrize() {
+        let mut valued: TestValuedCSR2D = SparseMatrixMut::with_sparse_shaped_capacity((3, 3), 3);
+        MatrixMut::add(&mut valued, (0, 1, 10)).unwrap();
+        MatrixMut::add(&mut valued, (1, 1, 20)).unwrap();
+        MatrixMut::add(&mut valued, (1, 2, 30)).unwrap();
+
+        let ut: TestValuedUpperTriangular =
+            UpperTriangularCSR2D::from_parts(SquareCSR2D::from_parts(valued, 1));
+        let sym: SymmetricCSR2D<TestValuedCSR2D> = ut.symmetrize();
+
+        assert_eq!(sym.number_of_defined_diagonal_values(), 1);
+        assert_eq!(sym.sparse_value_at(0, 1), Some(10));
+        assert_eq!(sym.sparse_value_at(1, 0), Some(10));
+        assert_eq!(sym.sparse_value_at(1, 1), Some(20));
+        assert_eq!(sym.sparse_value_at(1, 2), Some(30));
+        assert_eq!(sym.sparse_value_at(2, 1), Some(30));
+    }
+
+    #[test]
+    fn test_upper_triangular_debug() {
+        let ut: TestUpperTriangular = UpperTriangularCSR2D::default();
+        let debug = alloc::format!("{ut:?}");
+        assert!(debug.contains("UpperTriangularCSR2D"));
+    }
+}
