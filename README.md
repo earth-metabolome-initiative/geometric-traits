@@ -58,7 +58,7 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 | **Information Content Propagation** | `InformationContent` | O(V+E) | [Resnik (1995)](https://arxiv.org/abs/cmp-lg/9511007) |
 | **Resnik Semantic Similarity** | `Resnik` | O(R·(V+E)) per query | [Resnik (1995)](https://arxiv.org/abs/cmp-lg/9511007) |
 | **Lin Semantic Similarity** | `Lin` | O(R·(V+E)) per query | Lin (1998) |
-| **Wu-Palmer Semantic Similarity** | `WuPalmer` | O(R·(V+E)) per query | [Wu & Palmer (1994)](https://doi.org/10.3115/981732.981751) |
+| **Wu-Palmer Semantic Similarity** | `WuPalmer` | O(V+E) per query | [Wu & Palmer (1994)](https://doi.org/10.3115/981732.981751) |
 | **Line Graph** | `LineGraph` | O(∑deg²) | Whitney (1932) |
 | **Labeled Line Graph** | `LabeledLineGraph` | O(∑deg²) | Labeled variant for MCES / RASCAL |
 | **Modular Product** | `ModularProduct` | O(\|P\|²) | [Barrow & Burstall (1976)](https://doi.org/10.1016/0020-0190(76)90049-1) |
