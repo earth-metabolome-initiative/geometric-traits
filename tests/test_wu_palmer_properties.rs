@@ -266,3 +266,133 @@ fn test_wu_palmer_component_isolation_property() {
         }
     }
 }
+
+/// Chain of `diamonds` diamonds `t_k -> {a_k, b_k} -> t_{k+1}` with
+/// `t_k = 3k`, `a_k = 3k + 1` and `b_k = 3k + 2`, holding `2^diamonds`
+/// root-to-sink paths.
+fn stacked_diamonds(diamonds: usize) -> (usize, Vec<(usize, usize)>) {
+    let mut edges = Vec::with_capacity(4 * diamonds);
+    for k in 0..diamonds {
+        let top = 3 * k;
+        edges.extend([(top, top + 1), (top, top + 2), (top + 1, top + 3), (top + 2, top + 3)]);
+    }
+    (3 * diamonds + 1, edges)
+}
+
+#[test]
+fn test_wu_palmer_stacked_diamonds_exact_scores() {
+    // Depth of t_k is 2k + 1 and depth of a_k and b_k is 2k + 2.
+    for diamonds in [2usize, 3, 5, 40] {
+        let (number_of_nodes, edges) = stacked_diamonds(diamonds);
+        let graph = build_digraph(number_of_nodes, edges);
+        let wu_palmer = graph.wu_palmer().unwrap();
+        let last = diamonds - 1;
+        let sink = 3 * diamonds;
+        let diamonds_f64 = f64::from(u32::try_from(diamonds).unwrap());
+
+        // The deepest common ancestor of the last siblings is t_last.
+        assert_approx_eq(
+            wu_palmer.similarity(&(3 * last + 1), &(3 * last + 2)),
+            (2.0 * diamonds_f64 - 1.0) / (2.0 * diamonds_f64),
+        );
+        // a_0 is an ancestor of b_last and of the sink, so it is their deepest
+        // common ancestor.
+        assert_approx_eq(
+            wu_palmer.similarity(&1, &(3 * last + 2)),
+            4.0 / (2.0 + 2.0 * diamonds_f64),
+        );
+        assert_approx_eq(wu_palmer.similarity(&sink, &1), 4.0 / (3.0 + 2.0 * diamonds_f64));
+    }
+}
+
+/// Wu-Palmer depth triple of `node` at `depth`, enumerating every path of
+/// the DAG below `node` and visiting successors in ascending order.
+fn reference_depths(
+    successors: &[Vec<usize>],
+    node: usize,
+    depth: usize,
+    left: usize,
+    right: usize,
+) -> (Option<usize>, Option<usize>, usize) {
+    let mut n1 = (node == left).then_some(depth);
+    let mut n2 = (node == right).then_some(depth);
+    let mut n3 = depth;
+    for &successor in &successors[node] {
+        match reference_depths(successors, successor, depth + 1, left, right) {
+            (Some(child_n1), None, _) => n1 = Some(n1.map_or(child_n1, |n1| n1.max(child_n1))),
+            (None, Some(child_n2), _) => n2 = Some(n2.map_or(child_n2, |n2| n2.max(child_n2))),
+            (None, None, _) => {}
+            (child_n1, child_n2, child_n3) => {
+                if n3 < child_n3 {
+                    n3 = child_n3;
+                    n1 = child_n1;
+                    n2 = child_n2;
+                }
+            }
+        }
+    }
+    (n1, n2, n3)
+}
+
+/// Successor lists in ascending order, the order `SquareCSR2D` stores them in.
+fn sorted_successors(number_of_nodes: usize, edges: &[(usize, usize)]) -> Vec<Vec<usize>> {
+    let mut successors = vec![Vec::new(); number_of_nodes];
+    for &(source, destination) in edges {
+        successors[source].push(destination);
+    }
+    for row in &mut successors {
+        row.sort_unstable();
+    }
+    successors
+}
+
+fn reference_similarity(successors: &[Vec<usize>], left: usize, right: usize) -> f64 {
+    if left == right {
+        return 1.0;
+    }
+    let mut has_predecessor = vec![false; successors.len()];
+    for &destination in successors.iter().flatten() {
+        has_predecessor[destination] = true;
+    }
+    let mut best = 0.0;
+    for root in (0..successors.len()).filter(|&node| !has_predecessor[node]) {
+        if let (Some(n1), Some(n2), n3) = reference_depths(successors, root, 1, left, right) {
+            let to_f64 = |depth: usize| f64::from(u32::try_from(depth).unwrap());
+            let similarity = 2.0 * to_f64(n3) / (to_f64(n1) + to_f64(n2));
+            if similarity > best {
+                best = similarity;
+            }
+        }
+    }
+    best
+}
+
+#[test]
+fn test_wu_palmer_matches_path_enumeration_reference() {
+    let mut cases: Vec<(usize, Vec<(usize, usize)>)> = Vec::new();
+    for seed in [1u64, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233] {
+        for number_of_nodes in 2..=12usize {
+            let node_seed = u64::try_from(number_of_nodes).unwrap() * 4099;
+            cases.push((number_of_nodes, randomized_dag_edges(seed + node_seed, number_of_nodes)));
+        }
+        for component_sizes in [&[3usize, 2, 1][..], &[4, 3], &[2, 2, 2], &[5, 1, 3]] {
+            let (number_of_nodes, edges, _) = randomized_componentized_dag(seed, component_sizes);
+            cases.push((number_of_nodes, edges));
+        }
+    }
+    cases.push(stacked_diamonds(4));
+
+    for (number_of_nodes, edges) in cases {
+        let successors = sorted_successors(number_of_nodes, &edges);
+        let graph = build_digraph(number_of_nodes, edges);
+        let wu_palmer = graph.wu_palmer().unwrap();
+        for left in 0..number_of_nodes {
+            for right in 0..number_of_nodes {
+                assert_approx_eq(
+                    wu_palmer.similarity(&left, &right),
+                    reference_similarity(&successors, left, right),
+                );
+            }
+        }
+    }
+}

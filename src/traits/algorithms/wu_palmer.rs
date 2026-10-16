@@ -2,6 +2,8 @@
 //! implementation
 use alloc::vec::Vec;
 
+use num_traits::AsPrimitive;
+
 use crate::traits::{
     Edges, Kahn, KahnError, MonoplexMonopartiteGraph, ScalarSimilarity,
     algorithms::root_nodes::RootNodes,
@@ -14,6 +16,8 @@ pub struct WuPalmerResult<'graph, G: ?Sized + MonoplexMonopartiteGraph> {
     graph: &'graph G,
     /// Root nodes of the graph
     root_nodes: Vec<G::NodeId>,
+    /// Every node, each one listed after all of its successors
+    reverse_topological_order: Vec<G::NodeId>,
 }
 
 /// Trait providing the `Wu-Palmer` depth based similarity
@@ -29,7 +33,7 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
     /// # Complexity
     ///
     /// `wu_palmer` preparation is O(V + E). Each call to `similarity` is
-    /// O(V + E) per root node.
+    /// O(V + E).
     ///
     /// # Examples
     ///
@@ -61,10 +65,47 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
     /// ```
     #[inline]
     fn wu_palmer(&self) -> Result<WuPalmerResult<'_, Self>, KahnError> {
-        // Check whether the graph is a DAG (characterize by having no cycles)
-        let _topological_ordering = self.edges().matrix().kahn()?;
-        let root_nodes = self.root_nodes();
-        Ok(WuPalmerResult { graph: self, root_nodes })
+        // `kahn` rejects cycles and maps each matrix row to its rank.
+        let ranks = self.edges().matrix().kahn()?;
+        let mut by_rank: Vec<Option<Self::NodeId>> = alloc::vec![None; ranks.len()];
+        for node in self.node_ids() {
+            by_rank[ranks[node.as_()].as_()] = Some(node);
+        }
+        let reverse_topological_order = by_rank.into_iter().rev().flatten().collect();
+        Ok(WuPalmerResult { graph: self, root_nodes: self.root_nodes(), reverse_topological_order })
+    }
+}
+
+/// Wu-Palmer depths of the subtree below one node, counted from that node at
+/// depth zero.
+#[derive(Clone, Copy, Default)]
+struct SubtreeDepths {
+    /// Deepest depth of `left`, when reachable
+    left: Option<usize>,
+    /// Deepest depth of `right`, when reachable
+    right: Option<usize>,
+    /// Depth of the deepest node reaching both `left` and `right`
+    common: usize,
+}
+
+impl SubtreeDepths {
+    /// Folds in the depths of a successor, which sits one level deeper.
+    fn absorb(&mut self, successor: Self) {
+        match (successor.left, successor.right) {
+            // Keeping the deepest depth across paths keeps 2 * common <= left + right.
+            (Some(left), None) => self.left = Some(self.left.map_or(left + 1, |d| d.max(left + 1))),
+            (None, Some(right)) => {
+                self.right = Some(self.right.map_or(right + 1, |d| d.max(right + 1)));
+            }
+            (None, None) => {}
+            (Some(left), Some(right)) => {
+                if self.common < successor.common + 1 {
+                    self.common = successor.common + 1;
+                    self.left = Some(left + 1);
+                    self.right = Some(right + 1);
+                }
+            }
+        }
     }
 }
 
@@ -73,26 +114,36 @@ where
     G: MonoplexMonopartiteGraph,
 {
     type Similarity = f64;
-    #[allow(clippy::cast_precision_loss)]
     #[inline]
     fn similarity(&self, left: &G::NodeId, right: &G::NodeId) -> Self::Similarity {
         if left == right {
             return 1.0;
         }
+        // Depths are relative to each node, so one pass serves every root.
+        let mut depths =
+            alloc::vec![SubtreeDepths::default(); self.reverse_topological_order.len()];
+        for &node in &self.reverse_topological_order {
+            let mut node_depths = SubtreeDepths {
+                left: (node == *left).then_some(0),
+                right: (node == *right).then_some(0),
+                common: 0,
+            };
+            for successor in self.graph.successors(node) {
+                node_depths.absorb(depths[successor.as_()]);
+            }
+            depths[node.as_()] = node_depths;
+        }
+
         let mut max_similarity = 0.0;
         for root_node in &self.root_nodes {
-            let (Some(n1), Some(n2), n3) =
-                // Use root depth = 1 to match the canonical Wu-Palmer score:
-                // 2 * depth(LCS) / (depth(left) + depth(right)).
-                wu_palmer_depth(self.graph, 1, *root_node, *left, *right)
+            let SubtreeDepths { left: Some(left), right: Some(right), common } =
+                depths[root_node.as_()]
             else {
                 continue;
             };
-            let mut denominator = n1 as f64 + n2 as f64;
-            if denominator < f64::EPSILON {
-                denominator = f64::EPSILON;
-            }
-            let similarity = (2.0 * n3 as f64) / denominator;
+            // Roots sit at depth one, matching the canonical Wu-Palmer score
+            // 2 * depth(LCS) / (depth(left) + depth(right)).
+            let similarity = 2.0 * depth_as_f64(common + 1) / depth_as_f64(left + right + 2);
             if similarity > max_similarity {
                 max_similarity = similarity;
             }
@@ -101,105 +152,16 @@ where
     }
 }
 
-/// Stack frame for the iterative post-order DFS used in `wu_palmer_depth`.
-struct WuPalmerFrame<NodeId: Copy> {
-    depth: usize,
-    successors: Vec<NodeId>,
-    idx: usize,
-    n1: Option<usize>,
-    n2: Option<usize>,
-    /// Depth of the deepest common ancestor found in this subtree.
-    n3: usize,
-}
-
-/// Iterative post-order DFS that computes the Wu-Palmer depth triple for the
-/// subtree rooted at `initial_node`.
-///
-/// Returns `(n1, n2, n3)` where:
-/// - `n1` = deepest depth of `left` in this subtree (`None` if not found)
-/// - `n2` = deepest depth of `right` in this subtree (`None` if not found)
-/// - `n3` = depth of the deepest common ancestor node that has both `left` and
-///   `right` in its subtree (equals `initial_depth` when neither or only one
-///   target is reachable)
-fn wu_palmer_depth<G>(
-    graph: &G,
-    initial_depth: usize,
-    initial_node: G::NodeId,
-    left: G::NodeId,
-    right: G::NodeId,
-) -> (Option<usize>, Option<usize>, usize)
-where
-    G: MonoplexMonopartiteGraph + ?Sized,
-{
-    let init_n1 = if initial_node == left { Some(initial_depth) } else { None };
-    let init_n2 = if initial_node == right { Some(initial_depth) } else { None };
-    let init_successors: Vec<G::NodeId> = graph.successors(initial_node).collect();
-    let mut stack = vec![WuPalmerFrame {
-        depth: initial_depth,
-        successors: init_successors,
-        idx: 0,
-        n1: init_n1,
-        n2: init_n2,
-        n3: initial_depth,
-    }];
-
-    loop {
-        let (should_push, should_pop) = {
-            let frame = stack.last_mut().expect("stack is non-empty inside loop");
-            if frame.idx < frame.successors.len() {
-                let successor = frame.successors[frame.idx];
-                let new_depth = frame.depth + 1;
-                frame.idx += 1;
-                (Some((successor, new_depth)), false)
-            } else {
-                (None, true)
-            }
-        };
-
-        if let Some((successor, new_depth)) = should_push {
-            let sn1 = if successor == left { Some(new_depth) } else { None };
-            let sn2 = if successor == right { Some(new_depth) } else { None };
-            let child_successors: Vec<G::NodeId> = graph.successors(successor).collect();
-            stack.push(WuPalmerFrame {
-                depth: new_depth,
-                successors: child_successors,
-                idx: 0,
-                n1: sn1,
-                n2: sn2,
-                n3: new_depth,
-            });
-        } else if should_pop {
-            let child = stack.pop().expect("stack is non-empty when popping");
-            let (child_n1, child_n2, child_n3) = (child.n1, child.n2, child.n3);
-
-            if let Some(parent) = stack.last_mut() {
-                match (child_n1, child_n2) {
-                    (Some(rec_n1), None) => {
-                        // In DAGs with multiple paths to the same node, using
-                        // deepest reachable depths keeps 2*n3 <= n1+n2.
-                        parent.n1 = Some(parent.n1.map_or(rec_n1, |n1| n1.max(rec_n1)));
-                    }
-                    (None, Some(rec_n2)) => {
-                        // In DAGs with multiple paths to the same node, using
-                        // deepest reachable depths keeps 2*n3 <= n1+n2.
-                        parent.n2 = Some(parent.n2.map_or(rec_n2, |n2| n2.max(rec_n2)));
-                    }
-                    (None, None) => {}
-                    // Both Some: the child subtree contains a common ancestor.
-                    (rec_n1, rec_n2) => {
-                        if parent.n3 < child_n3 {
-                            parent.n3 = child_n3;
-                            parent.n1 = rec_n1;
-                            parent.n2 = rec_n2;
-                        }
-                    }
-                }
-            } else {
-                // Stack exhausted: root frame result is the final answer.
-                return (child_n1, child_n2, child_n3);
-            }
-        }
-    }
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "a depth is bounded by the node count, which stays below 2^53"
+)]
+fn depth_as_f64(depth: usize) -> f64 {
+    debug_assert!(
+        u64::try_from(depth).is_ok_and(|depth| depth < 1 << f64::MANTISSA_DIGITS),
+        "depth {depth} exceeds the exact f64 range"
+    );
+    depth as f64
 }
 
 impl<G> WuPalmer for G where G: MonoplexMonopartiteGraph {}
