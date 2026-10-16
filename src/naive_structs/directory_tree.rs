@@ -1,7 +1,5 @@
 //! Submodule providing a graph which represents a directory tree structure.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use std::{
     fmt::Display,
     path::{Path, PathBuf},

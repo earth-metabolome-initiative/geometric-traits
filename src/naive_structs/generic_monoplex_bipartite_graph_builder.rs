@@ -1,7 +1,5 @@
 //! Submodule providing a general builder to build a generic graph.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use crate::traits::{

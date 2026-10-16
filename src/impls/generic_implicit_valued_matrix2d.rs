@@ -1,7 +1,5 @@
 //! Implementation of the [`Edges`] trait for
 //! [`GenericImplicitValuedMatrix2D`].
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::{AsPrimitive, Zero};

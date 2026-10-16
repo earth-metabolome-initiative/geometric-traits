@@ -1,7 +1,5 @@
 //! Submodule providing an implementation of the `RaggedVector` struct.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 #[cfg(feature = "alloc")]
 use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n};

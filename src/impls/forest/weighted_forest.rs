@@ -2,8 +2,6 @@
 //! carry weights, exposed as a directed valued child-to-parent sparse adjacency
 //! matrix.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::{fmt::Debug, ops::Add};
 

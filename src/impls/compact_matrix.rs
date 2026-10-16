@@ -1,7 +1,5 @@
 //! Compactification of sparse matrices by remapping row and column indices to
 //! contiguous 0..n ranges, eliminating rows and columns with no entries.
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;

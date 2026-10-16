@@ -1,8 +1,6 @@
 //! Submodule providing the [`SymmetricForest`] type, the undirected symmetric
 //! view of a weighted forest.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
 use core::{fmt::Debug, ops::Deref};
 
 use multi_ranged::Step;
