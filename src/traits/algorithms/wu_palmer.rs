@@ -69,17 +69,9 @@ pub trait WuPalmer: MonoplexMonopartiteGraph {
         let ranks = self.edges().matrix().kahn()?;
         let mut by_rank: Vec<Option<Self::NodeId>> = alloc::vec![None; ranks.len()];
         for node in self.node_ids() {
-            if let Some(rank) = ranks.get(node.as_()) {
-                by_rank[rank.as_()] = Some(node);
-            }
+            by_rank[ranks[node.as_()].as_()] = Some(node);
         }
-        // Nodes without a matrix row have no edges, so any position suits them.
-        let reverse_topological_order = by_rank
-            .into_iter()
-            .rev()
-            .flatten()
-            .chain(self.node_ids().filter(|node| node.as_() >= ranks.len()))
-            .collect();
+        let reverse_topological_order = by_rank.into_iter().rev().flatten().collect();
         Ok(WuPalmerResult { graph: self, root_nodes: self.root_nodes(), reverse_topological_order })
     }
 }
