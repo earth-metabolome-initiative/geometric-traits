@@ -30,7 +30,7 @@ fn run_rust_case_with_heuristic(case: &CanonCase, splitting_heuristic: CanonSpli
         case.graph.canonical_labeling_with_options(
             |node| case.vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
-            CanonicalLabelingOptions { splitting_heuristic },
+            CanonicalLabelingOptions { splitting_heuristic, ..CanonicalLabelingOptions::default() },
         )
     };
     assert_eq!(result.order.len(), case.number_of_nodes());
