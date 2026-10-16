@@ -810,6 +810,28 @@ fn test_automorphism_generators_for_disconnected_components() {
         72
     );
     assert_eq!(check_automorphism_generators(&[0; 6], &[]), 720);
+    assert_eq!(
+        check_automorphism_generators(
+            &[0; 14],
+            &[
+                (0, 1, 0),
+                (1, 2, 0),
+                (2, 0, 0),
+                (3, 4, 0),
+                (4, 5, 0),
+                (5, 6, 0),
+                (6, 3, 0),
+                (7, 8, 0),
+                (8, 9, 0),
+                (9, 7, 0),
+                (10, 11, 0),
+                (11, 12, 0),
+                (12, 13, 0),
+                (13, 10, 0),
+            ]
+        ),
+        9216
+    );
 }
 
 #[test]
