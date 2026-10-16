@@ -73,6 +73,8 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 | **Fast-Multipole Multilevel Layout (TMAP)** | `Fmme` | O(L·I·(V log V + E)), L = coarsening levels | [Probst & Reymond (2020)](https://doi.org/10.1186/s13321-020-0416-x) |
 | **Random DAG Generation** | `RandomizedDAG` | O(V² log V) | Utility generator (needs `std` or `hashbrown`) |
 
+`CanonicalLabeling` returns a canonical order, a certificate and search statistics. Setting `CanonicalLabelingOptions::collect_automorphism_generators` to `true` also returns generators of the full label-preserving automorphism group, where `generator[v]` is the image of original dense vertex `v`. The generator vector is empty when collection is disabled or the graph is asymmetric, excludes the identity and need not be minimal.
+
 ## Node Ordering Primitives
 
 The crate also exports reusable graph-level node ordering and node scoring building blocks from `geometric_traits::traits::algorithms`.

@@ -197,7 +197,10 @@ fn exercise_canonizer_case_without_panic(graph: &LabeledUndirectedGraph, vertex_
         let _ = graph.canonical_labeling_with_options(
             |node| vertex_labels[node],
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
-            CanonicalLabelingOptions { splitting_heuristic: heuristic },
+            CanonicalLabelingOptions {
+                splitting_heuristic: heuristic,
+                ..CanonicalLabelingOptions::default()
+            },
         );
     }
 }
@@ -314,6 +317,7 @@ fn test_default_heuristic_matches_explicit_bliss_fsm_on_generic_benchmark_corpus
                 |left, right| matrix.sparse_value_at(left, right).unwrap(),
                 CanonicalLabelingOptions {
                     splitting_heuristic: CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+                    ..CanonicalLabelingOptions::default()
                 },
             )
             .certificate;

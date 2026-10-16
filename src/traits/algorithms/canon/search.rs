@@ -77,6 +77,8 @@ pub struct CanonicalLabelingResult<VertexLabel, EdgeLabel> {
     pub certificate: LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>,
     /// Search statistics collected while finding the canonical labeling.
     pub stats: CanonicalSearchStats,
+    /// Requested generators mapping each dense vertex `v` to `generator[v]`.
+    pub automorphism_generators: Vec<Vec<usize>>,
 }
 
 /// Search statistics for the current individualization-refinement canonizer.
@@ -104,6 +106,54 @@ pub struct CanonicalSearchStats {
 pub struct CanonicalLabelingOptions {
     /// Splitting heuristic for selecting the next target cell.
     pub splitting_heuristic: CanonSplittingHeuristic,
+    /// Collect full-group generators, or return an empty vector when `false`.
+    pub collect_automorphism_generators: bool,
+}
+
+struct AutomorphismGenerators {
+    original_vertex_count: usize,
+    permutations: Vec<Vec<usize>>,
+}
+
+impl AutomorphismGenerators {
+    fn new(original_vertex_count: usize) -> Self {
+        Self { original_vertex_count, permutations: Vec::new() }
+    }
+
+    fn record(&mut self, automorphism: &[usize]) {
+        let projected = &automorphism[..self.original_vertex_count];
+        if projected.iter().enumerate().any(|(vertex, &image)| vertex != image) {
+            debug_assert!(projected.iter().all(|&image| image < self.original_vertex_count));
+            self.permutations.push(projected.to_vec());
+        }
+    }
+
+    fn record_leaf(&mut self, first_order: &[usize], current_order: &[usize]) {
+        if self.original_vertex_count == 0 {
+            return;
+        }
+        if !first_order
+            .iter()
+            .zip(current_order)
+            .any(|(&vertex, &image)| vertex < self.original_vertex_count && vertex != image)
+        {
+            return;
+        }
+        let mut permutation = vec![0; self.original_vertex_count];
+        for (&vertex, &image) in first_order.iter().zip(current_order) {
+            if vertex < self.original_vertex_count {
+                debug_assert!(image < self.original_vertex_count);
+                permutation[vertex] = image;
+            }
+        }
+        self.permutations.push(permutation);
+    }
+
+    fn into_permutations(mut self) -> Vec<Vec<usize>> {
+        self.permutations.sort_unstable();
+        self.permutations.dedup();
+        self.permutations
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -225,6 +275,7 @@ impl SearchWorkspace {
 
 struct SearchState<EdgeLabel> {
     stats: CanonicalSearchStats,
+    automorphism_generators: AutomorphismGenerators,
     first_path: Option<StoredSearchPath<EdgeLabel>>,
     first_path_revision: usize,
     best_path: Option<StoredSearchPath<EdgeLabel>>,
@@ -459,6 +510,8 @@ where
         nodes: &[NodeId],
         vertex_labels: &[VertexLabel],
         edge_label: &mut EF,
+        stats: CanonicalSearchStats,
+        automorphism_generators: Vec<Vec<usize>>,
     ) -> CanonicalLabelingResult<VertexLabel, EdgeLabel>
     where
         NodeId: Copy,
@@ -470,7 +523,8 @@ where
         CanonicalLabelingResult {
             order: self.order.as_ref().to_vec(),
             certificate,
-            stats: CanonicalSearchStats::default(),
+            stats,
+            automorphism_generators,
         }
     }
 }
@@ -728,6 +782,7 @@ where
         |node| reduced.vertex_labels[node].clone(),
         |_, _| (),
         options,
+        reduced.original_vertex_count,
     );
     let order = reduced_result
         .order
@@ -743,7 +798,12 @@ where
         &order,
     );
 
-    CanonicalLabelingResult { order, certificate, stats: reduced_result.stats }
+    CanonicalLabelingResult {
+        order,
+        certificate,
+        stats: reduced_result.stats,
+        automorphism_generators: reduced_result.automorphism_generators,
+    }
 }
 
 fn canonical_label_labeled_simple_graph_core<G, VertexLabel, EdgeLabel, VF, EF>(
@@ -751,6 +811,7 @@ fn canonical_label_labeled_simple_graph_core<G, VertexLabel, EdgeLabel, VF, EF>(
     mut vertex_label: VF,
     mut edge_label: EF,
     options: CanonicalLabelingOptions,
+    original_vertex_count: usize,
 ) -> CanonicalLabelingResult<VertexLabel, EdgeLabel>
 where
     G: MonoplexMonopartiteGraph,
@@ -801,6 +862,9 @@ where
             leaf_nodes: usize::from(!root_is_discrete),
             ..CanonicalSearchStats::default()
         },
+        automorphism_generators: AutomorphismGenerators::new(
+            if options.collect_automorphism_generators { original_vertex_count } else { 0 },
+        ),
         first_path: None,
         first_path_revision: 0,
         best_path: None,
@@ -850,8 +914,14 @@ where
     let outcome = search_return
         .best
         .expect("a canonizer over any finite graph must produce at least one leaf");
-    let result = outcome.into_result(&adjacency, &nodes, &vertex_labels, &mut edge_label);
-    finish_result(result, state.stats)
+    outcome.into_result(
+        &adjacency,
+        &nodes,
+        &vertex_labels,
+        &mut edge_label,
+        state.stats,
+        state.automorphism_generators.into_permutations(),
+    )
 }
 
 type ReducedEdges = SymmetricCSR2D<ValuedCSR2D<usize, usize, usize, ()>>;
@@ -1059,6 +1129,17 @@ where
             state.best_path_revision += 1;
             state.best_path_orbits = KnownOrbits::new(nodes.len());
         }
+        let first_path_automorphism =
+            if had_first_order && candidate_equals_first && !current_path_state.fp_on {
+                state
+                    .first_order()
+                    .map(|first_order| leaf_automorphism(first_order, order_snapshot.as_ref()))
+            } else {
+                None
+            };
+        if let Some(automorphism) = first_path_automorphism.as_deref() {
+            state.automorphism_generators.record(automorphism);
+        }
         return SearchReturn {
             best: Some(SearchOutcome {
                 order: order_snapshot.clone(),
@@ -1069,16 +1150,7 @@ where
                 sibling_orbits: KnownOrbits::new(nodes.len()),
                 choice_path: choice_path_snapshot,
             }),
-            first_path_automorphism: if had_first_order
-                && candidate_equals_first
-                && !current_path_state.fp_on
-            {
-                state
-                    .first_order()
-                    .map(|first_order| leaf_automorphism(first_order, order_snapshot.as_ref()))
-            } else {
-                None
-            },
+            first_path_automorphism,
             best_path_backjump_depth: None,
         };
     }
@@ -1373,6 +1445,7 @@ where
                                         component_endpoint_first_path_automorphism =
                                             Some(automorphism.to_vec());
                                         state.stats.automorphisms_found += 1;
+                                        state.automorphism_generators.record(automorphism);
                                         break_after_component_endpoint_automorphism = true;
                                         return true;
                                     }
@@ -1421,6 +1494,7 @@ where
                                     .long_prune_records
                                     .push(long_prune_record_from_automorphism(&automorphism));
                                 local_orbits.ingest_automorphism(&automorphism);
+                                state.automorphism_generators.record(&automorphism);
 
                                 let current_choice_path = &choice_path[..choice_path.len() - 1];
                                 let gca_with_first = common_prefix_len(
@@ -1506,6 +1580,20 @@ where
             active_component_endpoint_len
         };
         if early_component_first_path_automorphism {
+            if state.automorphism_generators.original_vertex_count > 0
+                && let Some(first_order) = state.first_order()
+            {
+                let automorphism =
+                    first_path_automorphism_for_current_partition(partition, first_order);
+                debug_assert!(is_labeled_graph_automorphism(
+                    adjacency,
+                    nodes,
+                    vertex_labels,
+                    edge_label,
+                    &automorphism,
+                ));
+                state.automorphism_generators.record(&automorphism);
+            }
             if let Some(first_choice_path) =
                 state.first_path.as_ref().map(|path| path.choice_path.clone())
             {
@@ -1765,6 +1853,9 @@ where
                 .union(best_choice.expect("equal sibling branches require a best choice"), element);
             local_orbits
                 .ingest_leaf_automorphism(current_best.order.as_ref(), candidate.order.as_ref());
+            state
+                .automorphism_generators
+                .record_leaf(current_best.order.as_ref(), candidate.order.as_ref());
         }
 
         if (candidate_matches_previous_best_path
@@ -1781,6 +1872,7 @@ where
             state.first_path_orbits_global.ingest_automorphism(&automorphism);
             state.long_prune_records.push(long_prune_record_from_automorphism(&automorphism));
             local_orbits.ingest_automorphism(&automorphism);
+            state.automorphism_generators.record(&automorphism);
 
             let gca_with_first =
                 common_prefix_len(candidate.choice_path.as_ref(), state.first_choice_path());
@@ -2686,14 +2778,6 @@ where
     true
 }
 
-fn finish_result<VertexLabel, EdgeLabel>(
-    mut result: CanonicalLabelingResult<VertexLabel, EdgeLabel>,
-    stats: CanonicalSearchStats,
-) -> CanonicalLabelingResult<VertexLabel, EdgeLabel> {
-    result.stats = stats;
-    result
-}
-
 fn dense_label_ids<Label>(labels: impl Iterator<Item = Label>) -> BTreeMap<Label, usize>
 where
     Label: Ord,
@@ -3286,6 +3370,7 @@ mod tests {
         };
         let state = SearchState {
             stats: CanonicalSearchStats::default(),
+            automorphism_generators: AutomorphismGenerators::new(3),
             first_path: Some(first_path),
             first_path_revision: 1,
             best_path: Some(best_path),
@@ -3320,6 +3405,7 @@ mod tests {
         let path_info = build_search_path_info(&[4], &traces);
         let state = SearchState {
             stats: CanonicalSearchStats::default(),
+            automorphism_generators: AutomorphismGenerators::new(2),
             first_path: Some(StoredSearchPath {
                 order: Rc::from(vec![0_usize, 1]),
                 leaf_signature: None,
