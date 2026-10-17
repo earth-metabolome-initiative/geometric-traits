@@ -1,8 +1,5 @@
 //! Submodule providing a naively implemented `GenericBiGraph`.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
-
 use num_traits::AsPrimitive;
 
 use super::generic_monoplex_bipartite_graph_builder::MonoplexBipartiteGraphBuilderError;

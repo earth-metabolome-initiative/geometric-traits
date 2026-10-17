@@ -2,8 +2,6 @@
 //! to the provided index are available. All other defined values with
 //! coordinates less than the provided index are considered undefined.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
 use core::fmt::Debug;
 
 use super::MutabilityError;

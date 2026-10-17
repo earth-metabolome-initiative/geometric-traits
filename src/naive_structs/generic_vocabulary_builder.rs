@@ -1,9 +1,6 @@
 //! A generic vocabulary builder that can be used to build a vocabulary for any
 //! type of graph.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
-
 use crate::{
     errors::builder::vocabulary::VocabularyBuilderError,
     traits::{GrowableVocabulary, Vocabulary, VocabularyBuilder},

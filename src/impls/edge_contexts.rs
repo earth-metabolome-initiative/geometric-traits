@@ -4,8 +4,6 @@
 //! CSR-style layout. It is intended for precomputed constraints such as
 //! cycle/ring memberships, but it is not specific to chemistry.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::{vec, vec::Vec};
 use core::fmt::Debug;
 

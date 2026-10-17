@@ -1,8 +1,6 @@
 //! A generic edges builder that can be used to build a edges for any type of
 //! graph.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
 use core::marker::PhantomData;
 
 use super::GenericEdgesBuilder;

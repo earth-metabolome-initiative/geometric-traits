@@ -1,8 +1,6 @@
 //! A subset sparse square matrix view, where sparse entries are filtered by
 //! column id membership in a provided subset while preserving the underlying
 //! matrix row domain.
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::Zero;

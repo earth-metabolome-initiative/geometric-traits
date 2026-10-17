@@ -1,8 +1,6 @@
 //! Submodule providing the [`Forest`] type, a rooted forest stored as a parent
 //! array and exposed as a directed child-to-parent sparse adjacency matrix.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::fmt::Debug;
 

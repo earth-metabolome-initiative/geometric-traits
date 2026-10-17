@@ -1,7 +1,5 @@
 //! [`GenericBiMatrix2D`] data structure, which provides a wrapper to a matrix
 //! and its transposed version.
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 
 use num_traits::AsPrimitive;

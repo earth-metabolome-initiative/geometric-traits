@@ -1,8 +1,5 @@
 //! Submodule providing a naively implemented generic Monoparted Graph.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
-
 use num_traits::AsPrimitive;
 
 use crate::traits::{

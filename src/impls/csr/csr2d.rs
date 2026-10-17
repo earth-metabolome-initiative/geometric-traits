@@ -1,6 +1,4 @@
 //! Submodule providing a definition of a CSR matrix.
-#[cfg(feature = "mem_dbg")]
-use alloc::string::String;
 use alloc::vec::Vec;
 use core::{fmt::Debug, iter::repeat_n, ops::Range};
 

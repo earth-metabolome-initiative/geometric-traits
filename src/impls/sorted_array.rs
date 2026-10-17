@@ -1,7 +1,5 @@
 //! Module implementing traits for the Vec type.
 
-#[cfg(feature = "mem_dbg")]
-use alloc::{string::String, vec::Vec};
 use core::{
     iter::Cloned,
     ops::{Index, Range},
