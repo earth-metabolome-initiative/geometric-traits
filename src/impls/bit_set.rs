@@ -65,16 +65,20 @@ impl BitSet {
         self.len == 0
     }
 
-    /// Returns whether `index` is in the set.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `index >= self.len()`.
+    /// Returns whether `index` is in the set. Indices at or past `len` are
+    /// never in it.
     #[inline]
     #[must_use]
     pub fn contains(&self, index: usize) -> bool {
-        let (word, mask) = self.locate(index);
-        self.words[word] & mask != 0
+        Self::words_contain(&self.words, index)
+    }
+
+    /// Membership test on the words of a set, for loops that hold the word
+    /// slice in a local so it is not reloaded through `&BitSet` after every
+    /// store.
+    #[inline]
+    pub(crate) fn words_contain(words: &[usize], index: usize) -> bool {
+        words.get(index / WORD_BITS).is_some_and(|&word| word >> (index % WORD_BITS) & 1 == 1)
     }
 
     /// Adds `index` to the set and returns whether it was absent.

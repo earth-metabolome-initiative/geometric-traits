@@ -220,3 +220,7 @@ harness = false
 [[bench]]
 name = "max_flow"
 harness = false
+
+[[bench]]
+name = "bit_square_matrix"
+harness = false

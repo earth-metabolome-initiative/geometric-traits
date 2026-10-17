@@ -81,9 +81,12 @@ fn test_insert_and_remove_report_whether_the_set_changed() {
 }
 
 #[test]
-#[should_panic(expected = "index 4 out of range for a BitSet of length 4")]
-fn test_contains_past_the_length_panics() {
-    let _ = BitSet::ones(4).contains(4);
+fn test_contains_past_the_length_is_false() {
+    let set = BitSet::ones(4);
+    assert!(!set.contains(4));
+    assert!(!set.contains(WORD - 1));
+    assert!(!set.contains(WORD));
+    assert!(!set.contains(usize::MAX));
 }
 
 #[test]
