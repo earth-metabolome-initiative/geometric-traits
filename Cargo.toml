@@ -224,3 +224,7 @@ harness = false
 [[bench]]
 name = "bit_square_matrix"
 harness = false
+
+[[bench]]
+name = "permutation_group"
+harness = false

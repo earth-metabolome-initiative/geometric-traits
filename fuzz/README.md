@@ -395,3 +395,23 @@ and to run the crash cases:
 ```bash
 cargo +nightly fuzz run max_flow fuzz/artifacts/max_flow/crash-<hash>
 ```
+
+### PermutationGroup
+
+The permutation group harness decodes a degree of at most seven, up to four generators and up to four sets. Generators are mostly decoded from Lehmer codes, and one in eight is taken from raw bytes so that malformed generators reach validation. It checks `PermutationGroup` against the brute-force closure of the generators:
+
+- malformed generators and sets are rejected with the error naming the first offending entry
+- `order` equals the size of the closure
+- every element of the closure is a member, and membership of the generators and the identity with two images swapped matches the closure
+- `orbit` of every point matches the closure
+- `smallest_image` returns the minimum of the set's orbit, together with an element of the group that maps the set onto it
+
+```bash
+cargo +nightly fuzz run permutation_group
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run permutation_group fuzz/artifacts/permutation_group/crash-<hash>
+```
