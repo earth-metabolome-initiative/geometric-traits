@@ -2,10 +2,9 @@
 //! implementation.
 use alloc::vec::Vec;
 
-use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
-use crate::traits::MonoplexMonopartiteGraph;
+use crate::{impls::BitSet, traits::MonoplexMonopartiteGraph};
 
 /// Trait providing the `has_cycle` method, which returns true if the graph
 /// contains a cycle, and false otherwise. The cycle detection algorithm is
@@ -48,18 +47,18 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
     #[inline]
     fn has_cycle(&self) -> bool {
         let n = self.number_of_nodes().as_();
-        let mut visited: BitVec = BitVec::repeat(false, n);
-        let mut on_stack: BitVec = BitVec::repeat(false, n);
+        let mut visited = BitSet::zeros(n);
+        let mut on_stack = BitSet::zeros(n);
 
         // DFS stack entries: (node, collected successors, next-successor index)
         let mut dfs_stack: Vec<(Self::NodeId, Vec<Self::NodeId>, usize)> = Vec::new();
 
         for start in self.node_ids() {
-            if visited[start.as_()] {
+            if visited.contains(start.as_()) {
                 continue;
             }
-            visited.set(start.as_(), true);
-            on_stack.set(start.as_(), true);
+            visited.insert(start.as_());
+            on_stack.insert(start.as_());
             dfs_stack.push((start, self.successors(start).collect(), 0));
 
             loop {
@@ -73,17 +72,17 @@ pub trait CycleDetection: MonoplexMonopartiteGraph {
                     let successor = dfs_stack.last().unwrap().1[top_idx];
                     dfs_stack.last_mut().unwrap().2 += 1;
 
-                    if on_stack[successor.as_()] {
+                    if on_stack.contains(successor.as_()) {
                         return true;
                     }
-                    if !visited[successor.as_()] {
-                        visited.set(successor.as_(), true);
-                        on_stack.set(successor.as_(), true);
+                    if !visited.contains(successor.as_()) {
+                        visited.insert(successor.as_());
+                        on_stack.insert(successor.as_());
                         dfs_stack.push((successor, self.successors(successor).collect(), 0));
                     }
                 } else {
                     let (node, _, _) = dfs_stack.pop().unwrap();
-                    on_stack.set(node.as_(), false);
+                    on_stack.remove(node.as_());
                 }
             }
         }

@@ -18,7 +18,7 @@ fuzz_target!(|bytes: &[u8]| {
         return;
     };
     let (order_byte, constructor_byte, mask_bytes, ops) = data;
-    // Cap order to keep matrices small but exercise multi-word bitvec paths.
+    // Cap order to keep matrices small but exercise multi-word bit set paths.
     let order = order_byte as usize % 128;
 
     // Select construction method from fuzz data.

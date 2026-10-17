@@ -2,11 +2,9 @@
 
 use alloc::vec::Vec;
 
-use bitvec::{order::Lsb0, vec::BitVec};
-
 use super::partitioned::SearchOutcome;
 use crate::{
-    impls::BitSquareMatrix,
+    impls::{BitSet, BitSquareMatrix},
     traits::{SizedRowsSparseMatrix2D, SparseMatrix2D, SquareMatrix},
 };
 
@@ -18,7 +16,7 @@ struct Frame {
     /// Color number for each candidate (parallel to `candidates`).
     colors: Vec<usize>,
     /// Candidate bitmask (vertices still available for branching).
-    p_mask: BitVec,
+    p_mask: BitSet,
     /// Index into `candidates` for the next vertex to try (counting from end).
     next_idx: usize,
 }
@@ -41,7 +39,7 @@ where
     }
 
     let order = degeneracy_ordering(adj);
-    let p_mask: BitVec<usize, Lsb0> = BitVec::repeat(true, n);
+    let p_mask = BitSet::ones(n);
     let (candidates, colors) = greedy_color_candidates(adj, &order, &p_mask);
 
     let mut best_size: usize = 0;
@@ -91,7 +89,7 @@ where
         nodes += 1;
 
         frame.next_idx += 1;
-        frame.p_mask.set(v, false);
+        frame.p_mask.remove(v);
 
         let new_p = adj.row_and(v, &frame.p_mask);
         let new_p_count = new_p.count_ones();
@@ -194,24 +192,24 @@ fn degeneracy_ordering(adj: &BitSquareMatrix) -> Vec<usize> {
 fn greedy_color_candidates(
     adj: &BitSquareMatrix,
     vertex_order: &[usize],
-    p_mask: &BitVec,
+    p_mask: &BitSet,
 ) -> (Vec<usize>, Vec<usize>) {
     let n = p_mask.len();
     let mut color_of: Vec<usize> = vec![0; n];
     let mut max_color: usize = 0;
-    let mut used: BitVec<usize, Lsb0> = BitVec::repeat(false, 2);
+    let mut used: Vec<bool> = vec![false; 2];
     let mut color_buckets: Vec<Vec<usize>> = Vec::new();
 
     for &v in vertex_order {
-        debug_assert!(p_mask[v], "vertex_order contains vertex not in p_mask");
+        debug_assert!(p_mask.contains(v), "vertex_order contains vertex not in p_mask");
 
         used.fill(false);
         if max_color + 2 > used.len() {
             used.resize(max_color + 2, false);
         }
         for neighbor in adj.sparse_row(v) {
-            if p_mask[neighbor] && color_of[neighbor] > 0 {
-                used.set(color_of[neighbor], true);
+            if p_mask.contains(neighbor) && color_of[neighbor] > 0 {
+                used[color_of[neighbor]] = true;
             }
         }
 

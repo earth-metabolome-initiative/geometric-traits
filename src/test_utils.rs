@@ -14,12 +14,11 @@ use alloc::{
 use core::fmt::Debug;
 
 use arbitrary::{Arbitrary, Unstructured};
-use bitvec::vec::BitVec;
 use num_traits::AsPrimitive;
 
 use crate::{
     errors::{MonopartiteError, monopartite_graph_error::algorithms::MonopartiteAlgorithmError},
-    impls::{CSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
+    impls::{BitSet, CSR2D, SymmetricCSR2D, ValuedCSR2D, VecMatrix2D},
     prelude::*,
     traits::{
         DenseValuedMatrix2D, EdgesBuilder, SparseMatrix, SparseMatrix2D, SparseSquareMatrix,
@@ -3760,7 +3759,7 @@ pub fn check_line_graph_invariants(
 /// # Arguments
 ///
 /// * `m` – the matrix to check
-/// * `mask_bytes` – arbitrary bytes used to build a `BitVec` mask for
+/// * `mask_bytes` – arbitrary bytes used to build a `BitSet` mask for
 ///   `row_and_count` validation
 ///
 /// # Panics
@@ -3866,29 +3865,23 @@ pub fn check_bit_square_matrix_invariants(m: &BitSquareMatrix, mask_bytes: &[u8]
     }
 
     // ── row_and_count cross-validation ───────────────────────────────────
-    let mask = if order > 0 {
-        let mut bv = BitVec::repeat(false, order);
-        for (idx, &byte) in mask_bytes.iter().enumerate() {
-            if idx >= order {
-                break;
-            }
-            bv.set(idx, byte & 1 != 0);
+    let mut mask = BitSet::zeros(order);
+    for (idx, &byte) in mask_bytes.iter().enumerate().take(order) {
+        if byte & 1 != 0 {
+            mask.insert(idx);
         }
-        bv
-    } else {
-        BitVec::new()
-    };
+    }
     for r in 0..cap {
-        let expected: usize = m.sparse_row(r).filter(|&col| col < mask.len() && mask[col]).count();
+        let expected: usize = m.sparse_row(r).filter(|&col| mask.contains(col)).count();
         assert_eq!(m.row_and_count(r, &mask), expected, "row_and_count({r}) mismatch");
     }
 
-    // ── row_bitslice consistency ─────────────────────────────────────────
+    // ── row_bitset consistency ───────────────────────────────────────────
     for r in 0..cap {
-        let bits = m.row_bitslice(r);
+        let bits = m.row_bitset(r);
         assert_eq!(bits.len(), order);
         for c in 0..order {
-            assert_eq!(bits[c], m.has_entry(r, c));
+            assert_eq!(bits.contains(c), m.has_entry(r, c));
         }
     }
 
