@@ -332,7 +332,7 @@ dependencies = [
 
 [[package]]
 name = "geometric-traits"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "arbitrary",
  "barnes-hut-tree",
