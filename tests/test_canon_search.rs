@@ -778,6 +778,8 @@ fn check_automorphism_generators(labels: &[u8], edges: &[(usize, usize, u8)]) ->
             expected,
             "incomplete group for {heuristic:?}, labels={labels:?}, edges={edges:?}"
         );
+        let group = PermutationGroup::new(order, &result.automorphism_generators).unwrap();
+        assert_eq!(group.order(), u128::try_from(expected.len()).ok());
         if expected.len() == 1 {
             assert_eq!(result.automorphism_generators, Vec::<Vec<usize>>::new());
         }

@@ -75,6 +75,8 @@ The table below lists the main algorithm entrypoints currently exported from `ge
 
 `CanonicalLabeling` returns a canonical order, a certificate and search statistics. Setting `CanonicalLabelingOptions::collect_automorphism_generators` to `true` also returns generators of the full label-preserving automorphism group, where `generator[v]` is the image of original dense vertex `v`. The generator vector is empty when collection is disabled or the graph is asymmetric, excludes the identity and need not be minimal.
 
+`PermutationGroup` computes with such generators without enumerating the group. It builds a stabilizer chain by deterministic Schreier–Sims ([Sims, 1970](https://doi.org/10.1016/B978-0-08-012975-4.50020-5)) and answers `order`, `contains` and `orbit`, and `smallest_image` returns the lexicographically smallest image of a set together with a group element reaching it, by a backtrack over the chain after [Linton (2004)](https://doi.org/10.1145/1005285.1005319) that is exponential only in the worst case.
+
 ## Node Ordering Primitives
 
 The crate also exports reusable graph-level node ordering and node scoring building blocks from `geometric_traits::traits::algorithms`.

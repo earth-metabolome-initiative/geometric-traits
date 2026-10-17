@@ -278,3 +278,9 @@ name = "minimum_spanning_tree"
 path = "fuzz_targets/minimum_spanning_tree.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "permutation_group"
+path = "fuzz_targets/permutation_group.rs"
+test = false
+doc = false

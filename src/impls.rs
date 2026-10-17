@@ -27,6 +27,10 @@ pub use edge_contexts::EdgeContexts;
 pub mod forest;
 #[cfg(feature = "alloc")]
 pub use forest::*;
+#[cfg(feature = "alloc")]
+mod permutation_group;
+#[cfg(feature = "alloc")]
+pub use permutation_group::{PermutationGroup, PermutationGroupError, SmallestImage};
 
 mod array;
 mod implicit_numeric_vocabularies;
