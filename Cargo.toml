@@ -32,7 +32,6 @@ multi_ranged = { version = "0.1.2", default-features = false }
 thiserror = { version = "2.0", default-features = false }
 lender = { version = "0.6", default-features = false }
 hashbrown = { version = "0.17", optional = true }
-bitvec = { version = "1", default-features = false, features = ["alloc"] }
 rand = { version = "0.10", default-features = false, features = ["alloc"], optional = true }
 mem_dbg_crate = { package = "mem_dbg", version = "0.4.1", default-features = false, optional = true }
 barnes_hut_tree = { package = "barnes-hut-tree", version = "0.1.1", default-features = false, optional = true }

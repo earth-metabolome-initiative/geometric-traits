@@ -1,28 +1,23 @@
-//! A dense square adjacency matrix backed by [`BitVec`] rows.
+//! A dense square adjacency matrix backed by [`BitSet`] rows.
 //!
-//! [`BitSquareMatrix`] stores one [`BitVec`] per row, providing O(1)
+//! [`BitSquareMatrix`] stores one [`BitSet`] per row, providing O(1)
 //! `has_entry` and efficient bitwise neighbor-set operations (AND +
 //! popcount) needed by max-clique branch-and-bound algorithms.
 
 use alloc::vec::Vec;
 use core::iter::RepeatN;
 
-use bitvec::{
-    order::Lsb0,
-    slice::{BitSlice, IterOnes},
-    vec::BitVec,
-};
-
+use super::{BitSet, BitSetOnes};
 use crate::prelude::*;
 
 // ============================================================================
 // Struct
 // ============================================================================
 
-/// A dense square adjacency matrix backed by bitvec rows.
+/// A dense square adjacency matrix backed by bit set rows.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct BitSquareMatrix {
-    rows: Vec<BitVec>,
+    rows: Vec<BitSet>,
     number_of_edges: usize,
     number_of_diagonal_values: usize,
 }
@@ -37,7 +32,7 @@ impl BitSquareMatrix {
     #[must_use]
     pub fn new(order: usize) -> Self {
         Self {
-            rows: (0..order).map(|_| BitVec::repeat(false, order)).collect(),
+            rows: (0..order).map(|_| BitSet::zeros(order)).collect(),
             number_of_edges: 0,
             number_of_diagonal_values: 0,
         }
@@ -46,8 +41,7 @@ impl BitSquareMatrix {
     /// Sets the bit at `(row, col)`, updating the edge count.
     #[inline]
     pub fn set(&mut self, row: usize, col: usize) {
-        if !self.rows[row][col] {
-            self.rows[row].set(col, true);
+        if self.rows[row].insert(col) {
             self.number_of_edges += 1;
             if row == col {
                 self.number_of_diagonal_values += 1;
@@ -65,8 +59,7 @@ impl BitSquareMatrix {
     /// Clears the bit at `(row, col)`, updating the edge count.
     #[inline]
     pub fn clear(&mut self, row: usize, col: usize) {
-        if self.rows[row][col] {
-            self.rows[row].set(col, false);
+        if self.rows[row].remove(col) {
             self.number_of_edges -= 1;
             if row == col {
                 self.number_of_diagonal_values -= 1;
@@ -74,10 +67,10 @@ impl BitSquareMatrix {
         }
     }
 
-    /// Returns the raw bit-slice for a row.
+    /// Returns the bit set of a row.
     #[inline]
     #[must_use]
-    pub fn row_bitslice(&self, row: usize) -> &BitSlice {
+    pub fn row_bitset(&self, row: usize) -> &BitSet {
         &self.rows[row]
     }
 
@@ -85,7 +78,7 @@ impl BitSquareMatrix {
     #[inline]
     #[must_use]
     pub fn row_raw_slice(&self, row: usize) -> &[usize] {
-        self.rows[row].as_raw_slice()
+        self.rows[row].as_words()
     }
 
     /// Returns `|N(i) ∩ N(j)|`: the number of common neighbors of `i`
@@ -93,12 +86,7 @@ impl BitSquareMatrix {
     #[inline]
     #[must_use]
     pub fn neighbor_intersection_count(&self, i: usize, j: usize) -> usize {
-        self.rows[i]
-            .as_raw_slice()
-            .iter()
-            .zip(self.rows[j].as_raw_slice())
-            .map(|(a, b)| (a & b).count_ones() as usize)
-            .sum()
+        self.rows[i].and_count(&self.rows[j])
     }
 
     /// Returns `|(row's neighbors) ∩ mask|`: the number of neighbors of
@@ -108,22 +96,17 @@ impl BitSquareMatrix {
     /// `P ∩ N(v)` cardinality.
     #[inline]
     #[must_use]
-    pub fn row_and_count(&self, row: usize, mask: &BitVec) -> usize {
-        self.rows[row]
-            .as_raw_slice()
-            .iter()
-            .zip(mask.as_raw_slice())
-            .map(|(a, b)| (a & b).count_ones() as usize)
-            .sum()
+    pub fn row_and_count(&self, row: usize, mask: &BitSet) -> usize {
+        self.rows[row].and_count(mask)
     }
 
-    /// Returns `(row's neighbors) ∩ mask` as a new [`BitVec`].
+    /// Returns `(row's neighbors) ∩ mask` as a new [`BitSet`].
     ///
     /// Used in max-clique branch-and-bound to compute the new candidate
     /// set `P ∩ N(v)` when branching on vertex `v`.
     #[inline]
     #[must_use]
-    pub fn row_and(&self, row: usize, mask: &BitVec) -> BitVec {
+    pub fn row_and(&self, row: usize, mask: &BitSet) -> BitSet {
         let mut result = self.rows[row].clone();
         result &= mask;
         result
@@ -210,7 +193,7 @@ pub struct BitSquareMatrixSparseCoordinates<'a> {
 }
 
 impl<'a> BitSquareMatrixSparseCoordinates<'a> {
-    fn new(rows: &'a [BitVec]) -> Self {
+    fn new(rows: &'a [BitSet]) -> Self {
         let storage: Vec<(usize, usize)> = rows
             .iter()
             .enumerate()
@@ -288,7 +271,7 @@ impl DoubleEndedIterator for BitSquareMatrixSparseColumns<'_> {
 /// contract).
 #[derive(Clone)]
 pub struct BitSquareMatrixSparseRows<'a> {
-    rows: &'a [BitVec],
+    rows: &'a [BitSet],
     /// Current row (forward).
     front_row: usize,
     /// Current backward row (inclusive).
@@ -302,7 +285,7 @@ pub struct BitSquareMatrixSparseRows<'a> {
 }
 
 impl<'a> BitSquareMatrixSparseRows<'a> {
-    fn new(rows: &'a [BitVec]) -> Self {
+    fn new(rows: &'a [BitSet]) -> Self {
         let n = rows.len();
         if n == 0 {
             return Self {
@@ -396,13 +379,13 @@ impl DoubleEndedIterator for BitSquareMatrixSparseRows<'_> {
 /// Iterates `count_ones()` per row.
 #[derive(Clone)]
 pub struct BitSquareMatrixSparseRowSizes<'a> {
-    rows: &'a [BitVec],
+    rows: &'a [BitSet],
     front: usize,
     back: usize,
 }
 
 impl<'a> BitSquareMatrixSparseRowSizes<'a> {
-    fn new(rows: &'a [BitVec]) -> Self {
+    fn new(rows: &'a [BitSet]) -> Self {
         Self { rows, front: 0, back: rows.len() }
     }
 }
@@ -484,7 +467,7 @@ impl SparseSquareMatrix for BitSquareMatrix {
 }
 
 impl SparseMatrix2D for BitSquareMatrix {
-    type SparseRow<'a> = IterOnes<'a, usize, Lsb0>;
+    type SparseRow<'a> = BitSetOnes<'a>;
     type SparseColumns<'a> = BitSquareMatrixSparseColumns<'a>;
     type SparseRows<'a> = BitSquareMatrixSparseRows<'a>;
 
@@ -495,7 +478,7 @@ impl SparseMatrix2D for BitSquareMatrix {
 
     #[inline]
     fn has_entry(&self, row: usize, column: usize) -> bool {
-        self.rows[row][column]
+        self.rows[row].contains(column)
     }
 
     #[inline]
@@ -751,14 +734,14 @@ mod tests {
             4,
             vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
         );
-        let mut mask = bitvec::vec::BitVec::repeat(true, 4);
-        mask.set(1, false);
+        let mut mask = BitSet::ones(4);
+        mask.remove(1);
         let result = m.row_and(0, &mask);
         // N(0) = {1,2,3}, mask = {0,2,3} → result = {2,3}
-        assert!(!result[0]);
-        assert!(!result[1]);
-        assert!(result[2]);
-        assert!(result[3]);
+        let mut expected = BitSet::zeros(4);
+        expected.insert(2);
+        expected.insert(3);
+        assert_eq!(result, expected);
     }
 
     #[test]
@@ -768,10 +751,10 @@ mod tests {
             vec![(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)],
         );
         // All 4 nodes are neighbors of 0 except 0 itself
-        let mut mask = bitvec::vec::BitVec::repeat(true, 4);
+        let mut mask = BitSet::ones(4);
         assert_eq!(m.row_and_count(0, &mask), 3);
         // Exclude node 1 from the mask
-        mask.set(1, false);
+        mask.remove(1);
         assert_eq!(m.row_and_count(0, &mask), 2);
     }
 
@@ -787,12 +770,12 @@ mod tests {
     }
 
     #[test]
-    fn test_row_bitslice() {
+    fn test_row_bitset() {
         let m = BitSquareMatrix::from_edges(3, vec![(0, 0), (0, 2)]);
-        let bits = m.row_bitslice(0);
-        assert!(bits[0]);
-        assert!(!bits[1]);
-        assert!(bits[2]);
+        let bits = m.row_bitset(0);
+        assert!(bits.contains(0));
+        assert!(!bits.contains(1));
+        assert!(bits.contains(2));
     }
 
     #[test]

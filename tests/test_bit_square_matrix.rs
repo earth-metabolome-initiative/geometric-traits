@@ -91,13 +91,13 @@ fn test_sparse_rows_contract() {
 
 #[test]
 fn test_row_and_count() {
-    use bitvec::vec::BitVec;
+    use geometric_traits::impls::BitSet;
     let m = BitSquareMatrix::from_symmetric_edges(4, vec![(0, 1), (0, 2), (1, 2)]);
-    let mut mask = BitVec::repeat(true, 4);
+    let mut mask = BitSet::ones(4);
     // Node 0 has neighbors {1, 2}, all in mask
     assert_eq!(m.row_and_count(0, &mask), 2);
     // Exclude node 2
-    mask.set(2, false);
+    mask.remove(2);
     assert_eq!(m.row_and_count(0, &mask), 1);
 }
 

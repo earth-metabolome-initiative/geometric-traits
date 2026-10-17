@@ -12,6 +12,10 @@ pub mod sorted_vec;
 pub use sorted_vec::SortedVec;
 
 #[cfg(feature = "alloc")]
+mod bit_set;
+#[cfg(feature = "alloc")]
+pub use bit_set::{BitSet, BitSetOnes};
+#[cfg(feature = "alloc")]
 mod bit_square_matrix;
 #[cfg(feature = "alloc")]
 pub use bit_square_matrix::BitSquareMatrix;

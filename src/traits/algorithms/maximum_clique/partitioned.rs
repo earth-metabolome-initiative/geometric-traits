@@ -256,7 +256,7 @@ impl<'a> PartitionSearchState<'a> {
     fn prune_vertices(&mut self, selected_vertex: usize) -> usize {
         let info = self.info;
         let adj = self.adj;
-        let selected_neighbors = adj.row_bitslice(selected_vertex);
+        let selected_neighbors = adj.row_bitset(selected_vertex);
         let (selected_g1, selected_g2) = info.pairs[selected_vertex];
         let mut removed_count = 0usize;
         for part in &mut self.parts {
@@ -266,7 +266,7 @@ impl<'a> PartitionSearchState<'a> {
                 let (candidate_g1, candidate_g2) = info.pairs[candidate];
                 if candidate_g1 == selected_g1
                     || candidate_g2 == selected_g2
-                    || !selected_neighbors[candidate]
+                    || !selected_neighbors.contains(candidate)
                 {
                     part[index] = *part.last().expect("non-empty partition during prune");
                     part.pop();
@@ -297,7 +297,7 @@ impl<'a> PartitionSearchState<'a> {
     ) -> usize {
         let info = self.info;
         let adj = self.adj;
-        let selected_neighbors = adj.row_bitslice(selected_vertex);
+        let selected_neighbors = adj.row_bitset(selected_vertex);
         let (selected_g1, selected_g2) = info.pairs[selected_vertex];
         let mut removed_count = 0usize;
 
@@ -313,7 +313,7 @@ impl<'a> PartitionSearchState<'a> {
                     let (candidate_g1, candidate_g2) = info.pairs[candidate];
                     if candidate_g1 == selected_g1
                         || candidate_g2 == selected_g2
-                        || !selected_neighbors[candidate]
+                        || !selected_neighbors.contains(candidate)
                     {
                         let last_index = part.len() - 1;
                         let swapped_vertex = (index != last_index).then(|| part[last_index]);
@@ -624,7 +624,7 @@ impl<'a> U32PartitionSearchState<'a> {
         blocks: &mut Vec<U32PruneBlock>,
     ) -> usize {
         let info = self.info;
-        let selected_neighbors = self.adj.row_bitslice(selected_vertex);
+        let selected_neighbors = self.adj.row_bitset(selected_vertex);
         let (selected_g1, selected_g2) = info.pairs[selected_vertex];
         let mut removed_count = 0usize;
         let trail_checkpoint = trail.len();
@@ -643,7 +643,7 @@ impl<'a> U32PartitionSearchState<'a> {
                     let (candidate_g1, candidate_g2) = info.pairs[candidate];
                     if candidate_g1 == selected_g1
                         || candidate_g2 == selected_g2
-                        || !selected_neighbors[candidate]
+                        || !selected_neighbors.contains(candidate)
                     {
                         let last_index = part.len() - 1;
                         let swapped_vertex =
