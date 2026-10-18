@@ -43,6 +43,98 @@ fn disjoint_transpositions(pairs: usize) -> Vec<Vec<usize>> {
     (0..pairs).map(|pair| cycle(2 * pairs, &[2 * pair, 2 * pair + 1])).collect()
 }
 
+fn polygon_union_generators(copies: usize, sides: usize, wreath: bool) -> Vec<Vec<usize>> {
+    let degree = sides * copies;
+    let mut generators = Vec::new();
+    for copy in 0..copies {
+        let base = sides * copy;
+        let points: Vec<usize> = (base..base + sides).collect();
+        generators.push(cycle(degree, &points));
+        let mut reflection = identity(degree);
+        for offset in 0..sides {
+            reflection[base + offset] = base + (sides - offset) % sides;
+        }
+        generators.push(reflection);
+    }
+    if wreath {
+        for copy in 0..copies.saturating_sub(1) {
+            let mut swap = identity(degree);
+            for offset in 0..sides {
+                swap.swap(sides * copy + offset, sides * copy + sides + offset);
+            }
+            generators.push(swap);
+        }
+    }
+    generators
+}
+
+#[test]
+fn test_triangle_wreath_products_preserve_order_membership_and_images() {
+    for copies in (0..=26).chain([80, 200]) {
+        let degree = 3 * copies;
+        let generators = polygon_union_generators(copies, 3, true);
+        let group = PermutationGroup::new(degree, &generators).unwrap();
+        let expected_order = (1..=copies)
+            .try_fold(1_u128, |order, count| order.checked_mul(6 * u128::try_from(count).unwrap()));
+        assert_eq!(group.order(), expected_order, "{copies} triangles");
+        assert!(generators.iter().all(|generator| group.contains(generator)));
+        let set: Vec<usize> = (0..copies.min(3)).map(|copy| degree - 3 * copy - 1).collect();
+        let expected: Vec<usize> = (0..copies.min(3)).map(|copy| 3 * copy).collect();
+        let smallest = group.smallest_image(&set).unwrap();
+        assert_eq!(smallest.image, expected);
+        assert_eq!(sorted_image(&smallest.element, &set), expected);
+        assert!(group.contains(&smallest.element));
+        if copies > 1 {
+            assert!(!group.contains(&cycle(degree, &[0, 3])));
+        }
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+#[test]
+fn test_triangle_wreath_product_images_match_brute_force() {
+    use geometric_traits::test_utils::check_permutation_group_invariants;
+
+    for copies in 0..=2 {
+        let degree = 3 * copies;
+        let sets: Vec<Vec<usize>> = (0..1_usize << degree)
+            .map(|mask| (0..degree).filter(|point| mask & (1 << point) != 0).collect())
+            .collect();
+        let mut generators = polygon_union_generators(copies, 3, true);
+        check_permutation_group_invariants(degree, &generators, &sets);
+        generators.reverse();
+        check_permutation_group_invariants(degree, &generators, &sets);
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+#[test]
+fn test_relabelled_dihedral_products_match_brute_force() {
+    use geometric_traits::test_utils::check_permutation_group_invariants;
+
+    let degree = 10;
+    let sets: Vec<Vec<usize>> = (0..1_usize << degree)
+        .map(|mask| (0..degree).filter(|point| mask & (1 << point) != 0).collect())
+        .collect();
+    for wreath in [false, true] {
+        let generators = polygon_union_generators(2, 4, wreath);
+        let relabel = |point: usize| 1 + 2 * (point % 4) + point / 4;
+        let mut generators: Vec<Vec<usize>> = generators
+            .iter()
+            .map(|generator| {
+                let mut relabelled = identity(degree);
+                for (point, &image) in generator.iter().enumerate() {
+                    relabelled[relabel(point)] = relabel(image);
+                }
+                relabelled
+            })
+            .collect();
+        check_permutation_group_invariants(degree, &generators, &sets);
+        generators.reverse();
+        check_permutation_group_invariants(degree, &generators, &sets);
+    }
+}
+
 fn factorial(n: u128) -> u128 {
     (1..=n).product()
 }
