@@ -20,12 +20,7 @@ pub use search::{
     CanonicalSearchStats, LabeledSimpleGraphCertificate,
 };
 
-/// Trait exposing canonical labeling for simple undirected graphs with
-/// total-order vertex and edge labels.
-///
-/// This is the public canonization API for the current module. The underlying
-/// search entry points stay internal so the public surface remains trait-based,
-/// like the rest of the crate's algorithm layer.
+/// Canonizes labeled simple undirected graphs by component certificate.
 pub trait CanonicalLabeling: MonoplexMonopartiteGraph {
     /// Computes a canonical labeling using the default canonizer options.
     #[inline]

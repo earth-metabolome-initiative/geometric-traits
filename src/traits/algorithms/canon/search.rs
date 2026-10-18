@@ -73,7 +73,7 @@ pub struct LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel> {
 pub struct CanonicalLabelingResult<VertexLabel, EdgeLabel> {
     /// Original dense vertex identifiers in canonical order.
     pub order: Vec<usize>,
-    /// The canonical graph certificate induced by `order`.
+    /// The dense certificate induced by `order`, with quadratic size.
     pub certificate: LabeledSimpleGraphCertificate<VertexLabel, EdgeLabel>,
     /// Search statistics collected while finding the canonical labeling.
     pub stats: CanonicalSearchStats,
@@ -81,7 +81,7 @@ pub struct CanonicalLabelingResult<VertexLabel, EdgeLabel> {
     pub automorphism_generators: Vec<Vec<usize>>,
 }
 
-/// Search statistics for the current individualization-refinement canonizer.
+/// Search statistics summed over the connected components.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CanonicalSearchStats {
     /// Number of search-tree nodes visited, including the root and leaves.
@@ -758,10 +758,141 @@ where
 /// Computes a canonical labeling for a simple undirected graph with total-order
 /// vertex and edge labels using explicit canonizer options.
 ///
-/// This path preserves the current `bliss`-alignment strategy by reducing the
-/// edge-labeled graph to a vertex-labeled graph before search.
+/// Connected components are canonized independently and ordered by certificate.
 #[must_use]
 pub(super) fn canonical_label_labeled_simple_graph_with_options<G, VertexLabel, EdgeLabel, VF, EF>(
+    graph: &G,
+    mut vertex_label: VF,
+    mut edge_label: EF,
+    options: CanonicalLabelingOptions,
+) -> CanonicalLabelingResult<VertexLabel, EdgeLabel>
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize>,
+    VertexLabel: Ord + Clone,
+    EdgeLabel: Ord + Clone,
+    VF: FnMut(G::NodeId) -> VertexLabel,
+    EF: FnMut(G::NodeId, G::NodeId) -> EdgeLabel,
+{
+    let nodes = graph.node_ids().collect::<Vec<_>>();
+    let components = connected_components(graph, &nodes);
+    if components.len() <= 1 {
+        return canonical_label_connected_simple_graph(graph, vertex_label, edge_label, options);
+    }
+
+    let vertex_labels = nodes.iter().copied().map(&mut vertex_label).collect::<Vec<_>>();
+    let mut local_of = vec![0; nodes.len()];
+    let mut results = Vec::with_capacity(components.len());
+    for members in components {
+        for (local, &global) in members.iter().enumerate() {
+            local_of[global] = local;
+        }
+        let mut edges = Vec::new();
+        for (source, &global) in members.iter().enumerate() {
+            for neighbor in graph.successors(nodes[global]) {
+                let destination = local_of[neighbor.as_()];
+                if source < destination {
+                    edges.push((source, destination, ()));
+                }
+            }
+        }
+        let component_graph = build_unlabeled_graph(members.len(), edges);
+        let mut result = canonical_label_connected_simple_graph(
+            &component_graph,
+            |local| vertex_labels[members[local]].clone(),
+            |left, right| edge_label(nodes[members[left]], nodes[members[right]]),
+            options,
+        );
+        for vertex in &mut result.order {
+            *vertex = members[*vertex];
+        }
+        for generator in &mut result.automorphism_generators {
+            let mut lifted = (0..nodes.len()).collect::<Vec<_>>();
+            for (&vertex, &image) in members.iter().zip(generator.iter()) {
+                lifted[vertex] = members[image];
+            }
+            *generator = lifted;
+        }
+        results.push(result);
+    }
+    results.sort_unstable_by(|left, right| left.certificate.cmp(&right.certificate));
+
+    let mut automorphism_generators = Vec::new();
+    if options.collect_automorphism_generators {
+        for pair in results.windows(2) {
+            if pair[0].certificate == pair[1].certificate {
+                let mut swap = (0..nodes.len()).collect::<Vec<_>>();
+                for (&left, &right) in pair[0].order.iter().zip(&pair[1].order) {
+                    swap[left] = right;
+                    swap[right] = left;
+                }
+                automorphism_generators.push(swap);
+            }
+        }
+    }
+    let mut order = Vec::with_capacity(nodes.len());
+    let mut stats = CanonicalSearchStats::default();
+    for mut result in results {
+        order.append(&mut result.order);
+        automorphism_generators.append(&mut result.automorphism_generators);
+        stats.search_nodes += result.stats.search_nodes;
+        stats.leaf_nodes += result.stats.leaf_nodes;
+        stats.automorphisms_found += result.stats.automorphisms_found;
+        stats.pruned_sibling_orbits += result.stats.pruned_sibling_orbits;
+        stats.pruned_root_orbits += result.stats.pruned_root_orbits;
+        stats.pruned_path_signatures += result.stats.pruned_path_signatures;
+    }
+    let adjacency = AdjacencyBitMatrix::from_graph(graph, &nodes);
+    let certificate =
+        build_certificate(&adjacency, &nodes, &vertex_labels, &mut edge_label, &order);
+    CanonicalLabelingResult { order, certificate, stats, automorphism_generators }
+}
+
+fn connected_components<G>(graph: &G, nodes: &[G::NodeId]) -> Vec<Vec<usize>>
+where
+    G: MonoplexMonopartiteGraph,
+    G::NodeId: AsPrimitive<usize>,
+{
+    let mut visited = vec![false; nodes.len()];
+    let mut components = Vec::new();
+    for (start, _) in nodes.iter().enumerate() {
+        if visited[start] {
+            continue;
+        }
+        visited[start] = true;
+        let mut members = vec![start];
+        let mut cursor = 0;
+        while cursor < members.len() {
+            let vertex = members[cursor];
+            cursor += 1;
+            for neighbor in graph.successors(nodes[vertex]) {
+                let neighbor = neighbor.as_();
+                if !visited[neighbor] {
+                    visited[neighbor] = true;
+                    members.push(neighbor);
+                }
+            }
+        }
+        components.push(members);
+    }
+    components
+}
+
+fn build_unlabeled_graph(order: usize, mut edges: Vec<(usize, usize, ())>) -> ReducedGraph {
+    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
+        .expected_number_of_symbols(order)
+        .symbols((0..order).enumerate())
+        .build()
+        .expect("dense graph vocabulary should build");
+    edges.sort_unstable_by_key(|&(source, destination, ())| (source, destination));
+    GenericGraph::from((
+        nodes,
+        SymmetricCSR2D::from_sorted_upper_triangular_entries(order, edges)
+            .expect("simple graph edges should build"),
+    ))
+}
+
+fn canonical_label_connected_simple_graph<G, VertexLabel, EdgeLabel, VF, EF>(
     graph: &G,
     mut vertex_label: VF,
     mut edge_label: EF,
@@ -979,20 +1110,7 @@ where
         reduced_edges.push((destination, edge_vertex, ()));
     }
 
-    let nodes: SortedVec<usize> = GenericVocabularyBuilder::default()
-        .expected_number_of_symbols(reduced_vertex_labels.len())
-        .symbols((0..reduced_vertex_labels.len()).enumerate())
-        .build()
-        .expect("dense reduced graph vocabulary should build");
-    reduced_edges.sort_unstable_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
-    let graph = GenericGraph::from((
-        nodes,
-        SymmetricCSR2D::from_sorted_upper_triangular_entries(
-            reduced_vertex_labels.len(),
-            reduced_edges,
-        )
-        .expect("edge-subdivision reduction should produce a simple graph"),
-    ));
+    let graph = build_unlabeled_graph(reduced_vertex_labels.len(), reduced_edges);
 
     ReducedEdgeLabeledGraph {
         graph,
