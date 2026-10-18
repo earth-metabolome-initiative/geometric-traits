@@ -1,6 +1,6 @@
 [package]
 name = "geometric-traits"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 authors = ["The Earth Metabolome Initiative"]
 description = "Trait-based algebraic and graph algorithms for Rust, supporting no_std environments"
