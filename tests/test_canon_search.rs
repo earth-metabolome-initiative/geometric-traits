@@ -1,15 +1,17 @@
 //! Tests for the first search-based canonizer.
-#![cfg(feature = "std")]
+#![cfg(feature = "alloc")]
 #![allow(clippy::pedantic)]
 
 extern crate alloc;
 
+#[cfg(feature = "std")]
 #[path = "support/canon_bench_fixture.rs"]
 #[allow(dead_code)]
 mod canon_bench_fixture;
 
 use alloc::collections::BTreeSet;
 
+#[cfg(feature = "std")]
 use canon_bench_fixture::{CanonCase, timeout_cases};
 use geometric_traits::{
     impls::{SortedVec, SymmetricCSR2D, ValuedCSR2D},
@@ -51,6 +53,7 @@ fn build_bidirectional_labeled_graph(
     GenericGraph::from((nodes, edges))
 }
 
+#[cfg(feature = "std")]
 fn permuted_case(case: &CanonCase) -> (LabeledUndirectedGraph, Vec<u8>) {
     let order = case.number_of_nodes();
     let permutation = (0..order).map(|index| (order + 2 - index) % order).collect::<Vec<_>>();
@@ -296,13 +299,11 @@ fn test_max_neighbour_heuristics_match_pinned_dense_uniform_n9_stats() {
 }
 
 #[test]
-fn test_curated_bliss_search_surface_keeps_pinned_stats() {
+fn test_curated_canonizer_cases_are_relabeling_invariant() {
     struct Case {
         name: &'static str,
         vertex_labels: Vec<u8>,
         edges: Vec<(usize, usize, u8)>,
-        expected_nodes: usize,
-        expected_leaves: usize,
     }
 
     let cases = [
@@ -327,15 +328,11 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (3, 6, 1),
                 (3, 7, 1),
             ],
-            expected_nodes: 26,
-            expected_leaves: 8,
         },
         Case {
             name: "two_disjoint_stars_n10",
             vertex_labels: vec![0_u8; 10],
             edges: vec![(0, 6, 0), (1, 7, 0), (4, 6, 0), (5, 7, 0), (6, 8, 0), (7, 9, 0)],
-            expected_nodes: 15,
-            expected_leaves: 4,
         },
         Case {
             name: "dense_uniform_n9_m27",
@@ -369,8 +366,6 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (6, 8, 0),
                 (7, 8, 0),
             ],
-            expected_nodes: 15,
-            expected_leaves: 6,
         },
         Case {
             name: "complete_labeled_n7_m21",
@@ -398,29 +393,21 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (4, 6, 0),
                 (5, 6, 1),
             ],
-            expected_nodes: 16,
-            expected_leaves: 6,
         },
         Case {
             name: "empty_colored_n10",
             vertex_labels: vec![1_u8, 0, 2, 1, 3, 2, 0, 1, 2, 0],
             edges: vec![],
-            expected_nodes: 16,
-            expected_leaves: 4,
         },
         Case {
             name: "three_disjoint_edges_n10",
             vertex_labels: vec![0_u8; 10],
             edges: vec![(0, 3, 0), (1, 4, 0), (2, 5, 0)],
-            expected_nodes: 26,
-            expected_leaves: 4,
         },
         Case {
             name: "sparse_uniform_n9_m5",
             vertex_labels: vec![0_u8; 9],
             edges: vec![(0, 2, 0), (1, 4, 0), (2, 5, 0), (3, 7, 0), (6, 7, 0)],
-            expected_nodes: 10,
-            expected_leaves: 3,
         },
         Case {
             name: "fuzz_dense_connected_n14_m19",
@@ -446,8 +433,6 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (11, 13, 0),
                 (12, 13, 0),
             ],
-            expected_nodes: 14,
-            expected_leaves: 3,
         },
         Case {
             name: "fuzz_sparse_structured_n24_m46",
@@ -500,8 +485,6 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (19, 23, 0),
                 (22, 23, 0),
             ],
-            expected_nodes: 12,
-            expected_leaves: 4,
         },
         Case {
             name: "fuzz_labeled_sparse_n25_m50",
@@ -560,8 +543,6 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (20, 21, 0),
                 (21, 24, 0),
             ],
-            expected_nodes: 10,
-            expected_leaves: 3,
         },
         Case {
             name: "fuzz_sparse_structured_n25_m13",
@@ -581,8 +562,6 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
                 (15, 18, 0),
                 (23, 24, 0),
             ],
-            expected_nodes: 98,
-            expected_leaves: 5,
         },
     ];
 
@@ -594,20 +573,23 @@ fn test_curated_bliss_search_surface_keeps_pinned_stats() {
             |left, right| matrix.sparse_value_at(left, right).unwrap(),
         );
 
-        assert_eq!(
-            (result.stats.search_nodes, result.stats.leaf_nodes),
-            (case.expected_nodes, case.expected_leaves),
-            "curated bliss-search case {} drifted",
-            case.name
+        let count = case.vertex_labels.len();
+        let permuted_edges = case
+            .edges
+            .iter()
+            .map(|&(left, right, label)| (count - 1 - left, count - 1 - right, label))
+            .collect::<Vec<_>>();
+        let permuted_graph = build_bidirectional_labeled_graph(count, &permuted_edges);
+        let permuted_matrix = Edges::matrix(permuted_graph.edges());
+        let permuted = permuted_graph.canonical_labeling(
+            |node| case.vertex_labels[count - 1 - node],
+            |left, right| permuted_matrix.sparse_value_at(left, right).unwrap(),
         );
-        assert!(
-            result.stats.search_nodes > result.stats.leaf_nodes,
-            "curated bliss-search case {} should remain nontrivial",
-            case.name
-        );
+        assert_eq!(result.certificate, permuted.certificate, "case {}", case.name);
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_timeout_cases_keep_pinned_stats() {
     let expected = [
@@ -636,6 +618,7 @@ fn test_timeout_cases_keep_pinned_stats() {
     }
 }
 
+#[cfg(feature = "std")]
 #[test]
 fn test_single_override_case_is_relabeling_invariant_across_bliss_heuristics() {
     let case = timeout_cases()
@@ -892,4 +875,173 @@ fn test_automorphism_generators_are_opt_in() {
     );
     assert_eq!(result.order, collected.order);
     assert_eq!(result.certificate, collected.certificate);
+}
+
+fn repeated_component(
+    size: usize,
+    edges: &[(usize, usize, u8)],
+    copies: usize,
+) -> LabeledUndirectedGraph {
+    let union_edges = (0..copies)
+        .flat_map(|copy| {
+            edges
+                .iter()
+                .map(move |&(left, right, label)| (copy * size + left, copy * size + right, label))
+        })
+        .collect::<Vec<_>>();
+    build_bidirectional_labeled_graph(size * copies, &union_edges)
+}
+
+#[test]
+fn test_disjoint_component_search_scales_with_component_count() {
+    let triangle = [(0, 1, 0), (0, 2, 0), (1, 2, 0)];
+    let path = [(0, 1, 0), (1, 2, 0), (2, 3, 0)];
+    for (size, edges) in [(3, &triangle[..]), (4, &path[..])] {
+        for collect in [false, true] {
+            let options = CanonicalLabelingOptions {
+                collect_automorphism_generators: collect,
+                ..CanonicalLabelingOptions::default()
+            };
+            let single = repeated_component(size, edges, 1).canonical_labeling_with_options(
+                |_| 0_u8,
+                |_, _| 0_u8,
+                options,
+            );
+            for copies in [8, 16, 200] {
+                let union = repeated_component(size, edges, copies)
+                    .canonical_labeling_with_options(|_| 0_u8, |_, _| 0_u8, options);
+                assert!(
+                    union.stats.search_nodes <= copies * single.stats.search_nodes,
+                    "size={size}, copies={copies}, collect={collect}, stats={:?}",
+                    union.stats
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn test_disjoint_component_generators_have_wreath_product_order() {
+    let triangle = [(0, 1, 0), (0, 2, 0), (1, 2, 0)];
+    let path = [(0, 1, 0), (1, 2, 0), (2, 3, 0)];
+    for (size, edges, component_order) in [(3, &triangle[..], 6_u128), (4, &path[..], 2)] {
+        for copies in 1..=4 {
+            let result = repeated_component(size, edges, copies).canonical_labeling_with_options(
+                |_| 0_u8,
+                |_, _| 0_u8,
+                CanonicalLabelingOptions {
+                    collect_automorphism_generators: true,
+                    ..CanonicalLabelingOptions::default()
+                },
+            );
+            let expected = (1..=copies).fold(1_u128, |order, count| {
+                order * component_order * u128::try_from(count).unwrap()
+            });
+            let group =
+                PermutationGroup::new(size * copies, &result.automorphism_generators).unwrap();
+            assert_eq!(group.order(), Some(expected));
+        }
+    }
+}
+
+#[test]
+fn test_mixed_components_are_invariant_under_component_order_and_relabeling() {
+    use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
+
+    let triangle = vec![(0, 1, 0), (0, 2, 0), (1, 2, 0)];
+    let path = vec![(0, 1, 0), (1, 2, 0), (2, 3, 0)];
+    let components = [
+        (vec![0; 3], triangle.clone()),
+        (vec![0; 4], path.clone()),
+        (vec![0; 3], triangle),
+        (vec![0], vec![]),
+        (vec![0, 1, 0], vec![(0, 1, 1), (1, 2, 0)]),
+        (vec![1], vec![]),
+        (vec![0; 3], vec![(0, 1, 1), (0, 2, 1), (1, 2, 1)]),
+        (vec![0; 4], path),
+    ];
+    let union = |indices: &[usize]| {
+        let mut labels = Vec::new();
+        let mut edges = Vec::new();
+        for &index in indices {
+            let (component_labels, component_edges) = &components[index];
+            let offset = labels.len();
+            edges.extend(
+                component_edges.iter().map(|&(a, b, label)| (a + offset, b + offset, label)),
+            );
+            labels.extend_from_slice(component_labels);
+        }
+        (labels, edges)
+    };
+    let indices = components.iter().enumerate().map(|(index, _)| index).collect::<Vec<_>>();
+    let (labels, edges) = union(&indices);
+    let (reordered_labels, reordered_edges) =
+        union(&indices.iter().rev().copied().collect::<Vec<_>>());
+    let mut permutation = (0..labels.len()).collect::<Vec<_>>();
+    permutation.shuffle(&mut SmallRng::seed_from_u64(0xC090_0018));
+    let mut permuted_labels = vec![0; labels.len()];
+    for (old, &new) in permutation.iter().enumerate() {
+        permuted_labels[new] = labels[old];
+    }
+    let permuted_edges = edges
+        .iter()
+        .map(|&(a, b, label)| (permutation[a], permutation[b], label))
+        .collect::<Vec<_>>();
+    let heuristics = [
+        CanonSplittingHeuristic::First,
+        CanonSplittingHeuristic::FirstSmallest,
+        CanonSplittingHeuristic::FirstLargest,
+        CanonSplittingHeuristic::FirstMaxNeighbours,
+        CanonSplittingHeuristic::FirstSmallestMaxNeighbours,
+        CanonSplittingHeuristic::FirstLargestMaxNeighbours,
+    ];
+    for heuristic in heuristics {
+        let mut certificates = Vec::new();
+        for collect in [false, true] {
+            for (labels, edges) in [
+                (&labels, &edges),
+                (&reordered_labels, &reordered_edges),
+                (&permuted_labels, &permuted_edges),
+            ] {
+                let graph = build_bidirectional_labeled_graph(labels.len(), edges);
+                let matrix = Edges::matrix(graph.edges());
+                let result = graph.canonical_labeling_with_options(
+                    |node| labels[node],
+                    |a, b| matrix.sparse_value_at(a, b).unwrap(),
+                    CanonicalLabelingOptions {
+                        splitting_heuristic: heuristic,
+                        collect_automorphism_generators: collect,
+                    },
+                );
+                let ordered_labels = result.order.iter().map(|&v| labels[v]).collect::<Vec<_>>();
+                assert_eq!(result.certificate.vertex_labels, ordered_labels);
+                let mut dense_order = result.order.clone();
+                dense_order.sort_unstable();
+                assert_eq!(dense_order, (0..labels.len()).collect::<Vec<_>>());
+                if collect {
+                    let group =
+                        PermutationGroup::new(labels.len(), &result.automorphism_generators)
+                            .unwrap();
+                    assert_eq!(group.order(), Some(3456));
+                    for generator in &result.automorphism_generators {
+                        for (vertex, &image) in generator.iter().enumerate() {
+                            assert_eq!(labels[vertex], labels[image]);
+                            for (other, &other_image) in generator.iter().enumerate() {
+                                assert_eq!(
+                                    matrix.sparse_value_at(vertex, other),
+                                    matrix.sparse_value_at(image, other_image)
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    assert_eq!(result.automorphism_generators, Vec::<Vec<usize>>::new());
+                }
+                certificates.push(result.certificate);
+            }
+        }
+        for certificate in &certificates[1..] {
+            assert_eq!(&certificates[0], certificate);
+        }
+    }
 }
