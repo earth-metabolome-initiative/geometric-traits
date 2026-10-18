@@ -44,6 +44,25 @@ fn wreath(pairs: usize) -> (usize, Vec<Vec<usize>>, Vec<usize>) {
     (degree, generators, set)
 }
 
+/// Automorphisms of disjoint triangles, acting on the final point.
+fn triangles(copies: usize) -> (usize, Vec<Vec<usize>>, Vec<usize>) {
+    let degree = 3 * copies;
+    let mut generators = Vec::new();
+    for copy in 0..copies {
+        let base = 3 * copy;
+        generators.push(cycle(degree, &[base, base + 1, base + 2]));
+        generators.push(cycle(degree, &[base + 1, base + 2]));
+    }
+    for copy in 0..copies.saturating_sub(1) {
+        let mut swap: Vec<usize> = (0..degree).collect();
+        for offset in 0..3 {
+            swap.swap(3 * copy + offset, 3 * copy + 3 + offset);
+        }
+        generators.push(swap);
+    }
+    (degree, generators, vec![degree - 1])
+}
+
 /// Independent parity flips of `centres` stereocentres plus the end-to-end
 /// reversal, acting on one parity point per centre.
 fn stereo_chain(centres: usize) -> (usize, Vec<Vec<usize>>, Vec<usize>) {
@@ -62,6 +81,9 @@ fn bench_permutation_group(c: &mut Criterion) {
         ("symmetric_40", symmetric(40)),
         ("wreath_24", wreath(24)),
         ("stereo_chain_48", stereo_chain(48)),
+        ("triangles_40", triangles(40)),
+        ("triangles_80", triangles(80)),
+        ("triangles_200", triangles(200)),
     ];
     let mut group = c.benchmark_group("permutation_group");
     for (label, (degree, generators, set)) in &cases {
