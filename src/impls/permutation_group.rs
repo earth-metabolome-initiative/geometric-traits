@@ -1,7 +1,7 @@
 //! [`PermutationGroup`], a group of permutations of `0..degree` stored as a
 //! stabilizer chain.
 
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{borrow::Cow, collections::BTreeMap, vec::Vec};
 
 /// Schreier tree label of a point outside a level's orbit.
 const UNREACHED: usize = usize::MAX;
@@ -55,8 +55,7 @@ pub struct SmallestImage {
     pub element: Vec<usize>,
 }
 
-/// One level of the stabilizer chain, the group fixing every point below
-/// `base_point` and moving `base_point`.
+/// A chain level fixing earlier active points and moving `base_point`.
 #[derive(Clone, Debug)]
 struct Level {
     base_point: usize,
@@ -144,6 +143,15 @@ impl PermutationGroup {
             }
             pending.push((0, generator.to_vec()));
         }
+        Ok(Self::build(degree, pending, None))
+    }
+
+    /// Builds on `active`, discarding residues that fix every active point.
+    fn build(
+        degree: usize,
+        mut pending: Vec<(usize, Vec<usize>)>,
+        active: Option<&[bool]>,
+    ) -> Self {
         pending.reverse();
         let mut group = Self {
             degree,
@@ -151,14 +159,13 @@ impl PermutationGroup {
             inverses: Vec::new(),
             levels: Vec::new(),
         };
-        // Each entry asks for a permutation fixing every point below `start` to
-        // lie in the group fixing `0..start`.
+        // Each residue fixes the active points below `start`.
         while let Some((start, mut permutation)) = pending.pop() {
-            if let Some(position) = group.sift(&mut permutation, start) {
+            if let Some(position) = group.sift(&mut permutation, start, active) {
                 group.add_strong_generator(start, position, permutation, &mut pending);
             }
         }
-        Ok(group)
+        group
     }
 
     /// Returns the number of points the group acts on.
@@ -186,7 +193,7 @@ impl PermutationGroup {
         {
             return false;
         }
-        self.sift(&mut permutation.to_vec(), 0).is_none()
+        self.sift(&mut permutation.to_vec(), 0, None).is_none()
     }
 
     /// Returns the orbit of `point`, sorted ascending.
@@ -220,12 +227,9 @@ impl PermutationGroup {
     /// Returns the lexicographically smallest image of `set` under the group,
     /// comparing images as ascending vectors, with an element reaching it.
     ///
-    /// The backtrack over the stabilizer chain follows Linton ([2004](https://doi.org/10.1145/1005285.1005319)).
-    /// It fixes the image one point at a time, keeping every distinct
-    /// candidate image that still achieves the smallest prefix, and moves each
-    /// candidate greedily toward small points so that candidates equivalent
-    /// under the remaining stabilizer tend to coincide. It is exponential in
-    /// the worst case.
+    /// The backtrack over the stabilizer chain follows Linton ([2004](https://doi.org/10.1145/1005285.1005319)), greedily moving candidates toward small points and merging equal images.
+    /// Orbits disjoint from every candidate image are excluded from the base.
+    /// The search is exponential in the worst case.
     ///
     /// # Errors
     ///
@@ -247,6 +251,8 @@ impl PermutationGroup {
         let mut candidates = BTreeMap::new();
         let (image, element) = self.greedy_image(0, set, (0..self.degree).collect());
         candidates.insert(image, element);
+        let mut group = Cow::Borrowed(self);
+        let mut orbit = Vec::new();
         let mut next_level = 0;
         for position in 0..self.degree {
             let placed = candidates
@@ -256,21 +262,49 @@ impl PermutationGroup {
             if placed {
                 break;
             }
-            match self.levels.get(next_level) {
+            match group.levels.get(next_level) {
                 Some(level) if level.base_point == position => {
-                    next_level += 1;
                     let hit = candidates
                         .keys()
                         .any(|image| image.iter().any(|&point| level.reaches(point)));
+                    if !hit {
+                        seen.fill(false);
+                        orbit.clear();
+                        for &point in candidates.keys().flatten() {
+                            if !core::mem::replace(&mut seen[point], true) {
+                                orbit.push(point);
+                            }
+                        }
+                        let mut next = 0;
+                        while let Some(&point) = orbit.get(next) {
+                            for &label in &level.generators {
+                                let image = group.strong_generators[label][point];
+                                if !core::mem::replace(&mut seen[image], true) {
+                                    orbit.push(image);
+                                }
+                            }
+                            next += 1;
+                        }
+                        let pending = level
+                            .generators
+                            .iter()
+                            .map(|&label| (0, group.strong_generators[label].clone()))
+                            .collect();
+                        // Its kernel fixes every candidate image.
+                        group = Cow::Owned(Self::build(self.degree, pending, Some(&seen)));
+                        next_level = 0;
+                        continue;
+                    }
+                    next_level += 1;
                     let mut children = BTreeMap::new();
                     for (image, element) in &candidates {
                         for &target in &level.orbit {
-                            if image.binary_search(&target).is_ok() != hit {
+                            if image.binary_search(&target).is_err() {
                                 continue;
                             }
                             let mut child = element.clone();
-                            level.divide(&self.inverses, &mut child, target);
-                            let (image, child) = self.greedy_image(next_level, set, child);
+                            level.divide(&group.inverses, &mut child, target);
+                            let (image, child) = group.greedy_image(next_level, set, child);
                             children.entry(image).or_insert(child);
                         }
                     }
@@ -311,16 +345,17 @@ impl PermutationGroup {
         (image, element)
     }
 
-    /// Divides `permutation`, which fixes every point below `start`, by the
-    /// transversals of the levels from `start` on.
-    ///
-    /// Returns `None` when it reduces to the identity, and otherwise the
-    /// position where the residue left in `permutation` drops out of the chain.
-    fn sift(&self, permutation: &mut [usize], start: usize) -> Option<usize> {
+    /// Returns the first active point where sifting leaves a residue.
+    fn sift(
+        &self,
+        permutation: &mut [usize],
+        start: usize,
+        active: Option<&[bool]>,
+    ) -> Option<usize> {
         let first = self.levels.partition_point(|level| level.base_point < start);
         let mut position = start;
         for level in &self.levels[first..] {
-            if let Some(moved) = first_moved(permutation, position, level.base_point) {
+            if let Some(moved) = first_moved(permutation, position, level.base_point, active) {
                 return Some(moved);
             }
             let image = permutation[level.base_point];
@@ -330,11 +365,10 @@ impl PermutationGroup {
             level.divide(&self.inverses, permutation, image);
             position = level.base_point + 1;
         }
-        first_moved(permutation, position, self.degree)
+        first_moved(permutation, position, self.degree, active)
     }
 
-    /// Adds `residue`, which fixes every point below `position` and dropped
-    /// out of the chain there, to every level from `start` through `position`.
+    /// Records a residue fixing every earlier active base point.
     fn add_strong_generator(
         &mut self,
         start: usize,
@@ -463,8 +497,14 @@ fn invert(permutation: &[usize]) -> Vec<usize> {
     inverse
 }
 
-fn first_moved(permutation: &[usize], start: usize, end: usize) -> Option<usize> {
-    (start..end).find(|&point| permutation[point] != point)
+fn first_moved(
+    permutation: &[usize],
+    start: usize,
+    end: usize,
+    active: Option<&[bool]>,
+) -> Option<usize> {
+    (start..end)
+        .find(|&point| active.is_none_or(|active| active[point]) && permutation[point] != point)
 }
 
 fn image_of(set: &[usize], element: &[usize], image: &mut Vec<usize>) {

@@ -198,6 +198,59 @@ fn test_smallest_image_under_a_rotation_compares_whole_sets() {
     assert_eq!(smallest.element, (0..8).map(|point| (point + 4) % 8).collect::<Vec<_>>());
 }
 
+/// Involutions on excluded and set pairs, with optional reversal.
+fn involutions_with_unreached_points(
+    units: usize,
+    trailing: bool,
+    reversing: bool,
+) -> (PermutationGroup, Vec<usize>, Vec<usize>) {
+    let degree = 6 * units;
+    let point = |unit: usize, offset: usize| {
+        if trailing {
+            if offset < 4 { 4 * unit + offset } else { 4 * units + 2 * unit + offset - 4 }
+        } else {
+            6 * unit + offset
+        }
+    };
+    let mut generators: Vec<Vec<usize>> = (0..units)
+        .map(|unit| {
+            let mut generator = identity(degree);
+            generator.swap(point(unit, 0), point(unit, 2));
+            generator.swap(point(unit, 1), point(unit, 3));
+            generator.swap(point(unit, 4), point(unit, 5));
+            generator
+        })
+        .collect();
+    if reversing {
+        let mut reversal = identity(degree);
+        for unit in 0..units {
+            for offset in 0..6 {
+                reversal[point(unit, offset)] = point(units - 1 - unit, offset);
+            }
+        }
+        generators.push(reversal);
+    }
+    let set = (0..units).map(|unit| point(unit, 5)).collect();
+    let expected = (0..units).map(|unit| point(unit, 4)).collect();
+    (PermutationGroup::new(degree, generators).unwrap(), set, expected)
+}
+
+#[test]
+fn test_smallest_image_does_not_branch_over_points_no_image_reaches() {
+    for units in [32, 64] {
+        for trailing in [false, true] {
+            for reversing in [false, true] {
+                let (group, set, expected) =
+                    involutions_with_unreached_points(units, trailing, reversing);
+                let smallest = group.smallest_image(&set).unwrap();
+                assert_eq!(smallest.image, expected, "{units} {trailing} {reversing}");
+                assert!(group.contains(&smallest.element));
+                assert_eq!(sorted_image(&smallest.element, &set), expected);
+            }
+        }
+    }
+}
+
 #[cfg(feature = "arbitrary")]
 #[test]
 fn test_random_small_groups_match_brute_force_closure() {
