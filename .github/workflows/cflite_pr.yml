@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   PR:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.sanitizer }}-${{ github.ref }}
       cancel-in-progress: true
