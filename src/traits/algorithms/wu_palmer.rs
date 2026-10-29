@@ -92,7 +92,8 @@ impl SubtreeDepths {
     /// Folds in the depths of a successor, which sits one level deeper.
     fn absorb(&mut self, successor: Self) {
         match (successor.left, successor.right) {
-            // Keeping the deepest depth across paths keeps 2 * common <= left + right.
+            // Keeping the deepest depth across paths keeps 2 * common <= left +
+            // right.
             (Some(left), None) => self.left = Some(self.left.map_or(left + 1, |d| d.max(left + 1))),
             (None, Some(right)) => {
                 self.right = Some(self.right.map_or(right + 1, |d| d.max(right + 1)));
