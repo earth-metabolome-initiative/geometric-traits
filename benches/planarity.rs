@@ -1,7 +1,11 @@
 //! Criterion benchmarks for planarity and outerplanarity detection.
 
-#[path = "../tests/support/planarity_fixture.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/planarity_fixture.rs"]
 mod planarity_fixture;
+#[path = "../tests/it/support/undigraph_fixture.rs"]
+mod undigraph_fixture;
 
 use std::{hint::black_box, time::Duration};
 

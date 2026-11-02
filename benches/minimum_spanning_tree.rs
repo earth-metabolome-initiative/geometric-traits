@@ -2,7 +2,7 @@
 //! `Prim`, and `Boruvka` on the larger seeded `G(n, p)` cases from the shared
 //! NetworkX corpus.
 
-#[path = "../tests/support/fixture_io.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
 mod fixture_io;
 
 use std::hint::black_box;

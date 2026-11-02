@@ -1,6 +1,6 @@
 //! Criterion benchmarks for the current simple-undirected labeled canonizer.
 
-#[path = "../tests/support/canon_bench_fixture.rs"]
+#[path = "../tests/it/support/canon_bench_fixture.rs"]
 mod canon_bench_fixture;
 
 use std::{hint::black_box, time::Duration};
@@ -61,8 +61,7 @@ fn bench_rust_group_with_config(
         group.throughput(Throughput::Elements(
             u64::try_from(case.number_of_nodes()).expect("node count should fit into u64"),
         ));
-        let parameter =
-            format!("{}__n{}_m{}", case.name, case.number_of_nodes(), case.number_of_edges());
+        let parameter = format!("{}__n{}_m{}", case.name, case.number_of_nodes(), case.edges.len());
         group.bench_with_input(BenchmarkId::new("rust_ir", parameter), case, |b, case| {
             b.iter(|| run_rust_case(case));
         });
@@ -112,7 +111,7 @@ fn bench_rust_heuristics_group_with_config(
                 heuristic_name,
                 case.name,
                 case.number_of_nodes(),
-                case.number_of_edges()
+                case.edges.len()
             );
             group.bench_with_input(
                 BenchmarkId::new("rust_ir_heuristic", parameter),

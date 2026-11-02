@@ -1,6 +1,8 @@
 //! Criterion benchmark for VF2 against the merged committed NetworkX oracle.
 
-#[path = "../tests/support/vf2_fixture_suite.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/vf2_fixture_suite.rs"]
 mod vf2_fixture_suite;
 
 use std::hint::black_box;

@@ -12,7 +12,7 @@
 //! gephi/gephi repository) rather than the published equations wherever the
 //! two disagree, and is cross-validated against snapshots produced by the
 //! gephi-toolkit and by the Python `fa2` package (see
-//! `tests/test_forceatlas2_ground_truth.rs`). Unlike the Java reference, all
+//! `tests/it/test_forceatlas2_ground_truth.rs`). Unlike the Java reference, all
 //! arithmetic is performed in pure `f64` (no intermediate `f32` truncation)
 //! and divisions are guarded so that the layout never produces a non-finite
 //! coordinate.
