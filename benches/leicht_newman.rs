@@ -6,7 +6,7 @@
 //! benchmark group labels carry the summed NetworkX time so the Rust timings
 //! can be read directly against the reference implementation.
 
-#[path = "../tests/support/fixture_io.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
 mod fixture_io;
 
 use std::hint::black_box;

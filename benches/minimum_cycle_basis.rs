@@ -1,7 +1,11 @@
 //! Criterion benchmarks for the exact minimum-cycle-basis trait.
 
-#[path = "../tests/support/minimum_cycle_basis_fixture.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/minimum_cycle_basis_fixture.rs"]
 mod minimum_cycle_basis_fixture;
+#[path = "../tests/it/support/undigraph_fixture.rs"]
+mod undigraph_fixture;
 
 use std::{hint::black_box, time::Duration};
 

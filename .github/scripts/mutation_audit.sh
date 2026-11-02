@@ -134,13 +134,7 @@ if [[ "$selection" != null ]]; then
   (( selected > 0 && selected <= BATCH_SIZE )) || fail "selected shard is outside the batch limit"
 
   # Explicit targets omit benches and doctests without narrowing consumer tests.
-  test_flags=(--lib)
-  for file in tests/*.rs; do
-    [[ -f "$file" ]] || continue
-    name="${file#tests/}"
-    test_flags+=(--test "${name%.rs}")
-  done
-  (( ${#test_flags[@]} > 1 )) || fail "no integration test targets found"
+  test_flags=(--lib --test it)
   report_dir="$(mktemp -d mutation-audit.XXXXXX)"
   baseline="not-recorded"
   read -r uptime _ < /proc/uptime

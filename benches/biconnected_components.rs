@@ -1,7 +1,11 @@
 //! Criterion benchmarks for Hopcroft-Tarjan biconnected components.
 
-#[path = "../tests/support/biconnected_fixture.rs"]
+#[path = "../tests/it/support/biconnected_fixture.rs"]
 mod biconnected_fixture;
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/undigraph_fixture.rs"]
+mod undigraph_fixture;
 
 use std::hint::black_box;
 

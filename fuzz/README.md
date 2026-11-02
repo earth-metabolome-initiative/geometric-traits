@@ -241,7 +241,7 @@ cargo +nightly fuzz run vf2
 For deterministic replay in the test suite, use:
 
 ```bash
-cargo test --features arbitrary --test test_fuzz_regression vf2
+cargo test --features arbitrary --test it -- test_fuzz_regression::test_arbitrary_vf2_invariants test_fuzz_regression::test_replay_vf2_corpus
 ```
 
 and to run the crash cases:

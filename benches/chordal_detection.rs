@@ -1,7 +1,11 @@
 //! Criterion benchmarks for chordal graph detection.
 
-#[path = "../tests/support/chordal_fixture.rs"]
+#[path = "../tests/it/support/chordal_fixture.rs"]
 mod chordal_fixture;
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/undigraph_fixture.rs"]
+mod undigraph_fixture;
 
 use std::{collections::BTreeMap, hint::black_box, time::Duration};
 

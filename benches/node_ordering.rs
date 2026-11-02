@@ -1,7 +1,11 @@
 //! Criterion benchmarks for graph-level node ordering algorithms.
 
-#[path = "../tests/support/node_ordering_fixture.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
+mod fixture_io;
+#[path = "../tests/it/support/node_ordering_fixture.rs"]
 mod node_ordering_fixture;
+#[path = "../tests/it/support/undigraph_fixture.rs"]
+mod undigraph_fixture;
 
 use std::{collections::BTreeMap, hint::black_box, time::Duration};
 

@@ -14,7 +14,7 @@
 //!   unit-capacity reduction) against the specialized `HopcroftKarp` matcher on
 //!   the same bipartite instances.
 
-#[path = "../tests/support/fixture_io.rs"]
+#[path = "../tests/it/support/fixture_io.rs"]
 mod fixture_io;
 
 use std::{
