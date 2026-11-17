@@ -16,7 +16,7 @@ concurrency:
 jobs:
   sonar:
     name: SonarQube scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     # Neither a fork's pull request nor a Dependabot run can read SONAR_TOKEN,
     # so the scan runs for same-repo human branches and pushes to main only.

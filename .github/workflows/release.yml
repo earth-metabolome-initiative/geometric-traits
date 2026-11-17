@@ -25,7 +25,7 @@ jobs:
   publish:
     name: Publish to crates.io
     needs: [ci, security]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: read
       # Required to mint a short-lived crates.io token via OIDC trusted
