@@ -7,7 +7,8 @@ use num_traits::{AsPrimitive, ToPrimitive};
 
 use super::modularity::{
     CoarsenableGraph, LocalMovingConfig, ModularityError, build_working_graph, marker_partition,
-    project_partition, regroup_members, renumber_partition, validate_common_config,
+    project_partition, regroup_members, renumber_partition, singleton_members,
+    validate_common_config,
 };
 use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -217,8 +218,7 @@ where
     G: CoarsenableGraph,
     Marker: PositiveInteger,
 {
-    let mut current_members: Vec<Vec<usize>> =
-        (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
+    let mut current_members = singleton_members(original_number_of_nodes);
 
     let mut levels: Vec<LouvainLevel<Marker>> = Vec::new();
     let mut previous_modularity: Option<f64> = None;

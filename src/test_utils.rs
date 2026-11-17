@@ -2755,6 +2755,153 @@ pub fn check_leicht_newman_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
     );
 }
 
+/// Check acyclic directed Leiden invariants on arbitrary input (should never
+/// panic) and, when possible, on a positive directed graph. At every level
+/// the communities must contract to an acyclic graph, keep each strongly
+/// connected component whole and be weakly connected, and the same
+/// configuration must reproduce the same result.
+///
+/// # Panics
+///
+/// Panics if the detector fails on a valid positive directed graph or produces
+/// a partition breaking one of the invariants.
+#[inline]
+pub fn check_acyclic_directed_leiden_invariants(csr: &ValuedCSR2D<u16, u8, u8, f64>) {
+    // The detector must never panic on arbitrary input.
+    let _: Result<LeidenResult<usize>, _> =
+        DirectedLeiden::<usize>::acyclic_directed_leiden(csr, &LeidenConfig::default());
+
+    if !louvain_weights_are_numerically_stable(csr) {
+        return;
+    }
+    let Some(graph) = positive_directed_graph(csr) else {
+        return;
+    };
+
+    let config = LeidenConfig::default();
+    let result = DirectedLeiden::<usize>::acyclic_directed_leiden(&graph, &config)
+        .expect("acyclic directed Leiden must not fail on a valid positive directed graph");
+
+    let successors: Vec<Vec<usize>> = graph
+        .row_indices()
+        .map(|row| graph.sparse_row(row).map(AsPrimitive::as_).collect())
+        .collect();
+    let reachability: Vec<Vec<bool>> =
+        (0..successors.len()).map(|start| reachable_nodes(&successors, start)).collect();
+
+    for level in result.levels() {
+        let partition = level.partition();
+        assert_eq!(partition.len(), successors.len(), "partition length must equal node count");
+        assert!(
+            contraction_is_acyclic(&successors, partition),
+            "partition {partition:?} contracts to a cycle"
+        );
+        assert!(
+            communities_are_weakly_connected(&successors, partition),
+            "partition {partition:?} has a weakly disconnected community"
+        );
+        for (first, reached_from_first) in reachability.iter().enumerate() {
+            for (second, &forward) in reached_from_first.iter().enumerate() {
+                if forward && reachability[second][first] {
+                    assert_eq!(
+                        partition[first], partition[second],
+                        "strongly connected nodes {first} and {second} are split in {partition:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    let repeated = DirectedLeiden::<usize>::acyclic_directed_leiden(&graph, &config).unwrap();
+    assert_eq!(result, repeated, "acyclic directed Leiden must be deterministic for the same seed");
+}
+
+/// Returns which nodes the arcs in `successors` reach from `start`, `start`
+/// included.
+fn reachable_nodes(successors: &[Vec<usize>], start: usize) -> Vec<bool> {
+    let mut reached = vec![false; successors.len()];
+    let mut stack = vec![start];
+    reached[start] = true;
+    while let Some(node) = stack.pop() {
+        for &successor in &successors[node] {
+            if !reached[successor] {
+                reached[successor] = true;
+                stack.push(successor);
+            }
+        }
+    }
+    reached
+}
+
+/// Returns whether contracting each community of `partition` to one node, and
+/// keeping every arc between distinct communities, gives an acyclic graph.
+fn contraction_is_acyclic(successors: &[Vec<usize>], partition: &[usize]) -> bool {
+    let number_of_communities = partition.iter().copied().max().map_or(0, |max| max + 1);
+    let mut community_successors: Vec<Vec<usize>> = vec![Vec::new(); number_of_communities];
+    let mut in_degrees = vec![0usize; number_of_communities];
+    for (node_successors, &from) in successors.iter().zip(partition) {
+        for &successor in node_successors {
+            let to = partition[successor];
+            if from != to {
+                community_successors[from].push(to);
+                in_degrees[to] += 1;
+            }
+        }
+    }
+
+    let mut ready: Vec<usize> =
+        (0..number_of_communities).filter(|&community| in_degrees[community] == 0).collect();
+    let mut sorted = 0usize;
+    while let Some(community) = ready.pop() {
+        sorted += 1;
+        for &successor in &community_successors[community] {
+            in_degrees[successor] -= 1;
+            if in_degrees[successor] == 0 {
+                ready.push(successor);
+            }
+        }
+    }
+    sorted == number_of_communities
+}
+
+/// Returns whether every community of `partition` is connected once the arcs
+/// in `successors` lose their direction.
+fn communities_are_weakly_connected(successors: &[Vec<usize>], partition: &[usize]) -> bool {
+    let mut neighbours: Vec<Vec<usize>> = vec![Vec::new(); successors.len()];
+    for (node, node_successors) in successors.iter().enumerate() {
+        for &successor in node_successors {
+            if partition[node] == partition[successor] {
+                neighbours[node].push(successor);
+                neighbours[successor].push(node);
+            }
+        }
+    }
+
+    let number_of_communities = partition.iter().copied().max().map_or(0, |max| max + 1);
+    let mut community_reached = vec![false; number_of_communities];
+    let mut reached = vec![false; successors.len()];
+    for (start, &community) in partition.iter().enumerate() {
+        if reached[start] {
+            continue;
+        }
+        if community_reached[community] {
+            return false;
+        }
+        community_reached[community] = true;
+        reached[start] = true;
+        let mut stack = vec![start];
+        while let Some(node) = stack.pop() {
+            for &neighbour in &neighbours[node] {
+                if !reached[neighbour] {
+                    reached[neighbour] = true;
+                    stack.push(neighbour);
+                }
+            }
+        }
+    }
+    true
+}
+
 // ============================================================================
 // Jacobi eigenvalue decomposition invariants (from fuzz/fuzz_targets/jacobi.rs)
 // ============================================================================

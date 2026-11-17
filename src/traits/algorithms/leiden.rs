@@ -9,7 +9,8 @@ use rand::{RngExt, SeedableRng, rngs::SmallRng, seq::SliceRandom};
 use super::modularity::{
     CoarsenableGraph, LocalMovingConfig, ModularityError, RefineConfig, UndirectedView,
     WorkingGraph, approx_eq, build_working_graph, marker_partition, mix_seed, project_partition,
-    regroup_members, renumber_partition, validate_common_config, validate_leiden_config,
+    regroup_members, renumber_partition, singleton_members, validate_common_config,
+    validate_leiden_config,
 };
 use crate::traits::{Finite, Matrix2D, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -48,6 +49,19 @@ impl Default for LeidenConfig {
             theta: 0.01,
             seed: 42,
         }
+    }
+}
+
+impl LeidenConfig {
+    /// Checks every parameter of the configuration.
+    pub(crate) fn validate(&self) -> Result<(), ModularityError> {
+        validate_common_config(
+            self.resolution,
+            self.modularity_threshold,
+            self.max_levels,
+            self.max_local_passes,
+        )?;
+        validate_leiden_config(self.max_refinement_passes, self.theta)
     }
 }
 
@@ -162,17 +176,9 @@ where
         config: &LeidenConfig,
         on_progress: &mut dyn FnMut(usize),
     ) -> Result<LeidenResult<Marker>, ModularityError> {
-        validate_common_config(
-            config.resolution,
-            config.modularity_threshold,
-            config.max_levels,
-            config.max_local_passes,
-        )?;
-        validate_leiden_config(config.max_refinement_passes, config.theta)?;
-
+        config.validate()?;
         let graph = build_working_graph(self)?;
-        let original_number_of_nodes = self.number_of_rows().as_();
-        leiden_levels(graph, config, original_number_of_nodes, on_progress)
+        leiden_levels(graph, config, singleton_members(self.number_of_rows().as_()), on_progress)
     }
 }
 
@@ -238,19 +244,19 @@ impl CoarsenableGraph for WorkingGraph {
 /// Shared multi-level driver for Leiden and directed Leiden: runs local moving,
 /// refinement, and well-connectedness splitting per level until the modularity
 /// gain falls below the threshold or every node sits in its own community.
+///
+/// Node `i` of `graph` stands for the original nodes `current_members[i]`.
 pub(crate) fn leiden_levels<G, Marker>(
     mut graph: G,
     config: &LeidenConfig,
-    original_number_of_nodes: usize,
+    mut current_members: Vec<Vec<usize>>,
     on_progress: &mut dyn FnMut(usize),
 ) -> Result<LeidenResult<Marker>, ModularityError>
 where
     G: CoarsenableGraph,
     Marker: PositiveInteger,
 {
-    let mut current_members: Vec<Vec<usize>> =
-        (0..original_number_of_nodes).map(|node_id| vec![node_id]).collect();
-
+    let original_number_of_nodes = current_members.iter().map(Vec::len).sum();
     let mut levels: Vec<LeidenLevel<Marker>> = Vec::new();
     let mut previous_modularity: Option<f64> = None;
 

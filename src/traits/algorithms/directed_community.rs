@@ -25,9 +25,24 @@ use super::{
     leiden::sample_softmax_destination,
     modularity::{
         CoarsenableGraph, LocalMovingConfig, ModularityError, RefineConfig, approx_eq, mix_seed,
+        regroup_members, renumber_partition, singleton_members,
     },
 };
-use crate::traits::{Finite, SparseValuedMatrix2D};
+use crate::{
+    impls::{CSR2D, SquareCSR2D},
+    naive_structs::GenericEdgesBuilder,
+    traits::{EdgesBuilder, Finite, SparseValuedMatrix2D, Tarjan},
+};
+
+/// Which moves the local-moving and refinement phases may take.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MoveRule {
+    /// Any move that improves the modularity.
+    Unrestricted,
+    /// Only moves after which contracting each community to a node, keeping
+    /// every arc between distinct communities, still gives an acyclic graph.
+    KeepContractionAcyclic,
+}
 
 /// A weighted directed graph stored as both a CSR out-adjacency and a CSC
 /// in-adjacency, with cached per-node strengths and total arc weight.
@@ -265,11 +280,13 @@ impl DirectedWorkingGraph {
 
     /// Greedy local-moving phase: repeatedly assigns each node to the
     /// neighboring community that most increases the directed modularity,
-    /// breaking ties toward the smaller community id.
+    /// breaking ties toward the smaller community id, among the moves `rule`
+    /// admits.
     pub(crate) fn local_moving(
         &self,
         config: LocalMovingConfig,
         level_index: usize,
+        rule: MoveRule,
     ) -> (Vec<usize>, usize) {
         let number_of_nodes = self.number_of_nodes();
         let mut partition: Vec<usize> = (0..number_of_nodes).collect();
@@ -286,6 +303,8 @@ impl DirectedWorkingGraph {
         let mut out_to_communities = vec![0.0; number_of_nodes];
         let mut in_to_communities = vec![0.0; number_of_nodes];
         let mut moved_nodes = 0usize;
+        let mut contraction = (rule == MoveRule::KeepContractionAcyclic)
+            .then(|| AcyclicContraction::singletons(number_of_nodes));
 
         for pass_index in 0..config.max_local_passes {
             let mut rng = SmallRng::seed_from_u64(mix_seed(config.seed, level_index, pass_index));
@@ -314,8 +333,7 @@ impl DirectedWorkingGraph {
                 community_out_totals[source_community] -= node_out;
                 community_in_totals[source_community] -= node_in;
 
-                let mut best_community = source_community;
-                let mut best_gain = directed_gain(
+                let source_gain = directed_gain(
                     out_to_communities[source_community],
                     in_to_communities[source_community],
                     node_out,
@@ -326,25 +344,42 @@ impl DirectedWorkingGraph {
                     inverse_total,
                 );
 
-                for community in &touched_communities {
-                    let community = *community;
-                    let gain = directed_gain(
-                        out_to_communities[community],
-                        in_to_communities[community],
-                        node_out,
-                        node_in,
-                        community_out_totals[community],
-                        community_in_totals[community],
-                        config.resolution,
-                        inverse_total,
-                    );
-                    if gain > best_gain + f64::EPSILON
-                        || (approx_eq(gain, best_gain) && community < best_community)
-                    {
-                        best_gain = gain;
-                        best_community = community;
+                let best_community = loop {
+                    let mut best_community = source_community;
+                    let mut best_gain = source_gain;
+                    for &community in &touched_communities {
+                        let gain = directed_gain(
+                            out_to_communities[community],
+                            in_to_communities[community],
+                            node_out,
+                            node_in,
+                            community_out_totals[community],
+                            community_in_totals[community],
+                            config.resolution,
+                            inverse_total,
+                        );
+                        if gain > best_gain + f64::EPSILON
+                            || (approx_eq(gain, best_gain) && community < best_community)
+                        {
+                            best_gain = gain;
+                            best_community = community;
+                        }
                     }
-                }
+                    let Some(contraction) =
+                        contraction.as_mut().filter(|_| best_community != source_community)
+                    else {
+                        break best_community;
+                    };
+                    if contraction.admits(self, &partition, node, best_community, |_| true) {
+                        contraction.record_move(node, source_community, best_community);
+                        break best_community;
+                    }
+                    // Joining `best_community` would close a cycle, so the next
+                    // scan leaves it out.
+                    out_to_communities[best_community] = 0.0;
+                    in_to_communities[best_community] = 0.0;
+                    touched_communities.retain(|&community| community != best_community);
+                };
 
                 partition[node] = best_community;
                 community_out_totals[best_community] += node_out;
@@ -519,7 +554,7 @@ impl CoarsenableGraph for DirectedWorkingGraph {
 
     #[inline]
     fn local_moving(&self, config: LocalMovingConfig, level_index: usize) -> (Vec<usize>, usize) {
-        self.local_moving(config, level_index)
+        self.local_moving(config, level_index, MoveRule::Unrestricted)
     }
 
     #[inline]
@@ -538,7 +573,13 @@ impl CoarsenableGraph for DirectedWorkingGraph {
         config: RefineConfig,
         level_index: usize,
     ) -> (Vec<usize>, usize) {
-        directed_refine_partition(self, parent_partition, config, level_index)
+        directed_refine_partition(
+            self,
+            parent_partition,
+            config,
+            level_index,
+            MoveRule::Unrestricted,
+        )
     }
 
     #[inline]
@@ -547,15 +588,239 @@ impl CoarsenableGraph for DirectedWorkingGraph {
     }
 }
 
+/// A [`DirectedWorkingGraph`] whose Leiden levels only take moves that keep
+/// the contraction of its partition acyclic, see
+/// [`MoveRule::KeepContractionAcyclic`].
+pub(crate) struct AcyclicDirectedWorkingGraph(DirectedWorkingGraph);
+
+impl AcyclicDirectedWorkingGraph {
+    /// Contracts each strongly connected component of `graph` to one node.
+    ///
+    /// Returns the condensation, which is acyclic apart from self-loops, with
+    /// the nodes of `graph` each of its nodes stands for.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModularityError::GraphConstructionFailed`] if the arcs of
+    /// `graph` cannot be assembled into the matrix the components are read
+    /// from.
+    pub(crate) fn condense(
+        graph: &DirectedWorkingGraph,
+    ) -> Result<(Self, Vec<Vec<usize>>), ModularityError> {
+        let number_of_nodes = graph.number_of_nodes();
+        let arcs: SquareCSR2D<CSR2D<usize, usize, usize>> = GenericEdgesBuilder::default()
+            .expected_number_of_edges(graph.out_targets.len())
+            .expected_shape(number_of_nodes)
+            .edges(graph.out_offsets.windows(2).enumerate().flat_map(|(source, bounds)| {
+                graph.out_targets[bounds[0]..bounds[1]]
+                    .iter()
+                    .map(move |&destination| (source, destination))
+            }))
+            .build()
+            .map_err(|_| ModularityError::GraphConstructionFailed)?;
+
+        let mut components = vec![0usize; number_of_nodes];
+        for (component, nodes) in arcs.tarjan().enumerate() {
+            for node in nodes {
+                components[node] = component;
+            }
+        }
+        let number_of_components = renumber_partition(&mut components);
+        let members =
+            regroup_members(singleton_members(number_of_nodes), &components, number_of_components);
+        Ok((Self(graph.induce(&components, number_of_components)), members))
+    }
+}
+
+impl CoarsenableGraph for AcyclicDirectedWorkingGraph {
+    #[inline]
+    fn number_of_nodes(&self) -> usize {
+        self.0.number_of_nodes()
+    }
+
+    #[inline]
+    fn modularity(&self, partition: &[usize], resolution: f64) -> f64 {
+        self.0.modularity(partition, resolution)
+    }
+
+    #[inline]
+    fn local_moving(&self, config: LocalMovingConfig, level_index: usize) -> (Vec<usize>, usize) {
+        self.0.local_moving(config, level_index, MoveRule::KeepContractionAcyclic)
+    }
+
+    #[inline]
+    fn induce(
+        &self,
+        partition: &[usize],
+        number_of_communities: usize,
+    ) -> Result<Self, ModularityError> {
+        Ok(Self(self.0.induce(partition, number_of_communities)))
+    }
+
+    #[inline]
+    fn refine(
+        &self,
+        parent_partition: &[usize],
+        config: RefineConfig,
+        level_index: usize,
+    ) -> (Vec<usize>, usize) {
+        directed_refine_partition(
+            &self.0,
+            parent_partition,
+            config,
+            level_index,
+            MoveRule::KeepContractionAcyclic,
+        )
+    }
+
+    /// Splitting keeps the contraction acyclic. A cycle through one part of a
+    /// split community is a cycle through the whole community, and a cycle
+    /// joining two parts passes through another community, since no arc joins
+    /// the parts, so the unsplit community already lay on a cycle.
+    #[inline]
+    fn split_disconnected_communities(&self, partition: &mut [usize]) {
+        self.0.split_disconnected_communities(partition);
+    }
+}
+
+/// Sentinel for the absence of a member in [`AcyclicContraction`].
+const NO_MEMBER: usize = usize::MAX;
+
+/// The members of each community of a partition, kept current across moves,
+/// for rejecting a move that would close a cycle in the contraction of the
+/// partition.
+///
+/// The members of a community form a doubly linked list threaded through the
+/// nodes, so a move costs constant time and no allocation.
+struct AcyclicContraction {
+    /// First member of each community, or [`NO_MEMBER`] when it is empty.
+    first_member: Vec<usize>,
+    /// Member after each node in its community, or [`NO_MEMBER`].
+    next_member: Vec<usize>,
+    /// Member before each node in its community, or [`NO_MEMBER`].
+    previous_member: Vec<usize>,
+    /// Whether each community has been reached by the current search.
+    reached: Vec<bool>,
+    /// Communities reached by the current search, in the order reached.
+    frontier: Vec<usize>,
+}
+
+impl AcyclicContraction {
+    /// Tracks the partition placing each of `number_of_nodes` nodes in the
+    /// community sharing its id.
+    fn singletons(number_of_nodes: usize) -> Self {
+        Self {
+            first_member: (0..number_of_nodes).collect(),
+            next_member: vec![NO_MEMBER; number_of_nodes],
+            previous_member: vec![NO_MEMBER; number_of_nodes],
+            reached: vec![false; number_of_nodes],
+            frontier: Vec::new(),
+        }
+    }
+
+    /// Returns whether moving `node` into `destination` keeps the contraction
+    /// of `partition` acyclic, given that it is acyclic before the move.
+    ///
+    /// Any new cycle passes through `destination`, so the search follows arcs
+    /// out of `destination` with `node` in it, community by community, and
+    /// fails on getting back. Arcs into nodes outside `in_scope` are skipped,
+    /// which is exact when no cycle can leave the scope.
+    fn admits(
+        &mut self,
+        graph: &DirectedWorkingGraph,
+        partition: &[usize],
+        node: usize,
+        destination: usize,
+        in_scope: impl Fn(usize) -> bool,
+    ) -> bool {
+        let community_of =
+            |other: usize| if other == node { destination } else { partition[other] };
+        let Self { first_member, next_member, reached, frontier, .. } = self;
+
+        reached[destination] = true;
+        let mut leave_destination = |member: usize| {
+            graph.for_each_out_edge(member, |target, _| {
+                if in_scope(target) {
+                    let community = community_of(target);
+                    if !reached[community] {
+                        reached[community] = true;
+                        frontier.push(community);
+                    }
+                }
+            });
+        };
+        leave_destination(node);
+        let mut member = first_member[destination];
+        while member != NO_MEMBER {
+            leave_destination(member);
+            member = next_member[member];
+        }
+
+        let mut closes_cycle = false;
+        let mut cursor = 0;
+        while !closes_cycle && cursor < frontier.len() {
+            let mut member = first_member[frontier[cursor]];
+            cursor += 1;
+            while !closes_cycle && member != NO_MEMBER {
+                if member != node {
+                    graph.for_each_out_edge(member, |target, _| {
+                        if closes_cycle || !in_scope(target) {
+                            return;
+                        }
+                        let community = community_of(target);
+                        if community == destination {
+                            closes_cycle = true;
+                        } else if !reached[community] {
+                            reached[community] = true;
+                            frontier.push(community);
+                        }
+                    });
+                }
+                member = next_member[member];
+            }
+        }
+
+        reached[destination] = false;
+        for community in frontier.drain(..) {
+            reached[community] = false;
+        }
+        !closes_cycle
+    }
+
+    /// Moves `node` from community `source` into community `destination`.
+    fn record_move(&mut self, node: usize, source: usize, destination: usize) {
+        let previous = self.previous_member[node];
+        let next = self.next_member[node];
+        if previous == NO_MEMBER {
+            self.first_member[source] = next;
+        } else {
+            self.next_member[previous] = next;
+        }
+        if next != NO_MEMBER {
+            self.previous_member[next] = previous;
+        }
+
+        let first = self.first_member[destination];
+        if first != NO_MEMBER {
+            self.previous_member[first] = node;
+        }
+        self.next_member[node] = first;
+        self.previous_member[node] = NO_MEMBER;
+        self.first_member[destination] = node;
+    }
+}
+
 /// Leiden refinement on a directed graph: within each parent community, moves
 /// nodes between sub-communities by the directed gain, sampling the destination
-/// with the softmax rule shared with the undirected Leiden.
+/// with the softmax rule shared with the undirected Leiden among the moves
+/// `rule` admits.
 #[allow(clippy::too_many_lines)]
 pub(crate) fn directed_refine_partition(
     graph: &DirectedWorkingGraph,
     parent_partition: &[usize],
     config: RefineConfig,
     level_index: usize,
+    rule: MoveRule,
 ) -> (Vec<usize>, usize) {
     let number_of_nodes = graph.number_of_nodes();
     let mut refined_partition: Vec<usize> = (0..number_of_nodes).collect();
@@ -584,6 +849,8 @@ pub(crate) fn directed_refine_partition(
     let mut touched_communities: Vec<usize> = Vec::new();
     let mut candidate_moves: Vec<(usize, f64)> = Vec::new();
     let mut moved_nodes = 0usize;
+    let mut contraction = (rule == MoveRule::KeepContractionAcyclic)
+        .then(|| AcyclicContraction::singletons(number_of_nodes));
 
     for pass_index in 0..config.max_refinement_passes {
         let mut moved_in_pass = 0usize;
@@ -659,6 +926,15 @@ pub(crate) fn directed_refine_partition(
                 }
 
                 candidate_moves.sort_unstable_by_key(|(community, _)| *community);
+                if let Some(contraction) = contraction.as_mut() {
+                    // The parent partition contracts acyclically, so a cycle
+                    // among sub-communities stays inside one parent community.
+                    candidate_moves.retain(|&(community, _)| {
+                        contraction.admits(graph, &refined_partition, node, community, |other| {
+                            parent_partition[other] == parent_community
+                        })
+                    });
+                }
 
                 let destination = if candidate_moves.is_empty() {
                     source_community
@@ -673,6 +949,9 @@ pub(crate) fn directed_refine_partition(
                 if destination != source_community {
                     moved_in_pass += 1;
                     moved_nodes += 1;
+                    if let Some(contraction) = contraction.as_mut() {
+                        contraction.record_move(node, source_community, destination);
+                    }
                 }
 
                 for community in &touched_communities {
@@ -733,7 +1012,7 @@ mod tests {
 
     use super::{
         super::modularity::renumber_partition, DirectedWorkingGraph, LocalMovingConfig,
-        ModularityError, RefineConfig, directed_gain, directed_refine_partition,
+        ModularityError, MoveRule, RefineConfig, directed_gain, directed_refine_partition,
     };
     use crate::{impls::ValuedCSR2D, naive_structs::GenericEdgesBuilder, traits::EdgesBuilder};
 
@@ -964,15 +1243,15 @@ mod tests {
         // Empty graph.
         let empty = graph(0, vec![]);
         assert!(empty.modularity(&[], 1.0).abs() < TOLERANCE);
-        assert_eq!(empty.local_moving(config, 0).0, Vec::<usize>::new());
+        assert_eq!(empty.local_moving(config, 0, MoveRule::Unrestricted).0, Vec::<usize>::new());
 
         // Single node, no arcs.
         let single = graph(1, vec![]);
-        assert_eq!(single.local_moving(config, 0).0, vec![0]);
+        assert_eq!(single.local_moving(config, 0, MoveRule::Unrestricted).0, vec![0]);
 
         // All self-loops: every node is its own source and sink.
         let loops = graph(3, vec![(0, 0, 1.0), (1, 1, 1.0), (2, 2, 1.0)]);
-        let (partition, _) = loops.local_moving(config, 0);
+        let (partition, _) = loops.local_moving(config, 0, MoveRule::Unrestricted);
         assert_eq!(partition.len(), 3);
         assert!(loops.modularity(&partition, 1.0).is_finite());
     }
@@ -1009,7 +1288,7 @@ mod tests {
         // panicking.
         let graph = graph(3, vec![(0, 1, 1.0), (1, 0, 1.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 10, seed: 3 };
-        let (partition, _) = graph.local_moving(config, 0);
+        let (partition, _) = graph.local_moving(config, 0, MoveRule::Unrestricted);
         assert_eq!(partition.len(), 3);
         assert_eq!(partition[0], partition[1]);
     }
@@ -1065,12 +1344,12 @@ mod tests {
         // one-directional nodes.
         let with_sink = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (0, 2, 1.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 5 };
-        let (partition, _) = with_sink.local_moving(config, 0);
+        let (partition, _) = with_sink.local_moving(config, 0, MoveRule::Unrestricted);
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[0], partition[2]);
 
         let with_source = graph(3, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 0, 1.0)]);
-        let (partition, _) = with_source.local_moving(config, 0);
+        let (partition, _) = with_source.local_moving(config, 0, MoveRule::Unrestricted);
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[0], partition[2]);
     }
@@ -1083,7 +1362,7 @@ mod tests {
         let graph = graph(2, vec![(0, 1, f64::MAX), (1, 0, f64::MAX)]);
         assert!(!graph.total_weight().is_normal());
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 1 };
-        assert_eq!(graph.local_moving(config, 0), (vec![0, 1], 0));
+        assert_eq!(graph.local_moving(config, 0, MoveRule::Unrestricted), (vec![0, 1], 0));
     }
 
     #[test]
@@ -1095,7 +1374,7 @@ mod tests {
         // guard).
         let graph = graph(4, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 3, 10.0), (3, 2, 10.0)]);
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 9 };
-        let (partition, moved_nodes) = graph.local_moving(config, 0);
+        let (partition, moved_nodes) = graph.local_moving(config, 0, MoveRule::Unrestricted);
 
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[2], partition[3]);
@@ -1115,7 +1394,7 @@ mod tests {
             vec![(0, 1, 5.0), (1, 2, 5.0), (2, 0, 5.0), (3, 4, 5.0), (4, 5, 5.0), (5, 3, 5.0)],
         );
         let config = LocalMovingConfig { resolution: 1.0, max_local_passes: 100, seed: 4 };
-        let (partition, _) = graph.local_moving(config, 0);
+        let (partition, _) = graph.local_moving(config, 0, MoveRule::Unrestricted);
         assert_eq!(partition[0], partition[1]);
         assert_eq!(partition[1], partition[2]);
         assert_eq!(partition[3], partition[4]);
@@ -1131,7 +1410,8 @@ mod tests {
         let graph = graph(4, vec![(0, 1, 10.0), (1, 0, 10.0), (2, 3, 10.0), (3, 2, 10.0)]);
         let config =
             RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 100, seed: 6 };
-        let (refined, moved) = directed_refine_partition(&graph, &[0, 0, 0, 0], config, 0);
+        let (refined, moved) =
+            directed_refine_partition(&graph, &[0, 0, 0, 0], config, 0, MoveRule::Unrestricted);
         assert_eq!(refined[0], refined[1]);
         assert_eq!(refined[2], refined[3]);
         assert_ne!(refined[0], refined[2]);
@@ -1170,10 +1450,16 @@ mod tests {
             RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 5, seed: 1 };
         // Empty graph: no nodes to refine.
         let empty = graph(0, vec![]);
-        assert_eq!(directed_refine_partition(&empty, &[], config, 0).0, Vec::<usize>::new());
+        assert_eq!(
+            directed_refine_partition(&empty, &[], config, 0, MoveRule::Unrestricted).0,
+            Vec::<usize>::new()
+        );
         // Non-empty graph but empty parent partition: nothing to do.
         let two = graph(2, vec![(0, 1, 1.0), (1, 0, 1.0)]);
-        assert_eq!(directed_refine_partition(&two, &[], config, 0), (vec![0, 1], 0));
+        assert_eq!(
+            directed_refine_partition(&two, &[], config, 0, MoveRule::Unrestricted),
+            (vec![0, 1], 0)
+        );
     }
 
     #[test]
@@ -1186,7 +1472,8 @@ mod tests {
         let config =
             RefineConfig { resolution: 1.0, theta: 0.01, max_refinement_passes: 5, seed: 2 };
         let parent_partition = vec![0usize, 0, 1, 0];
-        let (refined, _) = directed_refine_partition(&graph, &parent_partition, config, 0);
+        let (refined, _) =
+            directed_refine_partition(&graph, &parent_partition, config, 0, MoveRule::Unrestricted);
         assert_eq!(refined.len(), 4);
     }
 }

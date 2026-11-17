@@ -580,6 +580,12 @@ pub(crate) fn renumber_partition(partition: &mut [usize]) -> usize {
     next_community_id
 }
 
+/// Members of each node of a graph not yet coarsened, where node `i` stands
+/// for the original node `i` alone.
+pub(crate) fn singleton_members(number_of_nodes: usize) -> Vec<Vec<usize>> {
+    (0..number_of_nodes).map(|node| vec![node]).collect()
+}
+
 pub(crate) fn project_partition(
     current_members: &[Vec<usize>],
     partition: &[usize],
