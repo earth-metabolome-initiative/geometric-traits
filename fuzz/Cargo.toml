@@ -154,6 +154,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "acyclic_directed_leiden"
+path = "fuzz_targets/acyclic_directed_leiden.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "jacobi"
 path = "fuzz_targets/jacobi.rs"
 test = false

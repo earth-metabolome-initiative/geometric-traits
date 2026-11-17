@@ -496,6 +496,25 @@ fn test_replay_leicht_newman_corpus() {
     }
 }
 
+/// Mirrors `fuzz/fuzz_targets/acyclic_directed_leiden.rs`.
+mod acyclic_directed_leiden {
+    use geometric_traits::test_utils::check_acyclic_directed_leiden_invariants;
+
+    use super::{TestValuedCSR, for_each_instance, replay_shared_fixture};
+
+    #[test]
+    fn test_arbitrary_acyclic_directed_leiden() {
+        for_each_instance::<TestValuedCSR, _>(check_acyclic_directed_leiden_invariants);
+    }
+
+    #[test]
+    fn test_replay_acyclic_directed_leiden_corpus() {
+        for instance in replay_shared_fixture::<TestValuedCSR>() {
+            check_acyclic_directed_leiden_invariants(&instance);
+        }
+    }
+}
+
 // ============================================================================
 // Floyd-Warshall (mirrors fuzz/fuzz_targets/floyd_warshall.rs)
 // ============================================================================

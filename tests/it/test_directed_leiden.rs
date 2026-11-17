@@ -237,3 +237,184 @@ fn test_directed_leiden_marker_overflow_returns_error() {
         DirectedLeiden::<u8>::directed_leiden(&graph, &LeidenConfig::default()).unwrap_err();
     assert!(matches!(error, ModularityError::TooManyCommunities));
 }
+
+/// Returns whether contracting each community of `partition` to one node, and
+/// keeping every arc between distinct communities, gives an acyclic graph.
+fn contraction_is_acyclic(graph: &WeightedMatrix, partition: &[usize]) -> bool {
+    let number_of_communities =
+        partition.iter().copied().max().map_or(0usize, |max| max.saturating_add(1));
+    let mut successors: Vec<Vec<usize>> = vec![Vec::new(); number_of_communities];
+    let mut in_degrees = vec![0usize; number_of_communities];
+    for (source, &from) in partition.iter().enumerate() {
+        for destination in graph.sparse_row(source) {
+            let to = partition[destination];
+            if from != to {
+                successors[from].push(to);
+                in_degrees[to] += 1;
+            }
+        }
+    }
+
+    let mut ready: Vec<usize> =
+        (0..number_of_communities).filter(|&community| in_degrees[community] == 0).collect();
+    let mut sorted = 0usize;
+    while let Some(community) = ready.pop() {
+        sorted += 1;
+        for &successor in &successors[community] {
+            in_degrees[successor] -= 1;
+            if in_degrees[successor] == 0 {
+                ready.push(successor);
+            }
+        }
+    }
+    sorted == number_of_communities
+}
+
+/// Returns the nodes reachable from `start` along arcs, `start` included.
+fn reachable_from(graph: &WeightedMatrix, node_count: usize, start: usize) -> Vec<bool> {
+    let mut reached = vec![false; node_count];
+    let mut stack = vec![start];
+    reached[start] = true;
+    while let Some(node) = stack.pop() {
+        for destination in graph.sparse_row(node) {
+            if !reached[destination] {
+                reached[destination] = true;
+                stack.push(destination);
+            }
+        }
+    }
+    reached
+}
+
+/// Asserts every guarantee of `acyclic_directed_leiden` on `graph`: at every
+/// level the communities contract to an acyclic graph, are weakly connected
+/// and keep each strongly connected component whole, and the same
+/// configuration reproduces the same result.
+fn assert_acyclic_directed_leiden_guarantees(
+    graph: &WeightedMatrix,
+    node_count: usize,
+    config: &LeidenConfig,
+) {
+    let result = DirectedLeiden::<usize>::acyclic_directed_leiden(graph, config).unwrap();
+    let reachability: Vec<Vec<bool>> =
+        (0..node_count).map(|node| reachable_from(graph, node_count, node)).collect();
+
+    assert_ne!(result.levels(), []);
+    for level in result.levels() {
+        let partition = level.partition();
+        assert_eq!(partition.len(), node_count);
+        assert!(
+            contraction_is_acyclic(graph, partition),
+            "partition {partition:?} contracts to a cycle"
+        );
+        assert!(
+            communities_are_weakly_connected(graph, node_count, partition),
+            "partition {partition:?} has a weakly disconnected community"
+        );
+        for (first, reached_from_first) in reachability.iter().enumerate() {
+            for (second, &forward) in reached_from_first.iter().enumerate() {
+                if forward && reachability[second][first] {
+                    assert_eq!(
+                        partition[first], partition[second],
+                        "strongly connected nodes {first} and {second} are split in {partition:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    let repeated = DirectedLeiden::<usize>::acyclic_directed_leiden(graph, config).unwrap();
+    assert_eq!(result, repeated);
+}
+
+/// Builds a pseudo-random directed graph from `seed`. With `acyclic` every arc
+/// goes from a larger to a smaller node index, so the graph is a DAG.
+fn pseudo_random_graph(seed: u64, node_count: usize, acyclic: bool) -> WeightedMatrix {
+    let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+    let mut next = move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        state
+    };
+    let mut edges = Vec::new();
+    for source in 0..node_count {
+        for destination in 0..node_count {
+            if source == destination || (acyclic && source < destination) {
+                continue;
+            }
+            if next() % 100 < 30 {
+                let weight = f64::from(u32::try_from(next() % 3).unwrap() + 1);
+                edges.push((source, destination, weight));
+            }
+        }
+    }
+    build_directed_graph(node_count, edges)
+}
+
+#[test]
+fn test_acyclic_directed_leiden_breaks_the_cyclic_contraction_of_directed_leiden() {
+    let graph = build_directed_graph(
+        5,
+        vec![(1, 0, 1.0), (2, 1, 1.0), (3, 0, 1.0), (3, 1, 1.0), (4, 1, 1.0)],
+    );
+    let config = LeidenConfig::default();
+    let unconstrained = DirectedLeiden::<usize>::directed_leiden(&graph, &config).unwrap();
+    assert!(!contraction_is_acyclic(&graph, unconstrained.final_partition()));
+
+    let result = DirectedLeiden::<usize>::acyclic_directed_leiden(&graph, &config).unwrap();
+    assert_ne!(result.final_partition(), [0, 1, 1, 0, 1]);
+    assert_acyclic_directed_leiden_guarantees(&graph, 5, &config);
+}
+
+#[test]
+fn test_acyclic_directed_leiden_on_random_dags() {
+    for seed in 0..400 {
+        let node_count = 4 + usize::try_from(seed % 12).unwrap();
+        let graph = pseudo_random_graph(seed, node_count, true);
+        let config = LeidenConfig { seed, ..LeidenConfig::default() };
+        assert_acyclic_directed_leiden_guarantees(&graph, node_count, &config);
+    }
+    for seed in 0..10 {
+        let graph = pseudo_random_graph(seed, 60, true);
+        assert_acyclic_directed_leiden_guarantees(&graph, 60, &LeidenConfig::default());
+    }
+}
+
+#[test]
+fn test_acyclic_directed_leiden_on_random_cyclic_graphs() {
+    for seed in 0..200 {
+        let node_count = 4 + usize::try_from(seed % 12).unwrap();
+        let graph = pseudo_random_graph(seed, node_count, false);
+        let config = LeidenConfig { seed, ..LeidenConfig::default() };
+        assert_acyclic_directed_leiden_guarantees(&graph, node_count, &config);
+    }
+}
+
+#[test]
+fn test_acyclic_directed_leiden_merges_each_cycle() {
+    // Two directed triangles joined by one arc condense to two nodes.
+    let graph = build_directed_graph(
+        6,
+        vec![
+            (0, 1, 3.0),
+            (1, 2, 3.0),
+            (2, 0, 3.0),
+            (3, 4, 3.0),
+            (4, 5, 3.0),
+            (5, 3, 3.0),
+            (2, 3, 1.0),
+        ],
+    );
+    let result =
+        DirectedLeiden::<usize>::acyclic_directed_leiden(&graph, &LeidenConfig::default()).unwrap();
+    assert_eq!(result.final_partition(), [0, 0, 0, 1, 1, 1]);
+}
+
+#[test]
+fn test_acyclic_directed_leiden_rejects_invalid_theta() {
+    let graph = build_directed_graph(2, vec![(0, 1, 1.0)]);
+    let config = LeidenConfig { theta: 0.0, ..LeidenConfig::default() };
+    let error = DirectedLeiden::<usize>::acyclic_directed_leiden(&graph, &config).unwrap_err();
+    assert!(matches!(error, ModularityError::InvalidTheta));
+}

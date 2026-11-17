@@ -415,3 +415,23 @@ and to run the crash cases:
 ```bash
 cargo +nightly fuzz run permutation_group fuzz/artifacts/permutation_group/crash-<hash>
 ```
+
+### Acyclic directed Leiden
+
+The acyclic directed Leiden harness runs `DirectedLeiden::acyclic_directed_leiden` on the arbitrary matrix, which must never panic, and then on the graph of its finite positive arcs. At every level of the result it checks:
+
+- contracting each community to a node gives an acyclic graph
+- nodes in the same strongly connected component share a community
+- every community is weakly connected
+
+It also checks that the same configuration gives the same result.
+
+```bash
+cargo +nightly fuzz run acyclic_directed_leiden
+```
+
+and to run the crash cases:
+
+```bash
+cargo +nightly fuzz run acyclic_directed_leiden fuzz/artifacts/acyclic_directed_leiden/crash-<hash>
+```

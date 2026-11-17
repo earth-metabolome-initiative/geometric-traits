@@ -8,13 +8,15 @@
 //! directed (Leicht-Newman / Dugue-Perez) modularity scored by
 //! [`DirectedModularity`](super::DirectedModularity). It therefore accepts an
 //! asymmetric matrix, and each detected community is weakly connected.
+//! [`acyclic_directed_leiden`](DirectedLeiden::acyclic_directed_leiden) further
+//! keeps the graph contracting each community to a node acyclic.
 
 use num_traits::{AsPrimitive, ToPrimitive};
 
 use super::{
-    directed_community::DirectedWorkingGraph,
+    directed_community::{AcyclicDirectedWorkingGraph, DirectedWorkingGraph},
     leiden::{LeidenConfig, LeidenResult, leiden_levels},
-    modularity::{ModularityError, validate_common_config, validate_leiden_config},
+    modularity::{ModularityError, singleton_members},
 };
 use crate::traits::{Finite, Number, PositiveInteger, SparseValuedMatrix2D};
 
@@ -67,17 +69,58 @@ where
         &self,
         config: &LeidenConfig,
     ) -> Result<LeidenResult<Marker>, ModularityError> {
-        validate_common_config(
-            config.resolution,
-            config.modularity_threshold,
-            config.max_levels,
-            config.max_local_passes,
-        )?;
-        validate_leiden_config(config.max_refinement_passes, config.theta)?;
-
+        config.validate()?;
         let graph = DirectedWorkingGraph::from_matrix(self)?;
-        let original_number_of_nodes = self.number_of_rows().as_();
-        leiden_levels(graph, config, original_number_of_nodes, &mut |_| {})
+        leiden_levels(graph, config, singleton_members(self.number_of_rows().as_()), &mut |_| {})
+    }
+
+    /// Executes directed Leiden restricted to partitions whose contraction is
+    /// acyclic.
+    ///
+    /// Contracting each community to one node, and keeping every arc between
+    /// distinct communities, gives an acyclic graph at every level of the
+    /// result, so the communities can be ordered by their dependencies. Nodes
+    /// on a common directed cycle, that is in the same strongly connected
+    /// component, always share a community, and each community is weakly
+    /// connected.
+    ///
+    /// Local moving and refinement start from the condensation of the graph
+    /// and skip every move that would close a cycle in the contraction.
+    ///
+    /// # Errors
+    ///
+    /// As [`directed_leiden`](Self::directed_leiden).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geometric_traits::{impls::ValuedCSR2D, prelude::*, traits::LeidenConfig};
+    ///
+    /// // A DAG on which `directed_leiden` returns the communities {0, 3} and
+    /// // {1, 2, 4}, which the arcs 1 -> 0 and 3 -> 1 join into a cycle.
+    /// let edges: ValuedCSR2D<usize, usize, usize, f64> = GenericEdgesBuilder::<
+    ///     _,
+    ///     ValuedCSR2D<usize, usize, usize, f64>,
+    /// >::default()
+    /// .expected_number_of_edges(5)
+    /// .expected_shape((5, 5))
+    /// .edges(vec![(1, 0, 1.0), (2, 1, 1.0), (3, 0, 1.0), (3, 1, 1.0), (4, 1, 1.0)].into_iter())
+    /// .build()
+    /// .unwrap();
+    ///
+    /// let result =
+    ///     DirectedLeiden::<usize>::acyclic_directed_leiden(&edges, &LeidenConfig::default()).unwrap();
+    /// assert_eq!(result.final_partition(), [0, 0, 1, 2, 3]);
+    /// ```
+    #[inline]
+    fn acyclic_directed_leiden(
+        &self,
+        config: &LeidenConfig,
+    ) -> Result<LeidenResult<Marker>, ModularityError> {
+        config.validate()?;
+        let graph = DirectedWorkingGraph::from_matrix(self)?;
+        let (condensation, members) = AcyclicDirectedWorkingGraph::condense(&graph)?;
+        leiden_levels(condensation, config, members, &mut |_| {})
     }
 }
 
